@@ -1,0 +1,552 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap');
+
+:root {
+  --primary: #dfaa86;
+  --primary-hover: #c68463;
+  --primary-light: #fae2cc;
+  --primary-dark: #9e5f41;
+  --gold: #dfaa86;
+  --gold-glow: rgba(223, 170, 134, 0.4);
+  --bg-dark: #070a18;
+  --panel-dark: #0d1430;
+  --border-dark: rgba(223, 170, 134, 0.22);
+}
+
+* {
+  font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  width: 100%;
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden !important; /* Only chat container scrolls! */
+  background-color: #070a18 !important;
+  background: radial-gradient(ellipse at 50% 0%, #19275c 0%, #0c1433 45%, #050713 100%) !important;
+  color: #fbf2eb;
+}
+
+/* Custom Scrollbar for Chat & Panels */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(7, 10, 24, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(223, 170, 134, 0.3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(223, 170, 134, 0.6);
+}
+
+/* Metallic & Gold Text Accents */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #fae2cc 30%, #dfaa86 65%, #c48364 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.logo-glow {
+  box-shadow: 0 0 25px rgba(223, 170, 134, 0.35), inset 0 0 15px rgba(223, 170, 134, 0.2);
+}
+
+.logo-border {
+  border: 1.5px solid rgba(223, 170, 134, 0.55);
+}
+
+/* User Name Color Coding */
+.user-name-super-admin {
+  color: #fbbf24 !important; /* Luminous Vivid Golden Amber - highly clear & readable */
+  font-weight: 900 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.35px;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.5px #000000;
+  text-shadow: 
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 1px #000000,
+    0 0 6px rgba(251, 191, 36, 0.45) !important;
+  display: inline-flex;
+  align-items: center;
+}
+
+.badge-super-admin-shield {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+  vertical-align: middle;
+}
+
+/* Role-based chat message text styles with black outline */
+.msg-text-super-admin {
+  color: #fbbf24 !important; /* Elegant warm golden yellow */
+  font-weight: 700;
+  text-shadow: 
+    -1px -1px 0 #000000,  
+     1px -1px 0 #000000,
+    -1px  1px 0 #000000,
+     1px  1px 0 #000000,
+     0px  1px 2px rgba(0, 0, 0, 0.85);
+  -webkit-text-stroke: 0.35px #000000;
+  letter-spacing: 0.2px;
+  line-height: 1.6;
+}
+
+.msg-text-teacher {
+  color: #d8b4fe !important; /* Royal purple */
+  font-weight: 700;
+  text-shadow: 
+    -1px -1px 0 #000000,  
+     1px -1px 0 #000000,
+    -1px  1px 0 #000000,
+     1px  1px 0 #000000,
+     0px  1px 2px rgba(0, 0, 0, 0.85);
+  -webkit-text-stroke: 0.35px #000000;
+  letter-spacing: 0.2px;
+  line-height: 1.6;
+}
+
+.msg-text-admin {
+  color: #6ee7b7 !important; /* Emerald green */
+  font-weight: 700;
+  text-shadow: 
+    -1px -1px 0 #000000,  
+     1px -1px 0 #000000,
+    -1px  1px 0 #000000,
+     1px  1px 0 #000000,
+     0px  1px 2px rgba(0, 0, 0, 0.85);
+  -webkit-text-stroke: 0.35px #000000;
+  letter-spacing: 0.2px;
+  line-height: 1.6;
+}
+
+.msg-text-student {
+  color: #f8fafc !important; /* Unified crisp soft white for all student levels */
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.user-name-admin {
+  color: #34d399 !important; /* Emerald green for admins */
+  font-weight: 800;
+  text-shadow: 0 0 8px rgba(52, 211, 153, 0.3);
+}
+
+.user-name-teacher {
+  color: #c084fc !important; /* Royal purple for teachers */
+  font-weight: 800;
+  text-shadow: 0 0 8px rgba(192, 132, 252, 0.4);
+}
+
+.user-name-boy {
+  color: #38bdf8 !important; /* Sky Blue for male students */
+  font-weight: 700;
+}
+
+.user-name-girl {
+  color: #f472b6 !important; /* Pink for female students */
+  font-weight: 700;
+  text-shadow: 0 0 6px rgba(244, 114, 182, 0.25);
+}
+
+.user-name-guest {
+  color: #94a3b8 !important; /* Ash/Gray color for guests */
+  font-weight: 700;
+}
+
+/* Star Glow & Badges */
+.star-badge {
+  background: linear-gradient(135deg, rgba(223, 170, 134, 0.2), rgba(199, 131, 97, 0.35));
+  border: 1px solid rgba(223, 170, 134, 0.45);
+  color: #fae2cc;
+  text-shadow: 0 0 10px rgba(223, 170, 134, 0.5);
+}
+
+.star-badge-gold {
+  background: linear-gradient(135deg, #c78361, #dfaa86, #fae2cc);
+  color: #070a18;
+  font-weight: 900;
+  box-shadow: 0 0 15px rgba(223, 170, 134, 0.6);
+}
+
+/* Role Badges */
+.badge-super-admin {
+  background: linear-gradient(135deg, #b87150, #dfaa86, #fae2cc) !important;
+  color: #070a18 !important;
+  font-weight: 900 !important;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 12px rgba(223, 170, 134, 0.45);
+}
+
+.badge-admin {
+  background: linear-gradient(135deg, #059669, #047857);
+  color: white;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.badge-teacher {
+  background: linear-gradient(135deg, #9333ea, #7e22ce);
+  color: white;
+  box-shadow: 0 0 10px rgba(147, 51, 234, 0.4);
+}
+
+.badge-student {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+}
+
+.badge-new-student {
+  background: linear-gradient(135deg, #0d9488, #0f766e);
+  color: white;
+  border: 1px solid rgba(20, 184, 166, 0.4);
+  box-shadow: 0 0 10px rgba(13, 148, 136, 0.3);
+}
+
+.badge-guest {
+  background: linear-gradient(135deg, #475569, #334155);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+/* Question Box Animation */
+.question-glow {
+  background: linear-gradient(135deg, rgba(223, 170, 134, 0.16) 0%, rgba(14, 21, 53, 0.6) 50%, rgba(199, 131, 97, 0.18) 100%);
+  border: 2px solid transparent;
+  border-image: linear-gradient(to right, #dfaa86, #f7d6bd, #c78361) 1;
+  box-shadow: 0 10px 25px -5px rgba(223, 170, 134, 0.25), 0 8px 10px -6px rgba(199, 131, 97, 0.25);
+  animation: pulse-border 3s infinite ease-in-out;
+}
+
+@keyframes pulse-border {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(223, 170, 134, 0.35), 0 0 30px rgba(199, 131, 97, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(250, 226, 204, 0.5), 0 0 40px rgba(223, 170, 134, 0.4);
+  }
+}
+
+/* Star Confetti Animation */
+@keyframes floatUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-120px) scale(1.6) rotate(45deg);
+  }
+}
+
+.floating-star {
+  position: absolute;
+  pointer-events: none;
+  animation: floatUp 1.8s forwards ease-out;
+}
+
+/* Mute Banner Animation */
+.mute-banner {
+  background: linear-gradient(90deg, #7f1d1d, #991b1b, #7f1d1d);
+  background-size: 200% 200%;
+  animation: gradientShift 4s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Question Jump Highlight Animation */
+.question-jump-target {
+  animation: questionFlash 2.5s ease-out;
+}
+
+@keyframes questionFlash {
+  0%, 25% {
+    box-shadow: 0 0 0 4px #dfaa86, 0 0 35px rgba(223, 170, 134, 0.85);
+    transform: scale(1.02);
+  }
+  100% {
+    box-shadow: none;
+    transform: scale(1);
+  }
+}
+
+/* Glassmorphism Panels */
+.glass-panel {
+  background: rgba(13, 20, 48, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(223, 170, 134, 0.22);
+}
+
+/* Unread Messages Pill */
+.unread-pill {
+  animation: bouncePill 2s infinite ease-in-out;
+}
+
+@keyframes bouncePill {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Custom Voice Player Widget */
+.voice-bubble {
+  background: rgba(14, 22, 53, 0.9);
+  border: 1px solid rgba(223, 170, 134, 0.25);
+  border-radius: 1.25rem;
+  padding: 0.6rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 220px;
+}
+
+/* Recording Wave Animation */
+.recording-pulse {
+  animation: recordingPulse 1.2s infinite;
+}
+
+@keyframes recordingPulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+/* ================= SEEREEN STAFF BRAND PALETTE THEME ================= */
+.bg-slate-950,
+.bg-slate-950\/95,
+.bg-slate-950\/90,
+.bg-slate-950\/85,
+.bg-slate-950\/80,
+.bg-slate-950\/60,
+.bg-slate-950\/50,
+.bg-slate-950\/40,
+.bg-slate-950\/30 {
+  background-color: rgba(7, 10, 24, 0.95) !important;
+}
+
+.bg-slate-900,
+.bg-slate-900\/95,
+.bg-slate-900\/90,
+.bg-slate-900\/80 {
+  background-color: rgba(12, 18, 44, 0.92) !important;
+}
+
+.bg-slate-800,
+.bg-slate-800\/95,
+.bg-slate-800\/90,
+.bg-slate-800\/80,
+.bg-slate-800\/70,
+.bg-slate-800\/60 {
+  background-color: rgba(18, 28, 66, 0.82) !important;
+}
+
+.border-slate-800,
+.border-slate-800\/80,
+.border-slate-800\/60,
+.border-slate-800\/40 {
+  border-color: rgba(223, 170, 134, 0.16) !important;
+}
+
+.border-slate-700,
+.border-slate-700\/80,
+.border-slate-700\/70,
+.border-slate-700\/60,
+.border-slate-700\/50 {
+  border-color: rgba(223, 170, 134, 0.24) !important;
+}
+
+.border-slate-600 {
+  border-color: rgba(223, 170, 134, 0.38) !important;
+}
+
+/* Rose-Gold & Bronze Buttons */
+button.bg-indigo-600,
+button.bg-indigo-700,
+.from-indigo-600.to-indigo-700,
+.from-indigo-600.to-purple-600,
+.from-purple-600.to-indigo-600 {
+  background: linear-gradient(135deg, #c78361 0%, #dfaa86 45%, #fae2cc 100%) !important;
+  color: #080c1d !important;
+  font-weight: 900 !important;
+  border: 1px solid rgba(250, 226, 204, 0.5) !important;
+  box-shadow: 0 4px 18px rgba(223, 170, 134, 0.35) !important;
+}
+
+button.bg-indigo-600:hover,
+button.bg-indigo-700:hover {
+  background: linear-gradient(135deg, #d38f6d 0%, #e8ba99 45%, #fff1e3 100%) !important;
+  box-shadow: 0 6px 22px rgba(223, 170, 134, 0.5) !important;
+}
+
+/* Input Fields Styling */
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="datetime-local"],
+textarea,
+select {
+  background-color: rgba(9, 14, 34, 0.85) !important;
+  border: 1px solid rgba(223, 170, 134, 0.28) !important;
+  color: #ffffff !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #dfaa86 !important;
+  box-shadow: 0 0 12px rgba(223, 170, 134, 0.35) !important;
+  outline: none !important;
+}
+
+/* ================= LIGHT MODE OVERRIDES ================= */
+body.light-theme {
+  background: radial-gradient(ellipse at 50% 0%, #fef8f4 0%, #f6ebe1 50%, #ede0d4 100%) !important;
+  color: #1a1512 !important;
+}
+
+body.light-theme .bg-slate-950,
+body.light-theme .bg-slate-950\/95,
+body.light-theme .bg-slate-950\/90,
+body.light-theme .bg-slate-950\/85,
+body.light-theme .bg-slate-950\/80,
+body.light-theme .bg-slate-950\/60,
+body.light-theme .bg-slate-950\/50,
+body.light-theme .bg-slate-950\/40 {
+  background-color: #f6ebe1 !important;
+}
+
+body.light-theme .bg-slate-900,
+body.light-theme .bg-slate-900\/95,
+body.light-theme .bg-slate-900\/90,
+body.light-theme .bg-slate-900\/80 {
+  background-color: #ffffff !important;
+}
+
+body.light-theme .bg-slate-800,
+body.light-theme .bg-slate-800\/95,
+body.light-theme .bg-slate-800\/90,
+body.light-theme .bg-slate-800\/80,
+body.light-theme .bg-slate-800\/70,
+body.light-theme .bg-slate-800\/60 {
+  background-color: #fbf5ef !important;
+}
+
+body.light-theme .border-slate-800,
+body.light-theme .border-slate-800\/80,
+body.light-theme .border-slate-800\/60,
+body.light-theme .border-slate-800\/40,
+body.light-theme .border-slate-700,
+body.light-theme .border-slate-700\/80,
+body.light-theme .border-slate-700\/70,
+body.light-theme .border-slate-700\/60 {
+  border-color: rgba(199, 131, 97, 0.25) !important;
+}
+
+body.light-theme .text-white {
+  color: #1a1512 !important;
+}
+
+body.light-theme .text-slate-100 {
+  color: #2b221d !important;
+}
+
+body.light-theme .text-slate-200 {
+  color: #42352e !important;
+}
+
+body.light-theme .text-slate-300 {
+  color: #5c4b42 !important;
+}
+
+body.light-theme .text-slate-400 {
+  color: #7d685c !important;
+}
+
+body.light-theme .text-slate-500 {
+  color: #a38d81 !important;
+}
+
+body.light-theme input,
+body.light-theme textarea,
+body.light-theme select {
+  background-color: #ffffff !important;
+  color: #1a1512 !important;
+  border-color: rgba(199, 131, 97, 0.4) !important;
+}
+
+body.light-theme input::placeholder,
+body.light-theme textarea::placeholder {
+  color: #a38d81 !important;
+}
+
+body.light-theme .voice-bubble {
+  background-color: #fbf5ef !important;
+  border-color: rgba(199, 131, 97, 0.3) !important;
+}
+
+/* ================= MOBILE OPTIMIZATIONS ================= */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+#mainApp {
+  height: 100% !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+  position: relative;
+}
+
+main {
+  min-height: 0 !important;
+}
+
+#messagesContainer {
+  min-height: 0 !important;
+  flex: 1 1 0% !important;
+}
+
+#chatInputBar {
+  padding-bottom: max(0.65rem, env(safe-area-inset-bottom)) !important;
+  z-index: 20;
+}
+
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="password"],
+  input[type="number"],
+  input[type="datetime-local"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

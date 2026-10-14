@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html lang="ku" dir="rtl" class="h-full overflow-hidden">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ستافی سیرین</title>
+  <link rel="icon" type="image/jpeg" href="/images/logo.jpg">
+  <link rel="apple-touch-icon" href="/images/logo.jpg">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#070a18">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ستافی سیرین">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/css/style.css?v=3.1">
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen overflow-hidden flex flex-col antialiased selection:bg-[#dfaa86] selection:text-slate-950">
+
+  <!-- ================= AUTH SCREEN ================= -->
+  <div id="authScreen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md overflow-y-auto">
+    <div class="w-full max-w-md bg-slate-900 border border-[#dfaa86]/30 rounded-3xl p-6 md:p-8 shadow-2xl relative my-auto">
+      
+      <div class="absolute -top-16 -right-16 w-44 h-44 bg-[#dfaa86]/20 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-16 -left-16 w-44 h-44 bg-blue-900/40 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="text-center mb-6">
+        <div class="relative inline-block mb-3">
+          <div class="absolute -inset-1.5 bg-gradient-to-r from-[#c78361] via-[#dfaa86] to-[#fae2cc] rounded-3xl blur-md opacity-70 animate-pulse"></div>
+          <img src="/images/logo.jpg" alt="ستافی سیرین" class="relative w-24 h-24 rounded-3xl object-cover shadow-2xl border-2 border-[#fae2cc]/70 mx-auto">
+        </div>
+        <h1 class="text-2xl md:text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-[#ffffff] via-[#fae2cc] to-[#dfaa86]">ستافی سیرین</h1>
+      </div>
+
+      <div class="flex bg-slate-800/80 p-1 rounded-2xl mb-5 border border-slate-700/60">
+        <button id="tabLogin" onclick="switchAuthTab('login')" class="flex-1 py-2 text-sm font-bold rounded-xl transition duration-200 bg-indigo-600 text-white shadow">
+          چوونەژوورەوە
+        </button>
+        <button id="tabRegister" onclick="switchAuthTab('register')" class="flex-1 py-2 text-sm font-bold rounded-xl transition duration-200 text-slate-400 hover:text-white">
+          خۆتۆمارکردن
+        </button>
+      </div>
+
+      <div id="authAlert" class="hidden mb-4 p-3.5 rounded-2xl text-xs md:text-sm font-medium flex items-start gap-2.5">
+        <i id="authAlertIcon" class="fa-solid fa-circle-exclamation mt-0.5 text-base"></i>
+        <div id="authAlertText" class="flex-1 leading-relaxed"></div>
+      </div>
+
+      <!-- LOGIN FORM -->
+      <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1.5">ناوی بەکارهێنەر (Username)</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-slate-400">
+              <i class="fa-solid fa-user"></i>
+            </span>
+            <input type="text" id="loginUsername" required class="w-full pr-10 pl-3 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-indigo-500 text-white">
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-xs font-semibold text-slate-300">وشەی نهێنی (Password)</label>
+            <button type="button" onclick="switchAuthTab('forgot')" class="text-[11px] text-[#dfaa86] hover:underline font-bold transition">
+              وشەی نهێنیت لەبیرچووە؟
+            </button>
+          </div>
+          <div class="relative">
+            <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-slate-400">
+              <i class="fa-solid fa-lock"></i>
+            </span>
+            <input type="password" id="loginPassword" required class="w-full pr-10 pl-3 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-indigo-500 text-white">
+          </div>
+        </div>
+
+        <button type="submit" id="loginSubmitBtn" class="w-full py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-2">
+          <span>چوونەژوورەوە</span>
+          <i class="fa-solid fa-arrow-left"></i>
+        </button>
+      </form>
+
+      <!-- REGISTER FORM -->
+      <form id="registerForm" onsubmit="handleRegister(event)" class="space-y-3.5 hidden">
+        <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 flex items-start gap-2">
+          <i class="fa-solid fa-triangle-exclamation mt-0.5 text-amber-400"></i>
+          <span>ئاگاداری: هەموو کەسێک وەک <b>قوتابی</b> تۆمار دەکرێت و پێویستە <b>سوپەر ئەدمین</b> داواکارییەکەت قبوڵ بکات.</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">ناوی سیانی</label>
+          <input type="text" id="regFullName" required class="w-full px-3.5 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-indigo-500 text-white">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">ڕەگەز (بۆ دیاریکردنی ڕەنگی ناو)</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 cursor-pointer hover:border-sky-500">
+              <input type="radio" name="regGender" value="male" checked class="text-sky-500 focus:ring-0">
+              <span class="text-xs font-bold text-sky-400">👦 کوڕ (شین)</span>
+            </label>
+            <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 cursor-pointer hover:border-pink-500">
+              <input type="radio" name="regGender" value="female" class="text-pink-500 focus:ring-0">
+              <span class="text-xs font-bold text-pink-400">👧 کچ (پەمەیی)</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">ناوی بەکارهێنەر (Username)</label>
+          <input type="text" id="regUsername" required class="w-full px-3.5 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-indigo-500 text-white">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">وشەی نهێنی</label>
+          <input type="password" id="regPassword" required class="w-full px-3.5 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-indigo-500 text-white">
+        </div>
+
+        <button type="submit" id="regSubmitBtn" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-2">
+          <span>ناردنی داواکاری خۆتۆمارکردن</span>
+          <i class="fa-solid fa-paper-plane"></i>
+        </button>
+      </form>
+
+      <!-- FORGOT PASSWORD FORM -->
+      <form id="forgotForm" onsubmit="handleForgotPassword(event)" class="space-y-3.5 hidden">
+        <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 flex items-start gap-2">
+          <i class="fa-solid fa-key mt-0.5 text-amber-400"></i>
+          <span>داواکاریی نوێکردنەوەی وشەی نهێنی دەنێردرێت بۆ <b>سوپەر ئەدمین</b>. دوای ئەوەی پەسەندی کرد دەتوانیت بە وشەی نهێنی نوێ بچیتە ژوورەوە.</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">ناوی بەکارهێنەرەکەت (Username)</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-slate-400">
+              <i class="fa-solid fa-user"></i>
+            </span>
+            <input type="text" id="forgotUsername" required placeholder="یوزەرنەیمەکەت بنووسە" class="w-full pr-10 pl-3 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-[#dfaa86] text-white">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">وشەی نهێنی نوێ (New Password)</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-slate-400">
+              <i class="fa-solid fa-lock"></i>
+            </span>
+            <input type="password" id="forgotNewPassword" required minlength="4" placeholder="وشەی نهێنی نوێ (لایەنی کەم ٤ پیت)" class="w-full pr-10 pl-3 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-[#dfaa86] text-white">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">دووبارەکردنەوەی وشەی نهێنی نوێ</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-slate-400">
+              <i class="fa-solid fa-check-double"></i>
+            </span>
+            <input type="password" id="forgotConfirmPassword" required minlength="4" placeholder="دووبارەکردنەوەی وشەی نهێنی نوێ" class="w-full pr-10 pl-3 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-[#dfaa86] text-white">
+          </div>
+        </div>
+
+        <button type="submit" id="forgotSubmitBtn" class="w-full py-3 bg-gradient-to-r from-[#c78361] to-[#dfaa86] text-slate-950 font-black rounded-xl shadow-lg transition flex items-center justify-center gap-2 active:scale-95">
+          <span>ناردنی داواکاری بۆ سوپەر ئەدمین</span>
+          <i class="fa-solid fa-paper-plane"></i>
+        </button>
+
+        <div class="text-center pt-1">
+          <button type="button" onclick="switchAuthTab('login')" class="text-xs text-slate-400 hover:text-white font-bold transition flex items-center justify-center gap-1.5 mx-auto">
+            <i class="fa-solid fa-arrow-right"></i>
+            <span>گەڕانەوە بۆ چوونەژوورەوە</span>
+          </button>
+        </div>
+      </form>
+
+      <!-- DREAM INTERPRETATION SECTION (FOR VISITORS WHO ONLY WANT DREAM INTERPRETATION) -->
+      <div class="mt-5 pt-4 border-t border-slate-800/90 text-center">
+        <div class="p-4 rounded-2xl bg-gradient-to-br from-purple-950/40 via-slate-900 to-indigo-950/40 border border-purple-500/30 shadow-lg text-right">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-black text-purple-300 flex items-center gap-1.5">
+              <span class="text-base">🌙</span>
+              <span>لێکدانەوەی خەون (پەیوەندی تایبەت)</span>
+            </span>
+            <span class="text-[10px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded-md border border-purple-500/30">
+              ڕاستەوخۆ لەگەڵ بەڕێوەبەر
+            </span>
+          </div>
+          <p class="text-xs text-slate-300 mb-3 leading-relaxed">
+            ئەگەر تەنها دەتەوێت خەونەکەت لێکبدرێتەوە بەبێ چوونە ناو گروپ چاتی گشتی، کلیک لێرە بکە:
+          </p>
+          <button type="button" onclick="openDreamSection()" class="w-full py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2 active:scale-98">
+            <i class="fa-solid fa-moon text-amber-300"></i>
+            <span>چوونە ژووری لێکدانەوەی خەون (دەنگ و تەلەفۆن)</span>
+            <i class="fa-solid fa-arrow-left text-xs"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MAIN APP LAYOUT (FIXED VIEWPORT) ================= -->
+  <div id="mainApp" class="hidden flex-1 flex flex-col h-full min-h-0 overflow-hidden">
+    
+    <!-- TOP NAVBAR -->
+    <header class="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 md:px-5 py-2.5 flex items-center justify-between z-30 shrink-0">
+      
+      <!-- Logo & Channel Info -->
+      <div class="flex items-center gap-2.5">
+        <div class="relative">
+          <img src="/images/logo.jpg" alt="ستافی سیرین" class="w-9 h-9 md:w-10 md:h-10 rounded-xl object-cover border border-[#dfaa86]/60 shadow-md shadow-[#dfaa86]/20 ring-1 ring-[#dfaa86]/30">
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="font-black text-sm md:text-base text-transparent bg-clip-text bg-gradient-to-r from-[#ffffff] via-[#fae2cc] to-[#dfaa86]">ستافی سیرین</h2>
+          </div>
+          <p class="text-[11px] text-[#dfaa86]/70 flex items-center gap-1.5 font-bold">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400"></span>
+            <span id="onlineCountText">١ لە هێڵە</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Action Buttons & Current User Pill -->
+      <div class="flex items-center gap-1.5 md:gap-2">
+        
+        <!-- Post Question Button (Admin & Super Admin & Teacher) - Desktop -->
+        <button id="postQuestionNavBtn" onclick="openPostQuestionModal()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow transition items-center gap-1">
+          <i class="fa-solid fa-circle-question"></i>
+          <span>دانانی پرسیار</span>
+        </button>
+
+        <!-- Library Button - Desktop -->
+        <button id="libraryNavBtn" onclick="openLibraryModal()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-teal-400 font-bold text-xs rounded-xl transition items-center gap-1" title="کتێبخانەی ستافی سیرین">
+          <i class="fa-solid fa-book-open text-teal-400"></i>
+          <span>کتێبخانە</span>
+        </button>
+
+        <!-- Questions Archive / Bank Button - Desktop -->
+        <button onclick="openQuestionsArchiveModal()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 font-bold text-xs rounded-xl transition items-center gap-1" title="بانکی پرسیار و وەڵامەکان">
+          <i class="fa-solid fa-book-bookmark text-indigo-400"></i>
+          <span>پرسیارەکان</span>
+        </button>
+
+        <!-- Unanswered Questions List Button - Desktop -->
+        <button id="unansweredStatsNavBtn" onclick="openUnansweredStatsModal()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-rose-400 font-bold text-xs rounded-xl transition items-center gap-1" title="لیستی ئەوانەی پرسیاریان وەڵام نەداوەتەوە">
+          <i class="fa-solid fa-clipboard-question"></i>
+          <span>وەڵامنەدراوەکان</span>
+        </button>
+
+        <!-- Leaderboard Button - Desktop -->
+        <button onclick="openLeaderboardModal()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs rounded-xl transition items-center gap-1" title="ڕیزبەندی">
+          <i class="fa-solid fa-trophy"></i>
+          <span>ڕیزبەندی</span>
+        </button>
+
+        <!-- Admin Management Panel Button (Super Admin) - Desktop -->
+        <button id="adminPanelNavBtn" onclick="openAdminModal()" class="hidden relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl transition items-center gap-1.5">
+          <i class="fa-solid fa-shield-halved text-indigo-400"></i>
+          <span>بەڕێوەبردن</span>
+          <span id="pendingBadgeCount" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-900">
+            0
+          </span>
+        </button>
+
+        <!-- Dream Interpretations Button (Super Admin & Teacher) - Desktop -->
+        <button id="dreamAdminNavBtn" onclick="openDreamAdminModal()" class="hidden relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-gradient-to-r from-purple-800/80 to-indigo-800/80 hover:from-purple-700 text-purple-200 font-bold text-xs rounded-xl border border-purple-500/40 shadow transition items-center gap-1.5" title="بەشی لێکدانەوەی خەونەکان">
+          <i class="fa-solid fa-moon text-amber-300"></i>
+          <span>خەونەکان</span>
+          <span id="dreamUnreadBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-purple-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-900">
+            0
+          </span>
+        </button>
+
+        <!-- Chat Search Button - Desktop -->
+        <button id="chatSearchNavBtn" onclick="toggleChatSearch()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[#dfaa86] font-bold text-xs rounded-xl transition items-center gap-1.5" title="گەڕان لەناو پەیامەکان">
+          <i class="fa-solid fa-magnifying-glass text-[#dfaa86]"></i>
+          <span class="hidden lg:inline">گەڕان</span>
+        </button>
+
+        <!-- Install PWA App Button - Desktop -->
+        <button id="pwaInstallBtn" onclick="installPwaApp()" class="hidden px-2.5 py-1.5 md:px-3 md:py-1.5 bg-gradient-to-r from-[#c78361] to-[#dfaa86] hover:from-[#d38f6d] text-slate-950 font-black text-xs rounded-xl shadow transition items-center gap-1.5 active:scale-95 animate-pulse" title="دابەزاندنی ئەپڵیکەیشن">
+          <i class="fa-solid fa-download"></i>
+          <span>دابەزاندنی ئەپ</span>
+        </button>
+
+        <!-- Toggle Members Sidebar - Desktop -->
+        <button id="membersNavBtn" onclick="toggleMembersSidebar()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 text-slate-300 hover:text-white bg-slate-800 rounded-xl border border-slate-700 text-xs font-bold items-center gap-1" title="لیستی ئەندامان">
+          <i class="fa-solid fa-users text-indigo-400"></i>
+          <span>ئەندامان</span>
+        </button>
+
+        <!-- Dark / Light Mode Toggle Button -->
+        <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs rounded-xl transition flex items-center gap-1" title="گۆڕینی دۆخی مۆد (ڕووناک / تاریک)">
+          <i id="themeToggleIcon" class="fa-solid fa-sun text-amber-400"></i>
+          <span class="hidden md:inline" id="themeToggleText">مۆد</span>
+        </button>
+
+        <!-- Current User Pill -->
+        <div onclick="openMyProfile()" class="flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 px-2.5 py-1 rounded-xl cursor-pointer hover:border-slate-600 transition" title="بینینی پرۆفایلی خۆم">
+          <div class="text-right">
+            <div class="flex items-center gap-1">
+              <span id="headerFullName" class="text-xs font-black max-w-[85px] sm:max-w-[120px] truncate block">ناو</span>
+              <span id="headerRoleBadge" class="text-[9px] px-1.5 py-0.2 rounded font-extrabold hidden sm:inline-block">پلە</span>
+            </div>
+            <div id="headerStarBadge" class="text-[10px] text-amber-400 font-semibold flex items-center gap-0.5">
+              <span>⭐</span>
+              <span id="headerStarCount">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Logout Button -->
+        <button onclick="handleLogout()" class="px-2.5 py-1.5 text-rose-300 hover:text-white bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 rounded-xl transition flex items-center gap-1.5 shrink-0 font-bold text-xs shadow-sm" title="دەرچوون">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          <span>دەرچوون</span>
+        </button>
+
+      </div>
+    </header>
+
+    <!-- MOBILE ACTION CHIPS BAR (HORIZONTALLY SCROLLABLE ON SMALL SCREENS) -->
+    <div id="mobileActionBar" class="flex md:hidden items-center gap-1.5 overflow-x-auto px-3 py-2 bg-slate-900/95 border-b border-slate-800 z-20 shrink-0 scrollbar-none">
+      <button id="mobileChatSearchBtn" onclick="toggleChatSearch()" class="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-[#dfaa86] flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <span>گەڕان</span>
+      </button>
+
+      <button id="mobilePwaInstallBtn" onclick="installPwaApp()" class="hidden px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#c78361] to-[#dfaa86] text-slate-950 text-xs font-black flex items-center gap-1.5 shrink-0 shadow-md active:scale-95 animate-pulse">
+        <i class="fa-solid fa-download"></i>
+        <span>دابەزاندنی ئەپ</span>
+      </button>
+
+      <button id="mobileMembersBtn" onclick="toggleMembersSidebar()" class="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-slate-200 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
+        <i class="fa-solid fa-users text-indigo-400"></i>
+        <span>ئەندامان</span>
+      </button>
+
+      <button id="mobileLibraryBtn" onclick="openLibraryModal()" class="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-teal-300 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
+        <i class="fa-solid fa-book-open text-teal-400"></i>
+        <span>کتێبخانە</span>
+      </button>
+
+      <button onclick="openQuestionsArchiveModal()" class="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-indigo-300 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
+        <i class="fa-solid fa-book-bookmark text-indigo-400"></i>
+        <span>بانکی پرسیار</span>
+      </button>
+
+      <button onclick="openLeaderboardModal()" class="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-amber-300 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
+        <i class="fa-solid fa-trophy text-amber-400"></i>
+        <span>ڕیزبەندی</span>
+      </button>
+
+      <button id="mobileDreamAdminBtn" onclick="openDreamAdminModal()" class="hidden relative px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-900/80 to-indigo-900/80 border border-purple-500/40 text-xs font-bold text-purple-200 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
+        <i class="fa-solid fa-moon text-amber-300"></i>
+        <span>خەونەکان</span>
+        <span id="mobileDreamUnreadBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-purple-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-900">0</span>
+      </button>
+
+      <button id="mobilePostQuestionBtn" onclick="openPostQuestionModal()" class="hidden px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-xs font-black flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
+        <i class="fa-solid fa-circle-question"></i>
+        <span>دانانی پرسیار</span>
+      </button>
+
+      <button id="mobileUnansweredBtn" onclick="openUnansweredStatsModal()" class="hidden px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-rose-300 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
+        <i class="fa-solid fa-clipboard-question text-rose-400"></i>
+        <span>وەڵامنەدراوەکان</span>
+      </button>
+
+      <button id="mobileAdminPanelBtn" onclick="openAdminModal()" class="hidden relative px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-slate-200 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
+        <i class="fa-solid fa-shield-halved text-indigo-400"></i>
+        <span>بەڕێوەبردن</span>
+        <span id="mobilePendingBadgeCount" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-900">0</span>
+      </button>
+
+      <button onclick="handleLogout()" class="px-3 py-1.5 rounded-xl bg-rose-950/70 hover:bg-rose-900 border border-rose-500/40 text-xs font-bold text-rose-300 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95" title="چوونە دەرەوە لە ئەکاونت">
+        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+        <span>دەرچوون</span>
+      </button>
+    </div>
+
+    <!-- MAIN BODY (CHAT SCROLL CONTAINER + SIDEBAR) -->
+    <div class="flex-1 flex overflow-hidden relative">
+
+      <!-- ================= CHAT CONTAINER ================= -->
+      <main class="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden relative">
+        
+        <!-- TOP 3 PODIUM WIDGET (VISIBLE TO ALL STUDENTS) -->
+        <div id="topPodiumWidget" class="shrink-0 bg-slate-900/90 border-b border-slate-800/80 px-4 py-2 z-10">
+          <div class="max-w-4xl mx-auto flex items-center justify-between gap-2 overflow-x-auto">
+            <div class="flex items-center gap-1.5 text-xs font-black text-amber-400 shrink-0">
+              <i class="fa-solid fa-crown text-amber-400"></i>
+              <span>پێشەنگەکانی زانست:</span>
+            </div>
+            <div id="podiumItems" class="flex items-center gap-3 shrink-0">
+              <span class="text-xs text-slate-500">لە بارکردندایە...</span>
+            </div>
+            <button onclick="openLeaderboardModal()" class="text-[11px] text-indigo-400 hover:underline shrink-0 font-bold">
+              هەمووی <i class="fa-solid fa-chevron-left text-[9px]"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- SLIDE-DOWN SEARCH BAR IN CHAT -->
+        <div id="chatSearchBar" class="hidden shrink-0 bg-slate-900/95 border-b border-[#dfaa86]/30 px-3 py-2 z-20 transition">
+          <div class="max-w-4xl mx-auto flex items-center gap-2">
+            <div class="relative flex-1">
+              <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-[#dfaa86]">
+                <i class="fa-solid fa-magnifying-glass text-xs"></i>
+              </span>
+              <input type="text" id="chatSearchInput" oninput="filterChatMessages(this.value)" placeholder="گەڕان بەپێی دەق، بابەت یان ناوی نێرەر..." class="w-full pr-8 pl-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-[#dfaa86]">
+            </div>
+            <span id="chatSearchResultsCount" class="text-[11px] text-[#dfaa86] font-bold shrink-0"></span>
+            <button onclick="toggleChatSearch()" class="p-1.5 text-slate-400 hover:text-white rounded-lg text-xs" title="داخستن">
+              <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- ================= ACTIVE QUESTION STICKY BANNER ================= -->
+        <div id="activeQuestionSticky" class="hidden shrink-0 mx-3 mt-2 mb-1 p-3.5 rounded-2xl question-glow bg-slate-900 border border-amber-500/40 relative z-10 transition-all duration-300">
+          <div class="flex items-start justify-between gap-3">
+            
+            <div class="flex items-start gap-2.5 flex-1">
+              <div class="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center text-lg shrink-0 font-black shadow-lg shadow-amber-500/30">
+                <i class="fa-solid fa-lightbulb"></i>
+              </div>
+              <div class="flex-1">
+                
+                <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                  <span class="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-black">
+                    ❓ پرسیاری چالاک
+                  </span>
+                  
+                  <!-- Timer Countdown Badge -->
+                  <span id="stickyTimerBadge" class="px-2.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-mono font-black flex items-center gap-1">
+                    <i class="fa-solid fa-stopwatch animate-pulse"></i>
+                    <span id="stickyCountdownTime">00:00</span>
+                  </span>
+
+                  <!-- Submission Count Badge -->
+                  <span id="stickySubmissionCountBadge" class="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-md font-bold">
+                    0 وەڵام تۆمارکراوە
+                  </span>
+
+                  <span id="stickyQuestionAdmin" class="text-xs text-slate-400">لەلایەن ئەدمین</span>
+                </div>
+
+                <p id="stickyQuestionText" class="text-sm md:text-base font-black text-white leading-relaxed">
+                  دەقی پرسیار لێرە دەردەکەوێت...
+                </p>
+
+                <!-- SECRET ANSWER SUBMISSION BOX FOR STUDENTS -->
+                <div id="stickyStudentInputArea" class="mt-2.5 flex items-center gap-2 flex-wrap">
+                  <div class="flex-1 min-w-[200px]">
+                    <input 
+                      type="text" 
+                      id="stickySecretAnswerInput" 
+                      placeholder="وەڵامە نهێنییەکەت لێرە بنووسە (کەس نایبینێت تا تەوقیت تەواو دەبێت)..."
+                      class="w-full px-3 py-2 bg-slate-800 border border-amber-500/40 rounded-xl text-xs md:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-amber-400"
+                      onkeydown="if(event.key === 'Enter') submitSecretAnswer()"
+                    >
+                  </div>
+                  <button 
+                    onclick="submitSecretAnswer()" 
+                    id="submitSecretAnswerBtn"
+                    class="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 shrink-0"
+                  >
+                    <i class="fa-solid fa-lock"></i>
+                    <span id="submitSecretAnswerBtnText">ناردنی وەڵامی نهێنی</span>
+                  </button>
+                  <button 
+                    id="cancelEditAnswerBtn"
+                    onclick="cancelEditSecretAnswer()"
+                    class="hidden px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700"
+                  >
+                    پاشگەزبوونەوە
+                  </button>
+                </div>
+
+                <!-- SUBMITTED CONFIRMATION BADGE WITH EDIT BUTTON -->
+                <div id="stickySubmittedNotice" class="hidden mt-2.5 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-300 flex items-center justify-between gap-2 flex-wrap">
+                  <div class="flex items-center gap-2 flex-1">
+                    <i class="fa-solid fa-circle-check text-emerald-400 text-base shrink-0"></i>
+                    <div>
+                      <span>وەڵامەکەت تۆمار کرا: </span>
+                      <b id="stickySubmittedText" class="text-white bg-slate-900/80 px-2 py-0.5 rounded-lg border border-slate-700 mx-1">""</b>
+                      <span class="text-emerald-400/80 text-[11px] block mt-0.5">لەگەڵ تەواوبوونی تەوقیت، بەیەکەوە لە ناو گروپ بڵاودەبێتەوە.</span>
+                    </div>
+                  </div>
+                  <button 
+                    type="button" 
+                    onclick="enableEditSecretAnswer()" 
+                    class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 shrink-0"
+                    title="دەستکاریکردنی وەڵام پێش تەواوبوونی کات"
+                  >
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <span>ئیدتکردنی وەڵام ✏️</span>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Admin Actions (Force Reveal & See Non-responding students) -->
+            <div id="stickyAdminActions" class="hidden flex flex-col gap-1.5 shrink-0 text-left">
+              <button onclick="revealActiveQuestionNow()" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-xs font-black transition flex items-center gap-1 shadow" title="ئاشکراکردنی هەموو وەڵامەکان ئێستا">
+                <i class="fa-solid fa-lock-open"></i> بڵاوکردنەوە ئێستا
+              </button>
+              
+              <button onclick="showActiveNonResponding()" class="px-2 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-lg text-xs font-bold transition flex items-center gap-1" title="ئەو قوتابیانەی هێشتا وەڵامیان نەداوەتەوە">
+                <i class="fa-solid fa-user-xmark"></i> وەڵامنەدراوەکان
+              </button>
+
+              <button onclick="closeCurrentQuestion()" class="px-2 py-1 text-xs text-slate-400 hover:text-red-400 transition" title="داخستنی پرسیار">
+                داخستن
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ================= CHAT MESSAGES SCROLL AREA ================= -->
+        <div id="messagesContainer" class="flex-1 overflow-y-auto px-4 py-3 space-y-3 relative" onscroll="handleChatScroll()">
+          <div id="messagesLoading" class="text-center py-10 text-slate-500 text-sm">
+            <i class="fa-solid fa-circle-notch fa-spin text-2xl text-indigo-500 mb-2"></i>
+            <p>بارکردنی پەیامەکان...</p>
+          </div>
+        </div>
+
+        <!-- FLOATING UNREAD MESSAGES JUMP PILL -->
+        <div id="unreadJumpPill" class="hidden absolute bottom-20 left-1/2 -translate-x-1/2 z-20 cursor-pointer unread-pill" onclick="jumpToNewestMessages()">
+          <div class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs rounded-full shadow-2xl border border-indigo-400/40 flex items-center gap-2">
+            <i class="fa-solid fa-arrow-down"></i>
+            <span id="unreadCountText">١ پەیامی نوێ</span>
+            <span>- کرتە بکە بۆ بینین</span>
+          </div>
+        </div>
+
+        <!-- MUTED BANNER -->
+        <div id="mutedBanner" class="hidden shrink-0 mx-4 mb-2 p-3 rounded-2xl mute-banner text-white border border-red-500/40 shadow-xl flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-red-950/80 flex items-center justify-center text-red-200 text-base shrink-0">
+              <i class="fa-solid fa-microphone-slash"></i>
+            </div>
+            <div>
+              <p class="font-extrabold text-xs">تۆ بۆ ماوەی ٢٤ کاتژمێر سڕکراویت!</p>
+              <p class="text-[11px] text-red-200">ناتوانیت تا تەواوبوونی کات پەیام بنێریت.</p>
+            </div>
+          </div>
+          <div class="bg-red-950/80 px-3 py-1 rounded-xl border border-red-500/30 text-center shrink-0">
+            <div class="text-[9px] text-red-300 font-medium">کاتی ماوە</div>
+            <div id="muteTimerCountdown" class="text-xs font-black font-mono text-white">23:59:59</div>
+          </div>
+        </div>
+
+        <!-- VOICE RECORDING OVERLAY -->
+        <div id="recordingBar" class="hidden shrink-0 p-3 bg-red-950/90 border-t border-red-800/80 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white text-sm recording-pulse">
+              <i class="fa-solid fa-microphone"></i>
+            </div>
+            <div>
+              <span class="text-xs font-bold text-white">دەنگ تۆمار دەکرێت...</span>
+              <span id="recordingTimer" class="font-mono text-xs text-red-300 mr-2 font-bold">00:00</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="cancelVoiceRecording()" class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs font-bold">
+              پاشگەزبوونەوە
+            </button>
+            <button onclick="stopAndSendVoiceRecording()" class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 shadow">
+              <i class="fa-solid fa-paper-plane"></i>
+              <span>ناردنی دەنگ</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- IMAGE/VIDEO PREVIEW OVERLAY -->
+        <div id="imagePreviewBar" class="hidden shrink-0 p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <img id="imagePreviewImg" class="w-12 h-12 rounded-xl object-cover border border-slate-700">
+            <video id="videoPreviewVid" class="w-16 h-12 rounded-xl object-cover border border-slate-700 hidden" muted playsinline></video>
+            <input type="text" id="imageCaptionInput" placeholder="تێبینی لەگەڵ فایلەکە (ئارەزوومەندانە)..." class="flex-1 px-3 py-1.5 bg-slate-800 rounded-xl text-xs text-white border border-slate-700">
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button onclick="cancelImageUpload()" class="p-2 text-slate-400 hover:text-white text-xs">
+              <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+            <button onclick="sendPendingImage()" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow">
+              <i class="fa-solid fa-paper-plane"></i> ناردن
+            </button>
+          </div>
+        </div>
+
+        <!-- CHAT INPUT BAR -->
+        <div id="chatInputBar" class="shrink-0 p-2.5 md:p-3 bg-slate-900 border-t border-slate-800">
+          <form onsubmit="handleSendMessage(event)" class="flex items-center gap-2 max-w-5xl mx-auto">
+            
+            <div id="adminMediaTools" class="hidden items-center gap-1 shrink-0">
+              <button type="button" onclick="triggerImagePicker()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 flex items-center justify-center transition border border-slate-700/60" title="ناردنی وێنە و ڤیدیۆ (تایبەت بە ئەدمین و مامۆستا)">
+                <i class="fa-solid fa-photo-film text-sm"></i>
+              </button>
+              <input type="file" id="imageFileInput" accept="image/*,video/*" class="hidden" onchange="handleImagePicked(event)">
+
+              <button type="button" onclick="startVoiceRecording()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 flex items-center justify-center transition border border-slate-700/60" title="ناردنی دەنگ (تایبەت بە ئەدمین و مامۆستا)">
+                <i class="fa-solid fa-microphone text-sm"></i>
+              </button>
+            </div>
+
+            <div class="relative flex-1">
+              <input 
+                type="text" 
+                id="messageInput" 
+                placeholder="پەیامەکەت بنووسە..." 
+                autocomplete="off"
+                class="w-full px-4 py-2.5 bg-slate-800/90 border border-slate-700/80 rounded-2xl text-xs md:text-sm focus:outline-none focus:border-indigo-500 text-white placeholder-slate-400 transition"
+              >
+            </div>
+
+            <button 
+              type="submit" 
+              id="sendBtn" 
+              class="w-10 h-10 md:w-11 md:h-11 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl shadow-lg flex items-center justify-center text-xs md:text-sm transition transform active:scale-95 shrink-0"
+              title="ناردن"
+            >
+              <i class="fa-solid fa-paper-plane -rotate-90"></i>
+            </button>
+
+          </form>
+        </div>
+
+      </main>
+
+      <!-- Backdrop for mobile drawer -->
+      <div id="membersBackdrop" onclick="closeMembersSidebar()" class="hidden fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-30 md:hidden transition-opacity"></div>
+
+      <!-- ================= SIDEBAR: STUDENTS LIST & IN-CHAT ROLES ================= -->
+      <aside id="membersSidebar" class="fixed md:static inset-y-0 right-0 z-40 w-72 md:w-80 max-w-[85vw] bg-slate-900 border-l md:border-l-0 md:border-r border-slate-800 flex flex-col h-full shrink-0 transition-transform duration-300 ease-in-out translate-x-full md:translate-x-0 shadow-2xl md:shadow-none">
+        
+        <div class="p-3.5 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-users text-indigo-400"></i>
+            <h3 class="font-black text-xs md:text-sm text-white">لیستی خوێندکاران و ئەندامان</h3>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="membersSidebarCount" class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono font-bold">
+              0
+            </span>
+            <button onclick="closeMembersSidebar()" class="md:hidden text-slate-400 hover:text-white p-1 rounded-lg">
+              <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex p-1.5 bg-slate-950/60 border-b border-slate-800 text-xs">
+          <button onclick="filterMembersList('all')" id="tabMemberAll" class="flex-1 py-1 font-bold rounded-lg bg-indigo-600 text-white">هەموو</button>
+          <button onclick="filterMembersList('student')" id="tabMemberStudents" class="flex-1 py-1 font-bold rounded-lg text-slate-400 hover:text-white">قوتابیان</button>
+          <button onclick="filterMembersList('admin')" id="tabMemberAdmins" class="flex-1 py-1 font-bold rounded-lg text-slate-400 hover:text-white">ئەدمینەکان</button>
+        </div>
+
+        <div id="membersListContainer" class="flex-1 overflow-y-auto p-2.5 space-y-2"></div>
+
+        <!-- Mobile Drawer Logout Button -->
+        <div class="p-3 border-t border-slate-800 md:hidden bg-slate-950/40 shrink-0">
+          <button onclick="handleLogout()" class="w-full py-2.5 bg-rose-600/20 hover:bg-rose-600 border border-rose-500/40 text-rose-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 shadow-sm">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            <span>چوونەدەرەوە لە ئەکاونت</span>
+          </button>
+        </div>
+      </aside>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: USER DETAILS & HISTORY ================= -->
+  <div id="userProfileModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="w-full max-w-lg max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col overflow-hidden">
+      
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+        <div class="flex items-center gap-3">
+          <div id="profAvatar" class="w-12 h-12 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-xl font-bold border border-indigo-500/30">
+            <i class="fa-solid fa-user"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 id="profFullName" class="font-black text-base text-white">ناو</h3>
+              <span id="profGenderBadge" class="text-xs"></span>
+            </div>
+            <p id="profUsername" class="text-xs text-slate-400 font-mono">@username</p>
+          </div>
+        </div>
+        <button onclick="closeUserProfileModal()" class="text-slate-400 hover:text-white p-2 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2.5 mb-4">
+        <div class="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700/60">
+          <span class="text-[10px] text-slate-400 block mb-0.5">پلەی ئێستا</span>
+          <span id="profRoleBadge" class="text-xs font-black text-white">قوتابی</span>
+        </div>
+        <div class="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700/60">
+          <span class="text-[10px] text-slate-400 block mb-0.5">ئەستێرەکان</span>
+          <span id="profStars" class="text-xs font-black text-amber-400">⭐ 0/10</span>
+        </div>
+        <div class="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700/60">
+          <span class="text-[10px] text-slate-400 block mb-0.5">پلەپێدانەکان</span>
+          <span id="profPromotionsCount" class="text-xs font-black text-emerald-400 font-mono">0 جار</span>
+        </div>
+      </div>
+
+      <div id="profSuperAdminActions" class="hidden mb-4 p-3 bg-indigo-950/30 border border-indigo-800/40 rounded-2xl flex items-center justify-between gap-2">
+        <span class="text-xs font-bold text-indigo-300">دەسەڵاتی سوپەر ئەدمین:</span>
+        <div class="flex items-center gap-2" id="profActionButtonsSlot"></div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto space-y-4 pr-1">
+        <div>
+          <h4 class="text-xs font-black text-slate-300 mb-2 flex items-center gap-1.5">
+            <i class="fa-solid fa-clock-rotate-left text-indigo-400"></i>
+            <span>مێژووی پلەپێدان (ڕۆژ و کاتی گۆڕینی پلە)</span>
+          </h4>
+          <div id="profRoleHistoryList" class="space-y-2 text-xs"></div>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-black text-slate-300 mb-2 flex items-center gap-1.5">
+            <i class="fa-solid fa-award text-amber-400"></i>
+            <span>پرسیارە زانراوەکان و ژمارەکانیان</span>
+          </h4>
+          <div id="profSolvedQuestionsList" class="space-y-2 text-xs"></div>
+        </div>
+      </div>
+
+      <!-- Profile Logout Button -->
+      <div id="profLogoutContainer" class="pt-3 mt-3 border-t border-slate-800 shrink-0">
+        <button onclick="handleLogout()" class="w-full py-2.5 bg-rose-600/20 hover:bg-rose-600 border border-rose-500/40 text-rose-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 shadow-sm">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          <span>چوونەدەرەوە لە ئەکاونت</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: UNANSWERED QUESTIONS / INACTIVE STUDENTS ================= -->
+  <div id="unansweredStatsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="w-full max-w-2xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col overflow-hidden">
+      
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-lg">
+            <i class="fa-solid fa-clipboard-question"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-base text-white">لیستی ئەو قوتابیانەی وەڵامی پرسیارەکان نادەنەوە</h3>
+            <p class="text-xs text-slate-400">ژمارەی پرسیارە وەڵامنەدراوەکان بۆ هەر خوێندکارێک</p>
+          </div>
+        </div>
+        <button onclick="closeUnansweredStatsModal()" class="text-slate-400 hover:text-white p-2">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto pr-1">
+        <div id="unansweredStatsList" class="space-y-2.5">
+          <!-- Injected dynamically -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: ACTIVE QUESTION NON-RESPONDING STUDENTS ================= -->
+  <div id="activeNonRespondingModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+        <div class="flex items-center gap-2 text-rose-400 font-black text-sm">
+          <i class="fa-solid fa-user-xmark"></i>
+          <span>ئەو قوتابیانەی هێشتا وەڵامی ئەم پرسیارەیان نەداوەتەوە:</span>
+        </div>
+        <button onclick="closeActiveNonRespondingModal()" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div id="activeNonRespondingList" class="space-y-2 max-h-80 overflow-y-auto">
+        <!-- Injected dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: SUPER ADMIN MANAGEMENT ================= -->
+  <div id="adminModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="w-full max-w-4xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+      
+      <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-lg border border-indigo-500/30">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-base md:text-lg text-white">بەشی بەڕێوەبردن (Super Admin)</h3>
+            <p class="text-xs text-slate-400">پەسەندکردنی خۆتۆمارکردنەکان و بەڕێوەبردنی بەکارهێنەران</p>
+          </div>
+        </div>
+        <button onclick="closeAdminModal()" class="text-slate-400 hover:text-white p-2 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="flex border-b border-slate-800 bg-slate-950/40 px-5 pt-3 gap-4">
+        <button id="adminTabPending" onclick="switchAdminSubTab('pending')" class="pb-3 text-sm font-bold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2">
+          <span>داواکارییە چاوەڕوانکراوەکان</span>
+          <span id="adminPendingBadge" class="px-2 py-0.2 rounded-full text-xs bg-indigo-500/20 text-indigo-300">0</span>
+        </button>
+
+        <button id="adminTabUsers" onclick="switchAdminSubTab('users')" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+          <span>هەموو بەکارهێنەران و پلەکان</span>
+        </button>
+
+        <button id="adminTabPasswordResets" onclick="switchAdminSubTab('password_resets')" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+          <span>🔑 داواکاری وشەی نهێنی</span>
+          <span id="adminPasswordResetsBadge" class="hidden px-2 py-0.5 rounded-full text-xs bg-amber-500 text-slate-950 font-black">0</span>
+        </button>
+
+        <button id="adminTabBackups" onclick="switchAdminSubTab('backups')" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+          <span>💾 یەدەگی داتابەیس (Backup)</span>
+        </button>
+      </div>
+
+      <div id="adminContentPending" class="flex-1 overflow-y-auto p-5">
+        <div id="pendingEmptyMessage" class="hidden text-center py-12 text-slate-500">
+          <i class="fa-solid fa-check-circle text-3xl text-emerald-500 mb-2"></i>
+          <p class="text-sm font-bold">هیچ داواکارییەکی چاوەڕوانکراو نییە</p>
+        </div>
+        <div id="pendingUsersList" class="space-y-3"></div>
+      </div>
+
+      <!-- PASSWORD RESETS CONTENT -->
+      <div id="adminContentPasswordResets" class="hidden flex-1 overflow-y-auto p-5">
+        <div id="passwordResetsEmptyMessage" class="hidden text-center py-12 text-slate-500">
+          <i class="fa-solid fa-key text-3xl text-amber-500/60 mb-2"></i>
+          <p class="text-sm font-bold">هیچ داواکارییەکی نوێکردنەوەی وشەی نهێنی نییە</p>
+        </div>
+        <div id="passwordResetsList" class="space-y-3"></div>
+      </div>
+
+      <div id="adminContentUsers" class="hidden flex-1 overflow-y-auto p-5">
+        <div id="allUsersList" class="space-y-3"></div>
+      </div>
+
+      <!-- BACKUPS CONTENT -->
+      <div id="adminContentBackups" class="hidden flex-1 overflow-y-auto p-5 space-y-4">
+        <div class="p-4 bg-slate-950/60 border border-[#dfaa86]/30 rounded-2xl flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h4 class="font-black text-sm text-white flex items-center gap-2">
+              <i class="fa-solid fa-database text-[#dfaa86]"></i>
+              <span>کۆپیکردنی یەدەگی داتابەیس (Auto & Manual Backups)</span>
+            </h4>
+            <p class="text-xs text-slate-400 mt-1">سیستەم هەموو ٦ کاتژمێر جارێک کۆپییەکی ئۆتۆماتیکی دروست دەکات بۆ پاراستنی تەواوی داتاکان.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="createManualBackup()" class="px-3.5 py-2 bg-gradient-to-r from-[#c78361] to-[#dfaa86] text-slate-950 font-black text-xs rounded-xl shadow transition active:scale-95 flex items-center gap-1.5">
+              <i class="fa-solid fa-plus"></i>
+              <span>کۆپیکردنی دەستبەجێ</span>
+            </button>
+            <a href="/api/admin/backups/download" download class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[#dfaa86] font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow">
+              <i class="fa-solid fa-download"></i>
+              <span>داگرتنی داتابەیس (.db)</span>
+            </a>
+          </div>
+        </div>
+
+        <div>
+          <h5 class="text-xs font-bold text-slate-300 mb-2 flex items-center gap-1.5">
+            <i class="fa-solid fa-clock-rotate-left text-slate-400"></i>
+            <span>کۆپییە یەدەگە هەڵگیراوەکان (Backups History):</span>
+          </h5>
+          <div id="adminBackupsList" class="space-y-2">
+            <div class="text-center py-6 text-slate-500 text-xs">لە بارکردندایە...</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: POST QUESTION WITH TIMER ================= -->
+  <div id="questionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+      
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg">
+            <i class="fa-solid fa-circle-question"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-base text-white">دانانی پرسیاری بەتەوقیت</h3>
+            <p class="text-xs text-slate-400">وەڵامەکان بە نهێنی دەمێننەوە تا کات تەواو دەبێت و بەیەکەوە بڵاودەبنەوە</p>
+          </div>
+        </div>
+        <button onclick="closePostQuestionModal()" class="text-slate-400 hover:text-white p-2">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handlePostQuestion(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5">دەقی پرسیارەکە</label>
+          <textarea id="questionTextInput" required rows="3" placeholder="دەقی پرسیارەکەت بنووسە..." class="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-amber-500 text-white placeholder-slate-400"></textarea>
+        </div>
+
+        <!-- Timing Mode Selector (Quick Minutes vs Specific Date & Time) -->
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5">دیاریکردنی تەوقیتی وەڵامدانەوە</label>
+          <div class="grid grid-cols-2 gap-2 mb-2.5">
+            <button 
+              type="button" 
+              id="timeModeQuickBtn" 
+              onclick="switchTimeMode('quick')" 
+              class="py-2 text-xs font-bold rounded-xl bg-amber-500 text-slate-950 shadow flex items-center justify-center gap-1.5 transition"
+            >
+              <i class="fa-solid fa-stopwatch"></i>
+              <span>کاتی خێرا (بە خولەک)</span>
+            </button>
+            <button 
+              type="button" 
+              id="timeModeCustomBtn" 
+              onclick="switchTimeMode('custom')" 
+              class="py-2 text-xs font-bold rounded-xl bg-slate-800 text-slate-400 hover:text-white border border-slate-700 flex items-center justify-center gap-1.5 transition"
+            >
+              <i class="fa-solid fa-calendar-days"></i>
+              <span>بەروار و کاتژمێری دیاریکراو 📅</span>
+            </button>
+          </div>
+
+          <!-- Quick Duration Mode -->
+          <div id="quickTimeSection" class="space-y-1.5">
+            <select id="questionDurationSelect" class="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-amber-500 text-white font-bold">
+              <option value="1">١ خولەک (تاقیکردنەوەی خێرا)</option>
+              <option value="2">٢ خولەک</option>
+              <option value="3">٣ خولەک</option>
+              <option value="5" selected>٥ خولەک (پێشنیارکراو)</option>
+              <option value="10">١٠ خولەک</option>
+              <option value="15">١٥ خولەک</option>
+              <option value="30">٣٠ خولەک</option>
+              <option value="60">١ کاتژمێر (٦٠ خولەک)</option>
+              <option value="120">٢ کاتژمێر (١٢٠ خولەک)</option>
+              <option value="360">٦ کاتژمێر</option>
+              <option value="720">١٢ کاتژمێر</option>
+              <option value="1440">٢٤ کاتژمێر (١ ڕۆژ)</option>
+            </select>
+          </div>
+
+          <!-- Custom Date & Time Mode (e.g. tomorrow at 7:00 PM) -->
+          <div id="customTimeSection" class="hidden space-y-2">
+            <div>
+              <input 
+                type="datetime-local" 
+                id="questionCustomDateTime" 
+                class="w-full p-2.5 bg-slate-800 border border-amber-500/60 rounded-xl text-sm focus:outline-none focus:border-amber-400 text-white font-mono"
+              >
+            </div>
+            
+            <!-- Quick Date Presets -->
+            <div class="flex flex-wrap gap-1.5 pt-1">
+              <button type="button" onclick="setQuickDateTimePreset('tomorrow_19')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-[11px] font-bold">
+                🌅 سبەی سەعات ٧:٠٠ ی ئێوارە
+              </button>
+              <button type="button" onclick="setQuickDateTimePreset('today_20')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-[11px] font-bold">
+                🌙 ئەمڕۆ سەعات ٨:٠٠ ی شەو
+              </button>
+              <button type="button" onclick="setQuickDateTimePreset('tomorrow_10')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-[11px] font-bold">
+                ☀️ سبەی بەیانی سەعات ١٠:٠٠
+              </button>
+              <button type="button" onclick="setQuickDateTimePreset('plus_24h')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-[11px] font-bold">
+                ⏳ دوای ٢٤ کاتژمێر
+              </button>
+            </div>
+          </div>
+
+          <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl mt-3 text-xs text-amber-300 leading-relaxed">
+            <i class="fa-solid fa-circle-info ml-1 text-amber-400"></i>
+            وەڵامەکان بە نهێنی دەمێننەوە تا تەواوبوونی ئەم تەوقیتە. پاشان لە یەک کاتدا هەموویان لە گروپ بڵاودەبنەوە و ئەدمین خۆی وەڵامی دروست دیاری دەکات و ئەستێرە دەبەخشێت ⭐
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+            <span>وەڵامی دروستی پرسیار (ئارەزوومەندانە)</span>
+            <span class="text-[10px] text-emerald-400 font-bold">دوای تەواوبوونی کات لەگەڵ وەڵامەکان دادەنرێت</span>
+          </label>
+          <textarea id="questionCorrectAnswerInput" rows="2" placeholder="وەڵامی دروست لێرە بنووسە... (لە ماوەی تەوقیتدا شاراوەیە و لە کۆتایی کات وەک کۆتا وەڵام بە ڕەنگی سەوزی دیار دەردەکەوێت)" class="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-emerald-500 text-white placeholder-slate-500"></textarea>
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" onclick="closePostQuestionModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-bold text-xs">
+            پاشگەزبوونەوە
+          </button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs shadow-lg transition flex items-center gap-1.5">
+            <i class="fa-solid fa-bullhorn"></i>
+            <span>بڵاوکردنەوەی پرسیار</span>
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: LEADERBOARD ================= -->
+  <div id="leaderboardModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg">
+            <i class="fa-solid fa-trophy"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-base text-white">ڕیزبەندی ئەوکەسانەی زۆرترین وەڵامی ڕاستیان زانیوە</h3>
+            <p class="text-xs text-slate-400">پلەی یەکەم 🥇، دووەم 🥈، و سێهەم 🥉 بەپێی ئەستێرەکان</p>
+          </div>
+        </div>
+        <button onclick="closeLeaderboardModal()" class="text-slate-400 hover:text-white p-2">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <!-- SPOTLIGHT: STUDENT OF THE MONTH -->
+      <div id="studentOfMonthSpotlight" class="mb-4"></div>
+
+      <div class="text-xs font-bold text-slate-400 mb-2 flex items-center justify-between">
+        <span>ڕیزبەندی گشتی بەشداربووان:</span>
+      </div>
+      <div id="leaderboardList" class="space-y-2.5 max-h-80 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: QUESTIONS ARCHIVE & BANK ================= -->
+  <div id="questionsArchiveModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="w-full max-w-3xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-6 shadow-2xl flex flex-col overflow-hidden">
+      
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4 shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-lg border border-indigo-500/30 shadow">
+            <i class="fa-solid fa-book-bookmark"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-base md:text-lg text-white">ئەرشیف و بانکی پرسیار و وەڵامەکان 📚</h3>
+            <p class="text-xs text-slate-400">سەرجەم پرسیارەکان بە ژمارە، دەقی پرسیار و وەڵامی دروستیان بە جیاواز</p>
+          </div>
+        </div>
+        <button onclick="closeQuestionsArchiveModal()" class="text-slate-400 hover:text-white p-2 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="mb-4 flex items-center gap-2 shrink-0">
+        <div class="relative flex-1">
+          <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+          </span>
+          <input 
+            type="text" 
+            id="archiveSearchInput" 
+            oninput="filterQuestionsArchive()" 
+            placeholder="گەڕان لە پرسیارەکان بەپێی دەق یان ژمارە (نموونە: پرسیاری ١)..." 
+            class="w-full pr-9 pl-3 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+          >
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto space-y-3 pr-1" id="questionsArchiveList">
+        <div class="text-center py-12 text-slate-500">
+          <i class="fa-solid fa-circle-notch fa-spin text-xl text-indigo-500 mb-2"></i>
+          <p class="text-xs">بارکردنی پرسیارەکان...</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: LIBRARY (PDF & FILES BOOKSHELF) ================= -->
+  <div id="libraryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="w-full max-w-4xl max-h-[92vh] bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-6 shadow-2xl flex flex-col overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4 shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-teal-600/20 text-teal-400 flex items-center justify-center text-lg border border-teal-500/30 shadow">
+            <i class="fa-solid fa-book-open"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-base md:text-lg text-white">کتێبخانەی ستافی سیرین 📖</h3>
+            <p class="text-xs text-slate-400">سەرچاوە زانستییەکان، کتێبی PDF و پەڕاوە بەسوودەکان بۆ قوتابیان</p>
+          </div>
+        </div>
+        <button onclick="closeLibraryModal()" class="text-slate-400 hover:text-white p-2 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Admin / Teacher Upload Accordion/Section -->
+      <div id="libraryUploadSection" class="hidden mb-4 p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 shrink-0">
+        <div class="flex items-center justify-between cursor-pointer mb-3" onclick="toggleLibraryUploadForm()">
+          <div class="flex items-center gap-2 text-xs md:text-sm font-black text-teal-300">
+            <i class="fa-solid fa-cloud-arrow-up text-base"></i>
+            <span>دانانی کتێب یان فایلی نوێ (سوپەر ئەدمین، ئەدمین و مامۆستا)</span>
+          </div>
+          <i id="uploadAccordionIcon" class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform duration-200"></i>
+        </div>
+
+        <form id="libraryUploadForm" onsubmit="handleUploadLibraryBook(event)" class="hidden space-y-3 pt-2 border-t border-slate-700/60">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">ناوی کتێب / سەرچاوە *</label>
+              <input type="text" id="libBookTitle" required placeholder="ناوی سەرچاوەکە بنووسە..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">ناوی نووسەر / وەرگێڕ (ئارەزوومەندانە)</label>
+              <input type="text" id="libBookAuthor" placeholder="ناوی نووسەر بنووسە..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">پۆلێن / بەش</label>
+              <select id="libBookCategory" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-teal-500">
+                <option value="زانستی">🔬 زانستی</option>
+                <option value="ئایینی">🕌 ئایینی</option>
+                <option value="پەروەردەیی">🎓 پەروەردەیی</option>
+                <option value="مێژوویی">📜 مێژوویی</option>
+                <option value="ئەدەبی">✍️ ئەدەبی</option>
+                <option value="گشتی" selected>📚 گشتی</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">فایلی کتێب (PDF یان هەر جۆرە فایلێکی تر) *</label>
+              <input type="file" id="libBookFile" required accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.txt,image/*" class="w-full text-xs text-slate-300 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-teal-600 file:text-white hover:file:bg-teal-500 cursor-pointer">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-300 mb-1">پوختە یان ڕوونکردنەوەی کورت (ئارەزوومەندانە)</label>
+            <textarea id="libBookDescription" rows="2" placeholder="پوختەی ئەم سەرچاوەیە یان چەند ڕێنماییەک..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"></textarea>
+          </div>
+
+          <div class="flex justify-end gap-2 pt-1">
+            <button type="submit" id="libUploadSubmitBtn" class="px-5 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+              <span>بارکردن بۆ کتێبخانە</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Search & Filters -->
+      <div class="mb-4 flex items-center gap-2 shrink-0">
+        <div class="relative flex-1">
+          <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+          </span>
+          <input 
+            type="text" 
+            id="librarySearchInput" 
+            oninput="filterLibraryBooks()" 
+            placeholder="گەڕان بەپێی ناوی کتێب، نووسەر، یان پۆلێن..." 
+            class="w-full pr-9 pl-3 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-teal-500"
+          >
+        </div>
+      </div>
+
+      <!-- Books Grid / List -->
+      <div class="flex-1 overflow-y-auto space-y-3 pr-1" id="libraryBooksList">
+        <div class="text-center py-12 text-slate-500">
+          <i class="fa-solid fa-circle-notch fa-spin text-xl text-teal-500 mb-2"></i>
+          <p class="text-xs">بارکردنی کتێبخانە...</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: IMAGE ZOOM PREVIEW ================= -->
+  <div id="imageZoomModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md" onclick="closeImageZoom()">
+    <img id="imageZoomSrc" class="max-w-full max-h-[90vh] rounded-2xl shadow-2xl border border-slate-700" onclick="event.stopPropagation()">
+  </div>
+
+  <!-- ================= MODAL: DREAM CONSULTATION ENTRY / ONBOARDING ================= -->
+  <div id="dreamAuthModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="bg-slate-900 border border-purple-500/40 rounded-3xl p-5 md:p-6 w-full max-w-md shadow-2xl relative text-right">
+      <div class="flex items-center justify-between pb-3 border-b border-purple-500/20 mb-4">
+        <div class="flex items-center gap-2">
+          <img src="/images/logo.jpg" alt="ستافی سیرین" class="w-9 h-9 rounded-xl object-cover border border-[#dfaa86]/50 shadow-md">
+          <div>
+            <h3 class="font-black text-sm md:text-base text-white">بەشی لێکدانەوەی خەون</h3>
+            <p class="text-[11px] text-purple-300">پەیوەندی ڕاستەوخۆ و تایبەت لەگەڵ بەڕێوەبەر</p>
+          </div>
+        </div>
+        <button onclick="closeDreamAuthModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div class="p-3 rounded-2xl bg-purple-950/40 border border-purple-500/30 text-xs text-purple-200 leading-relaxed">
+          ئەم بەشە بە تەواوی نهێنییە و جیاوازە لە گروپ چات. خەونەکەت تەنها لای بەڕێوەبەر نیشان دەدرێت و دەتوانیت بە دەق، دەنگ (ڤۆیس) یان پەیوەندی تەلەفۆنی ڕاستەوخۆ قسە بکەیت.
+        </div>
+
+        <div id="dreamAuthStatusBadge" class="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-xs text-emerald-300 font-bold flex items-center gap-2">
+          <span id="dreamAuthStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="dreamAuthStatusText">بەڕێوەبەر لە هێڵە و ئامادەیە بۆ وەڵامدانەوە 🟢</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5">ناوی تۆ (ناوی خۆت یان خوازراو)</label>
+          <input type="text" id="dreamerNameInput" required class="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-purple-500 text-white">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5">ڕەگەز</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 cursor-pointer hover:border-sky-500">
+              <input type="radio" name="dreamerGenderRadio" value="male" checked class="text-sky-500 focus:ring-0">
+              <span class="text-xs font-bold text-sky-400">👦 کوڕ</span>
+            </label>
+            <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 cursor-pointer hover:border-pink-500">
+              <input type="radio" name="dreamerGenderRadio" value="female" class="text-pink-500 focus:ring-0">
+              <span class="text-xs font-bold text-pink-400">👧 کچ</span>
+            </label>
+          </div>
+        </div>
+
+        <button onclick="submitDreamerStart()" class="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-2">
+          <span>دەستپێکردن و چوونە چاتی خەون</span>
+          <i class="fa-solid fa-arrow-left"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: DREAMER 1-ON-1 CHAT ROOM ================= -->
+  <div id="dreamChatModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 bg-slate-950/90 backdrop-blur-md">
+    <div class="bg-slate-900 border-0 md:border md:border-purple-500/40 rounded-none md:rounded-3xl w-full max-w-2xl h-full md:h-[92vh] flex flex-col shadow-2xl overflow-hidden relative">
+      
+      <!-- Top Header -->
+      <div class="px-4 py-3 bg-slate-950/80 border-b border-purple-500/30 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <img src="/images/logo.jpg" alt="ستافی سیرین" class="w-10 h-10 rounded-xl object-cover border border-[#dfaa86]/50 shadow">
+          <div class="text-right">
+            <h3 class="font-black text-sm md:text-base text-white flex items-center gap-1.5">
+              <span>لێکدانەوەی خەون</span>
+              <span class="text-[10px] text-purple-300 font-bold bg-purple-500/20 px-2 py-0.5 rounded-md border border-purple-500/30">تایبەت</span>
+            </h3>
+            <p class="text-[11px] text-slate-400 flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span id="dreamAdminStatusText">بەڕێوەبەر لە هێڵە</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Call Button (Phone) -->
+          <button onclick="startDreamCallFromDreamer()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5 active:scale-95" title="پەیوەندی تەلەفۆنی ڕاستەوخۆ">
+            <i class="fa-solid fa-phone"></i>
+            <span class="hidden sm:inline">تەلەفۆن</span>
+          </button>
+
+          <!-- Close / Exit Button -->
+          <button onclick="closeDreamChatModal()" class="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-xl border border-slate-700 transition" title="داخستن">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Microphone Permission Guidance Banner -->
+      <div id="dreamMicPermissionBanner" class="hidden px-4 py-2.5 bg-gradient-to-r from-amber-950/80 to-purple-950/80 border-b border-amber-500/40 flex items-center justify-between gap-2 shrink-0">
+        <div class="flex items-center gap-2 text-xs text-amber-300 font-bold">
+          <i class="fa-solid fa-microphone-lines text-amber-400 animate-pulse text-sm"></i>
+          <span>تکایە ڕێگە بە مایکرۆفۆن بدە (Allow Microphone) بۆ پەیوەندی و دەنگ!</span>
+        </div>
+        <button onclick="requestDreamMicrophonePermission()" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-xs shrink-0 shadow">
+          ڕێگەپێدان 🎙️
+        </button>
+      </div>
+
+      <!-- Messages Scroll Area -->
+      <div id="dreamMessagesContainer" class="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 bg-slate-950/40">
+        <!-- Messages rendered dynamically -->
+      </div>
+
+      <!-- Voice Recording Progress Bar (when recording) -->
+      <div id="dreamVoiceRecordingBar" class="hidden px-4 py-2 bg-rose-950/50 border-t border-rose-500/30 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2 text-rose-300 text-xs font-bold">
+          <span class="w-3 h-3 rounded-full bg-rose-500 animate-ping"></span>
+          <span>تۆمارکردنی دەنگ:</span>
+          <span id="dreamVoiceTimerText" class="font-mono font-black text-white">00:00</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="cancelDreamVoiceRecording(false)" class="px-2.5 py-1 text-slate-300 hover:text-white bg-slate-800 rounded-lg text-xs font-bold">
+            هەڵوەشاندنەوە
+          </button>
+          <button onclick="stopAndSendDreamVoice(false)" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>ناردن</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Input Bar -->
+      <div class="p-2.5 sm:p-3 bg-slate-900 border-t border-slate-800 flex items-center gap-2 shrink-0">
+        <!-- Voice Record Button -->
+        <button id="dreamRecordVoiceBtn" onclick="toggleDreamVoiceRecording(false)" class="w-10 h-10 rounded-xl bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/40 flex items-center justify-center text-sm transition active:scale-95 shrink-0" title="تۆمارکردنی ڤۆیس">
+          <i class="fa-solid fa-microphone"></i>
+        </button>
+
+        <!-- Text Input -->
+        <input 
+          type="text" 
+          id="dreamTextInput" 
+          placeholder="خەونەکەت بە کورتی یان بە وردی بنووسە..." 
+          class="flex-1 px-3.5 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs md:text-sm text-white focus:outline-none focus:border-purple-500"
+          onkeydown="if(event.key === 'Enter') sendDreamTextMessage(false)"
+        >
+
+        <!-- Send Button -->
+        <button onclick="sendDreamTextMessage(false)" class="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center text-sm shadow transition active:scale-95 shrink-0" title="ناردن">
+          <i class="fa-solid fa-paper-plane"></i>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: DREAM MANAGEMENT DASHBOARD (SUPER ADMIN & TEACHER) ================= -->
+  <div id="dreamAdminModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 bg-slate-950/90 backdrop-blur-md">
+    <div class="bg-slate-900 border-0 md:border md:border-purple-500/40 rounded-none md:rounded-3xl w-full max-w-5xl h-full md:h-[92vh] flex flex-col shadow-2xl overflow-hidden relative">
+      
+      <!-- Header -->
+      <div class="px-4 md:px-5 py-3 md:py-3.5 bg-slate-950 border-b border-purple-500/30 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5 md:gap-3">
+          <img src="/images/logo.jpg" alt="ستافی سیرین" class="w-9 h-9 md:w-10 md:h-10 rounded-xl object-cover border border-[#dfaa86]/50 shadow">
+          <div class="text-right">
+            <h3 class="font-black text-xs md:text-base text-white flex items-center gap-2">
+              <span>بەڕێوەبردنی خەونەکان</span>
+              <span id="dreamAdminRoleIndicator" class="text-[9px] md:text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-md border border-amber-500/30">
+                سوپەر ئەدمین
+              </span>
+            </h3>
+            <p class="text-[10px] md:text-[11px] text-purple-300">چات، ڤۆیس، پەیوەندی و تۆمارەکان</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Availability Toggle (Super Admin Only) -->
+          <div id="dreamAvailabilityToggleWrapper" class="flex items-center gap-1.5 bg-slate-900 border border-[#dfaa86]/30 px-2.5 py-1 rounded-xl">
+            <span class="text-[10px] text-slate-300 font-bold hidden sm:inline">دۆخی وەڵامدانەوە:</span>
+            <button id="dreamAvailabilityToggleBtn" onclick="toggleDreamAvailability()" class="px-2.5 py-1 rounded-lg text-[10px] font-black transition flex items-center gap-1 bg-emerald-600/30 text-emerald-300 border border-emerald-500/40">
+              <span id="dreamAvailabilityDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span id="dreamAvailabilityLabel">بەردەستم 🟢</span>
+            </button>
+          </div>
+
+          <button onclick="closeDreamAdminModal()" class="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-xl border border-slate-700 transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Split View Body -->
+      <div class="flex-1 flex overflow-hidden flex-col md:flex-row">
+        
+        <!-- Sessions List (Right Sidebar) -->
+        <div id="dreamAdminSessionsSidebar" class="w-full md:w-72 bg-slate-950/60 border-l border-slate-800 flex flex-col shrink-0 h-full">
+          <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+            <h4 class="text-xs font-black text-slate-300">لیستی خەون بینەکان</h4>
+            <span id="dreamSessionsCountBadge" class="text-[10px] bg-purple-500/20 text-purple-300 font-mono px-2 py-0.5 rounded-full">0</span>
+          </div>
+          <div id="dreamSessionsList" class="flex-1 overflow-y-auto p-2 space-y-1.5">
+            <!-- Dynamic session cards -->
+          </div>
+        </div>
+
+        <!-- Active Chat & Call Area (Left) -->
+        <div class="flex-1 flex flex-col bg-slate-900/50 overflow-hidden relative">
+          
+          <div id="dreamAdminEmptyPrompt" class="flex-1 flex flex-col items-center justify-center text-slate-500 p-6 text-center">
+            <i class="fa-solid fa-moon text-5xl mb-3 text-purple-400/40"></i>
+            <h4 class="font-bold text-sm text-slate-300">تکایە خەون بینێک لە لیستەکە هەڵبژێرە</h4>
+            <p class="text-xs text-slate-500 mt-1 max-w-sm">دەتوانیت نامەکانی بخوێنیتەوە، بە دەنگ یان بە دەق وەڵامی بدەیتەوە، و تەلەفۆنی بۆ بکەیت.</p>
+          </div>
+
+          <div id="dreamAdminChatArea" class="hidden flex-1 flex flex-col h-full overflow-hidden">
+            
+            <!-- Chat Active Header -->
+            <div class="px-3.5 py-2.5 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <div class="flex items-center gap-2">
+                <button onclick="backToDreamAdminSessions()" class="md:hidden p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-lg text-xs" title="گەڕانەوە بۆ لیستی خەونەکان">
+                  <i class="fa-solid fa-arrow-right"></i>
+                </button>
+                <span id="dreamAdminChatGender" class="text-lg">👦</span>
+                <div>
+                  <h4 id="dreamAdminChatName" class="font-black text-xs md:text-sm text-white">ناوی خەون بین</h4>
+                  <span id="dreamAdminChatStatus" class="text-[9px] md:text-[10px] text-slate-400">کاتی دەستپێکردن</span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <!-- Admin Call Button -->
+                <button id="adminStartCallBtn" onclick="startDreamCallFromAdmin()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5 active:scale-95" title="پەیوەندی تەلەفۆنی لەگەڵ ئەم خەون بینە">
+                  <i class="fa-solid fa-phone"></i>
+                  <span>تەلەفۆن</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Messages Container -->
+            <div id="dreamAdminMessagesContainer" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-950/30">
+              <!-- Rendered messages & secret call recordings -->
+            </div>
+
+            <!-- Admin Voice Recording Bar -->
+            <div id="dreamAdminVoiceBar" class="hidden px-4 py-2 bg-rose-950/50 border-t border-rose-500/30 flex items-center justify-between shrink-0">
+              <div class="flex items-center gap-2 text-rose-300 text-xs font-bold">
+                <span class="w-3 h-3 rounded-full bg-rose-500 animate-ping"></span>
+                <span>تۆمارکردنی دەنگ:</span>
+                <span id="dreamAdminVoiceTimer" class="font-mono font-black text-white">00:00</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="cancelDreamVoiceRecording(true)" class="px-2.5 py-1 text-slate-300 hover:text-white bg-slate-800 rounded-lg text-xs font-bold">
+                  هەڵوەشاندنەوە
+                </button>
+                <button onclick="stopAndSendDreamVoice(true)" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1">
+                  <i class="fa-solid fa-paper-plane"></i>
+                  <span>ناردن</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Admin Input Bar (Super Admin Only) -->
+            <div id="dreamAdminInputBar" class="p-3 bg-slate-900 border-t border-slate-800 flex items-center gap-2 shrink-0">
+              <button id="dreamAdminMicBtn" onclick="toggleDreamVoiceRecording(true)" class="w-10 h-10 rounded-xl bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/40 flex items-center justify-center text-sm transition active:scale-95 shrink-0" title="تۆمارکردنی ڤۆیس">
+                <i class="fa-solid fa-microphone"></i>
+              </button>
+
+              <input 
+                type="text" 
+                id="dreamAdminTextInput" 
+                placeholder="وەڵامی خەونەکە بنووسە..." 
+                class="flex-1 px-3.5 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs md:text-sm text-white focus:outline-none focus:border-purple-500"
+                onkeydown="if(event.key === 'Enter') sendDreamTextMessage(true)"
+              >
+
+              <button onclick="sendDreamTextMessage(true)" class="w-10 h-10 rounded-xl bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center text-sm shadow transition active:scale-95 shrink-0" title="ناردن">
+                <i class="fa-solid fa-paper-plane"></i>
+              </button>
+            </div>
+
+            <!-- Read-only notice for Teacher -->
+            <div id="dreamTeacherNotice" class="hidden p-3 bg-slate-950 border-t border-slate-800 text-center text-xs text-amber-300 font-bold flex items-center justify-center gap-2">
+              <i class="fa-solid fa-lock text-amber-400"></i>
+              <span>تەنها سوپەر ئەدمین (hemn taha) بۆی هەیە وەڵامی خەون بین بداتەوە و پەیوەندی بکات.</span>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: LIVE AUDIO CALL OVERLAY (تەلەفۆن) ================= -->
+  <div id="dreamCallOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg">
+    <div class="bg-slate-900 border border-purple-500/50 rounded-3xl p-6 md:p-8 w-full max-w-sm shadow-2xl text-center relative overflow-hidden">
+      
+      <!-- Pulsing Circle Avatar -->
+      <div class="relative w-28 h-28 mx-auto mb-6 flex items-center justify-center">
+        <div id="callPulseCircle" class="absolute inset-0 rounded-full bg-[#dfaa86]/30 animate-ping"></div>
+        <img src="/images/logo.jpg" alt="ستافی سیرین" class="w-24 h-24 rounded-full object-cover shadow-2xl border-2 border-[#dfaa86] relative z-10">
+      </div>
+
+      <h3 id="callPeerName" class="font-black text-lg md:text-xl text-white mb-1">ناوی پەیوەندیکەر</h3>
+      <p id="callStatusText" class="text-xs font-bold text-purple-300 mb-6">پەیوەندی دەبەسترێت...</p>
+
+      <div id="callTimerWrapper" class="hidden mb-6">
+        <span class="text-xs text-slate-400 block mb-1">ماوەی پەیوەندی</span>
+        <span id="callDurationTimer" class="font-mono text-2xl font-black text-emerald-400">00:00</span>
+        
+        <!-- Live Audio Mode Pill -->
+        <div class="mt-3 flex items-center justify-center">
+          <div id="callAudioModeBadge" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-800/90 border border-slate-700/80 shadow-inner">
+            <span id="callAudioModeDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="callAudioModeText" class="text-xs font-bold text-emerald-300">سەوت: بڵندگۆ (دەرەوە) 🔊</span>
+          </div>
+        </div>
+
+        <p class="text-[10px] text-amber-400 mt-3 font-bold flex items-center justify-center gap-1">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>دەنگی هەردوولا بە هۆکاری کوالتی و ئەمنییەت تۆمار دەکرێت</span>
+        </p>
+      </div>
+
+      <!-- Action Buttons -->
+      <div id="callIncomingActions" class="hidden flex items-center justify-center gap-4">
+        <button onclick="acceptIncomingDreamCall()" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs md:text-sm rounded-2xl shadow-lg transition flex items-center justify-center gap-2 active:scale-95">
+          <i class="fa-solid fa-phone"></i>
+          <span>وەڵامدانەوە</span>
+        </button>
+        <button onclick="rejectIncomingDreamCall()" class="flex-1 py-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs md:text-sm rounded-2xl shadow-lg transition flex items-center justify-center gap-2 active:scale-95">
+          <i class="fa-solid fa-phone-slash"></i>
+          <span>ڕەتکردنەوە</span>
+        </button>
+      </div>
+
+      <div id="callActiveActions" class="hidden flex items-center justify-center gap-2.5">
+        <!-- Mic Mute Button -->
+        <button id="callMuteBtn" type="button" onclick="toggleCallMute()" class="w-14 h-14 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 flex flex-col items-center justify-center transition active:scale-95 shadow group" title="بێدەنگکردنی مایک">
+          <i id="callMuteIcon" class="fa-solid fa-microphone text-lg group-hover:scale-110 transition"></i>
+          <span id="callMuteLabel" class="text-[10px] mt-0.5 text-slate-300 font-bold">مایک</span>
+        </button>
+
+        <!-- Speaker / Audio Output Mode Button -->
+        <button id="callSpeakerBtn" type="button" onclick="toggleCallSpeaker()" class="w-14 h-14 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white border border-purple-400 flex flex-col items-center justify-center transition active:scale-95 shadow-lg shadow-purple-900/40 group" title="گۆڕینی دەنگ (بڵندگۆ / گوێچکە)">
+          <i id="callSpeakerIcon" class="fa-solid fa-volume-high text-lg group-hover:scale-110 transition"></i>
+          <span id="callSpeakerLabel" class="text-[10px] mt-0.5 text-purple-100 font-bold">دەرەوە</span>
+        </button>
+
+        <!-- Hangup Button -->
+        <button type="button" onclick="hangupDreamCall()" class="flex-1 h-14 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs md:text-sm rounded-2xl shadow-lg shadow-rose-900/40 transition flex items-center justify-center gap-2 active:scale-95">
+          <i class="fa-solid fa-phone-slash text-base"></i>
+          <span>داخستن</span>
+        </button>
+      </div>
+
+      <!-- Audio Element for Remote Sound -->
+      <audio id="remoteCallAudio" autoplay playsinline class="hidden"></audio>
+    </div>
+  </div>
+
+  <!-- Socket.io Client -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- Main Application Logic -->
+  <script src="/js/app.js?v=3.1"></script>
+</body>
+</html>
