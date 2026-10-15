@@ -15,17 +15,21 @@ const PORT = process.env.PORT || 4000;
 // Initialize Database
 initDb();
 
-// Ensure public/uploads directory exists
-const uploadsDir = path.join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
+// Ensure public/uploads directory exists (safe for Vercel)
+const uploadsDir = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(__dirname, 'public', 'uploads');
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch (e) {}
 
-// Ensure backups directory exists
-const backupsDir = path.join(__dirname, 'backups');
-if (!fs.existsSync(backupsDir)) {
-  fs.mkdirSync(backupsDir, { recursive: true });
-}
+// Ensure backups directory exists (safe for Vercel)
+const backupsDir = process.env.VERCEL ? path.join('/tmp', 'backups') : path.join(__dirname, 'backups');
+try {
+  if (!fs.existsSync(backupsDir)) {
+    fs.mkdirSync(backupsDir, { recursive: true });
+  }
+} catch (e) {}
 
 function createBackupSnapshot(isAuto = false) {
   try {
@@ -56,15 +60,17 @@ function createBackupSnapshot(isAuto = false) {
   }
 }
 
-// Auto snapshot every 6 hours
-setInterval(() => {
-  createBackupSnapshot(true);
-}, 6 * 60 * 60 * 1000);
+if (!process.env.VERCEL) {
+  // Auto snapshot every 6 hours
+  setInterval(() => {
+    createBackupSnapshot(true);
+  }, 6 * 60 * 60 * 1000);
 
-// Initial backup snapshot on start (after 10 seconds)
-setTimeout(() => {
-  createBackupSnapshot(true);
-}, 10000);
+  // Initial backup snapshot on start (after 10 seconds)
+  setTimeout(() => {
+    createBackupSnapshot(true);
+  }, 10000);
+}
 
 // Anti-Spam Rate Limiter Tracker
 const userMessageTimes = new Map();
@@ -103,6 +109,10 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Helper: Link detection
 function containsLink(text) {
@@ -1570,7 +1580,7 @@ io.on('connection', (socket) => {
   });
 });
 
-if (process.env.NODE_ENV !== 'test') {
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
   server.listen(PORT, () => {
     console.log(`🚀 سێرڤەر بەسەرکەوتوویی لەسەر پۆرتی http://localhost:${PORT} دەستی پێکرد`);
   });
