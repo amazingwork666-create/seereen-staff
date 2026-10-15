@@ -1,8 +1,17 @@
 const { DatabaseSync } = require('node:sqlite');
 const bcrypt = require('bcryptjs');
-const path = require('path');
+const fs = require('fs');
 
-const dbPath = path.join(__dirname, 'chat_data.db');
+let dbPath = path.join(__dirname, 'chat_data.db');
+if (process.env.VERCEL) {
+  const tmpDb = path.join('/tmp', 'chat_data.db');
+  if (!fs.existsSync(tmpDb) && fs.existsSync(dbPath)) {
+    try {
+      fs.copyFileSync(dbPath, tmpDb);
+    } catch (e) {}
+  }
+  dbPath = tmpDb;
+}
 const db = new DatabaseSync(dbPath);
 
 // Initialize Tables

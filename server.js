@@ -1570,6 +1570,10 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`🚀 سێرڤەر بەسەرکەوتوویی لەسەر پۆرتی http://localhost:${PORT} دەستی پێکرد`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  server.listen(PORT, () => {
+    console.log(`🚀 سێرڤەر بەسەرکەوتوویی لەسەر پۆرتی http://localhost:${PORT} دەستی پێکرد`);
+  });
+}
+
+module.exports = app;
