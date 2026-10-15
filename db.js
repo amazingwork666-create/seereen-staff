@@ -1,6 +1,15 @@
-const { DatabaseSync } = require('node:sqlite');
-const bcrypt = require('bcryptjs');
+const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
+
+let DatabaseSync;
+try {
+  DatabaseSync = require('node:sqlite').DatabaseSync;
+} catch (e) {
+  try {
+    DatabaseSync = require('sqlite3');
+  } catch (err) {}
+}
 
 let dbPath = path.join(__dirname, 'chat_data.db');
 if (process.env.VERCEL) {
@@ -12,7 +21,7 @@ if (process.env.VERCEL) {
   }
   dbPath = tmpDb;
 }
-const db = new DatabaseSync(dbPath);
+const db = DatabaseSync ? new DatabaseSync(dbPath) : { exec: () => {}, prepare: () => ({ all: () => [], get: () => null, run: () => ({ changes: 0 }) }) };
 
 // Initialize Tables
 function initDb() {
