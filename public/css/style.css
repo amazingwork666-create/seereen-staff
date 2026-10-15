@@ -550,3 +550,18 @@ main {
     font-size: 16px !important;
   }
 }
+
+/* ================= ANTI-SCREENSHOT & SCREEN RECORDING BLUR ================= */
+body.privacy-shield-active #mainApp,
+body.privacy-shield-active #authScreen {
+  filter: blur(35px) grayscale(40%) brightness(0.6) !important;
+  transition: filter 0.12s ease-out;
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+body.privacy-shield-active #privacyShieldOverlay {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+

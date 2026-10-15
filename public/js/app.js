@@ -459,6 +459,9 @@ async function fetchCurrentUser() {
 // Update UI based on user role & name
 function updateUserUI() {
   if (!currentUser) return;
+  if (typeof window.deactivatePrivacyShieldIfSuperAdmin === 'function') {
+    window.deactivatePrivacyShieldIfSuperAdmin();
+  }
 
   const headerNameElem = document.getElementById('headerFullName');
   headerNameElem.innerText = formatUserDisplayName(currentUser);
@@ -5494,5 +5497,136 @@ async function toggleDreamAvailability() {
     console.error('Failed to toggle dream availability:', e);
   }
 }
+
+// ================= ANTI-SCREENSHOT & SCREEN RECORDING PRIVACY SHIELD =================
+(function initAntiScreenshotShield() {
+  let isShieldActive = false;
+  let suppressBlurUntil = 0;
+  let forceShieldTimer = null;
+
+  function isSuperAdmin() {
+    return !!(currentUser && (currentUser.role === 'super_admin' || currentUser.username === 'hemn taha'));
+  }
+
+  function activateShield(durationMs = 0) {
+    if (isSuperAdmin()) {
+      deactivateShield(true);
+      return;
+    }
+    if (Date.now() < suppressBlurUntil) return;
+
+    if (!isShieldActive) {
+      isShieldActive = true;
+      document.body.classList.add('privacy-shield-active');
+    }
+
+    if (durationMs > 0) {
+      if (forceShieldTimer) clearTimeout(forceShieldTimer);
+      forceShieldTimer = setTimeout(() => {
+        forceShieldTimer = null;
+        if (document.hasFocus() && !document.hidden) {
+          deactivateShield();
+        }
+      }, durationMs);
+    }
+  }
+
+  function deactivateShield(force = false) {
+    if (force) {
+      if (forceShieldTimer) {
+        clearTimeout(forceShieldTimer);
+        forceShieldTimer = null;
+      }
+    } else if (forceShieldTimer) {
+      return; // Keep active until forced duration ends
+    }
+
+    if (isShieldActive || document.body.classList.contains('privacy-shield-active')) {
+      isShieldActive = false;
+      document.body.classList.remove('privacy-shield-active');
+    }
+  }
+
+  // 1. Window loses focus (Snipping tool opened, switching apps, OBS/screen recorder focus change)
+  window.addEventListener('blur', () => {
+    activateShield();
+  });
+
+  // 2. Window regains focus
+  window.addEventListener('focus', () => {
+    setTimeout(() => {
+      deactivateShield();
+    }, 150);
+  });
+
+  // 3. Tab or app visibility change (mobile app switcher / backgrounding)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      activateShield();
+    } else {
+      setTimeout(() => {
+        deactivateShield();
+      }, 150);
+    }
+  });
+
+  // 4. Keyboard shortcuts for screenshots / recording / printing
+  window.addEventListener('keydown', (e) => {
+    if (isSuperAdmin()) return;
+
+    // PrintScreen key
+    if (e.key === 'PrintScreen' || e.code === 'PrintScreen' || e.keyCode === 44) {
+      activateShield(3000);
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText('');
+        }
+      } catch (err) {}
+    }
+
+    // Windows Snipping Tool (Win + Shift + S) or Mac (Cmd + Shift + 3 / 4 / 5)
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 's' || e.key === 'S' || e.key === '3' || e.key === '4' || e.key === '5')) {
+      activateShield(3000);
+    }
+
+    // Print dialog (Ctrl + P or Cmd + P)
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+      e.preventDefault();
+      activateShield(2500);
+    }
+  }, true);
+
+  window.addEventListener('keyup', (e) => {
+    if (isSuperAdmin()) return;
+    if (e.key === 'PrintScreen' || e.code === 'PrintScreen' || e.keyCode === 44) {
+      activateShield(2500);
+    }
+  }, true);
+
+  // 5. Suppress false triggers when user legitimately clicks file uploads / camera triggers
+  document.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!target) return;
+    if (
+      target.matches && (
+        target.matches('input[type="file"]') ||
+        target.closest('input[type="file"]') ||
+        target.id === 'regAvatar' ||
+        target.id === 'chatImageInput' ||
+        target.closest('#chatImageBtn')
+      )
+    ) {
+      suppressBlurUntil = Date.now() + 8000; // Allow 8s for file picker
+    }
+  }, true);
+
+  // Expose global deactivate hook for super admin
+  window.deactivatePrivacyShieldIfSuperAdmin = function() {
+    if (isSuperAdmin()) {
+      deactivateShield(true);
+    }
+  };
+})();
+
 
 
