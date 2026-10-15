@@ -1476,6 +1476,22 @@ app.delete('/api/dream/admin/session/:id', authMiddleware, requireSuperAdmin, (r
   }
 });
 
+// 8b. Delete Individual Dream Message (Super Admin only)
+app.delete('/api/dream/admin/message/:id', authMiddleware, requireSuperAdmin, (req, res) => {
+  try {
+    const msgId = parseInt(req.params.id);
+    const msg = dreamMessages.findById(msgId);
+    if (!msg) return res.status(404).json({ error: 'پەیام نەدۆزرایەوە' });
+
+    dreamMessages.delete(msgId);
+    io.emit('dream_message_deleted', { messageId: msgId, sessionId: msg.session_id });
+    res.json({ success: true, message: 'پەیامەکە سڕایەوە' });
+  } catch (err) {
+    console.error('Delete dream message error:', err);
+    res.status(500).json({ error: 'هەڵە لە سڕینەوەی پەیام' });
+  }
+});
+
 // 9. Star/Favorite Dream Session (Super Admin only)
 app.post('/api/dream/admin/session/:id/favorite', authMiddleware, requireSuperAdmin, (req, res) => {
   try {

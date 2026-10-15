@@ -779,6 +779,21 @@ const dreamMessages = {
     // Dreamer NEVER gets secret recordings!
     const stmt = db.prepare('SELECT * FROM dream_messages WHERE session_id = ? AND is_secret_recording = 0 ORDER BY created_at ASC');
     return stmt.all(sessionId);
+  },
+  findById(id) {
+    try {
+      return db.prepare('SELECT * FROM dream_messages WHERE id = ?').get(id);
+    } catch (e) {
+      return null;
+    }
+  },
+  delete(id) {
+    try {
+      db.prepare('DELETE FROM dream_messages WHERE id = ?').run(id);
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 };
 

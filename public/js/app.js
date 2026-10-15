@@ -966,6 +966,15 @@ function initSocket() {
     }
   });
 
+  socket.on('dream_message_deleted', (data) => {
+    if (data && data.messageId) {
+      const adminEl = document.getElementById(`dream-admin-msg-${data.messageId}`);
+      if (adminEl) adminEl.remove();
+      const dreamerEl = document.getElementById(`dream-msg-${data.messageId}`);
+      if (dreamerEl) dreamerEl.remove();
+    }
+  });
+
   socket.on('dream_incoming_call', (data) => {
     handleIncomingDreamCall(data, true);
   });
@@ -4026,6 +4035,13 @@ function initDreamSocket(dreamToken) {
     handleDreamCallEnded();
   });
 
+  dreamSocket.on('dream_message_deleted', (data) => {
+    if (data && data.messageId) {
+      const el = document.getElementById(`dream-msg-${data.messageId}`);
+      if (el) el.remove();
+    }
+  });
+
   dreamSocket.on('dream_availability_updated', (data) => {
     updateDreamAvailabilityUI(data);
   });
@@ -4069,6 +4085,11 @@ function appendDreamMessage(msg, isAdminView = false) {
           <i class="fa-solid fa-download"></i> داگرتن
         </a>
       ` : '';
+      const deleteRecordBtn = (currentUser && currentUser.role === 'super_admin') ? `
+        <button onclick="deleteSingleDreamMessage(${msg.id})" class="px-2 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-[10px] font-bold rounded-lg border border-rose-500/40 flex items-center gap-1 shrink-0 transition" title="سڕینەوەی ئەم تۆمارە">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      ` : '';
       msgElem.className = 'w-full my-2.5';
       msgElem.innerHTML = `
         <div class="p-3.5 rounded-2xl bg-purple-950/40 border-2 border-purple-500/60 shadow-lg text-right">
@@ -4079,6 +4100,7 @@ function appendDreamMessage(msg, isAdminView = false) {
             </span>
             <div class="flex items-center gap-1.5">
               ${downloadRecordBtn}
+              ${deleteRecordBtn}
               <span class="text-[10px] bg-purple-500/20 text-purple-200 px-2 py-0.5 rounded font-mono font-bold">بەڵگەی کوالتی و ئەمنییەت 🔒</span>
             </div>
           </div>
@@ -4137,11 +4159,20 @@ function appendDreamMessage(msg, isAdminView = false) {
     ? `<span class="user-name-super-admin font-black">${escapeHtml(msg.sender_name)}</span>`
     : `<span>${escapeHtml(msg.sender_name)}</span>`;
 
+  const deleteMsgBtnHtml = (isAdminView && currentUser && currentUser.role === 'super_admin' && msg.id) ? `
+    <button onclick="deleteSingleDreamMessage(${msg.id})" class="text-rose-400 hover:text-rose-300 p-0.5 text-[10px] rounded hover:bg-slate-700/60 transition ml-1" title="سڕینەوەی ئەم نامەیە">
+      <i class="fa-solid fa-trash-can"></i>
+    </button>
+  ` : '';
+
   msgElem.innerHTML = `
     <div class="max-w-[85%] rounded-2xl p-3 shadow-md ${isMine ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-slate-800 text-slate-100 rounded-bl-none border border-slate-700/60'}">
       <div class="flex items-center justify-between gap-3 text-[10px] mb-1 opacity-80">
         <span class="font-bold flex items-center">${senderBadge} ${senderNameHtml}</span>
-        <span class="font-mono text-[9px]">${dateStr}</span>
+        <div class="flex items-center gap-1 font-mono text-[9px]">
+          <span>${dateStr}</span>
+          ${deleteMsgBtnHtml}
+        </div>
       </div>
       ${bodyContent}
     </div>
@@ -4697,8 +4728,8 @@ async function deleteDreamSession(sessionId) {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    const data = await res.json();
     if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
       alert(data.error || 'هەڵەیەک ڕوویدا لە سڕینەوە');
       return;
     }
@@ -4723,6 +4754,27 @@ async function deleteDreamSession(sessionId) {
 function deleteActiveDreamSession() {
   if (activeDreamAdminSessionId) {
     deleteDreamSession(activeDreamAdminSessionId);
+  }
+}
+
+async function deleteSingleDreamMessage(msgId) {
+  if (!token || !currentUser || currentUser.role !== 'super_admin') return;
+  if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم نامەیە؟')) return;
+
+  try {
+    const res = await fetch(`/api/dream/admin/message/${msgId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'هەڵەیەک ڕوویدا لە سڕینەوە');
+      return;
+    }
+    const adminEl = document.getElementById(`dream-admin-msg-${msgId}`);
+    if (adminEl) adminEl.remove();
+  } catch (err) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
   }
 }
 
