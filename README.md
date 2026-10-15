@@ -1,3 +1,12 @@
+---
+title: Seereen Staff
+emoji: 🛡️
+colorFrom: yellow
+colorTo: indigo
+sdk: docker
+app_port: 7860
+---
+
 # 🎓 سیستەمی گروپ چاتی گفتووگۆ و زانست (Seereen Group Chat)
 
 سیستەمێکی پێشکەوتووی گروپ چات بە تەکنەلۆژیای کاتی ڕاستەقینە (Real-time WebSockets & Node.js)، تایبەت بە گفتووگۆی قوتابیان و بەڕێوەبردنی ئەدمین و سوپەر ئەدمین.

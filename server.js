@@ -1581,8 +1581,8 @@ io.on('connection', (socket) => {
 });
 
 if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
-  server.listen(PORT, () => {
-    console.log(`🚀 سێرڤەر بەسەرکەوتوویی لەسەر پۆرتی http://localhost:${PORT} دەستی پێکرد`);
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 سێرڤەر بەسەرکەوتوویی لەسەر پۆرتی http://0.0.0.0:${PORT} دەستی پێکرد`);
   });
 }
 
