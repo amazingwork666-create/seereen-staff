@@ -2444,9 +2444,6 @@ function renderMembersList() {
     const roleBadge = renderRoleBadge(u.role);
     const isMuted = u.muted_until && u.muted_until > Date.now();
 
-    const card = document.createElement('div');
-    card.className = `p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 border ${isMuted ? 'border-rose-500/40 bg-rose-950/20' : 'border-slate-700/50'} flex items-center justify-between gap-1.5 transition`;
-
     let actionBtn = '';
     if (isSuperAdmin && !isMe) {
       if (u.role === 'student') {
@@ -2481,31 +2478,45 @@ function renderMembersList() {
       }
     }
 
-    card.innerHTML = `
-      <div class="flex items-center gap-2 overflow-hidden flex-1 cursor-pointer" onclick="openUserProfileModal(${u.id})">
-        <div class="w-8 h-8 rounded-lg bg-slate-700/80 flex items-center justify-center text-xs font-black text-slate-300 shrink-0">
-          ${u.gender === 'female' ? '👧' : '👦'}
-        </div>
-        <div class="overflow-hidden">
-          <div class="text-xs truncate flex items-center gap-1 font-bold">
-            <span class="${nameClass}">${escapeHtml(u.full_name)}</span>
-            ${isMe ? '<span class="text-[9px] text-indigo-400 font-normal">(تۆ)</span>' : ''}
-            ${isMuted ? '<span class="text-[9px] bg-rose-500/20 text-rose-300 px-1 py-0.2 rounded border border-rose-500/30 font-bold shrink-0">🔇 سڕکراوە</span>' : ''}
-          </div>
-          <div class="flex items-center gap-1 mt-0.5">
-            ${roleBadge}
-          </div>
-        </div>
-      </div>
+    const hasBottomRow = !!(starBadge || muteBtn || actionBtn);
 
-      <div class="flex items-center gap-1 shrink-0">
-        ${starBadge}
-        ${muteBtn}
-        <button onclick="openUserProfileModal(${u.id})" class="p-1 text-slate-400 hover:text-indigo-400 text-xs" title="زانیاری دەربارەی کەسەکە">
+    const card = document.createElement('div');
+    card.className = `p-2.5 rounded-2xl bg-slate-800/60 hover:bg-slate-800/90 border ${isMuted ? 'border-rose-500/40 bg-rose-950/20' : 'border-slate-700/50'} flex flex-col gap-2 transition shadow-sm`;
+
+    card.innerHTML = `
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer" onclick="openUserProfileModal(${u.id})">
+          <div class="w-9 h-9 rounded-xl bg-slate-700/80 flex items-center justify-center text-sm font-black text-slate-300 shrink-0 shadow-inner border border-slate-600/40">
+            ${u.gender === 'female' ? '👧' : '👦'}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="text-xs font-black flex items-center gap-1.5 flex-wrap">
+              <span class="${nameClass} break-words leading-tight" title="${escapeHtml(u.full_name)}">${escapeHtml(u.full_name)}</span>
+              ${isMe ? '<span class="text-[9px] text-indigo-400 font-normal shrink-0">(تۆ)</span>' : ''}
+              ${isMuted ? '<span class="text-[9px] bg-rose-500/20 text-rose-300 px-1 py-0.2 rounded border border-rose-500/30 font-bold shrink-0">🔇 سڕکراوە</span>' : ''}
+            </div>
+            <div class="flex items-center gap-1.5 mt-1">
+              ${roleBadge}
+            </div>
+          </div>
+        </div>
+
+        <button onclick="openUserProfileModal(${u.id})" class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-400 text-xs rounded-lg hover:bg-slate-700/60 transition shrink-0" title="زانیاری دەربارەی کەسەکە">
           <i class="fa-solid fa-circle-info"></i>
         </button>
-        ${actionBtn}
       </div>
+
+      ${hasBottomRow ? `
+        <div class="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-700/50 text-[10px]">
+          <div class="flex items-center gap-1 shrink-0">
+            ${starBadge}
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            ${muteBtn}
+            ${actionBtn}
+          </div>
+        </div>
+      ` : ''}
     `;
 
     container.appendChild(card);
