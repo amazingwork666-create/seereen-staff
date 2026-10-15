@@ -12,7 +12,7 @@ try { archiver = require('archiver'); } catch (e) {}
 const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, calculateStars } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 80;
 
 // Initialize Database
 initDb();
@@ -1762,6 +1762,19 @@ if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 سێرڤەر بەسەرکەوتوویی لەسەر پۆرتی http://0.0.0.0:${PORT} دەستی پێکرد`);
   });
+
+  // Secondary listener on port 4000 so both http://seereen.duckdns.org (port 80) and port 4000/cloudflared work
+  if (Number(PORT) === 80) {
+    try {
+      const secondaryServer = http.createServer(app);
+      io.attach(secondaryServer);
+      secondaryServer.listen(4000, '0.0.0.0', () => {
+        console.log('🚀 پۆرتی 4000یش وەک یەدەگ چالاکە');
+      });
+    } catch (e) {
+      console.warn('Secondary port 4000 warning:', e.message);
+    }
+  }
 }
 
 module.exports = app;
