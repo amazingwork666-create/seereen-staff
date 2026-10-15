@@ -230,6 +230,7 @@ function showMainApp() {
   loadPodiumWidget();
   loadAllMembers();
   checkMuteState();
+  requestNotificationPermission();
 
   if (currentUser && currentUser.role === 'super_admin') {
     checkPendingCount();
@@ -655,6 +656,139 @@ async function loadPodiumWidget() {
   }
 }
 
+// --- ANDROID PWA APP INSTALLATION ---
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const installBox = document.getElementById('androidInstallBox');
+  if (installBox) installBox.classList.remove('hidden');
+});
+
+async function installAndroidApp() {
+  if (deferredInstallPrompt) {
+    try {
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      if (choice && choice.outcome === 'accepted') {
+        console.log('User installed the app');
+      }
+      deferredInstallPrompt = null;
+    } catch (err) {
+      console.warn('Install prompt error:', err);
+      openInstallAppModal();
+    }
+  } else {
+    openInstallAppModal();
+  }
+}
+
+function openInstallAppModal() {
+  const modal = document.getElementById('installAppModal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeInstallAppModal() {
+  const modal = document.getElementById('installAppModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (isStandalone) {
+    const installBox = document.getElementById('androidInstallBox');
+    if (installBox) {
+      installBox.innerHTML = `
+        <div class="w-full py-2 px-3 bg-emerald-950/60 border border-emerald-500/30 rounded-2xl text-center text-xs font-bold text-emerald-300 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-circle-check text-emerald-400"></i>
+          <span>ئەپەکە لەسەر مۆبایلەکەت دامەزراوە</span>
+        </div>
+      `;
+    }
+  }
+});
+
+// --- BROWSER / ANDROID SYSTEM NOTIFICATIONS ---
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then(perm => {
+      console.log('Notification permission:', perm);
+    }).catch(() => {});
+  }
+}
+
+function sendBrowserNotification(msg) {
+  try {
+    if (navigator.vibrate) {
+      navigator.vibrate([150, 80, 150]);
+    }
+
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+      return;
+    }
+
+    const senderName = msg.full_name || 'ستافی سیرین';
+    let bodyText = msg.content || '';
+    if (msg.attachment_type === 'image') {
+      bodyText = '📷 وێنەیەکی نوێی نارد';
+    } else if (msg.attachment_type === 'voice') {
+      bodyText = '🎙️ نامەیەکی دەنگیی نارد';
+    } else if (msg.attachment_type === 'video') {
+      bodyText = '🎥 ڤیدیۆیەکی نوێی نارد';
+    }
+    if (!bodyText) bodyText = 'پەیامێکی نوێ لە گروپ چات';
+
+    const options = {
+      body: bodyText,
+      icon: '/images/logo.jpg',
+      badge: '/images/logo.jpg',
+      tag: 'seereen-msg',
+      renotify: true,
+      vibrate: [200, 100, 200]
+    };
+
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.showNotification(`${senderName} 💬`, options);
+      }).catch(() => {
+        new Notification(`${senderName} 💬`, options);
+      });
+    } else {
+      new Notification(`${senderName} 💬`, options);
+    }
+  } catch (err) {
+    console.warn('Notification error:', err);
+  }
+}
+
+function sendQuestionNotification(q) {
+  try {
+    if (navigator.vibrate) {
+      navigator.vibrate([300, 100, 300]);
+    }
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+      return;
+    }
+    const options = {
+      body: q.question_text || 'پرسیارێکی نوێ لەناو چات دانرا!',
+      icon: '/images/logo.jpg',
+      badge: '/images/logo.jpg',
+      tag: 'seereen-question',
+      renotify: true,
+      vibrate: [300, 100, 300]
+    };
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.showNotification('❓ پرسیاری نوێ لە ستافی سیرین!', options);
+      }).catch(() => {
+        new Notification('❓ پرسیاری نوێ لە ستافی سیرین!', options);
+      });
+    } else {
+      new Notification('❓ پرسیاری نوێ لە ستافی سیرین!', options);
+    }
+  } catch (e) {}
+}
+
 // --- SOCKET.IO REAL-TIME CONNECTION ---
 function initSocket() {
   if (socket) socket.disconnect();
@@ -672,6 +806,7 @@ function initSocket() {
     appendMessage(msg);
     if (msg.user_id !== (currentUser ? currentUser.id : null)) {
       playSound('message');
+      sendBrowserNotification(msg);
       if (isUserScrolledUp) {
         unreadCount++;
         showUnreadJumpPill();
@@ -684,6 +819,7 @@ function initSocket() {
     renderActiveQuestionSticky(data.question);
     playSound('question');
     triggerStarCelebration();
+    sendQuestionNotification(data.question);
   });
 
   // Secret submission count updated in real time
