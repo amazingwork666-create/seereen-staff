@@ -1285,6 +1285,12 @@ function handleSendMessage(e) {
   const content = input.value.trim();
   if (!content) return;
 
+  const isPrivileged = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  if (isNightCurfewActive() && !isPrivileged) {
+    alert('🌙 چات داخراوە! لە کاتژمێر ١٢ی شەو تاوەکو ٨ی بەیانی تەنها ئەدمین، مامۆستا و سوپەر ئەدمین دەتوانن پەیام بنێرن.');
+    return;
+  }
+
   if (currentUser && currentUser.role === 'guest') {
     alert('تۆ وەک میوان (چاودێر) لە گروپیت و ناتوانیت پەیام بنێریت 👁️');
     return;
@@ -2075,6 +2081,54 @@ async function deleteMessage(msgId) {
   } catch (err) {}
 }
 
+// --- NIGHT CURFEW LOGIC (12:00 AM - 08:00 AM IRAQ TIME) ---
+function isNightCurfewActive() {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Baghdad',
+      hour: 'numeric',
+      hourCycle: 'h23'
+    });
+    const hour = parseInt(formatter.format(new Date()), 10);
+    return hour >= 0 && hour < 8;
+  } catch (e) {
+    const utcHours = new Date().getUTCHours();
+    const iraqHour = (utcHours + 3) % 24;
+    return iraqHour >= 0 && iraqHour < 8;
+  }
+}
+
+function checkNightCurfewState() {
+  const curfewBanner = document.getElementById('nightCurfewBanner');
+  const messageInput = document.getElementById('messageInput');
+  const sendBtn = document.getElementById('sendBtn');
+  if (!curfewBanner || !messageInput || !sendBtn) return;
+
+  const isPrivileged = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  const isNight = isNightCurfewActive();
+  const isMuted = currentUser && currentUser.muted_until && currentUser.muted_until > Date.now();
+
+  if (isNight && !isPrivileged) {
+    curfewBanner.classList.remove('hidden');
+    if (!isMuted) {
+      messageInput.disabled = true;
+      sendBtn.disabled = true;
+      sendBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      messageInput.placeholder = "🌙 چات داخراوە (١٢ی شەو تا ٨ی بەیانی تەنها بۆ ئەدمین و مامۆستایان کراوەیە)";
+    }
+  } else {
+    curfewBanner.classList.add('hidden');
+    if (!isMuted && currentUser && currentUser.role !== 'guest') {
+      messageInput.disabled = false;
+      sendBtn.disabled = false;
+      sendBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      messageInput.placeholder = "پەیامەکەت بنووسە...";
+    }
+  }
+}
+
+setInterval(checkNightCurfewState, 30000);
+
 // --- MUTE COUNTDOWN LOGIC ---
 function checkMuteState() {
   if (muteCountdownTimer) {
@@ -2089,9 +2143,7 @@ function checkMuteState() {
 
   if (!currentUser || !currentUser.muted_until || currentUser.muted_until <= Date.now()) {
     banner.classList.add('hidden');
-    messageInput.disabled = false;
-    sendBtn.disabled = false;
-    messageInput.placeholder = "پەیامەکەت بنووسە...";
+    checkNightCurfewState();
     return;
   }
 

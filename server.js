@@ -121,6 +121,23 @@ function containsLink(text) {
   return linkRegex.test(text);
 }
 
+// Helper: Night Curfew detection (12:00 AM / 00:00 to 08:00 AM Iraq/Kurdistan time UTC+3)
+function isNightCurfewActive() {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Baghdad',
+      hour: 'numeric',
+      hourCycle: 'h23'
+    });
+    const hour = parseInt(formatter.format(new Date()), 10);
+    return hour >= 0 && hour < 8;
+  } catch (e) {
+    const utcHours = new Date().getUTCHours();
+    const iraqHour = (utcHours + 3) % 24;
+    return iraqHour >= 0 && iraqHour < 8;
+  }
+}
+
 // JWT Middleware
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -1103,6 +1120,15 @@ app.get('/api/chat/messages', authMiddleware, (req, res) => {
   res.json({ messages: history });
 });
 
+// Night Curfew Status Endpoint (12:00 AM - 08:00 AM Iraq Time)
+app.get('/api/chat/curfew', (req, res) => {
+  res.json({
+    isNightCurfew: isNightCurfewActive(),
+    curfewStart: '00:00',
+    curfewEnd: '08:00'
+  });
+});
+
 // --- DREAM INTERPRETATION (لێکدانەوەی خەون) ROUTES ---
 
 // 1. Dreamer Start or Resume Session
@@ -1527,6 +1553,13 @@ io.on('connection', (socket) => {
 
       const content = (data.content || '').trim();
       if (!content) return;
+
+      // Night Curfew (12:00 AM - 08:00 AM Iraq Time): Only Super Admin, Admin, and Teacher can send messages
+      const curfewExemptRoles = ['super_admin', 'admin', 'teacher'];
+      if (isNightCurfewActive() && !curfewExemptRoles.includes(freshUser.role)) {
+        socket.emit('error_message', '🌙 چات داخراوە! لە کاتژمێر ١٢ی شەو تاوەکو ٨ی بەیانی تەنها ئەدمین، مامۆستا و سوپەر ئەدمین دەتوانن پەیام بنێرن.');
+        return;
+      }
 
       if (freshUser.role === 'guest') {
         socket.emit('error_message', 'تۆ وەک میوان (چاودێر) لە گروپیت و ناتوانیت پەیام بنێریت 👁️');
