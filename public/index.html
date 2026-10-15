@@ -898,7 +898,7 @@
             </h4>
             <p class="text-xs text-slate-400 mt-1">سیستەم هەموو ٦ کاتژمێر جارێک کۆپییەکی ئۆتۆماتیکی دروست دەکات بۆ پاراستنی تەواوی داتاکان.</p>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <button onclick="createManualBackup()" class="px-3.5 py-2 bg-gradient-to-r from-[#c78361] to-[#dfaa86] text-slate-950 font-black text-xs rounded-xl shadow transition active:scale-95 flex items-center gap-1.5">
               <i class="fa-solid fa-plus"></i>
               <span>کۆپیکردنی دەستبەجێ</span>
@@ -907,6 +907,10 @@
               <i class="fa-solid fa-download"></i>
               <span>داگرتنی داتابەیس (.db)</span>
             </a>
+            <button onclick="downloadAllAudioZip()" class="px-3.5 py-2 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow">
+              <i class="fa-solid fa-file-zipper"></i>
+              <span>داگرتنی تەواوی دەنگەکان (ZIP)</span>
+            </button>
           </div>
         </div>
 
@@ -1289,16 +1293,16 @@
               <span>لێکدانەوەی خەون</span>
               <span class="text-[10px] text-purple-300 font-bold bg-purple-500/20 px-2 py-0.5 rounded-md border border-purple-500/30">تایبەت</span>
             </h3>
-            <p class="text-[11px] text-slate-400 flex items-center gap-1">
-              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span id="dreamAdminStatusText">بەڕێوەبەر لە هێڵە</span>
+            <p class="text-[11px] text-slate-400 flex items-center gap-1.5">
+              <span id="dreamAdminStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span id="dreamAdminStatusText" class="font-bold text-emerald-400">پەیوەندی کارایە</span>
             </p>
           </div>
         </div>
 
         <div class="flex items-center gap-2">
           <!-- Call Button (Phone) -->
-          <button onclick="startDreamCallFromDreamer()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5 active:scale-95" title="پەیوەندی تەلەفۆنی ڕاستەوخۆ">
+          <button id="dreamerCallBtn" onclick="startDreamCallFromDreamer()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5 active:scale-95" title="پەیوەندی تەلەفۆنی ڕاستەوخۆ">
             <i class="fa-solid fa-phone"></i>
             <span class="hidden sm:inline">تەلەفۆن</span>
           </button>
@@ -1389,12 +1393,18 @@
         </div>
 
         <div class="flex items-center gap-2">
+          <!-- Download All Audio (Super Admin Only) -->
+          <button id="dreamDownloadAllAudioBtn" onclick="downloadAllAudioZip()" class="hidden px-2.5 py-1 rounded-xl text-[10px] font-black transition flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500 hover:text-slate-950" title="داگرتنی تەواوی فایلە دەنگییەکان بە شێوازی ZIP">
+            <i class="fa-solid fa-file-zipper"></i>
+            <span class="hidden sm:inline">داگرتنی دەنگەکان (ZIP)</span>
+          </button>
+
           <!-- Availability Toggle (Super Admin Only) -->
           <div id="dreamAvailabilityToggleWrapper" class="flex items-center gap-1.5 bg-slate-900 border border-[#dfaa86]/30 px-2.5 py-1 rounded-xl">
             <span class="text-[10px] text-slate-300 font-bold hidden sm:inline">دۆخی وەڵامدانەوە:</span>
             <button id="dreamAvailabilityToggleBtn" onclick="toggleDreamAvailability()" class="px-2.5 py-1 rounded-lg text-[10px] font-black transition flex items-center gap-1 bg-emerald-600/30 text-emerald-300 border border-emerald-500/40">
               <span id="dreamAvailabilityDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span id="dreamAvailabilityLabel">بەردەستم 🟢</span>
+              <span id="dreamAvailabilityLabel">پەیوەندی کارایە 🟢</span>
             </button>
           </div>
 
@@ -1408,10 +1418,24 @@
       <div class="flex-1 flex overflow-hidden flex-col md:flex-row">
         
         <!-- Sessions List (Right Sidebar) -->
-        <div id="dreamAdminSessionsSidebar" class="w-full md:w-72 bg-slate-950/60 border-l border-slate-800 flex flex-col shrink-0 h-full">
-          <div class="p-3 border-b border-slate-800 flex items-center justify-between">
-            <h4 class="text-xs font-black text-slate-300">لیستی خەون بینەکان</h4>
-            <span id="dreamSessionsCountBadge" class="text-[10px] bg-purple-500/20 text-purple-300 font-mono px-2 py-0.5 rounded-full">0</span>
+        <div id="dreamAdminSessionsSidebar" class="w-full md:w-80 bg-slate-950/60 border-l border-slate-800 flex flex-col shrink-0 h-full">
+          <div class="p-2.5 border-b border-slate-800 flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-black text-slate-300">لیستی خەون بینەکان</h4>
+              <span id="dreamSessionsCountBadge" class="text-[10px] bg-purple-500/20 text-purple-300 font-mono px-2 py-0.5 rounded-full">0</span>
+            </div>
+            <!-- TABS: All vs Favorites -->
+            <div class="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+              <button id="dreamTabAllBtn" onclick="switchDreamSessionsTab('all')" class="flex-1 py-1 rounded-lg text-white bg-purple-600 shadow transition flex items-center justify-center gap-1 text-[11px]">
+                <span>هەموو</span>
+                <span id="dreamCountAll" class="text-[10px] bg-white/20 px-1.5 py-0.2 rounded-full">0</span>
+              </button>
+              <button id="dreamTabFavBtn" onclick="switchDreamSessionsTab('favorites')" class="flex-1 py-1 rounded-lg text-slate-400 hover:text-amber-300 transition flex items-center justify-center gap-1 text-[11px]">
+                <i class="fa-solid fa-star text-amber-400 text-[10px]"></i>
+                <span>دڵخوازەکان</span>
+                <span id="dreamCountFavorites" class="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.2 rounded-full">0</span>
+              </button>
+            </div>
           </div>
           <div id="dreamSessionsList" class="flex-1 overflow-y-auto p-2 space-y-1.5">
             <!-- Dynamic session cards -->
@@ -1442,7 +1466,17 @@
                 </div>
               </div>
 
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-1.5">
+                <!-- Star / Favorite Button -->
+                <button id="dreamAdminFavBtn" onclick="toggleActiveDreamFavorite()" class="p-2 text-slate-400 hover:text-amber-400 bg-slate-800 rounded-xl border border-slate-700 transition" title="کردن بە دڵخواز ⭐">
+                  <i id="dreamAdminFavIcon" class="fa-regular fa-star text-sm"></i>
+                </button>
+
+                <!-- Delete Session Button -->
+                <button id="dreamAdminDeleteBtn" onclick="deleteActiveDreamSession()" class="p-2 text-slate-400 hover:text-rose-400 bg-slate-800 rounded-xl border border-slate-700 transition" title="سڕینەوەی ئەم چاتە 🗑️">
+                  <i class="fa-solid fa-trash-can text-sm"></i>
+                </button>
+
                 <!-- Admin Call Button -->
                 <button id="adminStartCallBtn" onclick="startDreamCallFromAdmin()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5 active:scale-95" title="پەیوەندی تەلەفۆنی لەگەڵ ئەم خەون بینە">
                   <i class="fa-solid fa-phone"></i>

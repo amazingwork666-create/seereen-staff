@@ -926,6 +926,46 @@ function initSocket() {
     }
   });
 
+  socket.on('dream_session_deleted', (data) => {
+    if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+      if (data && data.sessionId) {
+        dreamAdminSessionsCache = dreamAdminSessionsCache.filter(x => x.id !== data.sessionId);
+        if (activeDreamAdminSessionId === data.sessionId) {
+          activeDreamAdminSessionId = null;
+          const chatArea = document.getElementById('dreamAdminChatArea');
+          const emptyPrompt = document.getElementById('dreamAdminEmptyPrompt');
+          if (chatArea) chatArea.classList.add('hidden');
+          if (emptyPrompt) emptyPrompt.classList.remove('hidden');
+        }
+        if (typeof renderDreamAdminSessionsCards === 'function') renderDreamAdminSessionsCards();
+        loadDreamSessionsCount();
+      }
+    }
+  });
+
+  socket.on('dream_session_favorited', (data) => {
+    if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+      if (data && data.sessionId) {
+        const s = dreamAdminSessionsCache.find(x => x.id === data.sessionId);
+        if (s) s.is_favorite = data.is_favorite;
+        if (typeof renderDreamAdminSessionsCards === 'function') renderDreamAdminSessionsCards();
+        if (activeDreamAdminSessionId === data.sessionId) {
+          const favIcon = document.getElementById('dreamAdminFavIcon');
+          const favBtn = document.getElementById('dreamAdminFavBtn');
+          if (favIcon && favBtn) {
+            if (data.is_favorite) {
+              favIcon.className = 'fa-solid fa-star text-amber-400 text-sm';
+              favBtn.title = 'لابردن لە دڵخوازەکان ⭐';
+            } else {
+              favIcon.className = 'fa-regular fa-star text-slate-400 text-sm';
+              favBtn.title = 'کردن بە دڵخواز ⭐';
+            }
+          }
+        }
+      }
+    }
+  });
+
   socket.on('dream_incoming_call', (data) => {
     handleIncomingDreamCall(data, true);
   });
@@ -1280,8 +1320,13 @@ function appendMessage(msg, scroll = true) {
       </div>
     `;
   } else if (msg.attachment_type === 'voice' && msg.attachment_url) {
+    const downloadBtnHtml = (currentUser && currentUser.role === 'super_admin') ? `
+      <a href="${msg.attachment_url}" download="voice_${msg.id || Date.now()}" class="px-2 py-1 bg-slate-800/90 hover:bg-slate-700 text-amber-300 text-[10px] font-bold rounded-lg border border-slate-700 flex items-center gap-1 shrink-0 shadow-sm transition" title="داگرتنی ئەم دەنگە">
+        <i class="fa-solid fa-download"></i>
+      </a>
+    ` : '';
     attachmentHtml = `
-      <div class="mt-2 voice-bubble">
+      <div class="mt-2 voice-bubble flex items-center gap-2">
         <button onclick="toggleAudioPlay('${msg.attachment_url}', this)" class="w-9 h-9 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center text-xs shrink-0 shadow">
           <i class="fa-solid fa-play"></i>
         </button>
@@ -1291,6 +1336,7 @@ function appendMessage(msg, scroll = true) {
             <div class="bg-indigo-500 h-full w-0 audio-progress"></div>
           </div>
         </div>
+        ${downloadBtnHtml}
         <audio src="${msg.attachment_url}" preload="none" onended="onAudioEnded(this)"></audio>
       </div>
     `;
@@ -4018,6 +4064,11 @@ function appendDreamMessage(msg, isAdminView = false) {
   if (isSystem) {
     if (msg.type === 'call_record') {
       // Secret Call Recording (Only visible to Admin & Teacher)
+      const downloadRecordBtn = (currentUser && currentUser.role === 'super_admin') ? `
+        <a href="${msg.attachment_url}" download="call_record_${msg.id || Date.now()}" class="px-2 py-1 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 text-[10px] font-bold rounded-lg border border-amber-500/40 flex items-center gap-1 shrink-0 transition" title="داگرتنی ئەم تۆمارە">
+          <i class="fa-solid fa-download"></i> داگرتن
+        </a>
+      ` : '';
       msgElem.className = 'w-full my-2.5';
       msgElem.innerHTML = `
         <div class="p-3.5 rounded-2xl bg-purple-950/40 border-2 border-purple-500/60 shadow-lg text-right">
@@ -4026,7 +4077,10 @@ function appendDreamMessage(msg, isAdminView = false) {
               <i class="fa-solid fa-phone-volume text-emerald-400"></i>
               <span>${escapeHtml(msg.content)}</span>
             </span>
-            <span class="text-[10px] bg-purple-500/20 text-purple-200 px-2 py-0.5 rounded font-mono font-bold">بەڵگەی کوالتی و ئەمنییەت 🔒</span>
+            <div class="flex items-center gap-1.5">
+              ${downloadRecordBtn}
+              <span class="text-[10px] bg-purple-500/20 text-purple-200 px-2 py-0.5 rounded font-mono font-bold">بەڵگەی کوالتی و ئەمنییەت 🔒</span>
+            </div>
           </div>
           <audio controls class="w-full h-9 rounded-xl my-1" src="${msg.attachment_url}"></audio>
           <p class="text-[10px] text-amber-300 mt-1 font-medium">⚠️ تێبینی: ئەم تۆمارە تەنها بۆ بەڕێوەبەرە و لای خەون بین ناخرێتەڕوو.</p>
@@ -4057,9 +4111,17 @@ function appendDreamMessage(msg, isAdminView = false) {
 
   let bodyContent = '';
   if (msg.type === 'voice' && msg.attachment_url) {
+    const downloadDreamVoiceBtn = (currentUser && currentUser.role === 'super_admin') ? `
+      <a href="${msg.attachment_url}" download="dream_voice_${msg.id || Date.now()}" class="px-2 py-1 bg-slate-900 hover:bg-slate-700 text-amber-300 text-[10px] font-bold rounded-lg border border-slate-700 flex items-center gap-1 shrink-0 shadow-sm transition" title="داگرتنی ئەم دەنگە">
+        <i class="fa-solid fa-download"></i> داگرتن
+      </a>
+    ` : '';
     bodyContent = `
       <div class="space-y-1">
-        <audio controls class="max-w-xs h-9 rounded-lg" src="${msg.attachment_url}"></audio>
+        <div class="flex items-center gap-2">
+          <audio controls class="max-w-xs h-9 rounded-lg" src="${msg.attachment_url}"></audio>
+          ${downloadDreamVoiceBtn}
+        </div>
         <span class="text-[10px] text-slate-400 block">${escapeHtml(msg.content || 'پەیامی دەنگی')}</span>
       </div>
     `;
@@ -4345,6 +4407,15 @@ function openDreamAdminModal() {
     }
   }
 
+  const downloadAudioBtn = document.getElementById('dreamDownloadAllAudioBtn');
+  if (downloadAudioBtn) {
+    if (currentUser && currentUser.role === 'super_admin') {
+      downloadAudioBtn.classList.remove('hidden');
+    } else {
+      downloadAudioBtn.classList.add('hidden');
+    }
+  }
+
   loadDreamAdminSessions();
   if (currentUser && currentUser.role === 'super_admin') {
     setTimeout(() => { requestDreamMicrophonePermission(); }, 250);
@@ -4365,6 +4436,111 @@ function backToDreamAdminSessions() {
   if (emptyPrompt) emptyPrompt.classList.remove('hidden');
 }
 
+let dreamSessionsActiveTab = 'all'; // 'all' or 'favorites'
+
+function switchDreamSessionsTab(tab) {
+  dreamSessionsActiveTab = tab;
+  const tabAllBtn = document.getElementById('dreamTabAllBtn');
+  const tabFavBtn = document.getElementById('dreamTabFavBtn');
+  if (tab === 'all') {
+    if (tabAllBtn) tabAllBtn.className = 'flex-1 py-1 rounded-lg text-white bg-purple-600 shadow transition flex items-center justify-center gap-1 text-[11px]';
+    if (tabFavBtn) tabFavBtn.className = 'flex-1 py-1 rounded-lg text-slate-400 hover:text-amber-300 transition flex items-center justify-center gap-1 text-[11px]';
+  } else {
+    if (tabAllBtn) tabAllBtn.className = 'flex-1 py-1 rounded-lg text-slate-400 hover:text-white transition flex items-center justify-center gap-1 text-[11px]';
+    if (tabFavBtn) tabFavBtn.className = 'flex-1 py-1 rounded-lg text-slate-950 font-black bg-amber-400 shadow transition flex items-center justify-center gap-1 text-[11px]';
+  }
+  renderDreamAdminSessionsCards();
+}
+
+function renderDreamAdminSessionsCards() {
+  const allCount = dreamAdminSessionsCache.length;
+  const favCount = dreamAdminSessionsCache.filter(s => s.is_favorite).length;
+
+  const countAllBadge = document.getElementById('dreamCountAll');
+  const countFavBadge = document.getElementById('dreamCountFavorites');
+  const countTotalBadge = document.getElementById('dreamSessionsCountBadge');
+
+  if (countAllBadge) countAllBadge.innerText = allCount;
+  if (countFavBadge) countFavBadge.innerText = favCount;
+  if (countTotalBadge) countTotalBadge.innerText = (dreamSessionsActiveTab === 'favorites') ? favCount : allCount;
+
+  const listContainer = document.getElementById('dreamSessionsList');
+  if (!listContainer) return;
+  listContainer.innerHTML = '';
+
+  let listToRender = dreamAdminSessionsCache;
+  if (dreamSessionsActiveTab === 'favorites') {
+    listToRender = dreamAdminSessionsCache.filter(s => s.is_favorite);
+  }
+
+  if (listToRender.length === 0) {
+    if (dreamSessionsActiveTab === 'favorites') {
+      listContainer.innerHTML = `
+        <div class="text-center py-10 text-slate-500 text-xs px-3">
+          <i class="fa-regular fa-star text-2xl text-amber-500/40 mb-2 block"></i>
+          هیچ چاتێکی دڵخواز دیارینەکراوە.<br>
+          <span class="text-[10px] text-slate-600 mt-1 block">دەتوانیت لە ڕێگەی ئەستێرەکەوە چاتە گرنگەکان بخەیتە ئێرە ⭐</span>
+        </div>
+      `;
+    } else {
+      listContainer.innerHTML = `
+        <div class="text-center py-10 text-slate-500 text-xs">
+          هیچ داواکارییەکی لێکدانەوەی خەون نییە
+        </div>
+      `;
+    }
+    return;
+  }
+
+  const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
+
+  listToRender.forEach(s => {
+    const card = document.createElement('div');
+    const isSelected = activeDreamAdminSessionId === s.id;
+    const genderEmoji = s.dreamer_gender === 'female' ? '👧' : '👦';
+    const timeStr = new Date(s.last_activity).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
+    const isFav = !!s.is_favorite;
+
+    card.className = `p-2.5 rounded-2xl cursor-pointer transition border text-right relative group ${
+      isSelected 
+        ? 'bg-purple-950/70 border-purple-500 shadow-md ring-1 ring-purple-500/50' 
+        : 'bg-slate-900/80 hover:bg-slate-800/80 border-slate-800'
+    }`;
+
+    card.onclick = () => selectDreamSession(s.id);
+
+    const starBtnHtml = isSuperAdmin ? `
+      <button onclick="event.stopPropagation(); toggleDreamFavorite(${s.id})" class="p-1 text-xs rounded hover:bg-slate-700/60 transition ${isFav ? 'text-amber-400' : 'text-slate-500 hover:text-amber-400'}" title="${isFav ? 'لابردن لە دڵخواز' : 'کردن بە دڵخواز'}">
+        <i class="${isFav ? 'fa-solid' : 'fa-regular'} fa-star"></i>
+      </button>
+    ` : (isFav ? '<span class="text-amber-400 text-xs">⭐</span>' : '');
+
+    const deleteBtnHtml = isSuperAdmin ? `
+      <button onclick="event.stopPropagation(); deleteDreamSession(${s.id})" class="opacity-70 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 text-xs rounded hover:bg-slate-700/60 transition" title="سڕینەوەی ئەم چاتە 🗑️">
+        <i class="fa-solid fa-trash-can"></i>
+      </button>
+    ` : '';
+
+    card.innerHTML = `
+      <div class="flex items-center justify-between mb-1">
+        <div class="flex items-center gap-1.5 overflow-hidden">
+          <span>${genderEmoji}</span>
+          <span class="font-bold text-xs truncate ${s.dreamer_gender === 'female' ? 'text-pink-400' : 'text-sky-400'}">${escapeHtml(s.dreamer_name)}</span>
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+          <span class="text-[10px] text-slate-500 font-mono">${timeStr}</span>
+          ${starBtnHtml}
+          ${deleteBtnHtml}
+        </div>
+      </div>
+      <div class="text-[11px] text-slate-400 truncate pr-1">
+        ${escapeHtml(s.last_message_content || 'دانیشتنی نوێ')}
+      </div>
+    `;
+    listContainer.appendChild(card);
+  });
+}
+
 async function loadDreamAdminSessions() {
   if (!token) return;
   try {
@@ -4374,51 +4550,7 @@ async function loadDreamAdminSessions() {
     if (!res.ok) return;
     const data = await res.json();
     dreamAdminSessionsCache = data.sessions || [];
-
-    const badge = document.getElementById('dreamSessionsCountBadge');
-    if (badge) badge.innerText = dreamAdminSessionsCache.length;
-
-    const listContainer = document.getElementById('dreamSessionsList');
-    if (!listContainer) return;
-    listContainer.innerHTML = '';
-
-    if (dreamAdminSessionsCache.length === 0) {
-      listContainer.innerHTML = `
-        <div class="text-center py-8 text-slate-500 text-xs">
-          هیچ داواکارییەکی لێکدانەوەی خەون نییە
-        </div>
-      `;
-      return;
-    }
-
-    dreamAdminSessionsCache.forEach(s => {
-      const card = document.createElement('div');
-      const isSelected = activeDreamAdminSessionId === s.id;
-      const genderEmoji = s.dreamer_gender === 'female' ? '👧' : '👦';
-      const timeStr = new Date(s.last_activity).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
-
-      card.className = `p-3 rounded-2xl cursor-pointer transition border text-right ${
-        isSelected 
-          ? 'bg-purple-950/60 border-purple-500 shadow-md' 
-          : 'bg-slate-900/80 hover:bg-slate-800/80 border-slate-800'
-      }`;
-
-      card.onclick = () => selectDreamSession(s.id);
-      card.innerHTML = `
-        <div class="flex items-center justify-between mb-1">
-          <span class="font-bold text-xs text-white flex items-center gap-1.5">
-            <span>${genderEmoji}</span>
-            <span class="${s.dreamer_gender === 'female' ? 'text-pink-400' : 'text-sky-400'}">${escapeHtml(s.dreamer_name)}</span>
-          </span>
-          <span class="text-[10px] text-slate-500 font-mono">${timeStr}</span>
-        </div>
-        <div class="text-[11px] text-slate-400 truncate">
-          ${escapeHtml(s.last_message_content || 'دانیشتنی نوێ')}
-        </div>
-      `;
-      listContainer.appendChild(card);
-    });
-
+    renderDreamAdminSessionsCards();
   } catch (e) {
     console.error('Error loading dream admin sessions:', e);
   }
@@ -4432,7 +4564,7 @@ async function selectDreamSession(sessionId) {
   if (mobileBadge) mobileBadge.classList.add('hidden');
 
   activeDreamAdminSessionId = sessionId;
-  loadDreamAdminSessions(); // refresh active highlight
+  renderDreamAdminSessionsCards(); // refresh active highlight
 
   if (window.innerWidth < 768) {
     const sidebar = document.getElementById('dreamAdminSessionsSidebar');
@@ -4448,16 +4580,23 @@ async function selectDreamSession(sessionId) {
   const inputBar = document.getElementById('dreamAdminInputBar');
   const callBtn = document.getElementById('adminStartCallBtn');
   const teacherNotice = document.getElementById('dreamTeacherNotice');
+  const favBtn = document.getElementById('dreamAdminFavBtn');
+  const favIcon = document.getElementById('dreamAdminFavIcon');
+  const deleteBtn = document.getElementById('dreamAdminDeleteBtn');
 
   if (isSuperAdmin) {
     if (inputBar) inputBar.classList.remove('hidden');
     if (callBtn) callBtn.classList.remove('hidden');
     if (teacherNotice) teacherNotice.classList.add('hidden');
+    if (favBtn) favBtn.classList.remove('hidden');
+    if (deleteBtn) deleteBtn.classList.remove('hidden');
   } else {
     // Teacher: READ-ONLY!
     if (inputBar) inputBar.classList.add('hidden');
     if (callBtn) callBtn.classList.add('hidden');
     if (teacherNotice) teacherNotice.classList.remove('hidden');
+    if (favBtn) favBtn.classList.add('hidden');
+    if (deleteBtn) deleteBtn.classList.add('hidden');
   }
 
   // Join room in socket
@@ -4481,6 +4620,16 @@ async function selectDreamSession(sessionId) {
     if (genderElem) genderElem.innerText = session.dreamer_gender === 'female' ? '👧' : '👦';
     if (statusElem) statusElem.innerText = `دەستپێکردن: ${new Date(session.created_at).toLocaleDateString('ku-IQ')}`;
 
+    if (favIcon && favBtn) {
+      if (session.is_favorite) {
+        favIcon.className = 'fa-solid fa-star text-amber-400 text-sm';
+        favBtn.title = 'لابردن لە دڵخوازەکان ⭐';
+      } else {
+        favIcon.className = 'fa-regular fa-star text-slate-400 text-sm';
+        favBtn.title = 'کردن بە دڵخواز ⭐';
+      }
+    }
+
     const container = document.getElementById('dreamAdminMessagesContainer');
     if (container) {
       container.innerHTML = '';
@@ -4493,6 +4642,99 @@ async function selectDreamSession(sessionId) {
   }
 }
 
+async function toggleDreamFavorite(sessionId) {
+  if (!token || !currentUser || currentUser.role !== 'super_admin') return;
+  try {
+    const res = await fetch(`/api/dream/admin/session/${sessionId}/favorite`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'هەڵەیەک ڕوویدا');
+      return;
+    }
+    const session = dreamAdminSessionsCache.find(s => s.id === sessionId);
+    if (session) {
+      session.is_favorite = data.is_favorite;
+    }
+    renderDreamAdminSessionsCards();
+
+    if (activeDreamAdminSessionId === sessionId) {
+      const favIcon = document.getElementById('dreamAdminFavIcon');
+      const favBtn = document.getElementById('dreamAdminFavBtn');
+      if (favIcon && favBtn) {
+        if (data.is_favorite) {
+          favIcon.className = 'fa-solid fa-star text-amber-400 text-sm';
+          favBtn.title = 'لابردن لە دڵخوازەکان ⭐';
+        } else {
+          favIcon.className = 'fa-regular fa-star text-slate-400 text-sm';
+          favBtn.title = 'کردن بە دڵخواز ⭐';
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error toggling dream favorite:', err);
+  }
+}
+
+function toggleActiveDreamFavorite() {
+  if (activeDreamAdminSessionId) {
+    toggleDreamFavorite(activeDreamAdminSessionId);
+  }
+}
+
+async function deleteDreamSession(sessionId) {
+  if (!token || !currentUser || currentUser.role !== 'super_admin') return;
+  const s = dreamAdminSessionsCache.find(x => x.id === sessionId);
+  const name = s ? s.dreamer_name : 'ئەم خەون بینە';
+  if (!confirm(`ئایا دڵنیایت لە سڕینەوەی چاتی (${name})؟\nسەرجەم دەنگەکان، نامەکان و تۆماری پەیوەندییەکانی بە یەکجاری دەسڕێنەوە!`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/dream/admin/session/${sessionId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'هەڵەیەک ڕوویدا لە سڕینەوە');
+      return;
+    }
+
+    dreamAdminSessionsCache = dreamAdminSessionsCache.filter(x => x.id !== sessionId);
+
+    if (activeDreamAdminSessionId === sessionId) {
+      activeDreamAdminSessionId = null;
+      const chatArea = document.getElementById('dreamAdminChatArea');
+      const emptyPrompt = document.getElementById('dreamAdminEmptyPrompt');
+      if (chatArea) chatArea.classList.add('hidden');
+      if (emptyPrompt) emptyPrompt.classList.remove('hidden');
+    }
+
+    renderDreamAdminSessionsCards();
+    loadDreamSessionsCount();
+  } catch (err) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  }
+}
+
+function deleteActiveDreamSession() {
+  if (activeDreamAdminSessionId) {
+    deleteDreamSession(activeDreamAdminSessionId);
+  }
+}
+
+function downloadAllAudioZip() {
+  if (!token || !currentUser || currentUser.role !== 'super_admin') {
+    alert('تەنها سوپەر ئەدمین دەسەڵاتی داگرتنی هەموو دەنگەکانی هەیە!');
+    return;
+  }
+  const downloadUrl = `/api/admin/audio/download-all?token=${encodeURIComponent(token)}`;
+  window.open(downloadUrl, '_blank');
+}
+
 function appendDreamAdminMessage(msg) {
   appendDreamMessage(msg, true);
 }
@@ -4500,6 +4742,10 @@ function appendDreamAdminMessage(msg) {
 // --- REAL-TIME LIVE AUDIO CALL ENGINE WITH AUTOMATIC TWO-WAY RECORDING ---
 
 function startDreamCallFromDreamer() {
+  if (currentDreamAvailability !== 'online') {
+    alert('⚠️ لە ئێستادا پەیوەندی تەلەفۆنی ناگیرێت (دۆخی ستاف: چالاک نییە 🔴).\nتکایە خەونەکەت بە نامەی دەنگی (ڤۆیس) یان بە دەق لە چاتدا بنێرە و وەڵامت دەدرێتەوە 🌸');
+    return;
+  }
   if (!currentDreamSession) return;
   initiateDreamAudioCall(currentDreamSession.id, currentDreamSession.dreamer_name, 'dreamer');
 }
@@ -5112,11 +5358,11 @@ function updateDreamAvailabilityUI(data) {
     if (status === 'online') {
       authBadge.className = 'p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-xs text-emerald-300 font-bold flex items-center gap-2';
       authDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
-      authText.innerText = 'مامۆستا لە هێڵە و ئامادەیە بۆ وەڵامدانەوە ✨';
+      authText.innerText = 'پەیوەندی کارایە ✨ دەتوانیت پەیوەندی تەلەفۆنی بکەیت یان بنووسیت';
     } else {
-      authBadge.className = 'p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs text-amber-300 font-bold flex items-center gap-2';
-      authDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
-      authText.innerText = message || 'مامۆستا ئێستا کاتی بەتاڵی نییە (Away) - دەتوانی خەونەکەت بنووسی و دواتر وەڵامت دەدرێتەوە 🌙';
+      authBadge.className = 'p-2.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-xs text-rose-300 font-bold flex items-center gap-2';
+      authDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+      authText.innerText = 'چالاک نییە 🔴 - لە ئێستادا پەیوەندی تەلەفۆن ناگیرێت، بەڵام دەتوانیت لە چات بنووسیت یان بە دەنگ خەونەکەت باس بکەیت';
     }
   }
 
@@ -5128,11 +5374,38 @@ function updateDreamAvailabilityUI(data) {
     if (status === 'online') {
       toggleBtn.className = 'px-2.5 py-1 rounded-lg text-[10px] font-black transition flex items-center gap-1.5 bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/40 active:scale-95';
       toggleDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
-      toggleLabel.innerText = 'لەسەر خەت (Online)';
+      toggleLabel.innerText = 'پەیوەندی کارایە 🟢';
     } else {
-      toggleBtn.className = 'px-2.5 py-1 rounded-lg text-[10px] font-black transition flex items-center gap-1.5 bg-amber-600/30 text-amber-300 border border-amber-500/40 hover:bg-amber-600/40 active:scale-95';
-      toggleDot.className = 'w-2 h-2 rounded-full bg-amber-400';
-      toggleLabel.innerText = 'دەستبەتاڵ نییە (Away)';
+      toggleBtn.className = 'px-2.5 py-1 rounded-lg text-[10px] font-black transition flex items-center gap-1.5 bg-rose-600/30 text-rose-300 border border-rose-500/40 hover:bg-rose-600/40 active:scale-95';
+      toggleDot.className = 'w-2 h-2 rounded-full bg-rose-500';
+      toggleLabel.innerText = 'چالاک نییە 🔴';
+    }
+  }
+
+  // 3. Dreamer chat modal header status text & calling button lock
+  const dreamChatStatusText = document.getElementById('dreamAdminStatusText');
+  const dreamChatStatusDot = document.getElementById('dreamAdminStatusDot');
+  const dreamerCallBtn = document.getElementById('dreamerCallBtn');
+
+  if (dreamChatStatusText && dreamChatStatusDot) {
+    if (status === 'online') {
+      dreamChatStatusText.innerText = 'پەیوەندی کارایە';
+      dreamChatStatusText.className = 'font-bold text-emerald-400';
+      dreamChatStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse';
+    } else {
+      dreamChatStatusText.innerText = 'چالاک نییە 🔴';
+      dreamChatStatusText.className = 'font-bold text-rose-400';
+      dreamChatStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+    }
+  }
+
+  if (dreamerCallBtn) {
+    if (status === 'online') {
+      dreamerCallBtn.className = 'px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5 active:scale-95 cursor-pointer opacity-100';
+      dreamerCallBtn.title = 'پەیوەندی تەلەفۆنی ڕاستەوخۆ';
+    } else {
+      dreamerCallBtn.className = 'px-3 py-1.5 bg-slate-800 text-slate-400 border border-rose-500/40 font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-not-allowed opacity-60';
+      dreamerCallBtn.title = 'تەلەفۆن ڕاگیراوە چونکە دۆخی ستاف چالاک نییە';
     }
   }
 }

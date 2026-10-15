@@ -180,6 +180,7 @@ function initDb() {
   try { db.exec("ALTER TABLE questions ADD COLUMN is_revealed INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN question_number INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE question_submissions ADD COLUMN is_correct INTEGER DEFAULT 0"); } catch (e) {}
+  try { db.exec("ALTER TABLE dream_sessions ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0"); } catch (e) {}
 
   // Backfill question_number sequentially for any unnumbered questions
   try {
@@ -725,6 +726,17 @@ const dreamSessions = {
   updateStatus(sessionId, status) {
     const stmt = db.prepare('UPDATE dream_sessions SET status = ?, last_activity = ? WHERE id = ?');
     return stmt.run(status, Date.now(), sessionId);
+  },
+  toggleFavorite(sessionId) {
+    const s = this.findById(sessionId);
+    if (!s) return null;
+    const newFav = s.is_favorite ? 0 : 1;
+    db.prepare('UPDATE dream_sessions SET is_favorite = ? WHERE id = ?').run(newFav, sessionId);
+    return newFav;
+  },
+  delete(sessionId) {
+    db.prepare('DELETE FROM dream_messages WHERE session_id = ?').run(sessionId);
+    return db.prepare('DELETE FROM dream_sessions WHERE id = ?').run(sessionId);
   }
 };
 
@@ -748,6 +760,15 @@ const dreamMessages = {
       is_secret_recording: isSecretRecording,
       created_at: now
     };
+  },
+  hasAutoQuestions(sessionId) {
+    try {
+      const stmt = db.prepare(`SELECT COUNT(*) as count FROM dream_messages WHERE session_id = ? AND sender_type = 'super_admin' AND (content LIKE '%خەونەکەت بە نامەی دەنگی%' OR content LIKE '%بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان%')`);
+      const row = stmt.get(sessionId);
+      return row && row.count > 0;
+    } catch (e) {
+      return false;
+    }
   },
   getBySessionForAdmin(sessionId) {
     // Admin / Teacher sees ALL messages including secret call recordings

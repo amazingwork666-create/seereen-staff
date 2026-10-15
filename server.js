@@ -7,6 +7,8 @@ const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
+let archiver;
+try { archiver = require('archiver'); } catch (e) {}
 const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, calculateStars } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
@@ -140,12 +142,18 @@ function isNightCurfewActive() {
 
 // JWT Middleware
 function authMiddleware(req, res, next) {
+  let token = null;
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.query && req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
     return res.status(401).json({ error: 'تکایە سەرەتا بچۆ ژوورەوە' });
   }
 
-  const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = users.findById(decoded.id);
@@ -1254,6 +1262,37 @@ app.post('/api/dream/message', async (req, res) => {
     io.to(`dream_${targetSessionId}`).emit('dream_new_message', msg);
     io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: content.trim() });
 
+    // Automated greeting reply and questionnaire for dreamer
+    if (senderType === 'dreamer') {
+      const lowerText = content.trim().toLowerCase();
+      const isGreeting = lowerText.includes('سلام') || lowerText.includes('سڵاو') || lowerText.includes('سلاو') || lowerText.includes('slaw') || lowerText.includes('slam');
+
+      if (isGreeting) {
+        setTimeout(() => {
+          const reply = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', 'علیک سلام و ڕەحمەتی خوات لێبێت 🌸', 'text');
+          io.to(`dream_${targetSessionId}`).emit('dream_new_message', reply);
+          io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: reply.content });
+        }, 500);
+      }
+
+      if (!dreamMessages.hasAutoQuestions(targetSessionId)) {
+        setTimeout(() => {
+          const autoQ = `🌸 بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان
+
+تکایە بۆ ئەوەی خەونەکەت بە جوانترین شێوە لێکبدرێتەوە، ئەم زانیارییانەمان بۆ بنێرە:
+🎙️ ١. خەونەکەت بە نامەیەکی دەنگی (ڤۆیس) بە تەواوی باس بکە.
+👤 ٢. ناو و تەمەنت بڵێ.
+💍 ٣. ئایا هاوسەرگیریت کردووە یان نا؟
+🕌 ٤. ئاینت چییە؟
+
+📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
+          const qMsg = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', autoQ, 'text');
+          io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
+          io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🌸 پرسیارەکانی لێکدانەوەی خەون' });
+        }, isGreeting ? 1500 : 600);
+      }
+    }
+
     res.json({ success: true, message: msg });
   } catch (err) {
     console.error('Dream message error:', err);
@@ -1300,6 +1339,24 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
 
     io.to(`dream_${targetSessionId}`).emit('dream_new_message', msg);
     io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🎤 پەیامی دەنگی' });
+
+    // Automated questionnaire if dreamer sends voice as first interaction
+    if (senderType === 'dreamer' && !dreamMessages.hasAutoQuestions(targetSessionId)) {
+      setTimeout(() => {
+        const autoQ = `🌸 بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان
+
+تکایە بۆ ئەوەی خەونەکەت بە جوانترین شێوە لێکبدرێتەوە، ئەم زانیارییانەمان بۆ بنێرە:
+🎙️ ١. خەونەکەت بە نامەیەکی دەنگی (ڤۆیس) بە تەواوی باس بکە.
+👤 ٢. ناو و تەمەنت بڵێ.
+💍 ٣. ئایا هاوسەرگیریت کردووە یان نا؟
+🕌 ٤. ئاینت چییە؟
+
+📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
+        const qMsg = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', autoQ, 'text');
+        io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
+        io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🌸 پرسیارەکانی لێکدانەوەی خەون' });
+      }, 800);
+    }
 
     res.json({ success: true, message: msg });
   } catch (err) {
@@ -1400,6 +1457,78 @@ app.get('/api/dream/admin/session/:id/messages', authMiddleware, (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە وەرگرتنی پەیامەکان' });
+  }
+});
+
+// 8. Delete Dream Session (Super Admin only)
+app.delete('/api/dream/admin/session/:id', authMiddleware, requireSuperAdmin, (req, res) => {
+  try {
+    const sessionId = parseInt(req.params.id);
+    const session = dreamSessions.findById(sessionId);
+    if (!session) return res.status(404).json({ error: 'دانیشتن نەدۆزرایەوە' });
+
+    dreamSessions.delete(sessionId);
+    io.to('dream_admins').emit('dream_session_deleted', { sessionId });
+    res.json({ success: true, message: 'چاتی خەون سڕایەوە' });
+  } catch (err) {
+    console.error('Delete dream session error:', err);
+    res.status(500).json({ error: 'هەڵە لە سڕینەوەی چات' });
+  }
+});
+
+// 9. Star/Favorite Dream Session (Super Admin only)
+app.post('/api/dream/admin/session/:id/favorite', authMiddleware, requireSuperAdmin, (req, res) => {
+  try {
+    const sessionId = parseInt(req.params.id);
+    const session = dreamSessions.findById(sessionId);
+    if (!session) return res.status(404).json({ error: 'دانیشتن نەدۆزرایەوە' });
+
+    const newFavStatus = dreamSessions.toggleFavorite(sessionId);
+    io.to('dream_admins').emit('dream_session_favorited', { sessionId, is_favorite: newFavStatus });
+    res.json({ success: true, is_favorite: newFavStatus });
+  } catch (err) {
+    console.error('Toggle favorite error:', err);
+    res.status(500).json({ error: 'هەڵە لە گۆڕینی دڵخواز' });
+  }
+});
+
+// 10. Super Admin Download ALL audio recordings as ZIP
+app.get('/api/admin/audio/download-all', authMiddleware, requireSuperAdmin, (req, res) => {
+  try {
+    if (!archiver) {
+      return res.status(500).json({ error: 'کتێبخانەی archiver لەسەر سێرڤەر بەردەست نییە' });
+    }
+    const audioExtensions = new Set(['.webm', '.ogg', '.mp3', '.wav', '.m4a', '.aac', '.opus']);
+    let files = [];
+    if (fs.existsSync(uploadsDir)) {
+      files = fs.readdirSync(uploadsDir).filter(f => {
+        const ext = path.extname(f).toLowerCase();
+        return audioExtensions.has(ext);
+      });
+    }
+
+    if (!files || files.length === 0) {
+      return res.status(404).json({ error: 'هیچ فایلێکی دەنگی نەدۆزرایەوە لە سیستەمەکەدا' });
+    }
+
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const zipName = `seereen_all_voices_${timestamp}.zip`;
+
+    res.attachment(zipName);
+    archive.pipe(res);
+
+    files.forEach(file => {
+      const filePath = path.join(uploadsDir, file);
+      if (fs.existsSync(filePath)) {
+        archive.file(filePath, { name: file });
+      }
+    });
+
+    archive.finalize();
+  } catch (err) {
+    console.error('Audio ZIP download error:', err);
+    res.status(500).json({ error: 'هەڵە لە دروستکردنی فایلی ZIP بۆ دەنگەکان' });
   }
 });
 
