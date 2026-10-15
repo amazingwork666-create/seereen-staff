@@ -1357,9 +1357,12 @@ function appendMessage(msg, scroll = true) {
   msgElem.className = `chat-msg-item flex flex-col ${isMe ? 'items-end' : 'items-start'} group`;
 
   let messageActionsHtml = '';
+  let hasActions = false;
+
   if (isAdmin && !isMe) {
+    hasActions = true;
     messageActionsHtml = `
-      <div class="opacity-90 md:opacity-0 md:group-hover:opacity-100 transition duration-150 flex items-center gap-1 mt-1 bg-slate-800/95 border border-slate-700/80 px-2 py-0.5 rounded-xl shadow-lg">
+      <div id="msg-actions-${msg.id}" class="msg-actions-bar hidden md:flex md:opacity-0 md:group-hover:opacity-100 transition duration-150 items-center gap-1 mt-1 bg-slate-800/95 border border-slate-700/80 px-2 py-0.5 rounded-xl shadow-lg z-10">
         ${isSuperAdmin && (msg.role === 'student' || msg.role === 'new_student') ? `
           <button onclick="quickAwardStar(${msg.user_id}, '${escapeHtml(msg.full_name)}')" class="text-amber-400 hover:text-amber-300 text-xs px-1.5 py-0.5 rounded hover:bg-slate-700" title="وەڵامی دروستە ⭐ (سوپەر ئەدمین)">
             <i class="fa-solid fa-star"></i> ئەستێرە
@@ -1385,8 +1388,9 @@ function appendMessage(msg, scroll = true) {
       </div>
     `;
   } else if (isMe || isAdmin) {
+    hasActions = true;
     messageActionsHtml = `
-      <div class="opacity-90 md:opacity-0 md:group-hover:opacity-100 transition duration-150 flex items-center gap-1 mt-1 bg-slate-800/95 border border-slate-700/80 px-2 py-0.5 rounded-xl shadow-lg">
+      <div id="msg-actions-${msg.id}" class="msg-actions-bar hidden md:flex md:opacity-0 md:group-hover:opacity-100 transition duration-150 items-center gap-1 mt-1 bg-slate-800/95 border border-slate-700/80 px-2 py-0.5 rounded-xl shadow-lg z-10">
         <button onclick="deleteMessage(${msg.id})" class="text-rose-400 hover:text-rose-300 text-xs px-1.5 py-0.5 rounded hover:bg-rose-950/60 flex items-center gap-1 font-bold" title="سڕینەوەی پەیام">
           <i class="fa-solid fa-trash-can"></i>
           <span class="text-[10px]">سڕینەوە</span>
@@ -1423,9 +1427,14 @@ function appendMessage(msg, scroll = true) {
       ${roleBadge}
       ${starBadge}
       <span class="text-[10px] text-slate-500 font-mono">${dateStr}</span>
+      ${hasActions ? `
+        <button type="button" onclick="toggleMsgActions(${msg.id}, event)" class="md:hidden text-slate-400 hover:text-white px-1.5 py-0.5 rounded text-[11px] hover:bg-slate-800 transition msg-actions-trigger" title="کردارەکان">
+          <i class="fa-solid fa-ellipsis"></i>
+        </button>
+      ` : ''}
     </div>
 
-    <div class="max-w-lg md:max-w-xl rounded-2xl px-3.5 py-2 text-xs md:text-sm leading-relaxed shadow break-words ${bubbleBg}">
+    <div onclick="handleMessageBubbleClick(${msg.id}, event)" class="max-w-lg md:max-w-xl rounded-2xl px-3.5 py-2 text-xs md:text-sm leading-relaxed shadow break-words ${bubbleBg} cursor-pointer md:cursor-default">
       ${msg.content ? `<div class="${msgTextClass}">${escapeHtml(msg.content)}</div>` : ''}
       ${attachmentHtml}
     </div>
@@ -1441,6 +1450,52 @@ function scrollToBottom() {
   const container = document.getElementById('messagesContainer');
   container.scrollTop = container.scrollHeight;
 }
+
+// --- MOBILE MESSAGE ACTIONS TOGGLE ---
+let activeMobileMsgActionsId = null;
+
+function toggleMsgActions(msgId, event) {
+  if (event) {
+    event.stopPropagation();
+  }
+  const targetBar = document.getElementById(`msg-actions-${msgId}`);
+  if (!targetBar) return;
+
+  const isCurrentlyOpen = !targetBar.classList.contains('hidden');
+
+  closeAllMobileMsgActions();
+
+  if (!isCurrentlyOpen) {
+    targetBar.classList.remove('hidden');
+    targetBar.classList.add('flex');
+    activeMobileMsgActionsId = msgId;
+  }
+}
+
+function handleMessageBubbleClick(msgId, event) {
+  if (window.innerWidth >= 768) return; // Desktop uses hover
+  if (!event || !event.target) return;
+  if (event.target.closest('button, a, audio, img, input, .audio-player-btn, i')) return;
+  toggleMsgActions(msgId, event);
+}
+
+function closeAllMobileMsgActions() {
+  if (activeMobileMsgActionsId !== null) {
+    const bar = document.getElementById(`msg-actions-${activeMobileMsgActionsId}`);
+    if (bar) {
+      bar.classList.add('hidden');
+      bar.classList.remove('flex');
+    }
+    activeMobileMsgActionsId = null;
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.msg-actions-bar') && !e.target.closest('.msg-actions-trigger')) {
+    closeAllMobileMsgActions();
+  }
+});
+
 
 // Scroll detection & Unread jump
 function handleChatScroll() {
