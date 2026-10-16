@@ -643,19 +643,23 @@ function updateUserUI() {
     if (liveStartEndBtn) {
       liveStartEndBtn.classList.remove('hidden');
       liveStartEndBtn.classList.add('flex');
+      liveStartEndBtn.style.display = '';
     }
     if (liveScreenShareBtn) {
       liveScreenShareBtn.classList.remove('hidden');
       liveScreenShareBtn.classList.add('flex');
+      liveScreenShareBtn.style.display = '';
     }
   } else {
     if (liveStartEndBtn) {
       liveStartEndBtn.classList.add('hidden');
       liveStartEndBtn.classList.remove('flex');
+      liveStartEndBtn.style.display = 'none';
     }
     if (liveScreenShareBtn) {
       liveScreenShareBtn.classList.add('hidden');
       liveScreenShareBtn.classList.remove('flex');
+      liveScreenShareBtn.style.display = 'none';
     }
   }
 
@@ -7248,6 +7252,17 @@ function openLiveLessonModal() {
   if (modal) modal.classList.remove('hidden');
   if (floatingBar) floatingBar.classList.add('hidden');
 
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  const startEndBtn = document.getElementById('liveStartEndBtn');
+  if (startEndBtn) {
+    if (!isStaff) {
+      startEndBtn.className = 'hidden';
+      startEndBtn.style.display = 'none';
+    } else {
+      startEndBtn.style.display = '';
+    }
+  }
+
   socket.emit('live_join');
   startLivePingReporting();
 }
@@ -7663,9 +7678,16 @@ function handleLiveLessonStateUpdate(state) {
     if (presenterText && state.startedBy) {
       presenterText.innerText = `وانەبێژ: ${state.startedBy.name} (${state.startedBy.role === 'teacher' ? 'مامۆستا' : 'سوپەر ئەدمین'})`;
     }
-    if (startEndBtnText) startEndBtnText.innerText = 'کۆتاییهێنان بە وانە ⏹️';
+    const isTeacherOrSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
     if (startEndBtn) {
-      startEndBtn.className = 'px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 active:scale-95';
+      if (isTeacherOrSuperAdmin) {
+        startEndBtn.className = 'px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 active:scale-95';
+        startEndBtn.style.display = '';
+        if (startEndBtnText) startEndBtnText.innerText = 'کۆتاییهێنان بە وانە ⏹️';
+      } else {
+        startEndBtn.className = 'hidden';
+        startEndBtn.style.display = 'none';
+      }
     }
 
     if (!liveLessonDurationTimer && state.startedAt) {
@@ -7692,9 +7714,17 @@ function handleLiveLessonStateUpdate(state) {
     if (timerBox) timerBox.classList.add('hidden');
     if (modalTitle) modalTitle.innerText = 'ژووری وانەی ڕاستەوخۆ';
     if (presenterText) presenterText.innerText = 'چاوەڕوانی دەستپێکردنی وانەیە...';
-    if (startEndBtnText) startEndBtnText.innerText = 'دەستپێکردنی وانە 🔴';
+    
+    const isTeacherOrSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
     if (startEndBtn) {
-      startEndBtn.className = 'px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 active:scale-95';
+      if (isTeacherOrSuperAdmin) {
+        startEndBtn.className = 'px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 active:scale-95';
+        startEndBtn.style.display = '';
+        if (startEndBtnText) startEndBtnText.innerText = 'دەستپێکردنی وانە 🔴';
+      } else {
+        startEndBtn.className = 'hidden';
+        startEndBtn.style.display = 'none';
+      }
     }
     if (liveLessonDurationTimer) {
       clearInterval(liveLessonDurationTimer);

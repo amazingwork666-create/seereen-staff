@@ -2038,8 +2038,8 @@
             <span id="liveRecordText">تۆمارکردنی دەنگ</span>
           </button>
 
-          <!-- Start / End Lesson Button (Super Admin & Teacher) -->
-          <button type="button" id="liveStartEndBtn" onclick="toggleLiveStartEnd()" class="hidden px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition items-center gap-1.5 active:scale-95">
+          <!-- Start / End Lesson Button (Super Admin & Teacher ONLY) -->
+          <button type="button" id="liveStartEndBtn" onclick="toggleLiveStartEnd()" class="hidden px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition items-center gap-1.5 active:scale-95" style="display: none;">
             <i class="fa-solid fa-tower-broadcast"></i>
             <span id="liveStartEndBtnText">دەستپێکردنی وانە</span>
           </button>
@@ -2270,6 +2270,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=3.1"></script>
+  <script src="/js/app.js?v=3.2"></script>
 </body>
 </html>
