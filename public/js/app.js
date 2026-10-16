@@ -62,6 +62,19 @@ function playSound(type) {
   } catch (e) {}
 }
 
+function showLiveToastNotification(message, color = 'emerald') {
+  const toast = document.createElement('div');
+  const bgClass = color === 'emerald' ? 'bg-emerald-600/95 border-emerald-400' : 'bg-amber-600/95 border-amber-400';
+  toast.className = `fixed top-16 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-2xl ${bgClass} text-white font-black text-xs shadow-2xl border backdrop-blur-md flex items-center gap-2 transition-all transform duration-300`;
+  toast.innerHTML = `<span>${message}</span>`;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translate(-50%, -20px)';
+    setTimeout(() => toast.remove(), 400);
+  }, 4000);
+}
+
 // Celebration particle effects
 function triggerStarCelebration(targetElem = null) {
   playSound('star');
@@ -292,6 +305,25 @@ function showAuthAlert(message, type = 'error') {
 
 function hideAuthAlert() {
   document.getElementById('authAlert').classList.add('hidden');
+}
+
+function togglePasswordVisibility(inputId, iconId) {
+  const input = document.getElementById(inputId);
+  const icon = document.getElementById(iconId);
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (icon) {
+      icon.classList.remove('fa-eye');
+      icon.classList.add('fa-eye-slash');
+    }
+  } else {
+    input.type = 'password';
+    if (icon) {
+      icon.classList.remove('fa-eye-slash');
+      icon.classList.add('fa-eye');
+    }
+  }
 }
 
 // Handle Login
@@ -604,7 +636,9 @@ function updateUserUI() {
   const liveScreenShareBtn = document.getElementById('liveScreenShareBtn');
   const liveQuranAdminControls = document.getElementById('liveQuranAdminControls');
   const liveQuranStudentNotice = document.getElementById('liveQuranStudentNotice');
+  const liveRecordBtn = document.getElementById('liveRecordBtn');
 
+  // Start/End Lesson & Screen share: Super Admin & Teacher ONLY (strictly hidden from students)
   if (isSuperAdmin || isTeacher) {
     if (liveStartEndBtn) {
       liveStartEndBtn.classList.remove('hidden');
@@ -614,8 +648,6 @@ function updateUserUI() {
       liveScreenShareBtn.classList.remove('hidden');
       liveScreenShareBtn.classList.add('flex');
     }
-    if (liveQuranAdminControls) liveQuranAdminControls.classList.remove('hidden');
-    if (liveQuranStudentNotice) liveQuranStudentNotice.classList.add('hidden');
   } else {
     if (liveStartEndBtn) {
       liveStartEndBtn.classList.add('hidden');
@@ -625,8 +657,23 @@ function updateUserUI() {
       liveScreenShareBtn.classList.add('hidden');
       liveScreenShareBtn.classList.remove('flex');
     }
+  }
+
+  // Quran changing controls & Recording button: visible to Super Admin, Teacher, and Admin ONLY
+  if (isAdmin) {
+    if (liveQuranAdminControls) liveQuranAdminControls.classList.remove('hidden');
+    if (liveQuranStudentNotice) liveQuranStudentNotice.classList.add('hidden');
+    if (liveRecordBtn) {
+      liveRecordBtn.classList.remove('hidden');
+      liveRecordBtn.classList.add('flex');
+    }
+  } else {
     if (liveQuranAdminControls) liveQuranAdminControls.classList.add('hidden');
     if (liveQuranStudentNotice) liveQuranStudentNotice.classList.remove('hidden');
+    if (liveRecordBtn) {
+      liveRecordBtn.classList.add('hidden');
+      liveRecordBtn.classList.remove('flex');
+    }
   }
 
   // Handle guest / new_student / muted input restrictions
@@ -898,6 +945,51 @@ function initSocket() {
       renderActiveQuestionSticky(null);
       closeActiveQuestionModal();
     }
+  });
+
+  socket.on('question_updated', (data) => {
+    if (activeQuestion && activeQuestion.id === data.question_id) {
+      activeQuestion.question_text = data.question_text;
+      if (data.model_answer !== undefined) activeQuestion.model_answer = data.model_answer;
+      if (data.expires_at) activeQuestion.expires_at = data.expires_at;
+      renderActiveQuestionSticky(activeQuestion);
+    }
+    loadMessages();
+  });
+
+  socket.on('questions_renumbered', () => {
+    loadMessages();
+  });
+
+  socket.on('user_stars_updated', (data) => {
+    if (currentUser && currentUser.id === data.user_id) {
+      currentUser.correct_answers_count = data.new_stars;
+      updateUserUI();
+      if (data.delta > 0) triggerStarCelebration();
+    }
+    if (typeof currentProfileUserId !== 'undefined' && currentProfileUserId === data.user_id) {
+      const starInfo = calculateStars(data.new_stars);
+      const profStars = document.getElementById('profStars');
+      if (profStars) profStars.innerHTML = `${starInfo.starIcons} (${starInfo.points}/10)`;
+    }
+    loadPodiumWidget();
+    loadLeaderboard();
+  });
+
+  socket.on('new_profile_change_request', () => {
+    if (currentUser && currentUser.role === 'super_admin') {
+      loadPendingProfileChangesCount();
+    }
+  });
+
+  socket.on('live_teacher_joined', (data) => {
+    playSound('question');
+    showLiveToastNotification(`🔔 مامۆستا (${data.fullName}) هاتە ژووری وانە`, 'emerald');
+  });
+
+  socket.on('live_teacher_left', (data) => {
+    playSound('mute');
+    showLiveToastNotification(`🚪 مامۆستا (${data.fullName}) لە وانە چووە دەرەوە`, 'amber');
   });
 
   socket.on('star_awarded', (data) => {
@@ -1377,6 +1469,10 @@ function appendMessage(msg, scroll = true) {
             </div>
             <div class="flex items-center gap-2">
               ${isStaff ? `
+                <button type="button" onclick="openEditQuestionModal(${payload.question_id || msg.id})" class="px-2.5 py-1 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95" title="دەستکاریکردنی ئەم پرسیارە">
+                  <i class="fa-solid fa-pen-to-square text-[11px]"></i>
+                  <span>دەستکاری</span>
+                </button>
                 <button type="button" onclick="deleteQuestionDirect(${payload.question_id || msg.id}, ${msg.id})" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95" title="سڕینەوەی ئەم پرسیارە">
                   <i class="fa-solid fa-trash-can text-[11px]"></i>
                   <span>سڕینەوە</span>
@@ -1447,6 +1543,10 @@ function appendMessage(msg, scroll = true) {
           </div>
           <div class="flex items-center gap-2">
             ${isStaff ? `
+              <button type="button" onclick="openEditQuestionModal(${qData.question_id || msg.id})" class="px-2.5 py-1 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95" title="دەستکاریکردنی ئەم پرسیارە">
+                <i class="fa-solid fa-pen-to-square text-[11px]"></i>
+                <span>دەستکاری</span>
+              </button>
               <button type="button" onclick="deleteQuestionDirect(${qData.question_id || msg.id}, ${msg.id})" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95" title="سڕینەوەی ئەم پرسیارە">
                 <i class="fa-solid fa-trash-can text-[11px]"></i>
                 <span>سڕینەوە</span>
@@ -2228,6 +2328,107 @@ async function deleteQuestionDirect(questionId, messageId) {
 async function cancelActiveQuestion() {
   if (!activeQuestion) return;
   await deleteQuestionDirect(activeQuestion.id, activeQuestion.message_id);
+}
+
+let currentEditQuestionId = null;
+
+function openEditQuestionModal(questionId) {
+  const targetId = questionId || (activeQuestion ? activeQuestion.id : null);
+  if (!targetId) return;
+  currentEditQuestionId = targetId;
+
+  const textInput = document.getElementById('editQuestionTextInput');
+  const modelAnswerInput = document.getElementById('editQuestionModelAnswerInput');
+  const durationInput = document.getElementById('editQuestionDurationInput');
+
+  if (activeQuestion && activeQuestion.id == targetId) {
+    if (textInput) textInput.value = activeQuestion.question_text || '';
+    if (modelAnswerInput) modelAnswerInput.value = activeQuestion.model_answer || '';
+    if (durationInput) {
+      if (activeQuestion.expires_at) {
+        const remainingMinutes = Math.max(1, Math.round((activeQuestion.expires_at - Date.now()) / 60000));
+        durationInput.value = remainingMinutes;
+      } else {
+        durationInput.value = '';
+      }
+    }
+  } else {
+    // If opened from a message card in chat:
+    const card = document.querySelector(`[data-question-id="${targetId}"]`);
+    if (card) {
+      const qText = card.querySelector('p')?.innerText || '';
+      if (textInput) textInput.value = qText;
+    }
+    if (durationInput) durationInput.value = '';
+  }
+
+  const modal = document.getElementById('editQuestionModal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeEditQuestionModal() {
+  const modal = document.getElementById('editQuestionModal');
+  if (modal) modal.classList.add('hidden');
+  currentEditQuestionId = null;
+}
+
+async function submitEditQuestion() {
+  if (!currentEditQuestionId) return;
+  const textInput = document.getElementById('editQuestionTextInput');
+  const modelAnswerInput = document.getElementById('editQuestionModelAnswerInput');
+  const durationInput = document.getElementById('editQuestionDurationInput');
+  const saveBtn = document.getElementById('saveEditQuestionBtn');
+
+  const question_text = textInput ? textInput.value.trim() : '';
+  if (!question_text) {
+    alert('تکایە دەقی پرسیار بنووسە');
+    return;
+  }
+
+  const model_answer = modelAnswerInput ? modelAnswerInput.value.trim() : '';
+  const duration_minutes = durationInput && durationInput.value ? parseInt(durationInput.value) : null;
+
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> پاشەکەوتکردن...';
+  }
+
+  try {
+    const res = await fetch('/api/chat/question/edit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        question_id: currentEditQuestionId,
+        question_text,
+        model_answer,
+        duration_minutes
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      if (activeQuestion && activeQuestion.id == currentEditQuestionId) {
+        activeQuestion.question_text = question_text;
+        activeQuestion.model_answer = model_answer;
+        if (data.expires_at) activeQuestion.expires_at = data.expires_at;
+        renderActiveQuestionSticky(activeQuestion);
+      }
+      closeEditQuestionModal();
+      loadMessages();
+      alert('دەستکاریکردنی پرسیار بەسەرکەوتوویی پاشەکەوت کرا ✨');
+    } else {
+      alert(data.error || 'هەڵەیەک ڕوویدا لە دەستکاریکردنی پرسیار');
+    }
+  } catch (err) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> <span>پاشەکەوتکردنی گۆڕانکاری</span>';
+    }
+  }
 }
 
 // Backward-compatible wrappers for older call sites
@@ -3066,9 +3267,33 @@ async function openUserProfileModal(userId) {
       }
     }
 
+    currentProfileUserId = prof.id;
+    currentProfileUser = prof;
+
+    // Star Adjustment Controls (Super Admin & Teacher)
+    const starsAdjustContainer = document.getElementById('profStarsAdjustContainer');
+    if (starsAdjustContainer) {
+      if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+        starsAdjustContainer.classList.remove('hidden');
+      } else {
+        starsAdjustContainer.classList.add('hidden');
+      }
+    }
+
+    // Request Profile Change Button (Only shown on user's OWN profile)
+    const reqChangeContainer = document.getElementById('profRequestChangeContainer');
+    if (reqChangeContainer) {
+      if (isMe) {
+        reqChangeContainer.classList.remove('hidden');
+      } else {
+        reqChangeContainer.classList.add('hidden');
+      }
+    }
+
     if (isPrivileged && !isMe) {
       superAdminActions.classList.remove('hidden');
       let roleChangeHtml = '';
+      let renameActionHtml = '';
       if (isSuperAdmin) {
         roleChangeHtml = `
           <div class="flex items-center gap-1.5">
@@ -3081,6 +3306,11 @@ async function openUserProfileModal(userId) {
               <option value="admin" ${prof.role === 'admin' ? 'selected' : ''}>🛡️ ئەدمین</option>
             </select>
           </div>
+        `;
+        renameActionHtml = `
+          <button onclick="promptAdminEditUserName(${prof.id}, '${escapeHtml(prof.full_name)}')" class="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow active:scale-95" title="دەستکاریکردنی ناوی ئەم ئەکاونتە لەلایەن سوپەر ئەدمین">
+            <i class="fa-solid fa-user-pen"></i> گۆڕینی ناو
+          </button>
         `;
       }
 
@@ -3110,7 +3340,7 @@ async function openUserProfileModal(userId) {
         `;
       }
 
-      actionSlot.innerHTML = `${roleChangeHtml} ${muteActionHtml} ${deleteActionHtml}`;
+      actionSlot.innerHTML = `${roleChangeHtml} ${renameActionHtml} ${muteActionHtml} ${deleteActionHtml}`;
     } else {
       superAdminActions.classList.add('hidden');
     }
@@ -3122,6 +3352,63 @@ async function openUserProfileModal(userId) {
 
 function closeUserProfileModal() {
   document.getElementById('userProfileModal').classList.add('hidden');
+  currentProfileUserId = null;
+  currentProfileUser = null;
+}
+
+async function adjustCurrentProfileStars(delta) {
+  if (!currentProfileUserId) return;
+  const actionText = delta > 0 ? 'زیادکردنی ١ ئەستێرە' : 'کەمکردنەوەی ١ ئەستێرە';
+  if (!confirm(`ئایا دڵنیایت لە ${actionText} بۆ ئەم بەکارهێنەرە؟`)) return;
+
+  try {
+    const res = await fetch(`/api/admin/users/${currentProfileUserId}/adjust-stars`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ delta })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      const starInfo = calculateStars(data.new_stars);
+      const profStars = document.getElementById('profStars');
+      if (profStars) profStars.innerHTML = `${starInfo.starIcons} (${starInfo.points}/10)`;
+      alert(`ئەستێرە بەسەرکەوتوویی گۆڕدرا: (${data.new_stars} ئەستێرە) ⭐`);
+    } else {
+      alert(data.error || 'هەڵەیەک ڕوویدا لە دەستکاریکردنی ئەستێرە');
+    }
+  } catch (err) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  }
+}
+
+async function promptAdminEditUserName(userId, currentName) {
+  const newName = prompt('ناوی نوێ بۆ ئەم ئەکاونتە بنووسە:', currentName);
+  if (!newName || !newName.trim() || newName.trim() === currentName) return;
+
+  try {
+    const res = await fetch(`/api/admin/users/${userId}/update-name`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ full_name: newName.trim() })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert('ناو بەسەرکەوتوویی نوێکرایەوە ✨');
+      openUserProfileModal(userId);
+      loadAllMembers();
+      loadMessages();
+    } else {
+      alert(data.error || 'هەڵەیەک ڕوویدا');
+    }
+  } catch (err) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  }
 }
 
 async function deleteUserAccount(userId, fullName) {
@@ -3187,6 +3474,7 @@ function openAdminModal() {
   if (mobileNavBadge) mobileNavBadge.classList.add('hidden');
 
   document.getElementById('adminModal').classList.remove('hidden');
+  loadPendingProfileChangesCount();
   switchAdminSubTab(currentAdminSubTab);
 }
 
@@ -3199,18 +3487,20 @@ function switchAdminSubTab(tab) {
   const tabPending = document.getElementById('adminTabPending');
   const tabUsers = document.getElementById('adminTabUsers');
   const tabPasswordResets = document.getElementById('adminTabPasswordResets');
+  const tabProfileChanges = document.getElementById('adminTabProfileChanges');
   const tabBackups = document.getElementById('adminTabBackups');
   const contentPending = document.getElementById('adminContentPending');
   const contentUsers = document.getElementById('adminContentUsers');
   const contentPasswordResets = document.getElementById('adminContentPasswordResets');
+  const contentProfileChanges = document.getElementById('adminContentProfileChanges');
   const contentBackups = document.getElementById('adminContentBackups');
 
   // Reset all tabs to inactive styling
-  [tabPending, tabUsers, tabPasswordResets, tabBackups].forEach(t => {
+  [tabPending, tabUsers, tabPasswordResets, tabProfileChanges, tabBackups].forEach(t => {
     if (t) t.className = 'pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2';
   });
   // Hide all panels
-  [contentPending, contentUsers, contentPasswordResets, contentBackups].forEach(c => {
+  [contentPending, contentUsers, contentPasswordResets, contentProfileChanges, contentBackups].forEach(c => {
     if (c) c.classList.add('hidden');
   });
 
@@ -3226,6 +3516,10 @@ function switchAdminSubTab(tab) {
     if (tabPasswordResets) tabPasswordResets.className = 'pb-3 text-sm font-bold border-b-2 border-[#dfaa86] text-[#dfaa86] flex items-center gap-2';
     if (contentPasswordResets) contentPasswordResets.classList.remove('hidden');
     loadPasswordResetsList();
+  } else if (tab === 'profile_changes') {
+    if (tabProfileChanges) tabProfileChanges.className = 'pb-3 text-sm font-bold border-b-2 border-[#dfaa86] text-[#dfaa86] flex items-center gap-2';
+    if (contentProfileChanges) contentProfileChanges.classList.remove('hidden');
+    loadPendingProfileChangesList();
   } else if (tab === 'backups') {
     if (tabBackups) tabBackups.className = 'pb-3 text-sm font-bold border-b-2 border-[#dfaa86] text-[#dfaa86] flex items-center gap-2';
     if (contentBackups) contentBackups.classList.remove('hidden');
@@ -3345,6 +3639,236 @@ async function rejectPasswordReset(requestId) {
     }
   } catch (err) {
     alert('شکستی هێنا لە پەیوەندی کردن بە سێرڤەر');
+  }
+}
+
+// --- USER PROFILE CHANGE REQUESTS (NAME & PASSWORD) ---
+function openRequestProfileChangeModal() {
+  if (!currentUser) return;
+  const modal = document.getElementById('requestProfileChangeModal');
+  const typeSelect = document.getElementById('reqProfileChangeType');
+  const nameInput = document.getElementById('reqProfileNewName');
+  const passInput = document.getElementById('reqProfileNewPassword');
+  const reasonInput = document.getElementById('reqProfileReason');
+
+  if (typeSelect) typeSelect.value = 'name';
+  if (nameInput) nameInput.value = currentUser.full_name || '';
+  if (passInput) passInput.value = '';
+  if (reasonInput) reasonInput.value = '';
+
+  toggleProfileChangeFields();
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeRequestProfileChangeModal() {
+  const modal = document.getElementById('requestProfileChangeModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function toggleProfileChangeFields() {
+  const type = document.getElementById('reqProfileChangeType')?.value || 'name';
+  const nameField = document.getElementById('reqProfileNameField');
+  const passField = document.getElementById('reqProfilePasswordField');
+
+  if (type === 'name') {
+    if (nameField) nameField.classList.remove('hidden');
+    if (passField) passField.classList.add('hidden');
+  } else {
+    if (nameField) nameField.classList.add('hidden');
+    if (passField) passField.classList.remove('hidden');
+  }
+}
+
+async function submitProfileChangeRequest() {
+  const type = document.getElementById('reqProfileChangeType')?.value || 'name';
+  const nameInput = document.getElementById('reqProfileNewName');
+  const passInput = document.getElementById('reqProfileNewPassword');
+  const reasonInput = document.getElementById('reqProfileReason');
+  const btn = document.getElementById('submitProfileChangeRequestBtn');
+
+  const new_name = (type === 'name' && nameInput) ? nameInput.value.trim() : null;
+  const new_password = (type === 'password' && passInput) ? passInput.value : null;
+  const reason = reasonInput ? reasonInput.value.trim() : '';
+
+  if (type === 'name' && (!new_name || new_name === currentUser.full_name)) {
+    alert('تکایە ناوێکی نوێ و جیاواز بنووسە');
+    return;
+  }
+  if (type === 'password' && (!new_password || new_password.length < 6)) {
+    alert('وشەی تێپەڕی نوێ دەبێت لانیکەم ٦ پیت بێت');
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> ناردن...';
+  }
+
+  try {
+    const res = await fetch('/api/user/request-profile-change', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        change_type: type,
+        new_name,
+        new_password,
+        reason
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      closeRequestProfileChangeModal();
+      alert('داواکارییەکەت بەسەرکەوتوویی نێردرا بۆ سوپەر ئەدمین بۆ پەسەندکردن ✨');
+    } else {
+      alert(data.error || 'هەڵەیەک ڕوویدا لە ناردنی داواکاری');
+    }
+  } catch (err) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>ناردنی داواکاری بۆ سوپەر ئەدمین</span>';
+    }
+  }
+}
+
+// --- ADMIN PROFILE CHANGE REQUESTS REVIEW ---
+async function loadPendingProfileChangesList() {
+  const container = document.getElementById('profileChangesList');
+  const emptyMsg = document.getElementById('profileChangesEmptyMessage');
+  const badge = document.getElementById('adminProfileChangesBadge');
+  if (!container) return;
+
+  container.innerHTML = `<div class="text-center py-6 text-slate-400"><i class="fa-solid fa-circle-notch fa-spin text-lg"></i> لە بارکردندایە...</div>`;
+  if (emptyMsg) emptyMsg.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/admin/profile-change-requests', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error('Failed to fetch');
+    const data = await res.json();
+    container.innerHTML = '';
+
+    const list = data.requests || [];
+    if (badge) {
+      badge.innerText = list.length;
+      if (list.length > 0) badge.classList.remove('hidden');
+      else badge.classList.add('hidden');
+    }
+
+    if (list.length === 0) {
+      if (emptyMsg) emptyMsg.classList.remove('hidden');
+      return;
+    }
+
+    list.forEach(req => {
+      const card = document.createElement('div');
+      card.className = 'p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700/70 flex items-center justify-between gap-3 flex-wrap';
+      const isName = req.change_type === 'name';
+      const typeLabel = isName ? 'گۆڕینی ناوی تەواو' : 'گۆڕینی وشەی تێپەڕ';
+      const typeColor = isName ? 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30' : 'text-amber-400 bg-amber-500/10 border-amber-500/30';
+      const createdStr = new Date(req.created_at).toLocaleDateString('ku-IQ') + ' ' + new Date(req.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
+
+      card.innerHTML = `
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded-md border text-[11px] font-bold ${typeColor}">${typeLabel}</span>
+            <span class="font-bold text-white text-xs">${escapeHtml(req.full_name)}</span>
+            <span class="text-slate-400 text-xs font-mono">(@${escapeHtml(req.username)})</span>
+          </div>
+          ${isName ? `
+            <div class="text-xs text-slate-300">
+              ناوی نوێی داواکراو: <b class="text-emerald-400">${escapeHtml(req.new_name)}</b>
+            </div>
+          ` : `
+            <div class="text-xs text-amber-300">
+              داوای گۆڕینی وشەی تێپەڕ دەکات
+            </div>
+          `}
+          ${req.reason ? `
+            <div class="text-[11px] text-slate-400 italic">
+              هۆکار: "${escapeHtml(req.reason)}"
+            </div>
+          ` : ''}
+          <div class="text-[10px] text-slate-500 font-mono">${createdStr}</div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="approveProfileChange(${req.id})" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1 active:scale-95">
+            <i class="fa-solid fa-check"></i> پەسەندکردن
+          </button>
+          <button onclick="rejectProfileChange(${req.id})" class="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold text-xs rounded-xl transition flex items-center gap-1 active:scale-95">
+            <i class="fa-solid fa-xmark"></i> ڕەتکردنەوە
+          </button>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  } catch (err) {
+    container.innerHTML = `<div class="text-center py-4 text-rose-400 text-xs">هەڵە لە بارکردنی داواکارییەکان</div>`;
+  }
+}
+
+async function loadPendingProfileChangesCount() {
+  if (!token || !currentUser || currentUser.role !== 'super_admin') return;
+  try {
+    const res = await fetch('/api/admin/profile-change-requests', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const count = (data.requests || []).length;
+    const badge = document.getElementById('adminProfileChangesBadge');
+    if (badge) {
+      badge.innerText = count;
+      if (count > 0) badge.classList.remove('hidden');
+      else badge.classList.add('hidden');
+    }
+  } catch (e) {}
+}
+
+async function approveProfileChange(id) {
+  if (!confirm('ئایا دڵنیایت لە پەسەندکردنی ئەم گۆڕانکارییە؟')) return;
+  try {
+    const res = await fetch(`/api/admin/profile-change-requests/${id}/approve`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert('گۆڕانکارییەکە بەسەرکەوتوویی پەسەندکرا و جێبەجێکرا!');
+      loadPendingProfileChangesList();
+      loadPendingProfileChangesCount();
+      loadAllMembers();
+    } else {
+      alert(data.error || 'هەڵەیەک ڕوویدا');
+    }
+  } catch (err) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  }
+}
+
+async function rejectProfileChange(id) {
+  if (!confirm('ئایا دڵنیایت لە ڕەتکردنەوەی ئەم داواکارییە؟')) return;
+  try {
+    const res = await fetch(`/api/admin/profile-change-requests/${id}/reject`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert('داواکارییەکە ڕەتکرایەوە.');
+      loadPendingProfileChangesList();
+      loadPendingProfileChangesCount();
+    } else {
+      alert(data.error || 'هەڵەیەک ڕوویدا');
+    }
+  } catch (err) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
   }
 }
 
@@ -6453,12 +6977,18 @@ async function loadPrivateThread(otherUserId) {
 
 function appendPrivateMessageToThread(m, scroll = true) {
   const container = document.getElementById('privateMessagesContainer');
-  if (!container) return;
+  if (!container || !m) return;
+
+  // Prevent duplicate rendering
+  if (m.id && document.getElementById(`private-msg-${m.id}`)) {
+    return;
+  }
 
   const isMe = currentUser && m.sender_id === currentUser.id;
   const timeFormatted = m.created_at ? new Date(m.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
 
   const div = document.createElement('div');
+  if (m.id) div.id = `private-msg-${m.id}`;
   div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1.5`;
   div.innerHTML = `
     <div class="max-w-[80%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow break-words ${
@@ -6692,6 +7222,26 @@ let liveRecordingStartTime = null;
 let liveRecordingTimer = null;
 let liveAudioContext = null;
 
+let livePingInterval = null;
+function startLivePingReporting() {
+  if (livePingInterval) clearInterval(livePingInterval);
+  livePingInterval = setInterval(() => {
+    if (!currentLiveLessonState || !currentLiveLessonState.isActive) return;
+    let rtt = 50;
+    if (navigator.connection && navigator.connection.rtt) {
+      rtt = navigator.connection.rtt;
+    }
+    socket.emit('live_ping_report', { pingMs: rtt });
+  }, 4000);
+}
+
+function stopLivePingReporting() {
+  if (livePingInterval) {
+    clearInterval(livePingInterval);
+    livePingInterval = null;
+  }
+}
+
 function openLiveLessonModal() {
   const modal = document.getElementById('liveLessonModal');
   const floatingBar = document.getElementById('floatingLiveBar');
@@ -6699,6 +7249,7 @@ function openLiveLessonModal() {
   if (floatingBar) floatingBar.classList.add('hidden');
 
   socket.emit('live_join');
+  startLivePingReporting();
 }
 
 function minimizeLiveLessonModal() {
@@ -6716,6 +7267,7 @@ function expandLiveLessonModal() {
 }
 
 function leaveLiveLessonRoom() {
+  stopLivePingReporting();
   if (currentLiveLessonState && currentLiveLessonState.isActive) {
     const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
     if (isStaff) {
@@ -7092,9 +7644,18 @@ function handleLiveLessonStateUpdate(state) {
   const startEndBtn = document.getElementById('liveStartEndBtn');
   const startEndBtnText = document.getElementById('liveStartEndBtnText');
 
+  const deskNavBtn = document.getElementById('liveLessonNavBtn');
+  const mobNavBtn = document.getElementById('mobileLiveLessonBtn');
+
   if (state.isActive) {
-    if (deskDot) deskDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping';
-    if (mobDot) mobDot.className = 'w-2 h-2 rounded-full bg-rose-500 animate-ping';
+    if (deskDot) deskDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping ring-2 ring-rose-400';
+    if (mobDot) mobDot.className = 'w-2 h-2 rounded-full bg-rose-500 animate-ping ring-2 ring-rose-400';
+    if (deskNavBtn) {
+      deskNavBtn.className = 'relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-rose-950/90 border-2 border-rose-500 text-white font-black text-xs rounded-xl shadow-lg shadow-rose-900/60 flex items-center gap-1.5 shrink-0 transition animate-pulse';
+    }
+    if (mobNavBtn) {
+      mobNavBtn.className = 'relative px-3 py-1.5 rounded-xl bg-rose-950/90 border-2 border-rose-500 text-xs font-black text-white flex items-center gap-1.5 shrink-0 shadow-lg shadow-rose-900/60 active:scale-95 animate-pulse';
+    }
     if (activeBadge) activeBadge.classList.remove('hidden');
     if (modalBadge) modalBadge.classList.remove('hidden');
     if (timerBox) timerBox.classList.remove('hidden');
@@ -7118,8 +7679,14 @@ function handleLiveLessonStateUpdate(state) {
       }, 1000);
     }
   } else {
-    if (deskDot) deskDot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
-    if (mobDot) mobDot.className = 'w-2 h-2 rounded-full bg-slate-500';
+    if (deskDot) deskDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-950 border border-rose-900/60';
+    if (mobDot) mobDot.className = 'w-2 h-2 rounded-full bg-rose-950 border border-rose-900/60';
+    if (deskNavBtn) {
+      deskNavBtn.className = 'relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-900 border border-slate-800 text-slate-400 font-black text-xs rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-sm opacity-80';
+    }
+    if (mobNavBtn) {
+      mobNavBtn.className = 'relative px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-black text-slate-400 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95 opacity-80';
+    }
     if (activeBadge) activeBadge.classList.add('hidden');
     if (modalBadge) modalBadge.classList.add('hidden');
     if (timerBox) timerBox.classList.add('hidden');
@@ -7142,15 +7709,36 @@ function handleLiveLessonStateUpdate(state) {
   const participants = state.participants || [];
   if (countBadge) countBadge.innerText = participants.length;
 
+  // Hand raised ALWAYS sorted to the VERY TOP!
+  const sortedParticipants = [...participants].sort((a, b) => {
+    if (a.handRaised && !b.handRaised) return -1;
+    if (!a.handRaised && b.handRaised) return 1;
+    return 0;
+  });
+
   if (listEl) {
-    if (participants.length === 0) {
+    if (sortedParticipants.length === 0) {
       listEl.innerHTML = '<div class="p-3 text-center text-slate-500 text-xs">هیچ کەسێک لە ژوورەکەدا نییە</div>';
     } else {
-      listEl.innerHTML = participants.map(p => {
+      listEl.innerHTML = sortedParticipants.map(p => {
         const isMe = currentUser && p.userId === currentUser.id;
         const roleLabel = p.role === 'super_admin' ? 'سوپەر ئەدمین' : (p.role === 'teacher' ? 'مامۆستا' : (p.role === 'admin' ? 'ئەدمین' : 'قوتابی'));
         const roleColor = p.role === 'super_admin' ? 'text-rose-400' : (p.role === 'teacher' ? 'text-amber-400' : (p.role === 'admin' ? 'text-indigo-400' : 'text-slate-400'));
         const isSpeaking = !p.isMuted && p.hasMicPermission;
+
+        // Network Quality Ring & Warning Badge
+        const q = p.networkQuality || 'good';
+        let netColorClass = 'border-slate-700';
+        let netBadgeHtml = '';
+        if (q === 'poor') {
+          netColorClass = 'border-rose-500 ring-2 ring-rose-500';
+          netBadgeHtml = `<span class="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-black border border-rose-500/30 flex items-center gap-1">⚠️ خەتەکەی خراپە</span>`;
+        } else if (q === 'fair') {
+          netColorClass = 'border-amber-500 ring-1 ring-amber-500';
+          netBadgeHtml = `<span class="px-1 py-0.5 text-amber-400 text-[10px] font-bold">خەت مامناوەند</span>`;
+        } else {
+          netColorClass = isSpeaking ? 'border-emerald-500 ring-2 ring-emerald-400' : 'border-slate-700';
+        }
 
         let modButtonsHtml = '';
         if (isAdmin && !isMe) {
@@ -7173,23 +7761,27 @@ function handleLiveLessonStateUpdate(state) {
         }
 
         return `
-          <div class="p-2.5 rounded-2xl bg-slate-900 border ${isSpeaking ? 'border-emerald-500/60 shadow-md' : 'border-slate-800'} transition">
+          <div class="p-2.5 rounded-2xl bg-slate-900 border ${p.handRaised ? 'border-indigo-500 shadow-md shadow-indigo-950/40 bg-indigo-950/20' : (q === 'poor' ? 'border-rose-500/80 bg-rose-950/20' : (isSpeaking ? 'border-emerald-500/60 shadow-md' : 'border-slate-800'))} transition">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <span class="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs">
+                <span class="w-8 h-8 rounded-full bg-slate-800 border-2 ${netColorClass} flex items-center justify-center text-xs relative shrink-0">
                   ${p.gender === 'female' ? '🧕' : '👤'}
+                  ${p.handRaised ? '<span class="absolute -top-1 -right-1 text-xs">✋</span>' : ''}
                 </span>
                 <div>
                   <div class="font-black text-white text-xs flex items-center gap-1.5">
                     <span>${escapeHtml(p.fullName)}</span>
                     ${isMe ? '<span class="text-[9px] text-sky-400 font-bold">(خۆت)</span>' : ''}
                   </div>
-                  <span class="text-[10px] ${roleColor} font-bold">${roleLabel}</span>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[10px] ${roleColor} font-bold">${roleLabel}</span>
+                    ${netBadgeHtml}
+                  </div>
                 </div>
               </div>
 
               <div class="flex items-center gap-1.5">
-                ${p.handRaised ? '<span class="text-sm animate-bounce" title="دەستی هەڵبڕیوە">✋</span>' : ''}
+                ${p.handRaised ? '<span class="px-2 py-0.5 rounded-md bg-indigo-600/30 text-indigo-300 text-[10px] font-black border border-indigo-500/40 animate-pulse">دەست هەڵبڕاو</span>' : ''}
                 ${isSpeaking 
                   ? '<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-black flex items-center gap-1"><i class="fa-solid fa-microphone text-xs animate-pulse"></i> قسە دەکات</span>' 
                   : '<i class="fa-solid fa-microphone-slash text-slate-600 text-xs" title="مایک داخراوە"></i>'

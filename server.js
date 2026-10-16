@@ -9,7 +9,7 @@ const multer = require('multer');
 const fs = require('fs');
 let archiver;
 try { archiver = require('archiver'); } catch (e) {}
-const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, calculateStars } = require('./db');
+const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, calculateStars } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 80;
@@ -546,13 +546,113 @@ app.post('/api/admin/password-resets/:id/reject', authMiddleware, requireSuperAd
   }
 });
 
-// 7. Get all users / members list (Available to all chat members)
+// 7. Get all users / members list (Super Admin, Teacher, and Admin ONLY)
 app.get('/api/admin/users', authMiddleware, (req, res) => {
+  const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher' || req.user.role === 'admin';
+  if (!isStaff) {
+    return res.status(403).json({ error: 'قوتابیان ناتوانن لیستی ئەندامان ببینن' });
+  }
   const all = users.getAllUsers().map(u => ({
     ...u,
     starInfo: calculateStars(u.correct_answers_count)
   }));
   res.json({ users: all });
+});
+
+// Adjust user stars (Super Admin & Teacher)
+app.post('/api/admin/users/:id/adjust-stars', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { delta } = req.body;
+  const numDelta = parseInt(delta) || 0;
+  if (!numDelta) return res.status(400).json({ error: 'بڕی ئەستێرە دیاری نەکراوە' });
+
+  const target = users.findById(userId);
+  if (!target) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
+
+  const updatedStars = users.adjustStars(userId, numDelta);
+  io.emit('user_stars_updated', {
+    user_id: userId,
+    total_stars: updatedStars,
+    delta: numDelta,
+    starInfo: calculateStars(updatedStars)
+  });
+
+  res.json({ success: true, total_stars: updatedStars });
+});
+
+// Directly update user's full name (Super Admin only)
+app.post('/api/admin/users/:id/update-name', authMiddleware, requireSuperAdmin, (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { full_name } = req.body;
+  if (!full_name || !full_name.trim()) return res.status(400).json({ error: 'ناوی نوێ بنووسە' });
+
+  const updated = users.updateFullName(userId, full_name.trim());
+  if (!updated) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
+
+  io.emit('user_profile_updated', {
+    user_id: userId,
+    full_name: updated.full_name
+  });
+
+  res.json({ success: true, user: updated });
+});
+
+// User submits request to change name and/or password (needs Super Admin approval)
+app.post('/api/user/request-profile-change', authMiddleware, (req, res) => {
+  const { requested_name, requested_password } = req.body;
+  if (!requested_name && !requested_password) {
+    return res.status(400).json({ error: 'تکایە ناو یان پاسوۆردی نوێ بنووسە' });
+  }
+
+  if (profileChangeRequests.hasPending(req.user.id)) {
+    return res.status(400).json({ error: 'تۆ پێشتر داواکارییەکت ناردووە کە هێشتا لە چاوەڕوانیدایە' });
+  }
+
+  let passHash = null;
+  if (requested_password && requested_password.trim().length >= 4) {
+    passHash = bcrypt.hashSync(requested_password.trim(), 10);
+  }
+
+  const reqItem = profileChangeRequests.create(
+    req.user.id,
+    requested_name ? requested_name.trim() : null,
+    passHash,
+    req.user.full_name
+  );
+
+  io.emit('new_profile_change_request', reqItem);
+  res.json({ success: true, message: 'داواکارییەکەت بە سەرکەوتوویی نێردرا بۆ سوپەر ئەدمین بۆ پەسەندکردن' });
+});
+
+// Super Admin: Get pending profile change requests
+app.get('/api/admin/profile-change-requests', authMiddleware, requireSuperAdmin, (req, res) => {
+  const list = profileChangeRequests.getPending();
+  res.json({ requests: list });
+});
+
+// Super Admin: Approve profile change request
+app.post('/api/admin/profile-change-requests/:id/approve', authMiddleware, requireSuperAdmin, (req, res) => {
+  const reqId = parseInt(req.params.id);
+  const updatedUser = profileChangeRequests.approve(reqId, req.user.id);
+  if (!updatedUser) return res.status(404).json({ error: 'داواکاری نەدۆزرایەوە یان پێشتر دیاریکراوە' });
+
+  io.emit('user_profile_updated', {
+    user_id: updatedUser.id,
+    full_name: updatedUser.full_name
+  });
+  io.emit('profile_change_status_updated', { id: reqId, status: 'approved', user_id: updatedUser.id });
+
+  res.json({ success: true, message: 'داواکاری گۆڕانکاری پەسەندکرا', user: updatedUser });
+});
+
+// Super Admin: Reject profile change request
+app.post('/api/admin/profile-change-requests/:id/reject', authMiddleware, requireSuperAdmin, (req, res) => {
+  const reqId = parseInt(req.params.id);
+  const ok = profileChangeRequests.reject(reqId, req.user.id);
+  if (!ok) return res.status(404).json({ error: 'داواکاری نەدۆزرایەوە' });
+
+  io.emit('profile_change_status_updated', { id: reqId, status: 'rejected' });
+  res.json({ success: true, message: 'داواکارییەکە ڕەتکرایەوە' });
 });
 
 // 8. Change user role (Super Admin only - Silent role change as requested)
@@ -1089,8 +1189,47 @@ app.post('/api/chat/question/cancel', authMiddleware, requireTeacherOrSuperAdmin
   if (qId) {
     io.emit('question_cancelled', { question_id: qId });
     io.emit('question_closed', { question_id: qId });
+    io.emit('questions_renumbered');
   }
-  res.json({ success: true, message: 'پرسیارەکە بە سەرکەوتوویی لابرا و سڕایەوە' });
+  res.json({ success: true, message: 'پرسیارەکە بە سەرکەوتوویی لابرا و سڕایەوە و ژمارەکان ڕێکخرانەوە' });
+});
+
+// 19c. Edit Question (Super Admin & Teacher ONLY)
+app.post('/api/chat/question/edit', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  const { question_id, question_text, correct_answer, duration_minutes, custom_expires_at } = req.body;
+  if (!question_id) return res.status(400).json({ error: 'ناسنامەی پرسیار دیارینەکراوە' });
+
+  const qId = parseInt(question_id);
+  const q = questions.findById(qId);
+  if (!q) return res.status(404).json({ error: 'پرسیار نەدۆزرایەوە' });
+
+  let newExpiresAt = q.expires_at;
+  let newDuration = duration_minutes !== undefined ? parseInt(duration_minutes) || q.duration_minutes : q.duration_minutes;
+
+  if (custom_expires_at) {
+    newExpiresAt = Number(custom_expires_at);
+  } else if (duration_minutes !== undefined && q.is_active && !q.is_revealed) {
+    newExpiresAt = Date.now() + (newDuration * 60 * 1000);
+  }
+
+  const updatedQ = questions.update(qId, {
+    question_text,
+    correct_answer,
+    duration_minutes: newDuration,
+    expires_at: newExpiresAt
+  });
+
+  // If this question is currently active, reset the timer
+  const currentActive = questions.getActive();
+  if (currentActive && currentActive.id === qId) {
+    setupQuestionTimer(updatedQ);
+  }
+
+  io.emit('question_updated', {
+    question: updatedQ
+  });
+
+  res.json({ success: true, question: updatedQ });
 });
 
 // 20. Questions Archive & Bank (Available to all users)
@@ -1316,9 +1455,9 @@ app.post('/api/chat/private/send', authMiddleware, (req, res) => {
       'text'
     );
 
-    // Broadcast in real-time to sender and recipient sockets
+    // Broadcast in real-time to recipient sockets only (sender gets it in HTTP response)
     for (const [sockId, u] of onlineUsers.entries()) {
-      if (u.id === recId || u.id === req.user.id) {
+      if (u.id === recId) {
         io.to(sockId).emit('new_private_message', msg);
       }
     }
@@ -2077,6 +2216,10 @@ io.on('connection', (socket) => {
     socket.join('live_lesson_room');
     broadcastLiveLessonState();
 
+    if (user.role === 'teacher' || user.role === 'super_admin') {
+      socket.to('live_lesson_room').emit('live_teacher_joined', { name: user.full_name, role: user.role });
+    }
+
     if (liveLessonState.quranState && liveLessonState.quranState.isPlaying) {
       socket.emit('live_quran_playing', liveLessonState.quranState);
     }
@@ -2086,6 +2229,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('live_leave', () => {
+    if (user.role === 'teacher' || user.role === 'super_admin') {
+      socket.to('live_lesson_room').emit('live_teacher_left', { name: user.full_name, role: user.role });
+    }
     liveLessonState.participants.delete(socket.id);
     socket.leave('live_lesson_room');
     if (liveLessonState.screenSharingBy && liveLessonState.screenSharingBy.id === user.id) {
@@ -2093,6 +2239,15 @@ io.on('connection', (socket) => {
       io.to('live_lesson_room').emit('live_screen_stopped');
     }
     broadcastLiveLessonState();
+  });
+
+  socket.on('live_ping_report', (data) => {
+    const p = liveLessonState.participants.get(socket.id);
+    if (p && data && typeof data.pingMs === 'number') {
+      p.pingMs = data.pingMs;
+      p.networkQuality = data.pingMs < 180 ? 'good' : (data.pingMs < 380 ? 'fair' : 'poor');
+      broadcastLiveLessonState();
+    }
   });
 
   socket.on('live_raise_hand', () => {
@@ -2220,6 +2375,9 @@ io.on('connection', (socket) => {
     onlineUsers.delete(socket.id);
     io.emit('online_users', getUniqueOnlineList());
     if (liveLessonState.participants.has(socket.id)) {
+      if (user && (user.role === 'teacher' || user.role === 'super_admin')) {
+        io.to('live_lesson_room').emit('live_teacher_left', { name: user.full_name, role: user.role });
+      }
       liveLessonState.participants.delete(socket.id);
       if (liveLessonState.screenSharingBy && liveLessonState.screenSharingBy.id === user.id) {
         liveLessonState.screenSharingBy = null;

@@ -190,6 +190,19 @@ function initDb() {
       FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS profile_change_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      requested_name TEXT,
+      requested_password TEXT,
+      current_name TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at INTEGER NOT NULL,
+      reviewed_by INTEGER,
+      reviewed_at INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
 
   try {
@@ -377,6 +390,19 @@ const users = {
     stmt.run(id);
     const updated = db.prepare('SELECT correct_answers_count FROM users WHERE id = ?').get(id);
     return updated ? updated.correct_answers_count : 0;
+  },
+  adjustStars(id, delta) {
+    db.prepare('UPDATE users SET correct_answers_count = MAX(0, correct_answers_count + ?) WHERE id = ?').run(Number(delta) || 0, id);
+    const updated = db.prepare('SELECT correct_answers_count FROM users WHERE id = ?').get(id);
+    return updated ? updated.correct_answers_count : 0;
+  },
+  updateFullName(id, newName) {
+    db.prepare('UPDATE users SET full_name = ? WHERE id = ?').run(newName.trim(), id);
+    return this.findById(id);
+  },
+  updatePassword(id, passwordHash) {
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, id);
+    return true;
   },
   getLeaderboard() {
     const stmt = db.prepare(`
@@ -651,11 +677,75 @@ const questions = {
     const stmt = db.prepare('UPDATE questions SET is_active = 0, winner_id = ?, winner_name = ? WHERE id = ?');
     return stmt.run(winnerId, winnerName, questionId);
   },
+  renumberQuestions() {
+    try {
+      const allQ = db.prepare('SELECT id FROM questions ORDER BY created_at ASC, id ASC').all();
+      const updateQ = db.prepare('UPDATE questions SET question_number = ? WHERE id = ?');
+      allQ.forEach((q, idx) => {
+        const newNum = idx + 1;
+        updateQ.run(newNum, q.id);
+      });
+
+      // Also update messages in chat for questions and revealed submissions
+      const allMsgs = db.prepare("SELECT id, content FROM messages WHERE message_type = 'question' OR message_type = 'revealed_submissions'").all();
+      const updateMsg = db.prepare('UPDATE messages SET content = ? WHERE id = ?');
+      for (const m of allMsgs) {
+        try {
+          const parsed = JSON.parse(m.content);
+          const qId = parsed.id || parsed.question_id;
+          if (qId) {
+            const currentQ = db.prepare('SELECT question_number FROM questions WHERE id = ?').get(qId);
+            if (currentQ) {
+              parsed.question_number = currentQ.question_number;
+              updateMsg.run(JSON.stringify(parsed), m.id);
+            }
+          }
+        } catch (e) {}
+      }
+    } catch (err) {
+      console.error('Error renumbering questions:', err);
+    }
+  },
+  update(questionId, data) {
+    const q = this.findById(questionId);
+    if (!q) return null;
+    const text = data.question_text !== undefined ? data.question_text.trim() : q.question_text;
+    const ans = data.correct_answer !== undefined ? (data.correct_answer ? data.correct_answer.trim() : null) : q.correct_answer;
+    const duration = data.duration_minutes !== undefined ? parseInt(data.duration_minutes) || q.duration_minutes : q.duration_minutes;
+    const expiresAt = data.expires_at !== undefined ? Number(data.expires_at) : q.expires_at;
+
+    db.prepare(`
+      UPDATE questions 
+      SET question_text = ?, correct_answer = ?, duration_minutes = ?, expires_at = ?
+      WHERE id = ?
+    `).run(text, ans, duration, expiresAt, questionId);
+
+    // Update active question message in messages table
+    try {
+      const qMsgs = db.prepare("SELECT id, content FROM messages WHERE message_type = 'question'").all();
+      const updateMsg = db.prepare('UPDATE messages SET content = ? WHERE id = ?');
+      for (const m of qMsgs) {
+        try {
+          const parsed = JSON.parse(m.content);
+          if (parsed.id === questionId || parsed.question_id === questionId) {
+            parsed.question_text = text;
+            parsed.duration_minutes = duration;
+            parsed.expires_at = expiresAt;
+            updateMsg.run(JSON.stringify(parsed), m.id);
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+
+    return this.findById(questionId);
+  },
   delete(questionId) {
     db.prepare('DELETE FROM star_awards WHERE question_id = ?').run(questionId);
     db.prepare('DELETE FROM question_submissions WHERE question_id = ?').run(questionId);
     const stmt = db.prepare('DELETE FROM questions WHERE id = ?');
-    return stmt.run(questionId);
+    const res = stmt.run(questionId);
+    this.renumberQuestions();
+    return res;
   },
   hasUserBeenAwarded(questionId, userId) {
     const stmt = db.prepare('SELECT COUNT(*) as count FROM star_awards WHERE question_id = ? AND user_id = ?');
@@ -999,6 +1089,71 @@ function calculateStars(correctCount) {
   };
 }
 
+// Profile Change Requests (Name & Password changes requiring Super Admin approval)
+const profileChangeRequests = {
+  create(userId, requestedName, requestedPasswordHash, currentName) {
+    const stmt = db.prepare(`
+      INSERT INTO profile_change_requests (user_id, requested_name, requested_password, current_name, status, created_at)
+      VALUES (?, ?, ?, ?, 'pending', ?)
+    `);
+    const res = stmt.run(userId, requestedName ? requestedName.trim() : null, requestedPasswordHash || null, currentName, Date.now());
+    return this.getById(res.lastInsertRowid);
+  },
+  getPending() {
+    const stmt = db.prepare(`
+      SELECT pcr.*, u.username, u.role, u.gender
+      FROM profile_change_requests pcr
+      JOIN users u ON pcr.user_id = u.id
+      WHERE pcr.status = 'pending'
+      ORDER BY pcr.created_at ASC
+    `);
+    return stmt.all();
+  },
+  getById(id) {
+    const stmt = db.prepare('SELECT * FROM profile_change_requests WHERE id = ?');
+    return stmt.get(id);
+  },
+  getPendingCount() {
+    const row = db.prepare("SELECT COUNT(*) as count FROM profile_change_requests WHERE status = 'pending'").get();
+    return row ? row.count : 0;
+  },
+  hasPending(userId) {
+    const row = db.prepare("SELECT COUNT(*) as count FROM profile_change_requests WHERE user_id = ? AND status = 'pending'").get();
+    return row && row.count > 0;
+  },
+  approve(id, reviewerId) {
+    const req = this.getById(id);
+    if (!req || req.status !== 'pending') return null;
+
+    if (req.requested_name) {
+      users.updateFullName(req.user_id, req.requested_name);
+    }
+    if (req.requested_password) {
+      users.updatePassword(req.user_id, req.requested_password);
+    }
+
+    db.prepare(`
+      UPDATE profile_change_requests 
+      SET status = 'approved', reviewed_by = ?, reviewed_at = ?
+      WHERE id = ?
+    `).run(reviewerId, Date.now(), id);
+
+    return users.findById(req.user_id);
+  },
+  reject(id, reviewerId) {
+    const req = this.getById(id);
+    if (!req || req.status !== 'pending') return null;
+
+    db.prepare(`
+      UPDATE profile_change_requests 
+      SET status = 'rejected', reviewed_by = ?, reviewed_at = ?
+      WHERE id = ?
+    `).run(reviewerId, Date.now(), id);
+
+    return true;
+  }
+};
+
 module.exports = {
   db,
   initDb,
@@ -1012,5 +1167,6 @@ module.exports = {
   passwordResets,
   privateMessages,
   messageReactions,
+  profileChangeRequests,
   calculateStars
 };
