@@ -437,104 +437,53 @@
           </div>
         </div>
 
-        <!-- ================= ACTIVE QUESTION STICKY BANNER ================= -->
-        <div id="activeQuestionSticky" class="hidden shrink-0 mx-3 mt-2 mb-1 p-3.5 rounded-2xl question-glow bg-slate-900 border border-amber-500/40 relative z-10 transition-all duration-300">
-          <div class="flex items-start justify-between gap-3">
+        <!-- ================= COMPACT PINNED ACTIVE QUESTION BANNER ================= -->
+        <div id="activeQuestionSticky" onclick="openActiveQuestionModal()" class="hidden shrink-0 mx-2.5 sm:mx-4 mt-2 mb-1 px-3 py-2 rounded-xl question-glow bg-slate-900/95 hover:bg-slate-850 border border-amber-500/50 relative z-10 transition-all duration-200 cursor-pointer shadow-lg backdrop-blur-md">
+          <div class="flex items-center justify-between gap-2 overflow-hidden">
             
-            <div class="flex items-start gap-2.5 flex-1">
-              <div class="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center text-lg shrink-0 font-black shadow-lg shadow-amber-500/30">
+            <!-- Right / Leading: Icon, Title, Timer, Truncated Snippet -->
+            <div class="flex items-center gap-2 overflow-hidden min-w-0">
+              <span class="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center text-xs font-black shrink-0 shadow-md shadow-amber-500/30">
                 <i class="fa-solid fa-lightbulb"></i>
-              </div>
-              <div class="flex-1">
-                
-                <div class="flex items-center gap-2 mb-1.5 flex-wrap">
-                  <span class="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-black">
-                    ❓ پرسیاری چالاک
-                  </span>
-                  
-                  <!-- Timer Countdown Badge -->
-                  <span id="stickyTimerBadge" class="px-2.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-mono font-black flex items-center gap-1">
-                    <i class="fa-solid fa-stopwatch animate-pulse"></i>
-                    <span id="stickyCountdownTime">00:00</span>
-                  </span>
+              </span>
 
-                  <!-- Submission Count Badge -->
-                  <span id="stickySubmissionCountBadge" class="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-md font-bold">
-                    0 وەڵام تۆمارکراوە
-                  </span>
+              <div class="flex items-center gap-1.5 overflow-hidden min-w-0">
+                <span class="text-[11px] font-black text-amber-300 shrink-0">پرسیاری کارا:</span>
 
-                  <span id="stickyQuestionAdmin" class="text-xs text-slate-400">لەلایەن ئەدمین</span>
-                </div>
+                <!-- Countdown Timer Badge -->
+                <span id="stickyTimerBadge" class="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-mono font-black flex items-center gap-1 shrink-0">
+                  <i class="fa-solid fa-stopwatch animate-pulse text-[10px]"></i>
+                  <span id="stickyCountdownTime">00:00</span>
+                </span>
 
-                <p id="stickyQuestionText" class="text-sm md:text-base font-black text-white leading-relaxed">
-                  دەقی پرسیار لێرە دەردەکەوێت...
-                </p>
-
-                <!-- SECRET ANSWER SUBMISSION BOX FOR STUDENTS -->
-                <div id="stickyStudentInputArea" class="mt-2.5 flex items-center gap-2 flex-wrap">
-                  <div class="flex-1 min-w-[200px]">
-                    <input 
-                      type="text" 
-                      id="stickySecretAnswerInput" 
-                      placeholder="وەڵامە نهێنییەکەت لێرە بنووسە (کەس نایبینێت تا تەوقیت تەواو دەبێت)..."
-                      class="w-full px-3 py-2 bg-slate-800 border border-amber-500/40 rounded-xl text-xs md:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-amber-400"
-                      onkeydown="if(event.key === 'Enter') submitSecretAnswer()"
-                    >
-                  </div>
-                  <button 
-                    onclick="submitSecretAnswer()" 
-                    id="submitSecretAnswerBtn"
-                    class="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 shrink-0"
-                  >
-                    <i class="fa-solid fa-lock"></i>
-                    <span id="submitSecretAnswerBtnText">ناردنی وەڵامی نهێنی</span>
-                  </button>
-                  <button 
-                    id="cancelEditAnswerBtn"
-                    onclick="cancelEditSecretAnswer()"
-                    class="hidden px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700"
-                  >
-                    پاشگەزبوونەوە
-                  </button>
-                </div>
-
-                <!-- SUBMITTED CONFIRMATION BADGE WITH EDIT BUTTON -->
-                <div id="stickySubmittedNotice" class="hidden mt-2.5 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-300 flex items-center justify-between gap-2 flex-wrap">
-                  <div class="flex items-center gap-2 flex-1">
-                    <i class="fa-solid fa-circle-check text-emerald-400 text-base shrink-0"></i>
-                    <div>
-                      <span>وەڵامەکەت تۆمار کرا: </span>
-                      <b id="stickySubmittedText" class="text-white bg-slate-900/80 px-2 py-0.5 rounded-lg border border-slate-700 mx-1">""</b>
-                      <span class="text-emerald-400/80 text-[11px] block mt-0.5">لەگەڵ تەواوبوونی تەوقیت، بەیەکەوە لە ناو گروپ بڵاودەبێتەوە.</span>
-                    </div>
-                  </div>
-                  <button 
-                    type="button" 
-                    onclick="enableEditSecretAnswer()" 
-                    class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 shrink-0"
-                    title="دەستکاریکردنی وەڵام پێش تەواوبوونی کات"
-                  >
-                    <i class="fa-solid fa-pen-to-square"></i>
-                    <span>ئیدتکردنی وەڵام ✏️</span>
-                  </button>
-                </div>
-
+                <!-- Question preview snippet (truncated on small screens) -->
+                <span id="stickyQuestionPreviewText" class="text-xs text-slate-200 truncate font-semibold block min-w-0">
+                  دەقی پرسیار...
+                </span>
               </div>
             </div>
 
-            <!-- Admin Actions (Force Reveal & See Non-responding students) -->
-            <div id="stickyAdminActions" class="hidden flex flex-col gap-1.5 shrink-0 text-left">
-              <button onclick="revealActiveQuestionNow()" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-xs font-black transition flex items-center gap-1 shadow" title="ئاشکراکردنی هەموو وەڵامەکان ئێستا">
-                <i class="fa-solid fa-lock-open"></i> بڵاوکردنەوە ئێستا
-              </button>
-              
-              <button onclick="showActiveNonResponding()" class="px-2 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-lg text-xs font-bold transition flex items-center gap-1" title="ئەو قوتابیانەی هێشتا وەڵامیان نەداوەتەوە">
-                <i class="fa-solid fa-user-xmark"></i> وەڵامنەدراوەکان
-              </button>
+            <!-- Left / Trailing: Action Button Pill & Admin Quick Cancel -->
+            <div class="flex items-center gap-1.5 shrink-0">
+              <!-- Student Answer / Status Tag -->
+              <div id="stickyStudentTag" class="flex items-center">
+                <button type="button" class="px-2.5 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 text-xs font-black rounded-lg shadow transition flex items-center gap-1 active:scale-95 animate-pulse">
+                  <i class="fa-solid fa-pen-fancy text-[10px]"></i>
+                  <span>وەڵامدانەوە ✍️</span>
+                </button>
+              </div>
 
-              <button onclick="closeCurrentQuestion()" class="px-2 py-1 text-xs text-slate-400 hover:text-red-400 transition" title="داخستنی پرسیار">
-                داخستن
-              </button>
+              <!-- Admin / Teacher Quick Tag -->
+              <div id="stickyAdminTag" class="hidden flex items-center gap-1">
+                <button type="button" onclick="event.stopPropagation(); cancelActiveQuestion()" class="px-2 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-lg text-xs font-bold transition flex items-center gap-1" title="ئیلغاکردنەوە و سڕینەوەی پرسیار">
+                  <i class="fa-solid fa-trash-can text-[10px]"></i>
+                  <span class="hidden sm:inline">ئیلغا</span>
+                </button>
+                <button type="button" class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                  <i class="fa-solid fa-gear text-[10px]"></i>
+                  <span>بەڕێوەبردن</span>
+                </button>
+              </div>
             </div>
 
           </div>
@@ -825,6 +774,144 @@
       <div id="activeNonRespondingList" class="space-y-2 max-h-80 overflow-y-auto">
         <!-- Injected dynamically -->
       </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: ACTIVE QUESTION ANSWERING & DETAILS ================= -->
+  <div id="activeQuestionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="bg-slate-900 border border-amber-500/40 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-lg shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] transition-all">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0 mb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center text-base font-black shadow-lg shadow-amber-500/30">
+            <i class="fa-solid fa-lightbulb"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm sm:text-base text-white flex items-center gap-2">
+              <span>❓ پرسیاری چالاکی گرووپ</span>
+              <span id="modalStickyTimerBadge" class="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-mono font-black flex items-center gap-1">
+                <i class="fa-solid fa-stopwatch animate-pulse"></i>
+                <span id="modalStickyCountdownTime">00:00</span>
+              </span>
+            </h3>
+            <span id="modalStickyQuestionAdmin" class="text-[11px] text-slate-400">لەلایەن ئەدمین</span>
+          </div>
+        </div>
+        
+        <button type="button" onclick="closeActiveQuestionModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body (Scrollable) -->
+      <div class="overflow-y-auto space-y-4 py-1 flex-1">
+        
+        <!-- Question Text Display -->
+        <div class="p-3.5 sm:p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-right shadow-inner">
+          <span class="text-[10px] text-amber-400 font-bold block mb-1">دەقی تەواوی پرسیار:</span>
+          <p id="modalStickyQuestionText" class="text-sm sm:text-base font-black text-white leading-relaxed whitespace-pre-wrap select-text">
+            دەقی پرسیار لێرە دەردەکەوێت...
+          </p>
+          <div class="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+            <span id="modalStickySubmissionCountBadge" class="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-md font-bold">
+              0 وەڵام تۆمارکراوە
+            </span>
+            <span class="text-amber-400/80 flex items-center gap-1 font-medium">
+              <i class="fa-solid fa-shield-halved text-xs"></i> وەڵامەکان بە نهێنی پارێزراون
+            </span>
+          </div>
+        </div>
+
+        <!-- Student Secret Answer Input Box -->
+        <div id="modalStickyStudentInputArea" class="space-y-2">
+          <label class="block text-xs font-black text-amber-300 text-right">
+            وەڵامی نهێنییەکەت بنووسە:
+          </label>
+          <textarea 
+            id="modalStickySecretAnswerInput" 
+            rows="3"
+            placeholder="وەڵامەکەت لێرە بنووسە بە ڕوونی (کەس نایبینێت هەتا تەوقیت تەواو دەبێت)..."
+            class="w-full px-3.5 py-2.5 bg-slate-950 border border-amber-500/40 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 resize-none transition"
+          ></textarea>
+
+          <div class="flex items-center gap-2 pt-1">
+            <button 
+              type="button"
+              onclick="submitSecretAnswerFromModal()" 
+              id="modalSubmitSecretAnswerBtn"
+              class="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg transition flex items-center justify-center gap-2 active:scale-98"
+            >
+              <i class="fa-solid fa-lock"></i>
+              <span id="modalSubmitSecretAnswerBtnText">ناردن و جێگیرکردنی وەڵام</span>
+            </button>
+            <button 
+              type="button"
+              id="modalCancelEditAnswerBtn"
+              onclick="cancelEditSecretAnswerInModal()"
+              class="hidden px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 transition"
+            >
+              پاشگەزبوونەوە
+            </button>
+          </div>
+        </div>
+
+        <!-- Student Already Submitted Notice -->
+        <div id="modalStickySubmittedNotice" class="hidden p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-300 space-y-2">
+          <div class="flex items-start gap-2.5">
+            <i class="fa-solid fa-circle-check text-emerald-400 text-lg shrink-0 mt-0.5"></i>
+            <div class="flex-1">
+              <span class="font-black text-sm text-emerald-300 block mb-1">وەڵامەکەت تۆمار کرا!</span>
+              <div class="bg-slate-900/90 p-2.5 rounded-xl border border-slate-700 text-white font-bold my-1 select-text">
+                <span id="modalStickySubmittedText">""</span>
+              </div>
+              <span class="text-emerald-400/80 text-[11px] block">لەگەڵ تەواوبوونی تەوقیت، سەرجەم وەڵامەکان لە ناو گرووپ بەیەکەوە ئاشکرا دەبن.</span>
+            </div>
+          </div>
+          <div class="pt-2 border-t border-emerald-500/20 flex justify-end">
+            <button 
+              type="button" 
+              onclick="enableEditSecretAnswerInModal()" 
+              class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 active:scale-95"
+              title="دەستکاریکردنی وەڵام پێش تەواوبوونی کات"
+            >
+              <i class="fa-solid fa-pen-to-square"></i>
+              <span>دەستکاریکردنی وەڵام ✏️</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Guest Notice -->
+        <div id="modalStickyGuestNotice" class="hidden p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 text-xs text-slate-400 flex items-center gap-2">
+          <i class="fa-solid fa-eye text-slate-400 text-base"></i>
+          <span>تۆ وەک میوان (چاودێر) لە گرووپیت و مافی وەڵامدانەوەی پرسیارت نییە 👁️</span>
+        </div>
+
+        <!-- Super Admin & Teacher Actions Area -->
+        <div id="modalStickyAdminActions" class="hidden space-y-2 pt-2 border-t border-slate-800">
+          <span class="text-xs font-black text-indigo-300 block">دەسەڵاتەکانی بەڕێوەبەر و مامۆستا:</span>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button type="button" onclick="revealActiveQuestionNow()" class="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow" title="ئاشکراکردنی هەموو وەڵامەکان ئێستا">
+              <i class="fa-solid fa-lock-open"></i>
+              <span>بڵاوکردنەوەی وەڵامەکان ئێستا</span>
+            </button>
+            
+            <button type="button" onclick="showActiveNonResponding()" class="py-2.5 px-3 bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 hover:text-white border border-indigo-500/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-user-xmark"></i>
+              <span>قوتابیە وەڵامنەدراوەکان</span>
+            </button>
+          </div>
+
+          <!-- CANCEL & DELETE BUTTON FOR SUPER ADMIN & TEACHER -->
+          <button type="button" onclick="cancelActiveQuestion()" class="w-full py-2.5 px-3 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow active:scale-98" title="ئیلغاکردنەوە و سڕینەوەی پرسیار لە بنەڕەتەوە">
+            <i class="fa-solid fa-trash-can"></i>
+            <span>ئیلغاکردنەوە و سڕینەوەی ئەم پرسیارە ❌</span>
+          </button>
+        </div>
+
+      </div>
+
     </div>
   </div>
 
@@ -1527,10 +1614,10 @@
               </button>
             </div>
 
-            <!-- Read-only notice for Teacher -->
+            <!-- Notice if non-privileged -->
             <div id="dreamTeacherNotice" class="hidden p-3 bg-slate-950 border-t border-slate-800 text-center text-xs text-amber-300 font-bold flex items-center justify-center gap-2">
               <i class="fa-solid fa-lock text-amber-400"></i>
-              <span>تەنها سوپەر ئەدمین (hemn taha) بۆی هەیە وەڵامی خەون بین بداتەوە و پەیوەندی بکات.</span>
+              <span>تەنها سوپەر ئەدمین و مامۆستا دەسەڵاتی وەڵامدانەوەی خەونیان هەیە.</span>
             </div>
 
           </div>

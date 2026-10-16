@@ -623,6 +623,12 @@ const questions = {
     const stmt = db.prepare('UPDATE questions SET is_active = 0, winner_id = ?, winner_name = ? WHERE id = ?');
     return stmt.run(winnerId, winnerName, questionId);
   },
+  delete(questionId) {
+    db.prepare('DELETE FROM star_awards WHERE question_id = ?').run(questionId);
+    db.prepare('DELETE FROM question_submissions WHERE question_id = ?').run(questionId);
+    const stmt = db.prepare('DELETE FROM questions WHERE id = ?');
+    return stmt.run(questionId);
+  },
   hasUserBeenAwarded(questionId, userId) {
     const stmt = db.prepare('SELECT COUNT(*) as count FROM star_awards WHERE question_id = ? AND user_id = ?');
     const row = stmt.get(questionId, userId);

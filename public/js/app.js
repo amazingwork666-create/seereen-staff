@@ -839,15 +839,27 @@ function initSocket() {
       activeQuestion = null;
       stopQuestionCountdown();
       renderActiveQuestionSticky(null);
+      closeActiveQuestionModal();
     }
     playSound('question');
     triggerStarCelebration();
   });
 
   socket.on('question_closed', (data) => {
-    if (activeQuestion && activeQuestion.id === data.question_id) {
+    if (activeQuestion && (!data || !data.question_id || activeQuestion.id === data.question_id)) {
       activeQuestion = null;
+      stopQuestionCountdown();
       renderActiveQuestionSticky(null);
+      closeActiveQuestionModal();
+    }
+  });
+
+  socket.on('question_cancelled', (data) => {
+    if (activeQuestion && (!data || !data.question_id || activeQuestion.id === data.question_id)) {
+      activeQuestion = null;
+      stopQuestionCountdown();
+      renderActiveQuestionSticky(null);
+      closeActiveQuestionModal();
     }
   });
 
@@ -1773,65 +1785,115 @@ function formatRemainingTime(remainingMs) {
   }
 }
 
+function openActiveQuestionModal() {
+  if (!activeQuestion) return;
+  const modal = document.getElementById('activeQuestionModal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeActiveQuestionModal() {
+  const modal = document.getElementById('activeQuestionModal');
+  if (modal) modal.classList.add('hidden');
+}
+
 function renderActiveQuestionSticky(q) {
   stopQuestionCountdown();
 
   const sticky = document.getElementById('activeQuestionSticky');
-  const stickyText = document.getElementById('stickyQuestionText');
-  const stickyAdmin = document.getElementById('stickyQuestionAdmin');
-  const adminActions = document.getElementById('stickyAdminActions');
-  const studentInputArea = document.getElementById('stickyStudentInputArea');
-  const submittedNotice = document.getElementById('stickySubmittedNotice');
-  const submittedText = document.getElementById('stickySubmittedText');
-  const subCountBadge = document.getElementById('stickySubmissionCountBadge');
+  const previewText = document.getElementById('stickyQuestionPreviewText');
   const countdownEl = document.getElementById('stickyCountdownTime');
-  const timerBadge = document.getElementById('stickyTimerBadge');
+  const modalCountdownEl = document.getElementById('modalStickyCountdownTime');
+  const stickyStudentTag = document.getElementById('stickyStudentTag');
+  const stickyAdminTag = document.getElementById('stickyAdminTag');
+
+  // Modal elements
+  const modalText = document.getElementById('modalStickyQuestionText');
+  const modalAdmin = document.getElementById('modalStickyQuestionAdmin');
+  const modalSubCount = document.getElementById('modalStickySubmissionCountBadge');
+  const modalStudentArea = document.getElementById('modalStickyStudentInputArea');
+  const modalSubmittedNotice = document.getElementById('modalStickySubmittedNotice');
+  const modalSubmittedText = document.getElementById('modalStickySubmittedText');
+  const modalGuestNotice = document.getElementById('modalStickyGuestNotice');
+  const modalAdminActions = document.getElementById('modalStickyAdminActions');
 
   if (!q || q.is_revealed || (q.expires_at && q.expires_at <= Date.now())) {
-    sticky.classList.add('hidden');
+    if (sticky) sticky.classList.add('hidden');
+    closeActiveQuestionModal();
     return;
   }
 
-  stickyText.innerText = q.question_text;
-  stickyAdmin.innerText = `لەلایەن: ${q.admin_name}`;
-  subCountBadge.innerText = `${q.submission_count || 0} وەڵام تۆمارکراوە`;
-  sticky.classList.remove('hidden');
+  // Update Compact Banner Preview
+  if (previewText) previewText.innerText = q.question_text || 'پرسیاری نوێ';
+  if (sticky) sticky.classList.remove('hidden');
 
-  const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  // Update Modal Content
+  if (modalText) modalText.innerText = q.question_text;
+  if (modalAdmin) modalAdmin.innerText = `لەلایەن: ${q.admin_name || 'مامۆستا / ئەدمین'}`;
+  if (modalSubCount) modalSubCount.innerText = `${q.submission_count || 0} وەڵام تۆمارکراوە`;
+
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
   const isGuest = currentUser && currentUser.role === 'guest';
+  const cachedAns = localStorage.getItem('cached_ans_' + q.id);
+  const existingSubmission = q.my_submission || cachedAns;
 
-  if (isAdmin) {
-    adminActions.classList.remove('hidden');
-    studentInputArea.classList.add('hidden');
-    submittedNotice.classList.add('hidden');
-  } else if (isGuest) {
-    adminActions.classList.add('hidden');
-    studentInputArea.classList.add('hidden');
-    submittedNotice.classList.remove('hidden');
-    submittedNotice.className = 'mt-2.5 p-3 rounded-2xl bg-slate-800/80 border border-slate-700 text-xs text-slate-400 flex items-center gap-2';
-    submittedNotice.innerHTML = '<i class="fa-solid fa-eye text-slate-400 text-sm"></i> <span>تۆ وەک میوان (چاودێر) داخڵبوویت و مافی وەڵامدانەوەی پرسیارت نییە 👁️</span>';
+  // Banner Tags
+  if (isStaff) {
+    if (stickyAdminTag) stickyAdminTag.classList.remove('hidden');
+    if (stickyStudentTag) stickyStudentTag.classList.add('hidden');
   } else {
-    adminActions.classList.add('hidden');
-    // If student already submitted or cached
-    const cachedAns = localStorage.getItem('cached_ans_' + q.id);
-    const existingSubmission = q.my_submission || cachedAns;
+    if (stickyAdminTag) stickyAdminTag.classList.add('hidden');
+    if (stickyStudentTag) {
+      stickyStudentTag.classList.remove('hidden');
+      if (existingSubmission) {
+        stickyStudentTag.innerHTML = `
+          <button type="button" class="px-2.5 py-1 bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-black rounded-lg flex items-center gap-1 shadow-sm">
+            <i class="fa-solid fa-circle-check text-emerald-400"></i>
+            <span>وەڵامت دراوەتەوە ✅</span>
+          </button>
+        `;
+      } else if (isGuest) {
+        stickyStudentTag.innerHTML = `
+          <span class="px-2 py-1 bg-slate-800 text-slate-400 text-xs font-bold rounded-lg border border-slate-700">میوان 👁️</span>
+        `;
+      } else {
+        stickyStudentTag.innerHTML = `
+          <button type="button" class="px-2.5 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 text-xs font-black rounded-lg shadow flex items-center gap-1 active:scale-95 animate-pulse">
+            <i class="fa-solid fa-pen-fancy text-[10px]"></i>
+            <span>وەڵامدانەوە ✍️</span>
+          </button>
+        `;
+      }
+    }
+  }
+
+  // Modal Sections
+  if (isStaff) {
+    if (modalAdminActions) modalAdminActions.classList.remove('hidden');
+    if (modalStudentArea) modalStudentArea.classList.add('hidden');
+    if (modalSubmittedNotice) modalSubmittedNotice.classList.add('hidden');
+    if (modalGuestNotice) modalGuestNotice.classList.add('hidden');
+  } else if (isGuest) {
+    if (modalAdminActions) modalAdminActions.classList.add('hidden');
+    if (modalStudentArea) modalStudentArea.classList.add('hidden');
+    if (modalSubmittedNotice) modalSubmittedNotice.classList.add('hidden');
+    if (modalGuestNotice) modalGuestNotice.classList.remove('hidden');
+  } else {
+    if (modalAdminActions) modalAdminActions.classList.add('hidden');
+    if (modalGuestNotice) modalGuestNotice.classList.add('hidden');
 
     if (existingSubmission) {
-      studentInputArea.classList.add('hidden');
-      submittedNotice.className = 'mt-2.5 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-300 flex items-center justify-between gap-2 flex-wrap';
-      submittedNotice.classList.remove('hidden');
-      submittedText.innerText = `"${existingSubmission}"`;
-    } else if (!q.is_revealed) {
-      studentInputArea.classList.remove('hidden');
-      submittedNotice.classList.add('hidden');
-      document.getElementById('stickySecretAnswerInput').value = '';
-      const cancelBtn = document.getElementById('cancelEditAnswerBtn');
-      if (cancelBtn) cancelBtn.classList.add('hidden');
-      const submitBtnText = document.getElementById('submitSecretAnswerBtnText');
-      if (submitBtnText) submitBtnText.innerText = 'ناردنی وەڵامی نهێنی';
+      if (modalStudentArea) modalStudentArea.classList.add('hidden');
+      if (modalSubmittedNotice) modalSubmittedNotice.classList.remove('hidden');
+      if (modalSubmittedText) modalSubmittedText.innerText = `"${existingSubmission}"`;
     } else {
-      studentInputArea.classList.add('hidden');
-      submittedNotice.classList.add('hidden');
+      if (modalStudentArea) modalStudentArea.classList.remove('hidden');
+      if (modalSubmittedNotice) modalSubmittedNotice.classList.add('hidden');
+      const input = document.getElementById('modalStickySecretAnswerInput');
+      if (input) input.value = '';
+      const cancelBtn = document.getElementById('modalCancelEditAnswerBtn');
+      if (cancelBtn) cancelBtn.classList.add('hidden');
+      const submitBtnText = document.getElementById('modalSubmitSecretAnswerBtnText');
+      if (submitBtnText) submitBtnText.innerText = 'ناردن و جێگیرکردنی وەڵام';
     }
   }
 
@@ -1841,16 +1903,20 @@ function renderActiveQuestionSticky(q) {
       const remainingMs = q.expires_at - Date.now();
       if (remainingMs <= 0) {
         stopQuestionCountdown();
-        sticky.classList.add('hidden');
+        if (sticky) sticky.classList.add('hidden');
+        closeActiveQuestionModal();
         return;
       }
-      countdownEl.innerText = formatRemainingTime(remainingMs);
+      const timeStr = formatRemainingTime(remainingMs);
+      if (countdownEl) countdownEl.innerText = timeStr;
+      if (modalCountdownEl) modalCountdownEl.innerText = timeStr;
     }
 
     updateTimer();
     questionCountdownTimer = setInterval(updateTimer, 1000);
   } else {
-    countdownEl.innerText = 'بەسەرچوو';
+    if (countdownEl) countdownEl.innerText = 'بەسەرچوو';
+    if (modalCountdownEl) modalCountdownEl.innerText = 'بەسەرچوو';
   }
 }
 
@@ -1861,50 +1927,58 @@ function stopQuestionCountdown() {
   }
 }
 
-// Enable Editing Secret Answer for Student before time expires
-function enableEditSecretAnswer() {
+// Student Edit Secret Answer inside Modal
+function enableEditSecretAnswerInModal() {
   if (!activeQuestion) return;
   const cachedAns = localStorage.getItem('cached_ans_' + activeQuestion.id);
   const currentAnswer = activeQuestion.my_submission || cachedAns || '';
-  const input = document.getElementById('stickySecretAnswerInput');
-  input.value = currentAnswer;
+  const input = document.getElementById('modalStickySecretAnswerInput');
+  if (input) input.value = currentAnswer;
 
-  document.getElementById('stickySubmittedNotice').classList.add('hidden');
-  document.getElementById('stickyStudentInputArea').classList.remove('hidden');
-  const cancelBtn = document.getElementById('cancelEditAnswerBtn');
+  const submittedNotice = document.getElementById('modalStickySubmittedNotice');
+  const studentArea = document.getElementById('modalStickyStudentInputArea');
+  const cancelBtn = document.getElementById('modalCancelEditAnswerBtn');
+  const submitBtnText = document.getElementById('modalSubmitSecretAnswerBtnText');
+
+  if (submittedNotice) submittedNotice.classList.add('hidden');
+  if (studentArea) studentArea.classList.remove('hidden');
   if (cancelBtn) cancelBtn.classList.remove('hidden');
-  const submitBtnText = document.getElementById('submitSecretAnswerBtnText');
   if (submitBtnText) submitBtnText.innerText = 'نوێکردنەوەی وەڵام ✏️';
 
-  input.focus();
-  input.select();
+  if (input) {
+    input.focus();
+    input.select();
+  }
 }
 
-function cancelEditSecretAnswer() {
-  document.getElementById('stickyStudentInputArea').classList.add('hidden');
-  const cancelBtn = document.getElementById('cancelEditAnswerBtn');
+function cancelEditSecretAnswerInModal() {
+  const studentArea = document.getElementById('modalStickyStudentInputArea');
+  const cancelBtn = document.getElementById('modalCancelEditAnswerBtn');
+  const submittedNotice = document.getElementById('modalStickySubmittedNotice');
+  const submitBtnText = document.getElementById('modalSubmitSecretAnswerBtnText');
+
+  if (studentArea) studentArea.classList.add('hidden');
   if (cancelBtn) cancelBtn.classList.add('hidden');
-  document.getElementById('stickySubmittedNotice').classList.remove('hidden');
-  const submitBtnText = document.getElementById('submitSecretAnswerBtnText');
-  if (submitBtnText) submitBtnText.innerText = 'ناردنی وەڵامی نهێنی';
+  if (submittedNotice) submittedNotice.classList.remove('hidden');
+  if (submitBtnText) submitBtnText.innerText = 'ناردن و جێگیرکردنی وەڵام';
 }
 
-// Student Submits or Updates Secret Answer
-async function submitSecretAnswer() {
+// Student Submits Secret Answer from Modal
+async function submitSecretAnswerFromModal() {
   if (!activeQuestion) return;
   if (currentUser && currentUser.role === 'guest') {
     alert('تۆ وەک میوان (چاودێر) لە گروپیت و ناتوانیت وەڵامی پرسیار بنێریت 👁️');
     return;
   }
 
-  const input = document.getElementById('stickySecretAnswerInput');
-  const answer = input.value.trim();
+  const input = document.getElementById('modalStickySecretAnswerInput');
+  const answer = input ? input.value.trim() : '';
   if (!answer) {
     alert('تکایە دەقی وەڵامەکەت بنووسە');
     return;
   }
 
-  // Cache locally for offline safety
+  // Cache locally
   localStorage.setItem('cached_ans_' + activeQuestion.id, answer);
   activeQuestion.my_submission = answer;
 
@@ -1922,26 +1996,59 @@ async function submitSecretAnswer() {
     });
     const data = await res.json();
     if (res.ok) {
-      document.getElementById('stickyStudentInputArea').classList.add('hidden');
-      const cancelBtn = document.getElementById('cancelEditAnswerBtn');
-      if (cancelBtn) cancelBtn.classList.add('hidden');
-      document.getElementById('stickySubmittedNotice').classList.remove('hidden');
-      document.getElementById('stickySubmittedText').innerText = `"${answer}"`;
-      const submitBtnText = document.getElementById('submitSecretAnswerBtnText');
-      if (submitBtnText) submitBtnText.innerText = 'ناردنی وەڵامی نهێنی';
+      renderActiveQuestionSticky(activeQuestion);
       triggerStarCelebration();
     } else {
       alert(data.error || 'هەڵەیەک ڕوویدا لە ناردنی وەڵام');
     }
   } catch (err) {
     // Offline submission cached
-    document.getElementById('stickyStudentInputArea').classList.add('hidden');
-    const cancelBtn = document.getElementById('cancelEditAnswerBtn');
-    if (cancelBtn) cancelBtn.classList.add('hidden');
-    document.getElementById('stickySubmittedNotice').classList.remove('hidden');
-    document.getElementById('stickySubmittedText').innerText = `"${answer}" (لە دۆخی ئۆفلاین پاشەکەوت کرا)`;
+    renderActiveQuestionSticky(activeQuestion);
   }
 }
+
+// Cancel & Delete Active Question (Super Admin & Teacher)
+async function cancelActiveQuestion() {
+  if (!activeQuestion) return;
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  if (!isStaff) {
+    alert('تەنها سوپەر ئەدمین و مامۆستا دەسەڵاتی ئیلغاکردنەوە و سڕینەوەی پرسیاریان هەیە');
+    return;
+  }
+
+  if (!confirm('ئایا دڵنیایت لە ئیلغاکردنەوە و سڕینەوەی ئەم پرسیارە لە گروپ؟\nسەرجەم وەڵامەکان و کاتەکە دەسڕێنەوە و نامێنن.')) {
+    return;
+  }
+
+  const qId = activeQuestion.id;
+
+  try {
+    const res = await fetch('/api/chat/question/cancel', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ question_id: qId })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      activeQuestion = null;
+      stopQuestionCountdown();
+      renderActiveQuestionSticky(null);
+      closeActiveQuestionModal();
+    } else {
+      alert(data.error || 'هەڵەیەک ڕوویدا لە ئیلغاکردنی پرسیار');
+    }
+  } catch (err) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  }
+}
+
+// Backward-compatible wrappers for older call sites
+function enableEditSecretAnswer() { enableEditSecretAnswerInModal(); }
+function cancelEditSecretAnswer() { cancelEditSecretAnswerInModal(); }
+function submitSecretAnswer() { submitSecretAnswerFromModal(); }
 
 // Admin manual award star from revealed submissions card in chat
 async function awardStarFromReveal(questionId, userId, studentName, btn) {
@@ -1991,6 +2098,8 @@ async function revealActiveQuestionNow() {
     if (res.ok) {
       activeQuestion.is_revealed = 1;
       stopQuestionCountdown();
+      renderActiveQuestionSticky(null);
+      closeActiveQuestionModal();
     }
   } catch (e) {
     alert('هەڵەیەک ڕوویدا');
@@ -4143,6 +4252,8 @@ function appendDreamMessage(msg, isAdminView = false) {
   }
   const isDreamerSender = msg.sender_type === 'dreamer';
   const isSuperAdminSender = msg.sender_type === 'super_admin';
+  const isTeacherSender = msg.sender_type === 'teacher';
+  const isStaffSender = isSuperAdminSender || isTeacherSender;
   const isSystem = msg.sender_type === 'system';
   const dateStr = new Date(msg.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
 
@@ -4193,7 +4304,7 @@ function appendDreamMessage(msg, isAdminView = false) {
   // Text or Voice messages
   let isMine = false;
   if (isAdminView) {
-    isMine = isSuperAdminSender;
+    isMine = isStaffSender;
   } else {
     isMine = isDreamerSender;
   }
@@ -4220,13 +4331,23 @@ function appendDreamMessage(msg, isAdminView = false) {
     bodyContent = `<p class="text-xs md:text-sm leading-relaxed whitespace-pre-wrap ${isSuperAdminSender ? 'msg-text-super-admin' : ''}">${escapeHtml(msg.content)}</p>`;
   }
 
-  const senderBadge = isSuperAdminSender 
-    ? '<span class="badge-super-admin-shield inline-flex items-center text-xs select-none mr-1.5" title="ئەدمین">🛡️</span>'
-    : '<span class="text-[9px] font-bold text-purple-300 mr-1.5">خەون بین</span>';
+  let senderBadge = '';
+  if (isSuperAdminSender) {
+    senderBadge = '<span class="badge-super-admin-shield inline-flex items-center text-xs select-none mr-1.5" title="سوپەر ئەدمین">🛡️</span>';
+  } else if (isTeacherSender) {
+    senderBadge = '<span class="badge-teacher inline-flex items-center text-xs select-none mr-1.5" title="مامۆستا">👨‍🏫</span>';
+  } else {
+    senderBadge = '<span class="text-[9px] font-bold text-purple-300 mr-1.5">خەون بین</span>';
+  }
 
-  const senderNameHtml = isSuperAdminSender
-    ? `<span class="user-name-super-admin font-black">${escapeHtml(msg.sender_name)}</span>`
-    : `<span>${escapeHtml(msg.sender_name)}</span>`;
+  let senderNameHtml = '';
+  if (isSuperAdminSender) {
+    senderNameHtml = `<span class="user-name-super-admin font-black">${escapeHtml(msg.sender_name)}</span>`;
+  } else if (isTeacherSender) {
+    senderNameHtml = `<span class="text-amber-300 font-black">${escapeHtml(msg.sender_name)}</span>`;
+  } else {
+    senderNameHtml = `<span>${escapeHtml(msg.sender_name)}</span>`;
+  }
 
   const deleteMsgBtnHtml = (isAdminView && currentUser && currentUser.role === 'super_admin' && msg.id) ? `
     <button onclick="deleteSingleDreamMessage(${msg.id})" class="text-rose-400 hover:text-rose-300 p-0.5 text-[10px] rounded hover:bg-slate-700/60 transition ml-1" title="سڕینەوەی ئەم نامەیە">
@@ -4492,7 +4613,7 @@ function openDreamAdminModal() {
       roleIndicator.innerText = 'سوپەر ئەدمین (دەسەڵاتی تەواو)';
       roleIndicator.className = 'text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-md border border-amber-500/30';
     } else {
-      roleIndicator.innerText = 'مامۆستا 👨‍🏫 (تەنها بینین)';
+      roleIndicator.innerText = 'مامۆستا 👨‍🏫 (وەڵامدانەوەی خەون)';
       roleIndicator.className = 'text-[10px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded-md border border-purple-500/30';
     }
   }
@@ -4517,7 +4638,7 @@ function openDreamAdminModal() {
   }
 
   loadDreamAdminSessions();
-  if (currentUser && currentUser.role === 'super_admin') {
+  if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
     setTimeout(() => { requestDreamMicrophonePermission(); }, 250);
   }
 }
@@ -4609,7 +4730,8 @@ function renderDreamAdminSessionsCards() {
 
     card.onclick = () => selectDreamSession(s.id);
 
-    const starBtnHtml = isSuperAdmin ? `
+    const canFavorite = isSuperAdmin || (currentUser && currentUser.role === 'teacher');
+    const starBtnHtml = canFavorite ? `
       <button onclick="event.stopPropagation(); toggleDreamFavorite(${s.id})" class="p-1 text-xs rounded hover:bg-slate-700/60 transition ${isFav ? 'text-amber-400' : 'text-slate-500 hover:text-amber-400'}" title="${isFav ? 'لابردن لە دڵخواز' : 'کردن بە دڵخواز'}">
         <i class="${isFav ? 'fa-solid' : 'fa-regular'} fa-star"></i>
       </button>
@@ -4677,6 +4799,8 @@ async function selectDreamSession(sessionId) {
   if (chatArea) chatArea.classList.remove('hidden');
 
   const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
+  const isTeacher = currentUser && currentUser.role === 'teacher';
+  const canAnswer = isSuperAdmin || isTeacher;
   const inputBar = document.getElementById('dreamAdminInputBar');
   const callBtn = document.getElementById('adminStartCallBtn');
   const teacherNotice = document.getElementById('dreamTeacherNotice');
@@ -4684,14 +4808,17 @@ async function selectDreamSession(sessionId) {
   const favIcon = document.getElementById('dreamAdminFavIcon');
   const deleteBtn = document.getElementById('dreamAdminDeleteBtn');
 
-  if (isSuperAdmin) {
+  if (canAnswer) {
     if (inputBar) inputBar.classList.remove('hidden');
     if (callBtn) callBtn.classList.remove('hidden');
     if (teacherNotice) teacherNotice.classList.add('hidden');
     if (favBtn) favBtn.classList.remove('hidden');
-    if (deleteBtn) deleteBtn.classList.remove('hidden');
+    if (deleteBtn) {
+      if (isSuperAdmin) deleteBtn.classList.remove('hidden');
+      else deleteBtn.classList.add('hidden');
+    }
   } else {
-    // Teacher: READ-ONLY!
+    // Other / non-privileged: READ-ONLY!
     if (inputBar) inputBar.classList.add('hidden');
     if (callBtn) callBtn.classList.add('hidden');
     if (teacherNotice) teacherNotice.classList.remove('hidden');
@@ -4743,7 +4870,7 @@ async function selectDreamSession(sessionId) {
 }
 
 async function toggleDreamFavorite(sessionId) {
-  if (!token || !currentUser || currentUser.role !== 'super_admin') return;
+  if (!token || !currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'teacher')) return;
   try {
     const res = await fetch(`/api/dream/admin/session/${sessionId}/favorite`, {
       method: 'POST',
@@ -4913,8 +5040,8 @@ async function initiateDreamAudioCall(sessionId, peerName, callerRole) {
 }
 
 function handleIncomingDreamCall(data, isAdmin) {
-  // If teacher receives event -> ignore, only super_admin can answer!
-  if (isAdmin && currentUser && currentUser.role !== 'super_admin') return;
+  // If teacher or super_admin receives event -> allow answering!
+  if (isAdmin && currentUser && currentUser.role !== 'super_admin' && currentUser.role !== 'teacher') return;
 
   callActiveSessionId = data.sessionId;
   callRecordingUploaded = false;
@@ -4946,7 +5073,7 @@ async function acceptIncomingDreamCall() {
   document.getElementById('callStatusText').innerText = 'پەیوەندی بەسترا';
   applyAudioOutputMode();
 
-  const sock = (currentUser && currentUser.role === 'super_admin') ? socket : dreamSocket;
+  const sock = (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? socket : dreamSocket;
   if (sock) {
     sock.emit('dream_call_accept', { sessionId: callActiveSessionId });
   }
@@ -4956,7 +5083,7 @@ async function acceptIncomingDreamCall() {
 
 function rejectIncomingDreamCall() {
   stopRingtone();
-  const sock = (currentUser && currentUser.role === 'super_admin') ? socket : dreamSocket;
+  const sock = (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? socket : dreamSocket;
   if (sock) {
     sock.emit('dream_call_reject', { sessionId: callActiveSessionId });
   }
@@ -4983,7 +5110,7 @@ async function handleDreamCallSignal(data) {
       if (data.sdp.type === 'offer') {
         const answer = await rtcPeerConn.createAnswer();
         await rtcPeerConn.setLocalDescription(answer);
-        const sock = (currentUser && currentUser.role === 'super_admin') ? socket : dreamSocket;
+        const sock = (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? socket : dreamSocket;
         if (sock) sock.emit('dream_call_signal', { sessionId: callActiveSessionId, sdp: answer });
       }
     } else if (data.candidate) {
@@ -5000,7 +5127,7 @@ function handleDreamCallEnded() {
 }
 
 function hangupDreamCall() {
-  const sock = (currentUser && currentUser.role === 'super_admin') ? socket : dreamSocket;
+  const sock = (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? socket : dreamSocket;
   if (sock && callActiveSessionId) {
     sock.emit('dream_call_end', { sessionId: callActiveSessionId });
   }
@@ -5022,7 +5149,7 @@ async function establishWebRTCConnection(isOffer) {
 
     rtcPeerConn.onicecandidate = (event) => {
       if (event.candidate) {
-        const sock = (currentUser && currentUser.role === 'super_admin') ? socket : dreamSocket;
+        const sock = (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? socket : dreamSocket;
         if (sock) sock.emit('dream_call_signal', { sessionId: callActiveSessionId, candidate: event.candidate });
       }
     };
@@ -5041,7 +5168,7 @@ async function establishWebRTCConnection(isOffer) {
     if (isOffer) {
       const offer = await rtcPeerConn.createOffer();
       await rtcPeerConn.setLocalDescription(offer);
-      const sock = (currentUser && currentUser.role === 'super_admin') ? socket : dreamSocket;
+      const sock = (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? socket : dreamSocket;
       if (sock) sock.emit('dream_call_signal', { sessionId: callActiveSessionId, sdp: offer });
     }
 

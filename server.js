@@ -186,6 +186,14 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Super Admin or Teacher Middleware (Strictly excludes normal admin and student)
+function requireTeacherOrSuperAdmin(req, res, next) {
+  if (req.user.role !== 'super_admin' && req.user.role !== 'teacher') {
+    return res.status(403).json({ error: 'تەنها سوپەر ئەدمین و مامۆستا دەسەڵاتی ئەم کارەیان هەیە' });
+  }
+  next();
+}
+
 // Question Timer State
 let activeQuestionTimeout = null;
 
@@ -984,7 +992,7 @@ app.get('/api/chat/question/:id/awards', authMiddleware, (req, res) => {
 });
 
 // 19. Close Question
-app.post('/api/chat/close-question', authMiddleware, requireAdmin, (req, res) => {
+app.post('/api/chat/close-question', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
   const { question_id } = req.body;
   if (!question_id) return res.status(400).json({ error: 'ناسنامەی پرسیار دیارینەکراوە' });
 
@@ -996,6 +1004,35 @@ app.post('/api/chat/close-question', authMiddleware, requireAdmin, (req, res) =>
   questions.closeQuestion(question_id);
   io.emit('question_closed', { question_id });
   res.json({ success: true, message: 'پرسیار داخرا' });
+});
+
+// 19b. Cancel & Delete Question (Super Admin & Teacher ONLY)
+app.post('/api/chat/question/cancel', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  const { question_id } = req.body;
+  if (!question_id) return res.status(400).json({ error: 'ناسنامەی پرسیار دیارینەکراوە' });
+
+  if (activeQuestionTimeout) {
+    clearTimeout(activeQuestionTimeout);
+    activeQuestionTimeout = null;
+  }
+
+  // Delete question and submissions from db
+  questions.delete(question_id);
+
+  // Remove corresponding question announcement message from chat so it's clean
+  try {
+    const qMsgs = db.prepare("SELECT id FROM messages WHERE message_type = 'question' AND (metadata LIKE ? OR content LIKE ?)").all(`%"question_id":${question_id}%`, `%پرسیاری ژمارە%`);
+    for (const msg of qMsgs) {
+      messages.delete(msg.id);
+      io.emit('delete_message', { message_id: msg.id });
+    }
+  } catch (e) {
+    console.error('Error removing question message:', e);
+  }
+
+  io.emit('question_cancelled', { question_id });
+  io.emit('question_closed', { question_id });
+  res.json({ success: true, message: 'پرسیارەکە بە سەرکەوتوویی ئیلغاکرایەوە و سڕایەوە' });
 });
 
 // 20. Questions Archive & Bank (Available to all users)
@@ -1241,14 +1278,14 @@ app.post('/api/dream/message', async (req, res) => {
       const user = users.findById(decoded.id);
       if (!user) return res.status(401).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
 
-      // STRICT PERMISSION: ONLY SUPER ADMIN CAN REPLY TO DREAMERS!
-      if (user.role !== 'super_admin') {
-        return res.status(403).json({ error: 'تەنها سوپەر ئەدمین بۆی هەیە وەڵامی خەون بین بداتەوە' });
+      // STRICT PERMISSION: SUPER ADMIN & TEACHER CAN REPLY TO DREAMERS!
+      if (user.role !== 'super_admin' && user.role !== 'teacher') {
+        return res.status(403).json({ error: 'تەنها مامۆستا و سوپەر ئەدمین بۆیان هەیە وەڵامی خەون بین بدەنەوە' });
       }
 
       targetSessionId = parseInt(sessionId);
-      senderType = 'super_admin';
-      senderName = 'hemn taha';
+      senderType = user.role;
+      senderName = user.role === 'teacher' ? (user.full_name || 'مامۆستا') : 'hemn taha';
     } else {
       return res.status(401).json({ error: 'ڕێگاپێدراو نییە' });
     }
@@ -1300,7 +1337,7 @@ app.post('/api/dream/message', async (req, res) => {
   }
 });
 
-// 4. Upload Voice in Dream Chat (Dreamer or Super Admin)
+// 4. Upload Voice in Dream Chat (Dreamer or Super Admin & Teacher)
 app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'هیچ دەنگێک بارنەکراوە' });
@@ -1323,12 +1360,12 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
       const token = authHeader.split(' ')[1];
       const decoded = jwt.verify(token, JWT_SECRET);
       const user = users.findById(decoded.id);
-      if (!user || user.role !== 'super_admin') {
-        return res.status(403).json({ error: 'تەنها سوپەر ئەدمین بۆی هەیە دەنگ بنێرێت بۆ خەون بین' });
+      if (!user || (user.role !== 'super_admin' && user.role !== 'teacher')) {
+        return res.status(403).json({ error: 'تەنها مامۆستا و سوپەر ئەدمین بۆیان هەیە دەنگ بنێرن بۆ خەون بین' });
       }
       targetSessionId = sessionId;
-      senderType = 'super_admin';
-      senderName = 'hemn taha';
+      senderType = user.role;
+      senderName = user.role === 'teacher' ? (user.full_name || 'مامۆستا') : 'hemn taha';
     } else {
       return res.status(401).json({ error: 'ڕێگاپێدراو نییە' });
     }
@@ -1432,7 +1469,7 @@ app.get('/api/dream/admin/sessions', authMiddleware, (req, res) => {
       return res.status(403).json({ error: 'ڕێگاپێدراو نییە بۆ بینینی خەونەکان' });
     }
     const list = dreamSessions.getAll();
-    res.json({ sessions: list, canReply: req.user.role === 'super_admin' });
+    res.json({ sessions: list, canReply: req.user.role === 'super_admin' || req.user.role === 'teacher' });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە وەرگرتنی لیست' });
   }
@@ -1453,7 +1490,7 @@ app.get('/api/dream/admin/session/:id/messages', authMiddleware, (req, res) => {
     res.json({
       session,
       messages: msgs,
-      canReply: req.user.role === 'super_admin'
+      canReply: req.user.role === 'super_admin' || req.user.role === 'teacher'
     });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە وەرگرتنی پەیامەکان' });
@@ -1492,8 +1529,8 @@ app.delete('/api/dream/admin/message/:id', authMiddleware, requireSuperAdmin, (r
   }
 });
 
-// 9. Star/Favorite Dream Session (Super Admin only)
-app.post('/api/dream/admin/session/:id/favorite', authMiddleware, requireSuperAdmin, (req, res) => {
+// 9. Star/Favorite Dream Session (Super Admin & Teacher)
+app.post('/api/dream/admin/session/:id/favorite', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
   try {
     const sessionId = parseInt(req.params.id);
     const session = dreamSessions.findById(sessionId);
@@ -1630,11 +1667,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('dream_call_start', (data) => {
-    // ONLY super_admin can start calls!
-    if (user.role !== 'super_admin') return;
+    // super_admin and teacher can start calls!
+    if (user.role !== 'super_admin' && user.role !== 'teacher') return;
     socket.to(`dream_${data.sessionId}`).emit('dream_incoming_call', {
       ...data,
-      callerName: 'hemn taha'
+      callerName: user.role === 'teacher' ? (user.full_name || 'مامۆستا') : 'hemn taha'
     });
   });
 
