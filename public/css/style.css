@@ -478,7 +478,10 @@ body.light-theme .chat-msg-item .text-white,
 body.light-theme .chat-msg-item .text-slate-200,
 body.light-theme .chat-msg-item .text-slate-300,
 body.light-theme .chat-msg-item .text-xs,
-body.light-theme .chat-msg-item .text-sm {
+body.light-theme .chat-msg-item .text-sm,
+body.light-theme .msg-text-student,
+body.light-theme .chat-msg-item .msg-text-student,
+body.light-theme .chat-msg-item div.msg-text-student {
   color: #000000 !important;
 }
 

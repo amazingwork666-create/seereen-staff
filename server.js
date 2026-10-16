@@ -1456,8 +1456,10 @@ app.post('/api/chat/private/send', authMiddleware, (req, res) => {
     );
 
     // Broadcast in real-time to recipient sockets only (sender gets it in HTTP response)
+    const notifiedSockets = new Set();
     for (const [sockId, u] of onlineUsers.entries()) {
-      if (u.id === recId) {
+      if (u.id === recId && !notifiedSockets.has(sockId)) {
+        notifiedSockets.add(sockId);
         io.to(sockId).emit('new_private_message', msg);
       }
     }
@@ -2216,8 +2218,19 @@ io.on('connection', (socket) => {
     socket.join('live_lesson_room');
     broadcastLiveLessonState();
 
+    socket.to('live_lesson_room').emit('live_peer_joined', {
+      socketId: socket.id,
+      userId: user.id,
+      fullName: user.full_name,
+      role: user.role
+    });
+
     if (user.role === 'teacher' || user.role === 'super_admin') {
-      socket.to('live_lesson_room').emit('live_teacher_joined', { name: user.full_name, role: user.role });
+      socket.to('live_lesson_room').emit('live_teacher_joined', {
+        name: user.full_name,
+        fullName: user.full_name,
+        role: user.role
+      });
     }
 
     if (liveLessonState.quranState && liveLessonState.quranState.isPlaying) {
@@ -2230,8 +2243,16 @@ io.on('connection', (socket) => {
 
   socket.on('live_leave', () => {
     if (user.role === 'teacher' || user.role === 'super_admin') {
-      socket.to('live_lesson_room').emit('live_teacher_left', { name: user.full_name, role: user.role });
+      socket.to('live_lesson_room').emit('live_teacher_left', {
+        name: user.full_name,
+        fullName: user.full_name,
+        role: user.role
+      });
     }
+    socket.to('live_lesson_room').emit('live_peer_left', {
+      socketId: socket.id,
+      userId: user.id
+    });
     liveLessonState.participants.delete(socket.id);
     socket.leave('live_lesson_room');
     if (liveLessonState.screenSharingBy && liveLessonState.screenSharingBy.id === user.id) {
@@ -2329,7 +2350,12 @@ io.on('connection', (socket) => {
 
   socket.on('live_screen_start', () => {
     if (user.role !== 'super_admin' && user.role !== 'teacher') return;
-    liveLessonState.screenSharingBy = { id: user.id, name: user.full_name };
+    liveLessonState.screenSharingBy = {
+      id: user.id,
+      name: user.full_name,
+      fullName: user.full_name,
+      socketId: socket.id
+    };
     io.to('live_lesson_room').emit('live_screen_started', liveLessonState.screenSharingBy);
     broadcastLiveLessonState();
   });
@@ -2345,8 +2371,7 @@ io.on('connection', (socket) => {
       socket.to(data.to).emit('live_signal', {
         from: socket.id,
         fromUser: { id: user.id, fullName: user.full_name, role: user.role },
-        signal: data.signal,
-        type: data.type
+        ...data
       });
     }
   });
@@ -2376,10 +2401,18 @@ io.on('connection', (socket) => {
     io.emit('online_users', getUniqueOnlineList());
     if (liveLessonState.participants.has(socket.id)) {
       if (user && (user.role === 'teacher' || user.role === 'super_admin')) {
-        io.to('live_lesson_room').emit('live_teacher_left', { name: user.full_name, role: user.role });
+        io.to('live_lesson_room').emit('live_teacher_left', {
+          name: user.full_name,
+          fullName: user.full_name,
+          role: user.role
+        });
       }
+      io.to('live_lesson_room').emit('live_peer_left', {
+        socketId: socket.id,
+        userId: user ? user.id : null
+      });
       liveLessonState.participants.delete(socket.id);
-      if (liveLessonState.screenSharingBy && liveLessonState.screenSharingBy.id === user.id) {
+      if (liveLessonState.screenSharingBy && liveLessonState.screenSharingBy.id === (user ? user.id : null)) {
         liveLessonState.screenSharingBy = null;
         io.to('live_lesson_room').emit('live_screen_stopped');
       }

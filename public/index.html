@@ -17,7 +17,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/css/style.css?v=3.1">
+  <link rel="stylesheet" href="/css/style.css?v=3.2">
 </head>
 <body class="bg-slate-950 text-slate-100 h-screen overflow-hidden flex flex-col antialiased selection:bg-[#dfaa86] selection:text-slate-950">
 
@@ -1900,7 +1900,7 @@
           
           <!-- Screen Share Viewport -->
           <div id="liveScreenContainer" class="hidden relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center">
-            <video id="liveScreenVideo" autoplay playsinline class="w-full h-full object-contain"></video>
+            <video id="liveScreenVideo" autoplay playsinline webkit-playsinline class="w-full h-full object-contain"></video>
             <div class="absolute top-2 right-2 px-2.5 py-1 bg-slate-900/80 backdrop-blur-md rounded-xl text-[11px] font-bold text-slate-200 border border-slate-700/60 flex items-center gap-1.5">
               <i class="fa-solid fa-desktop text-amber-400"></i>
               <span id="liveScreenSharerName">شاشەی مامۆستا</span>
@@ -2273,6 +2273,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=3.3"></script>
+  <script src="/js/app.js?v=3.4"></script>
 </body>
 </html>

@@ -1247,6 +1247,14 @@ function initSocket() {
     handleLiveSignal(data);
   });
 
+  socket.on('live_peer_joined', (data) => {
+    handleLivePeerJoined(data);
+  });
+
+  socket.on('live_peer_left', (data) => {
+    handleLivePeerLeft(data);
+  });
+
   socket.on('live_audio_chunk', (data) => {
     handleLiveAudioChunk(data);
   });
@@ -7010,13 +7018,16 @@ function appendPrivateMessageToThread(m, scroll = true) {
   }
 }
 
+let isSendingPrivateMessage = false;
+
 async function sendPrivateChatMessage() {
-  if (!activePrivateOtherUser) return;
+  if (!activePrivateOtherUser || isSendingPrivateMessage) return;
   const input = document.getElementById('privateMsgInput');
   if (!input) return;
   const content = input.value.trim();
   if (!content) return;
 
+  isSendingPrivateMessage = true;
   input.value = '';
   try {
     const res = await fetch('/api/chat/private/send', {
@@ -7039,6 +7050,8 @@ async function sendPrivateChatMessage() {
     }
   } catch (e) {
     alert('پەیوەندی ناتەواوە');
+  } finally {
+    isSendingPrivateMessage = false;
   }
 }
 
@@ -7217,7 +7230,22 @@ let currentLiveLessonState = null;
 let localLiveAudioStream = null;
 let localLiveScreenStream = null;
 let isLocalMicMuted = true;
+let isLocalScreenSharing = false;
 let liveLessonDurationTimer = null;
+let livePeerConnections = new Map(); // socketId -> RTCPeerConnection
+
+// High-reliability multi-STUN configuration for real-time live video & audio
+const rtcLiveIceConfig = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' }
+  ],
+  iceCandidatePoolSize: 10
+};
 
 // Unlimited Two-Way Audio Recording state
 let liveMediaRecorder = null;
@@ -7266,6 +7294,12 @@ function openLiveLessonModal() {
     }
   }
 
+  // Pre-unlock audio playback for mobile browser policies
+  const roomAudio = document.getElementById('liveRoomAudio');
+  if (roomAudio) {
+    roomAudio.play().catch(() => {});
+  }
+
   socket.emit('live_join');
   startLivePingReporting();
 }
@@ -7296,6 +7330,15 @@ function leaveLiveLessonRoom() {
 
   socket.emit('live_leave');
 
+  // Close and clean up all WebRTC peer connections
+  livePeerConnections.forEach(pc => {
+    try { pc.close(); } catch (e) {}
+  });
+  livePeerConnections.clear();
+
+  // Remove remote audio elements
+  document.querySelectorAll('audio[id^="live_audio_"]').forEach(el => el.remove());
+
   if (localLiveAudioStream) {
     localLiveAudioStream.getTracks().forEach(t => t.stop());
     localLiveAudioStream = null;
@@ -7304,6 +7347,8 @@ function leaveLiveLessonRoom() {
     localLiveScreenStream.getTracks().forEach(t => t.stop());
     localLiveScreenStream = null;
   }
+  isLocalScreenSharing = false;
+
   if (liveMediaRecorder && liveMediaRecorder.state !== 'inactive') {
     liveMediaRecorder.stop();
   }
@@ -7331,6 +7376,10 @@ function toggleFloatingMute() {
   const willMute = !liveAudio.muted;
   liveAudio.muted = willMute;
   if (quranAudio) quranAudio.muted = willMute;
+
+  document.querySelectorAll('audio[id^="live_audio_"]').forEach(el => {
+    el.muted = willMute;
+  });
 
   if (icon) {
     if (willMute) {
@@ -7382,6 +7431,9 @@ async function toggleLiveMic() {
       isLocalMicMuted = false;
       updateLiveMicUI(false);
       socket.emit('live_mic_toggle', false);
+
+      // Broadcast audio to all room participants!
+      broadcastLiveMediaToAll();
     } catch (err) {
       alert('نەتوانرا مایکرۆفۆن بکرێتەوە: ' + (err.message || 'ڕێگەپێدان پێویستە'));
     }
@@ -7392,6 +7444,15 @@ async function toggleLiveMic() {
     isLocalMicMuted = true;
     updateLiveMicUI(true);
     socket.emit('live_mic_toggle', true);
+
+    if (localLiveScreenStream) {
+      broadcastLiveMediaToAll();
+    } else {
+      livePeerConnections.forEach(pc => {
+        try { pc.close(); } catch (e) {}
+      });
+      livePeerConnections.clear();
+    }
   }
 }
 
@@ -7429,18 +7490,28 @@ async function toggleLiveScreenShare() {
   if (localLiveScreenStream) {
     localLiveScreenStream.getTracks().forEach(t => t.stop());
     localLiveScreenStream = null;
+    isLocalScreenSharing = false;
     socket.emit('live_screen_stop');
     if (video) video.srcObject = null;
     if (screenContainer) screenContainer.classList.add('hidden');
     if (standbyBox) standbyBox.classList.remove('hidden');
     if (btnText) btnText.innerText = 'شەیرکردنی شاشە';
     if (btn) btn.className = 'px-3.5 py-2 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow active:scale-95';
+
+    if (localLiveAudioStream && !isLocalMicMuted) {
+      broadcastLiveMediaToAll();
+    } else {
+      livePeerConnections.forEach(pc => {
+        try { pc.close(); } catch (e) {}
+      });
+      livePeerConnections.clear();
+    }
   } else {
     try {
       localLiveScreenStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           cursor: 'always',
-          frameRate: 30,
+          frameRate: { ideal: 30, max: 30 },
           width: { ideal: 1920 },
           height: { ideal: 1080 }
         },
@@ -7449,13 +7520,19 @@ async function toggleLiveScreenShare() {
 
       if (video) {
         video.srcObject = localLiveScreenStream;
+        video.muted = true; // Muted locally to prevent echo feedback
+        video.play().catch(() => {});
       }
       if (screenContainer) screenContainer.classList.remove('hidden');
       if (standbyBox) standbyBox.classList.add('hidden');
       if (btnText) btnText.innerText = 'وەستاندنی شاشە ⏹️';
       if (btn) btn.className = 'px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white border border-rose-400 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg active:scale-95';
 
+      isLocalScreenSharing = true;
       socket.emit('live_screen_start');
+
+      // Immediately broadcast screen stream to all room participants!
+      broadcastLiveMediaToAll();
 
       localLiveScreenStream.getVideoTracks()[0].onended = () => {
         toggleLiveScreenShare();
@@ -7623,10 +7700,17 @@ async function selectLiveAudioOutput(type) {
       }
 
       if (targetDeviceId) {
-        if (liveAudio) await liveAudio.setSinkId(targetDeviceId);
-        if (quranAudio) await quranAudio.setSinkId(targetDeviceId);
+        if (liveAudio && liveAudio.setSinkId) await liveAudio.setSinkId(targetDeviceId);
+        if (quranAudio && quranAudio.setSinkId) await quranAudio.setSinkId(targetDeviceId);
+        document.querySelectorAll('audio[id^="live_audio_"]').forEach(async el => {
+          try { if (el.setSinkId) await el.setSinkId(targetDeviceId); } catch (e) {}
+        });
       }
     }
+    // Set appropriate volume level for output mode
+    document.querySelectorAll('audio[id^="live_audio_"]').forEach(el => {
+      el.volume = (type === 'earpiece' ? 0.35 : 1.0);
+    });
   } catch (err) {
     console.log('Audio sink selection fallback:', err);
   }
@@ -7893,7 +7977,15 @@ function handleLiveScreenStarted(sharer) {
   const sharerNameEl = document.getElementById('liveScreenSharerName');
   if (screenContainer) screenContainer.classList.remove('hidden');
   if (standbyBox) standbyBox.classList.add('hidden');
-  if (sharerNameEl) sharerNameEl.innerText = `شاشەی ${sharer ? sharer.name : 'مامۆستا'}`;
+  if (sharerNameEl) sharerNameEl.innerText = `شاشەی ${sharer ? (sharer.name || sharer.fullName) : 'مامۆستا'}`;
+
+  // If we are not the sharer, request live stream from the sharer
+  if (sharer && sharer.socketId && sharer.socketId !== socket.id) {
+    socket.emit('live_signal', {
+      to: sharer.socketId,
+      type: 'request_stream'
+    });
+  }
 }
 
 function handleLiveScreenStopped() {
@@ -7906,12 +7998,220 @@ function handleLiveScreenStopped() {
   if (video) video.srcObject = null;
 }
 
-function handleLiveSignal(data) {
-  // WebRTC signaling relay handler
+// =========================================================================
+// 6. LIVE WEBRTC REAL-TIME PEER-TO-PEER ENGINE (AUDIO & SCREEN SHARE)
+// =========================================================================
+
+async function broadcastLiveMediaToPeer(targetSocketId) {
+  if (!targetSocketId || targetSocketId === socket.id) return;
+
+  // Close any existing peer connection before creating fresh one
+  let pc = livePeerConnections.get(targetSocketId);
+  if (pc) {
+    try { pc.close(); } catch (e) {}
+    livePeerConnections.delete(targetSocketId);
+  }
+
+  pc = new RTCPeerConnection(rtcLiveIceConfig);
+  livePeerConnections.set(targetSocketId, pc);
+
+  // 1. Add screen video and audio tracks if local screen sharing is active
+  if (localLiveScreenStream) {
+    localLiveScreenStream.getTracks().forEach(track => {
+      try { pc.addTrack(track, localLiveScreenStream); } catch (e) {}
+    });
+  }
+
+  // 2. Add microphone audio track if mic is active and unmuted
+  if (localLiveAudioStream && !isLocalMicMuted) {
+    localLiveAudioStream.getAudioTracks().forEach(track => {
+      if (track.enabled) {
+        try { pc.addTrack(track, localLiveAudioStream); } catch (e) {}
+      }
+    });
+  }
+
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit('live_signal', {
+        to: targetSocketId,
+        type: 'candidate',
+        candidate: event.candidate
+      });
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      try { pc.close(); } catch (e) {}
+      livePeerConnections.delete(targetSocketId);
+    }
+  };
+
+  try {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit('live_signal', {
+      to: targetSocketId,
+      type: 'offer',
+      sdp: offer,
+      hasVideo: !!localLiveScreenStream,
+      hasAudio: !!(localLiveAudioStream && !isLocalMicMuted)
+    });
+  } catch (err) {
+    console.error(`Failed to create live offer for ${targetSocketId}:`, err);
+  }
+}
+
+function broadcastLiveMediaToAll() {
+  if (!currentLiveLessonState || !currentLiveLessonState.participants) return;
+  currentLiveLessonState.participants.forEach(p => {
+    if (p.socketId && p.socketId !== socket.id) {
+      broadcastLiveMediaToPeer(p.socketId);
+    }
+  });
+}
+
+function closeLivePeerConnection(targetSocketId) {
+  if (livePeerConnections.has(targetSocketId)) {
+    try {
+      livePeerConnections.get(targetSocketId).close();
+    } catch (e) {}
+    livePeerConnections.delete(targetSocketId);
+  }
+  const audioElem = document.getElementById(`live_audio_${targetSocketId}`);
+  if (audioElem) audioElem.remove();
+}
+
+async function handleLiveSignal(data) {
+  if (!data || !data.from) return;
+  const fromSocketId = data.from;
+
+  try {
+    if (data.type === 'request_stream') {
+      if (localLiveScreenStream || (localLiveAudioStream && !isLocalMicMuted)) {
+        broadcastLiveMediaToPeer(fromSocketId);
+      }
+      return;
+    }
+
+    if (data.type === 'offer' && data.sdp) {
+      let pc = livePeerConnections.get(fromSocketId);
+      if (pc) {
+        try { pc.close(); } catch (e) {}
+      }
+
+      pc = new RTCPeerConnection(rtcLiveIceConfig);
+      livePeerConnections.set(fromSocketId, pc);
+
+      pc.ontrack = (event) => {
+        const stream = event.streams[0] || new MediaStream([event.track]);
+        
+        if (event.track.kind === 'video') {
+          const video = document.getElementById('liveScreenVideo');
+          const screenContainer = document.getElementById('liveScreenContainer');
+          const standbyBox = document.getElementById('liveStandbyBox');
+          if (video) {
+            video.srcObject = stream;
+            video.playsInline = true;
+            video.autoplay = true;
+            video.muted = false;
+            video.play().catch(e => console.log('Live screen video play:', e));
+          }
+          if (screenContainer) screenContainer.classList.remove('hidden');
+          if (standbyBox) standbyBox.classList.add('hidden');
+        } else if (event.track.kind === 'audio') {
+          handleIncomingLiveAudio(event.track, stream, fromSocketId);
+        }
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('live_signal', {
+            to: fromSocketId,
+            type: 'candidate',
+            candidate: event.candidate
+          });
+        }
+      };
+
+      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      socket.emit('live_signal', {
+        to: fromSocketId,
+        type: 'answer',
+        sdp: answer
+      });
+      return;
+    }
+
+    if (data.type === 'answer' && data.sdp) {
+      const pc = livePeerConnections.get(fromSocketId);
+      if (pc && pc.signalingState !== 'stable') {
+        await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      }
+      return;
+    }
+
+    if (data.type === 'candidate' && data.candidate) {
+      const pc = livePeerConnections.get(fromSocketId);
+      if (pc && pc.remoteDescription) {
+        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+      }
+      return;
+    }
+  } catch (err) {
+    console.error('Error handling live signal:', err);
+  }
+}
+
+function handleIncomingLiveAudio(track, stream, fromSocketId) {
+  let audioElem = document.getElementById(`live_audio_${fromSocketId}`);
+  if (!audioElem) {
+    audioElem = document.createElement('audio');
+    audioElem.id = `live_audio_${fromSocketId}`;
+    audioElem.autoplay = true;
+    audioElem.playsInline = true;
+    audioElem.className = 'hidden';
+    document.body.appendChild(audioElem);
+  }
+  audioElem.srcObject = new MediaStream([track]);
+  audioElem.muted = false;
+  audioElem.play().catch(err => {
+    console.log('Live audio autoplay need interaction:', err);
+  });
+
+  // Apply current audio output volume / mode
+  applyLiveAudioOutputMode(audioElem);
+}
+
+function applyLiveAudioOutputMode(audioElem) {
+  if (!audioElem) return;
+  const currentOutput = document.getElementById('liveAudioOutputText');
+  const label = currentOutput ? currentOutput.innerText : '';
+  if (label.includes('بیستۆک')) {
+    audioElem.volume = 0.35;
+  } else {
+    audioElem.volume = 1.0;
+  }
+}
+
+function handleLivePeerJoined(data) {
+  if (!data || !data.socketId) return;
+  if (localLiveScreenStream || (localLiveAudioStream && !isLocalMicMuted)) {
+    broadcastLiveMediaToPeer(data.socketId);
+  }
+}
+
+function handleLivePeerLeft(data) {
+  if (!data || !data.socketId) return;
+  closeLivePeerConnection(data.socketId);
 }
 
 function handleLiveAudioChunk(data) {
-  // Direct audio chunk receiver handler
+  // Reserved for optional fallback streaming
 }
 
 
