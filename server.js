@@ -1008,31 +1008,46 @@ app.post('/api/chat/close-question', authMiddleware, requireTeacherOrSuperAdmin,
 
 // 19b. Cancel & Delete Question (Super Admin & Teacher ONLY)
 app.post('/api/chat/question/cancel', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
-  const { question_id } = req.body;
-  if (!question_id) return res.status(400).json({ error: 'ناسنامەی پرسیار دیارینەکراوە' });
+  const { question_id, message_id } = req.body;
+  if (!question_id && !message_id) return res.status(400).json({ error: 'ناسنامەی پرسیار دیارینەکراوە' });
 
-  if (activeQuestionTimeout) {
-    clearTimeout(activeQuestionTimeout);
-    activeQuestionTimeout = null;
+  const qId = question_id ? parseInt(question_id) : null;
+  const msgId = message_id ? parseInt(message_id) : null;
+
+  if (qId) {
+    if (activeQuestionTimeout) {
+      const activeQ = questions.getActive();
+      if (activeQ && activeQ.id === qId) {
+        clearTimeout(activeQuestionTimeout);
+        activeQuestionTimeout = null;
+      }
+    }
+    // Delete question and submissions from db
+    questions.delete(qId);
   }
 
-  // Delete question and submissions from db
-  questions.delete(question_id);
-
-  // Remove corresponding question announcement message from chat so it's clean
+  // Remove corresponding question announcement messages from chat
   try {
-    const qMsgs = db.prepare("SELECT id FROM messages WHERE message_type = 'question' AND (metadata LIKE ? OR content LIKE ?)").all(`%"question_id":${question_id}%`, `%پرسیاری ژمارە%`);
-    for (const msg of qMsgs) {
-      messages.delete(msg.id);
-      io.emit('delete_message', { message_id: msg.id });
+    if (msgId) {
+      messages.delete(msgId);
+      io.emit('message_deleted', { id: msgId });
+    }
+    if (qId) {
+      const qMsgs = db.prepare("SELECT id FROM messages WHERE (message_type = 'question' OR message_type = 'revealed_submissions') AND (content LIKE ? OR attachment_url = ? OR metadata LIKE ?)").all(`%"question_id":${qId}%`, String(qId), `%"question_id":${qId}%`);
+      for (const msg of qMsgs) {
+        messages.delete(msg.id);
+        io.emit('message_deleted', { id: msg.id });
+      }
     }
   } catch (e) {
     console.error('Error removing question message:', e);
   }
 
-  io.emit('question_cancelled', { question_id });
-  io.emit('question_closed', { question_id });
-  res.json({ success: true, message: 'پرسیارەکە بە سەرکەوتوویی ئیلغاکرایەوە و سڕایەوە' });
+  if (qId) {
+    io.emit('question_cancelled', { question_id: qId });
+    io.emit('question_closed', { question_id: qId });
+  }
+  res.json({ success: true, message: 'پرسیارەکە بە سەرکەوتوویی لابرا و سڕایەوە' });
 });
 
 // 20. Questions Archive & Bank (Available to all users)

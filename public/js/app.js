@@ -1095,6 +1095,7 @@ function appendMessage(msg, scroll = true) {
   const isMe = currentUser && msg.user_id === currentUser.id;
   const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin');
   const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
   const dateStr = new Date(msg.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
 
   let msgElem = document.createElement('div');
@@ -1230,7 +1231,7 @@ function appendMessage(msg, scroll = true) {
 
       msgElem.innerHTML = `
         <div class="revealed-answers-card bg-slate-900 border-2 border-indigo-500/50 rounded-3xl p-4 md:p-5 shadow-2xl relative max-w-2xl mx-auto overflow-hidden">
-          <div class="flex items-center justify-between pb-3 border-b border-indigo-500/30 mb-3.5">
+          <div class="flex items-center justify-between pb-3 border-b border-indigo-500/30 mb-3.5 gap-2 flex-wrap">
             <div class="flex items-center gap-2.5">
               <div class="w-9 h-9 rounded-xl bg-indigo-600/30 text-indigo-400 flex items-center justify-center text-base font-black border border-indigo-500/40">
                 <i class="fa-solid fa-bullhorn"></i>
@@ -1240,7 +1241,15 @@ function appendMessage(msg, scroll = true) {
                 <p class="text-[11px] text-indigo-300">کاتی دیاریکراو بەسەرچوو (${subs.length} قوتابی وەڵامی داوەتەوە)</p>
               </div>
             </div>
-            <span class="text-[11px] text-slate-400 font-mono">${dateStr}</span>
+            <div class="flex items-center gap-2">
+              ${isStaff ? `
+                <button type="button" onclick="deleteQuestionDirect(${payload.question_id || msg.id}, ${msg.id})" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95" title="سڕینەوەی ئەم پرسیارە">
+                  <i class="fa-solid fa-trash-can text-[11px]"></i>
+                  <span>سڕینەوە</span>
+                </button>
+              ` : ''}
+              <span class="text-[11px] text-slate-400 font-mono">${dateStr}</span>
+            </div>
           </div>
 
           <div class="bg-slate-950/70 p-3 rounded-2xl border border-slate-800 mb-3.5">
@@ -1302,7 +1311,15 @@ function appendMessage(msg, scroll = true) {
               تەوقیت: ${qData.duration_minutes || 5} خولەک
             </span>
           </div>
-          <span class="text-[11px] text-slate-400 font-mono">${dateStr}</span>
+          <div class="flex items-center gap-2">
+            ${isStaff ? `
+              <button type="button" onclick="deleteQuestionDirect(${qData.question_id || msg.id}, ${msg.id})" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95" title="سڕینەوەی ئەم پرسیارە">
+                <i class="fa-solid fa-trash-can text-[11px]"></i>
+                <span>سڕینەوە</span>
+              </button>
+            ` : ''}
+            <span class="text-[11px] text-slate-400 font-mono">${dateStr}</span>
+          </div>
         </div>
 
         <div class="my-2.5">
@@ -2007,20 +2024,17 @@ async function submitSecretAnswerFromModal() {
   }
 }
 
-// Cancel & Delete Active Question (Super Admin & Teacher)
-async function cancelActiveQuestion() {
-  if (!activeQuestion) return;
+// Delete / Remove Question Directly (Super Admin & Teacher)
+async function deleteQuestionDirect(questionId, messageId) {
   const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
   if (!isStaff) {
-    alert('تەنها سوپەر ئەدمین و مامۆستا دەسەڵاتی ئیلغاکردنەوە و سڕینەوەی پرسیاریان هەیە');
+    alert('تەنها سوپەر ئەدمین و مامۆستا دەسەڵاتی لابردن و سڕینەوەی پرسیاریان هەیە');
     return;
   }
 
-  if (!confirm('ئایا دڵنیایت لە ئیلغاکردنەوە و سڕینەوەی ئەم پرسیارە لە گروپ؟\nسەرجەم وەڵامەکان و کاتەکە دەسڕێنەوە و نامێنن.')) {
+  if (!confirm('ئایا دڵنیایت لە لابردن و سڕینەوەی ئەم پرسیارە لە گروپ؟\nسەرجەم وەڵامەکان و کاتەکە دەسڕێنەوە و نامێنن.')) {
     return;
   }
-
-  const qId = activeQuestion.id;
 
   try {
     const res = await fetch('/api/chat/question/cancel', {
@@ -2029,20 +2043,41 @@ async function cancelActiveQuestion() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ question_id: qId })
+      body: JSON.stringify({ question_id: questionId, message_id: messageId })
     });
     const data = await res.json();
     if (res.ok) {
-      activeQuestion = null;
-      stopQuestionCountdown();
-      renderActiveQuestionSticky(null);
-      closeActiveQuestionModal();
+      if (activeQuestion && (activeQuestion.id == questionId || activeQuestion.message_id == messageId || !questionId)) {
+        activeQuestion = null;
+        stopQuestionCountdown();
+        renderActiveQuestionSticky(null);
+        closeActiveQuestionModal();
+      }
+      if (messageId) {
+        const msgElem = document.getElementById(`msg-${messageId}`);
+        if (msgElem) msgElem.remove();
+      }
+      if (questionId) {
+        document.querySelectorAll(`[data-question-id="${questionId}"]`).forEach(el => el.remove());
+      }
+      if (typeof questionsArchiveCache !== 'undefined' && Array.isArray(questionsArchiveCache)) {
+        questionsArchiveCache = questionsArchiveCache.filter(q => q.id != questionId);
+        if (typeof renderQuestionsArchive === 'function') {
+          renderQuestionsArchive();
+        }
+      }
     } else {
-      alert(data.error || 'هەڵەیەک ڕوویدا لە ئیلغاکردنی پرسیار');
+      alert(data.error || 'هەڵەیەک ڕوویدا لە لابردنی پرسیار');
     }
   } catch (err) {
     alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
   }
+}
+
+// Cancel & Remove Active Question (Super Admin & Teacher)
+async function cancelActiveQuestion() {
+  if (!activeQuestion) return;
+  await deleteQuestionDirect(activeQuestion.id, activeQuestion.message_id);
 }
 
 // Backward-compatible wrappers for older call sites
@@ -3656,7 +3691,20 @@ function renderQuestionsArchive(list) {
             ? '<span class="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">ئاشکراکراو ✔️</span>' 
             : '<span class="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold animate-pulse">کاتی ماوە ⏳</span>'}
         </div>
-        <span class="text-[11px] text-slate-400 font-mono">${dateFormatted}</span>
+        <div class="flex items-center gap-2">
+          ${(currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? `
+            <button 
+              type="button" 
+              onclick="deleteQuestionDirect(${q.id}, ${q.message_id || 'null'})" 
+              class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95" 
+              title="سڕینەوەی ئەم پرسیارە"
+            >
+              <i class="fa-solid fa-trash-can text-[11px]"></i>
+              <span>سڕینەوە</span>
+            </button>
+          ` : ''}
+          <span class="text-[11px] text-slate-400 font-mono">${dateFormatted}</span>
+        </div>
       </div>
 
       <!-- Question Text (Distinct Color) -->
@@ -3677,14 +3725,27 @@ function renderQuestionsArchive(list) {
         <div class="text-[11px] text-slate-400">
           تەوقیتی دانراو: <b class="font-mono text-slate-300">${q.duration_minutes || 5} خولەک</b>
         </div>
-        <button 
-          onclick="jumpToQuestionInChat(${q.id}, ${q.question_number || 1})" 
-          class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow active:scale-95"
-          title="دۆزینەوە و پیشاندانی ئەم پرسیارە لەناو گروپ چات"
-        >
-          <i class="fa-solid fa-location-crosshairs text-amber-300"></i>
-          <span>چوونە سەر پرسیار لە چات 🎯</span>
-        </button>
+        <div class="flex items-center gap-2">
+          ${(currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? `
+            <button 
+              type="button" 
+              onclick="deleteQuestionDirect(${q.id}, ${q.message_id || 'null'})" 
+              class="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow active:scale-95" 
+              title="سڕینەوەی پرسیار"
+            >
+              <i class="fa-solid fa-trash-can text-[11px]"></i>
+              <span>سڕینەوە</span>
+            </button>
+          ` : ''}
+          <button 
+            onclick="jumpToQuestionInChat(${q.id}, ${q.question_number || 1})" 
+            class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow active:scale-95"
+            title="دۆزینەوە و پیشاندانی ئەم پرسیارە لەناو گروپ چات"
+          >
+            <i class="fa-solid fa-location-crosshairs text-amber-300"></i>
+            <span>چوونە سەر پرسیار لە چات 🎯</span>
+          </button>
+        </div>
       </div>
     `;
 
