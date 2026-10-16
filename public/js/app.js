@@ -493,9 +493,6 @@ async function fetchCurrentUser() {
 // Update UI based on user role & name
 function updateUserUI() {
   if (!currentUser) return;
-  if (typeof window.deactivatePrivacyShieldIfSuperAdmin === 'function') {
-    window.deactivatePrivacyShieldIfSuperAdmin();
-  }
 
   const headerNameElem = document.getElementById('headerFullName');
   headerNameElem.innerText = formatUserDisplayName(currentUser);
@@ -6545,135 +6542,7 @@ async function toggleDreamAvailability() {
   }
 }
 
-// ================= ANTI-SCREENSHOT & SCREEN RECORDING PRIVACY SHIELD =================
-(function initAntiScreenshotShield() {
-  let isShieldActive = false;
-  let suppressBlurUntil = 0;
-  let forceShieldTimer = null;
 
-  function isSuperAdmin() {
-    return !!(currentUser && (currentUser.role === 'super_admin' || currentUser.username === 'hemn taha'));
-  }
-
-  function activateShield(durationMs = 0) {
-    if (isSuperAdmin()) {
-      deactivateShield(true);
-      return;
-    }
-    if (Date.now() < suppressBlurUntil) return;
-
-    if (!isShieldActive) {
-      isShieldActive = true;
-      document.body.classList.add('privacy-shield-active');
-    }
-
-    if (durationMs > 0) {
-      if (forceShieldTimer) clearTimeout(forceShieldTimer);
-      forceShieldTimer = setTimeout(() => {
-        forceShieldTimer = null;
-        if (document.hasFocus() && !document.hidden) {
-          deactivateShield();
-        }
-      }, durationMs);
-    }
-  }
-
-  function deactivateShield(force = false) {
-    if (force) {
-      if (forceShieldTimer) {
-        clearTimeout(forceShieldTimer);
-        forceShieldTimer = null;
-      }
-    } else if (forceShieldTimer) {
-      return; // Keep active until forced duration ends
-    }
-
-    if (isShieldActive || document.body.classList.contains('privacy-shield-active')) {
-      isShieldActive = false;
-      document.body.classList.remove('privacy-shield-active');
-    }
-  }
-
-  // 1. Window loses focus (Snipping tool opened, switching apps, OBS/screen recorder focus change)
-  window.addEventListener('blur', () => {
-    activateShield();
-  });
-
-  // 2. Window regains focus
-  window.addEventListener('focus', () => {
-    setTimeout(() => {
-      deactivateShield();
-    }, 150);
-  });
-
-  // 3. Tab or app visibility change (mobile app switcher / backgrounding)
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      activateShield();
-    } else {
-      setTimeout(() => {
-        deactivateShield();
-      }, 150);
-    }
-  });
-
-  // 4. Keyboard shortcuts for screenshots / recording / printing
-  window.addEventListener('keydown', (e) => {
-    if (isSuperAdmin()) return;
-
-    // PrintScreen key
-    if (e.key === 'PrintScreen' || e.code === 'PrintScreen' || e.keyCode === 44) {
-      activateShield(3000);
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText('');
-        }
-      } catch (err) {}
-    }
-
-    // Windows Snipping Tool (Win + Shift + S) or Mac (Cmd + Shift + 3 / 4 / 5)
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 's' || e.key === 'S' || e.key === '3' || e.key === '4' || e.key === '5')) {
-      activateShield(3000);
-    }
-
-    // Print dialog (Ctrl + P or Cmd + P)
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
-      e.preventDefault();
-      activateShield(2500);
-    }
-  }, true);
-
-  window.addEventListener('keyup', (e) => {
-    if (isSuperAdmin()) return;
-    if (e.key === 'PrintScreen' || e.code === 'PrintScreen' || e.keyCode === 44) {
-      activateShield(2500);
-    }
-  }, true);
-
-  // 5. Suppress false triggers when user legitimately clicks file uploads / camera triggers
-  document.addEventListener('click', (e) => {
-    const target = e.target;
-    if (!target) return;
-    if (
-      target.matches && (
-        target.matches('input[type="file"]') ||
-        target.closest('input[type="file"]') ||
-        target.id === 'regAvatar' ||
-        target.id === 'chatImageInput' ||
-        target.closest('#chatImageBtn')
-      )
-    ) {
-      suppressBlurUntil = Date.now() + 8000; // Allow 8s for file picker
-    }
-  }, true);
-
-  // Expose global deactivate hook for super admin
-  window.deactivatePrivacyShieldIfSuperAdmin = function() {
-    if (isSuperAdmin()) {
-      deactivateShield(true);
-    }
-  };
-})();
 
 // =========================================================================
 // 1. CHAT MESSAGE REACTIONS SYSTEM (🏆, 🤲, 👍, 💯)
@@ -7231,8 +7100,11 @@ let localLiveAudioStream = null;
 let localLiveScreenStream = null;
 let isLocalMicMuted = true;
 let isLocalScreenSharing = false;
+let isTogglingMic = false;
+let localMicPermissionGranted = false;
 let liveLessonDurationTimer = null;
 let livePeerConnections = new Map(); // socketId -> RTCPeerConnection
+let pendingLiveCandidates = new Map(); // socketId -> Array of candidate
 
 // High-reliability multi-STUN configuration for real-time live video & audio
 const rtcLiveIceConfig = {
@@ -7364,6 +7236,9 @@ function leaveLiveLessonRoom() {
   if (floatingBar) floatingBar.classList.add('hidden');
 
   isLocalMicMuted = true;
+  localMicPermissionGranted = false;
+  isTogglingMic = false;
+  pendingLiveCandidates.clear();
   updateLiveMicUI(true);
 }
 
@@ -7403,56 +7278,117 @@ function toggleLiveStartEnd() {
   }
 }
 
-async function toggleLiveMic() {
-  const myParticipant = currentLiveLessonState && currentLiveLessonState.participants 
-    ? currentLiveLessonState.participants.find(p => p.userId === (currentUser ? currentUser.id : null))
-    : null;
-
-  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
-  const hasPermission = isStaff || (myParticipant && myParticipant.hasMicPermission);
-
-  if (!hasPermission) {
-    alert('تەنها مامۆستا و ئەدمین دەتوانن قسە بکەن. تکایە دوگمەی «دەست هەڵبڕین ✋» دابگرە تا مامۆستا مۆڵەتی مایکت پێدەدات.');
-    return;
+async function requestLiveAudioStream() {
+  if (localLiveAudioStream) {
+    const liveTracks = localLiveAudioStream.getAudioTracks().filter(t => t.readyState === 'live');
+    if (liveTracks.length > 0) {
+      return localLiveAudioStream;
+    }
+    try {
+      localLiveAudioStream.getTracks().forEach(t => t.stop());
+    } catch (e) {}
+    localLiveAudioStream = null;
   }
 
-  if (isLocalMicMuted) {
+  // 1. Modern navigator.mediaDevices.getUserMedia with fallback
+  if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
     try {
-      if (!localLiveAudioStream) {
-        localLiveAudioStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          }
+      return await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+    } catch (err1) {
+      console.warn('Advanced audio constraints failed, trying basic audio...', err1);
+      try {
+        return await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err2) {
+        console.warn('Basic audio constraint failed:', err2);
+        throw err2;
+      }
+    }
+  }
+
+  // 2. Legacy getUserMedia polyfill
+  const legacyGUM = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+  if (legacyGUM) {
+    return new Promise((resolve, reject) => {
+      legacyGUM.call(navigator, { audio: true }, resolve, reject);
+    });
+  }
+
+  throw new Error('NO_GETUSERMEDIA');
+}
+
+async function toggleLiveMic() {
+  if (isTogglingMic) return;
+  isTogglingMic = true;
+
+  const btn = document.getElementById('liveMicToggleBtn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const myUserId = currentUser ? Number(currentUser.id) : null;
+    const myParticipant = currentLiveLessonState && currentLiveLessonState.participants 
+      ? currentLiveLessonState.participants.find(p => Number(p.userId) === myUserId)
+      : null;
+
+    const isStaff = currentUser && (
+      currentUser.role === 'super_admin' || 
+      currentUser.role === 'teacher' || 
+      currentUser.role === 'admin' ||
+      currentUser.username === 'hemn taha'
+    );
+    const hasPermission = isStaff || localMicPermissionGranted || (myParticipant && myParticipant.hasMicPermission);
+
+    if (!hasPermission) {
+      alert('تەنها مامۆستا و ئەدمین دەتوانن قسە بکەن. تکایە دوگمەی «دەست هەڵبڕین ✋» دابگرە تا مامۆستا مۆڵەتی مایکت پێدەدات.');
+      return;
+    }
+
+    if (isLocalMicMuted) {
+      try {
+        localLiveAudioStream = await requestLiveAudioStream();
+        localLiveAudioStream.getAudioTracks().forEach(t => {
+          t.enabled = true;
+        });
+        isLocalMicMuted = false;
+        updateLiveMicUI(false);
+        socket.emit('live_mic_toggle', false);
+
+        // Broadcast audio to all room participants
+        broadcastLiveMediaToAll();
+      } catch (err) {
+        console.error('Failed to start live mic:', err);
+        const isSecure = window.isSecureContext || window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          alert('ڕێگەپێدانی مایکرۆفۆن لە وێبگەڕدا ڕەتکرایەوە یان بلۆک کراوە.\nتکایە لە تەنیشت ناونیشانی ماڵپەڕەکە لە وێبگەڕ نیشانەی قوفڵ یان ڕێکخستنەکان دابگرە و ڕێگە بە مایکرۆفۆن بدە (Allow Microphone).');
+        } else if (!isSecure && (!navigator.mediaDevices || err.message === 'NO_GETUSERMEDIA')) {
+          alert('ئاگاداری بۆ کرۆم لەسەر مۆبایل و کۆمپیوتەر:\nبەهۆی یاسای نوێی وێبگەڕەکان، مایک پێویستی بە چالاککردنی ناونیشانەکەیە:\n1. تابی نوێ بکەرەوە و بڕۆ بۆ: chrome://flags/#unsafely-treat-insecure-origin-as-secure\n2. ناونیشانی ' + window.location.origin + ' بنووسە و بیکە بە Enabled پاشان Relaunch دابگرە.');
+        } else {
+          alert('نەتوانرا مایکرۆفۆن بکرێتەوە: ' + (err.message || 'هەڵەیەک لە دەستپێکردندا ڕوویدا'));
+        }
+      }
+    } else {
+      if (localLiveAudioStream) {
+        localLiveAudioStream.getAudioTracks().forEach(t => {
+          t.enabled = false;
         });
       }
-      localLiveAudioStream.getAudioTracks().forEach(t => t.enabled = true);
-      isLocalMicMuted = false;
-      updateLiveMicUI(false);
-      socket.emit('live_mic_toggle', false);
+      isLocalMicMuted = true;
+      updateLiveMicUI(true);
+      socket.emit('live_mic_toggle', true);
 
-      // Broadcast audio to all room participants!
-      broadcastLiveMediaToAll();
-    } catch (err) {
-      alert('نەتوانرا مایکرۆفۆن بکرێتەوە: ' + (err.message || 'ڕێگەپێدان پێویستە'));
+      if (localLiveScreenStream) {
+        broadcastLiveMediaToAll();
+      }
     }
-  } else {
-    if (localLiveAudioStream) {
-      localLiveAudioStream.getAudioTracks().forEach(t => t.enabled = false);
-    }
-    isLocalMicMuted = true;
-    updateLiveMicUI(true);
-    socket.emit('live_mic_toggle', true);
-
-    if (localLiveScreenStream) {
-      broadcastLiveMediaToAll();
-    } else {
-      livePeerConnections.forEach(pc => {
-        try { pc.close(); } catch (e) {}
-      });
-      livePeerConnections.clear();
-    }
+  } finally {
+    isTogglingMic = false;
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -7478,7 +7414,7 @@ function toggleLiveRaiseHand() {
 }
 
 async function toggleLiveScreenShare() {
-  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
   if (!isStaff) return;
 
   const btn = document.getElementById('liveScreenShareBtn');
@@ -7500,28 +7436,29 @@ async function toggleLiveScreenShare() {
 
     if (localLiveAudioStream && !isLocalMicMuted) {
       broadcastLiveMediaToAll();
-    } else {
-      livePeerConnections.forEach(pc => {
-        try { pc.close(); } catch (e) {}
-      });
-      livePeerConnections.clear();
     }
   } else {
     try {
-      localLiveScreenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          cursor: 'always',
-          frameRate: { ideal: 30, max: 30 },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        },
-        audio: true
-      });
+      if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
+        alert('شەیرکردنی شاشە لە وێبگەڕی ئەم ئامێرەدا پشتگیری ناکرێت (تەنها کۆمپیوتەر یان ئەو وێبگەڕانەی دەتوانن شاشە شەیر بکەن).');
+        return;
+      }
+
+      try {
+        localLiveScreenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false
+        });
+      } catch (errDisplay) {
+        localLiveScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      }
 
       if (video) {
         video.srcObject = localLiveScreenStream;
-        video.muted = true; // Muted locally to prevent echo feedback
-        video.play().catch(() => {});
+        video.muted = true;
+        video.playsInline = true;
+        video.autoplay = true;
+        video.play().catch(e => console.log('Local video play:', e));
       }
       if (screenContainer) screenContainer.classList.remove('hidden');
       if (standbyBox) standbyBox.classList.add('hidden');
@@ -7531,7 +7468,7 @@ async function toggleLiveScreenShare() {
       isLocalScreenSharing = true;
       socket.emit('live_screen_start');
 
-      // Immediately broadcast screen stream to all room participants!
+      // Immediately broadcast screen stream to all room participants
       broadcastLiveMediaToAll();
 
       localLiveScreenStream.getVideoTracks()[0].onended = () => {
@@ -7539,6 +7476,9 @@ async function toggleLiveScreenShare() {
       };
     } catch (err) {
       console.log('Screen sharing cancelled or failed:', err);
+      if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+        alert('نەتوانرا شاشە شەیر بکرێت: ' + (err.message || 'هەڵەیەک ڕوویدا'));
+      }
     }
   }
 }
@@ -7949,15 +7889,17 @@ function handleLiveEndedNotice() {
 }
 
 function handleLiveMicGranted() {
+  localMicPermissionGranted = true;
   playSound('star');
   alert('مۆڵەتی مایکت پێبەخشرا لەلایەن مامۆستاوە! دەتوانیت مایک بکەیتەوە و قسە بکەیت 🎙️');
   const myParticipant = currentLiveLessonState && currentLiveLessonState.participants 
-    ? currentLiveLessonState.participants.find(p => p.userId === (currentUser ? currentUser.id : null))
+    ? currentLiveLessonState.participants.find(p => Number(p.userId) === (currentUser ? Number(currentUser.id) : null))
     : null;
   if (myParticipant) myParticipant.hasMicPermission = true;
 }
 
 function handleLiveMicRevoked() {
+  localMicPermissionGranted = false;
   alert('مۆڵەتی مایکت لێسەندرایەوە لەلایەن بەڕێوەبەرەوە.');
   isLocalMicMuted = true;
   if (localLiveAudioStream) {
@@ -8005,7 +7947,6 @@ function handleLiveScreenStopped() {
 async function broadcastLiveMediaToPeer(targetSocketId) {
   if (!targetSocketId || targetSocketId === socket.id) return;
 
-  // Close any existing peer connection before creating fresh one
   let pc = livePeerConnections.get(targetSocketId);
   if (pc) {
     try { pc.close(); } catch (e) {}
@@ -8042,7 +7983,7 @@ async function broadcastLiveMediaToPeer(targetSocketId) {
   };
 
   pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
       try { pc.close(); } catch (e) {}
       livePeerConnections.delete(targetSocketId);
     }
@@ -8105,7 +8046,7 @@ async function handleLiveSignal(data) {
       livePeerConnections.set(fromSocketId, pc);
 
       pc.ontrack = (event) => {
-        const stream = event.streams[0] || new MediaStream([event.track]);
+        const stream = (event.streams && event.streams[0]) || new MediaStream([event.track]);
         
         if (event.track.kind === 'video') {
           const video = document.getElementById('liveScreenVideo');
@@ -8115,7 +8056,7 @@ async function handleLiveSignal(data) {
             video.srcObject = stream;
             video.playsInline = true;
             video.autoplay = true;
-            video.muted = false;
+            video.muted = true; // Essential: allows autoplay without user interaction block
             video.play().catch(e => console.log('Live screen video play:', e));
           }
           if (screenContainer) screenContainer.classList.remove('hidden');
@@ -8136,6 +8077,16 @@ async function handleLiveSignal(data) {
       };
 
       await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+
+      // Process any queued candidates
+      if (pendingLiveCandidates.has(fromSocketId)) {
+        const queue = pendingLiveCandidates.get(fromSocketId) || [];
+        for (const c of queue) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
+        }
+        pendingLiveCandidates.delete(fromSocketId);
+      }
+
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
@@ -8151,14 +8102,26 @@ async function handleLiveSignal(data) {
       const pc = livePeerConnections.get(fromSocketId);
       if (pc && pc.signalingState !== 'stable') {
         await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        if (pendingLiveCandidates.has(fromSocketId)) {
+          const queue = pendingLiveCandidates.get(fromSocketId) || [];
+          for (const c of queue) {
+            try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
+          }
+          pendingLiveCandidates.delete(fromSocketId);
+        }
       }
       return;
     }
 
     if (data.type === 'candidate' && data.candidate) {
       const pc = livePeerConnections.get(fromSocketId);
-      if (pc && pc.remoteDescription) {
+      if (pc && pc.remoteDescription && pc.remoteDescription.type) {
         await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+      } else {
+        if (!pendingLiveCandidates.has(fromSocketId)) {
+          pendingLiveCandidates.set(fromSocketId, []);
+        }
+        pendingLiveCandidates.get(fromSocketId).push(data.candidate);
       }
       return;
     }
@@ -8181,6 +8144,13 @@ function handleIncomingLiveAudio(track, stream, fromSocketId) {
   audioElem.muted = false;
   audioElem.play().catch(err => {
     console.log('Live audio autoplay need interaction:', err);
+    const unlockAudio = () => {
+      audioElem.play().catch(() => {});
+      document.removeEventListener('click', unlockAudio);
+      document.removeEventListener('touchstart', unlockAudio);
+    };
+    document.addEventListener('click', unlockAudio, { once: true });
+    document.addEventListener('touchstart', unlockAudio, { once: true });
   });
 
   // Apply current audio output volume / mode

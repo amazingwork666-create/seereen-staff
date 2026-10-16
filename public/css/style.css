@@ -480,9 +480,12 @@ body.light-theme .chat-msg-item .text-slate-300,
 body.light-theme .chat-msg-item .text-xs,
 body.light-theme .chat-msg-item .text-sm,
 body.light-theme .msg-text-student,
+body.light-theme [class*="msg-text-student"],
 body.light-theme .chat-msg-item .msg-text-student,
-body.light-theme .chat-msg-item div.msg-text-student {
+body.light-theme .chat-msg-item div.msg-text-student,
+body.light-theme .chat-msg-item div[class*="msg-text-student"] {
   color: #000000 !important;
+  text-shadow: none !important;
 }
 
 body.light-theme .chat-msg-item .bg-slate-800\/90,
@@ -584,17 +587,5 @@ main {
   }
 }
 
-/* ================= ANTI-SCREENSHOT & SCREEN RECORDING BLUR ================= */
-body.privacy-shield-active #mainApp,
-body.privacy-shield-active #authScreen {
-  filter: blur(35px) grayscale(40%) brightness(0.6) !important;
-  transition: filter 0.12s ease-out;
-  pointer-events: none !important;
-  user-select: none !important;
-}
 
-body.privacy-shield-active #privacyShieldOverlay {
-  opacity: 1 !important;
-  pointer-events: auto !important;
-}
 
