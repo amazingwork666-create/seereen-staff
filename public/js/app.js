@@ -643,23 +643,23 @@ function updateUserUI() {
     if (liveStartEndBtn) {
       liveStartEndBtn.classList.remove('hidden');
       liveStartEndBtn.classList.add('flex');
-      liveStartEndBtn.style.display = '';
+      liveStartEndBtn.style.setProperty('display', 'flex', 'important');
     }
     if (liveScreenShareBtn) {
       liveScreenShareBtn.classList.remove('hidden');
       liveScreenShareBtn.classList.add('flex');
-      liveScreenShareBtn.style.display = '';
+      liveScreenShareBtn.style.setProperty('display', 'flex', 'important');
     }
   } else {
     if (liveStartEndBtn) {
       liveStartEndBtn.classList.add('hidden');
       liveStartEndBtn.classList.remove('flex');
-      liveStartEndBtn.style.display = 'none';
+      liveStartEndBtn.style.setProperty('display', 'none', 'important');
     }
     if (liveScreenShareBtn) {
       liveScreenShareBtn.classList.add('hidden');
       liveScreenShareBtn.classList.remove('flex');
-      liveScreenShareBtn.style.display = 'none';
+      liveScreenShareBtn.style.setProperty('display', 'none', 'important');
     }
   }
 
@@ -7256,10 +7256,13 @@ function openLiveLessonModal() {
   const startEndBtn = document.getElementById('liveStartEndBtn');
   if (startEndBtn) {
     if (!isStaff) {
-      startEndBtn.className = 'hidden';
-      startEndBtn.style.display = 'none';
+      startEndBtn.classList.add('hidden');
+      startEndBtn.classList.remove('flex');
+      startEndBtn.style.setProperty('display', 'none', 'important');
     } else {
-      startEndBtn.style.display = '';
+      startEndBtn.classList.remove('hidden');
+      startEndBtn.classList.add('flex');
+      startEndBtn.style.setProperty('display', 'flex', 'important');
     }
   }
 
@@ -7681,12 +7684,15 @@ function handleLiveLessonStateUpdate(state) {
     const isTeacherOrSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
     if (startEndBtn) {
       if (isTeacherOrSuperAdmin) {
+        startEndBtn.classList.remove('hidden');
+        startEndBtn.classList.add('flex');
+        startEndBtn.style.setProperty('display', 'flex', 'important');
         startEndBtn.className = 'px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 active:scale-95';
-        startEndBtn.style.display = '';
         if (startEndBtnText) startEndBtnText.innerText = 'کۆتاییهێنان بە وانە ⏹️';
       } else {
-        startEndBtn.className = 'hidden';
-        startEndBtn.style.display = 'none';
+        startEndBtn.classList.add('hidden');
+        startEndBtn.classList.remove('flex');
+        startEndBtn.style.setProperty('display', 'none', 'important');
       }
     }
 
@@ -7718,12 +7724,15 @@ function handleLiveLessonStateUpdate(state) {
     const isTeacherOrSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
     if (startEndBtn) {
       if (isTeacherOrSuperAdmin) {
+        startEndBtn.classList.remove('hidden');
+        startEndBtn.classList.add('flex');
+        startEndBtn.style.setProperty('display', 'flex', 'important');
         startEndBtn.className = 'px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 active:scale-95';
-        startEndBtn.style.display = '';
         if (startEndBtnText) startEndBtnText.innerText = 'دەستپێکردنی وانە 🔴';
       } else {
-        startEndBtn.className = 'hidden';
-        startEndBtn.style.display = 'none';
+        startEndBtn.classList.add('hidden');
+        startEndBtn.classList.remove('flex');
+        startEndBtn.style.setProperty('display', 'none', 'important');
       }
     }
     if (liveLessonDurationTimer) {

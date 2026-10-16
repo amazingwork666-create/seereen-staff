@@ -255,8 +255,8 @@
         </div>
       </div>
 
-      <!-- Action Buttons & Current User Pill -->
-      <div class="flex items-center gap-1.5 md:gap-2 overflow-x-auto scrollbar-none py-1 max-w-full">
+      <!-- Desktop Action Buttons (STRICTLY HIDDEN ON MOBILE: hidden md:flex) -->
+      <div id="desktopNavActions" class="hidden md:flex items-center gap-1.5 md:gap-2">
         
         <!-- Live Lesson ("وانە") Button - Desktop -->
         <button id="liveLessonNavBtn" onclick="openLiveLessonModal()" class="relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-900 border border-slate-800 text-slate-400 font-black text-xs rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-sm" title="ژووری وانەی ڕاستەوخۆ (وانە)">
@@ -341,6 +341,16 @@
           <span>ئەندامان</span>
         </button>
 
+        <!-- Logout Button - Desktop -->
+        <button onclick="handleLogout()" class="px-2.5 py-1.5 text-rose-300 hover:text-white bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 rounded-xl transition flex items-center gap-1.5 shrink-0 font-bold text-xs shadow-sm" title="دەرچوون">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          <span>دەرچوون</span>
+        </button>
+
+      </div>
+
+      <!-- User Profile & Theme (Always Visible on both Mobile & Desktop) -->
+      <div class="flex items-center gap-1.5 md:gap-2 shrink-0">
         <!-- Dark / Light Mode Toggle Button -->
         <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs rounded-xl transition flex items-center gap-1" title="گۆڕینی دۆخی مۆد (ڕووناک / تاریک)">
           <i id="themeToggleIcon" class="fa-solid fa-sun text-amber-400"></i>
@@ -360,13 +370,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Logout Button -->
-        <button onclick="handleLogout()" class="px-2.5 py-1.5 text-rose-300 hover:text-white bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 rounded-xl transition flex items-center gap-1.5 shrink-0 font-bold text-xs shadow-sm" title="دەرچوون">
-          <i class="fa-solid fa-arrow-right-from-bracket"></i>
-          <span>دەرچوون</span>
-        </button>
-
       </div>
     </header>
 
@@ -2039,7 +2042,7 @@
           </button>
 
           <!-- Start / End Lesson Button (Super Admin & Teacher ONLY) -->
-          <button type="button" id="liveStartEndBtn" onclick="toggleLiveStartEnd()" class="hidden px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition items-center gap-1.5 active:scale-95" style="display: none;">
+          <button type="button" id="liveStartEndBtn" onclick="toggleLiveStartEnd()" class="hidden px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition items-center gap-1.5 active:scale-95" style="display: none !important;">
             <i class="fa-solid fa-tower-broadcast"></i>
             <span id="liveStartEndBtnText">دەستپێکردنی وانە</span>
           </button>
@@ -2270,6 +2273,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=3.2"></script>
+  <script src="/js/app.js?v=3.3"></script>
 </body>
 </html>
