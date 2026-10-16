@@ -1052,6 +1052,33 @@ app.get('/api/chat/unanswered-stats', authMiddleware, requireAdmin, (req, res) =
   res.json({ stats });
 });
 
+function updateRevealedSubmissionEvaluationInMessages(questionId, userId, isCorrect) {
+  try {
+    const qId = parseInt(questionId);
+    const uId = parseInt(userId);
+    const msgs = db.prepare("SELECT id, content FROM messages WHERE message_type = 'revealed_submissions' AND (attachment_url = ? OR content LIKE ?)").all(String(qId), `%"question_id":${qId}%`);
+    for (const msg of msgs) {
+      try {
+        const payload = JSON.parse(msg.content);
+        if (payload && Array.isArray(payload.submissions)) {
+          let modified = false;
+          payload.submissions.forEach(s => {
+            if (s.user_id === uId) {
+              s.is_awarded = isCorrect;
+              modified = true;
+            }
+          });
+          if (modified) {
+            db.prepare("UPDATE messages SET content = ? WHERE id = ?").run(JSON.stringify(payload), msg.id);
+          }
+        }
+      } catch (e) {}
+    }
+  } catch (err) {
+    console.error('Error updating revealed submission evaluation in messages:', err);
+  }
+}
+
 // 18. Award Star to a Student for a Question (Super Admin & Teacher)
 app.post('/api/chat/award-star', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
   const { question_id, user_id } = req.body;
@@ -1069,6 +1096,7 @@ app.post('/api/chat/award-star', authMiddleware, requireTeacherOrSuperAdmin, (re
 
   if (question_id) {
     questions.recordStarAward(question_id, user_id, req.user.id);
+    updateRevealedSubmissionEvaluationInMessages(question_id, user_id, 1);
   }
 
   io.emit('star_awarded', {
@@ -1083,6 +1111,7 @@ app.post('/api/chat/award-star', authMiddleware, requireTeacherOrSuperAdmin, (re
     io.emit('submission_evaluated', {
       question_id: parseInt(question_id),
       user_id: parseInt(user_id),
+      user_name: student.full_name,
       is_correct: 1
     });
   }
@@ -1100,9 +1129,11 @@ app.post('/api/chat/mark-wrong', authMiddleware, requireTeacherOrSuperAdmin, (re
 
   if (question_id) {
     questions.recordWrongMark(question_id, user_id);
+    updateRevealedSubmissionEvaluationInMessages(question_id, user_id, -1);
     io.emit('submission_evaluated', {
       question_id: parseInt(question_id),
       user_id: parseInt(user_id),
+      user_name: student.full_name,
       is_correct: -1
     });
   }
@@ -1115,11 +1146,15 @@ app.post('/api/chat/reset-evaluation', authMiddleware, requireTeacherOrSuperAdmi
   const { question_id, user_id } = req.body;
   if (!user_id) return res.status(400).json({ error: 'ناسنامەی خوێندکار دیارینەکراوە' });
 
+  const student = users.findById(user_id);
+
   if (question_id) {
     questions.resetSubmissionEvaluation(question_id, user_id);
+    updateRevealedSubmissionEvaluationInMessages(question_id, user_id, 0);
     io.emit('submission_evaluated', {
       question_id: parseInt(question_id),
       user_id: parseInt(user_id),
+      user_name: student ? student.full_name : '',
       is_correct: 0
     });
   }

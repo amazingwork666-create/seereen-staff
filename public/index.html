@@ -264,113 +264,27 @@
         </div>
       </div>
 
-      <!-- Desktop Action Buttons (STRICTLY HIDDEN ON MOBILE: hidden md:flex) -->
-      <div id="desktopNavActions" class="hidden md:flex items-center gap-1.5 md:gap-2">
-        
-        <!-- Live Lesson ("وانە") Button - Desktop -->
-        <button id="liveLessonNavBtn" onclick="openLiveLessonModal()" class="relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-900 border border-slate-800 text-slate-400 font-black text-xs rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-sm" title="ژووری وانەی ڕاستەوخۆ (وانە)">
+      <!-- Header Action Controls & 3-line Hamburger Menu Button -->
+      <div class="flex items-center gap-1.5 md:gap-2.5 shrink-0">
+        <!-- Live Lesson ("وانە") Button - Always Accessible -->
+        <button id="liveLessonNavBtn" onclick="openLiveLessonModal()" class="relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-900 border border-slate-800 hover:border-rose-900/60 text-slate-400 font-black text-xs rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95" title="ژووری وانەی ڕاستەوخۆ (وانە)">
           <span id="liveLessonPulseDot" class="w-2.5 h-2.5 rounded-full bg-rose-950 border border-rose-900/60 shrink-0"></span>
-          <i class="fa-solid fa-microphone-lines text-rose-500/50"></i>
-          <span>وانە</span>
+          <i class="fa-solid fa-microphone-lines text-rose-500/60"></i>
+          <span class="hidden xs:inline">وانە</span>
           <span id="liveLessonActiveBadge" class="hidden px-1.5 py-0.2 bg-rose-600 text-white text-[9px] font-black rounded-md animate-pulse">ڕاستەوخۆ</span>
         </button>
 
-        <!-- Private Messages ("نامەی تایبەت") Button - Desktop -->
-        <button id="privateChatNavBtn" onclick="openPrivateChatModal()" class="relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow" title="نامەی تایبەتی لەگەڵ مامۆستا و سوپەر ئەدمین">
-          <i class="fa-solid fa-envelope text-sky-400"></i>
-          <span>نامەی تایبەت</span>
-          <span id="privateChatUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-sky-500 text-slate-950 text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-900">
-            0
-          </span>
-        </button>
-
-        <!-- Post Question Button (Admin & Super Admin & Teacher) - Desktop -->
-        <button id="postQuestionNavBtn" onclick="openPostQuestionModal()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow transition items-center gap-1">
-          <i class="fa-solid fa-circle-question"></i>
-          <span>دانانی پرسیار</span>
-        </button>
-
-        <!-- Library Button - Desktop -->
-        <button id="libraryNavBtn" onclick="openLibraryModal()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-teal-400 font-bold text-xs rounded-xl transition items-center gap-1" title="کتێبخانەی ستافی سیرین">
-          <i class="fa-solid fa-book-open text-teal-400"></i>
-          <span>کتێبخانە</span>
-        </button>
-
-        <!-- Questions Archive / Bank Button - Desktop -->
-        <button onclick="openQuestionsArchiveModal()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 font-bold text-xs rounded-xl transition items-center gap-1" title="بانکی پرسیار و وەڵامەکان">
-          <i class="fa-solid fa-book-bookmark text-indigo-400"></i>
-          <span>پرسیارەکان</span>
-        </button>
-
-        <!-- Unanswered Questions List Button - Desktop -->
-        <button id="unansweredStatsNavBtn" onclick="openUnansweredStatsModal()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-rose-400 font-bold text-xs rounded-xl transition items-center gap-1" title="لیستی ئەوانەی پرسیاریان وەڵام نەداوەتەوە">
-          <i class="fa-solid fa-clipboard-question"></i>
-          <span>وەڵامنەدراوەکان</span>
-        </button>
-
-        <!-- Leaderboard Button - Desktop -->
-        <button onclick="openLeaderboardModal()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs rounded-xl transition items-center gap-1" title="ڕیزبەندی">
-          <i class="fa-solid fa-trophy"></i>
-          <span>ڕیزبەندی</span>
-        </button>
-
-        <!-- Admin Management Panel Button (Super Admin) - Desktop -->
-        <button id="adminPanelNavBtn" onclick="openAdminModal()" class="hidden relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl transition items-center gap-1.5">
-          <i class="fa-solid fa-shield-halved text-indigo-400"></i>
-          <span>بەڕێوەبردن</span>
-          <span id="pendingBadgeCount" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-900">
-            0
-          </span>
-        </button>
-
-        <!-- Dream Interpretations Button (Super Admin & Teacher) - Desktop -->
-        <button id="dreamAdminNavBtn" onclick="openDreamAdminModal()" class="hidden relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-gradient-to-r from-purple-800/80 to-indigo-800/80 hover:from-purple-700 text-purple-200 font-bold text-xs rounded-xl border border-purple-500/40 shadow transition items-center gap-1.5" title="بەشی لێکدانەوەی خەونەکان">
-          <i class="fa-solid fa-moon text-amber-300"></i>
-          <span>خەونەکان</span>
-          <span id="dreamUnreadBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-purple-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-900">
-            0
-          </span>
-        </button>
-
-        <!-- Chat Search Button - Desktop -->
-        <button id="chatSearchNavBtn" onclick="toggleChatSearch()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[#dfaa86] font-bold text-xs rounded-xl transition items-center gap-1.5" title="گەڕان لەناو پەیامەکان">
-          <i class="fa-solid fa-magnifying-glass text-[#dfaa86]"></i>
-          <span class="hidden lg:inline">گەڕان</span>
-        </button>
-
-        <!-- Install PWA App Button - Desktop -->
-        <button id="pwaInstallBtn" onclick="installPwaApp()" class="hidden px-2.5 py-1.5 md:px-3 md:py-1.5 bg-gradient-to-r from-[#c78361] to-[#dfaa86] hover:from-[#d38f6d] text-slate-950 font-black text-xs rounded-xl shadow transition items-center gap-1.5 active:scale-95 animate-pulse" title="دابەزاندنی ئەپڵیکەیشن">
-          <i class="fa-solid fa-download"></i>
-          <span>دابەزاندنی ئەپ</span>
-        </button>
-
-        <!-- Toggle Members Sidebar - Desktop -->
-        <button id="membersNavBtn" onclick="toggleMembersSidebar()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 text-slate-300 hover:text-white bg-slate-800 rounded-xl border border-slate-700 text-xs font-bold items-center gap-1" title="لیستی ئەندامان">
-          <i class="fa-solid fa-users text-indigo-400"></i>
-          <span>ئەندامان</span>
-        </button>
-
-        <!-- Logout Button - Desktop -->
-        <button onclick="handleLogout()" class="px-2.5 py-1.5 text-rose-300 hover:text-white bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 rounded-xl transition flex items-center gap-1.5 shrink-0 font-bold text-xs shadow-sm" title="دەرچوون">
-          <i class="fa-solid fa-arrow-right-from-bracket"></i>
-          <span>دەرچوون</span>
-        </button>
-
-      </div>
-
-      <!-- User Profile & Theme (Always Visible on both Mobile & Desktop) -->
-      <div class="flex items-center gap-1.5 md:gap-2 shrink-0">
         <!-- Dark / Light Mode Toggle Button -->
-        <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs rounded-xl transition flex items-center gap-1" title="گۆڕینی دۆخی مۆد (ڕووناک / تاریک)">
+        <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2 md:px-2.5 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs rounded-xl transition flex items-center gap-1 active:scale-95" title="گۆڕینی دۆخی مۆد (ڕووناک / تاریک)">
           <i id="themeToggleIcon" class="fa-solid fa-sun text-amber-400"></i>
-          <span class="hidden md:inline" id="themeToggleText">مۆد</span>
+          <span class="hidden lg:inline" id="themeToggleText">مۆد</span>
         </button>
 
         <!-- Current User Pill -->
         <div onclick="openMyProfile()" class="flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 px-2.5 py-1 rounded-xl cursor-pointer hover:border-slate-600 transition" title="بینینی پرۆفایلی خۆم">
           <div class="text-right">
             <div class="flex items-center gap-1">
-              <span id="headerFullName" class="text-xs font-black max-w-[85px] sm:max-w-[120px] truncate block">ناو</span>
+              <span id="headerFullName" class="text-xs font-black max-w-[80px] sm:max-w-[120px] truncate block">ناو</span>
               <span id="headerRoleBadge" class="text-[9px] px-1.5 py-0.2 rounded font-extrabold hidden sm:inline-block">پلە</span>
             </div>
             <div id="headerStarBadge" class="text-[10px] text-amber-400 font-semibold flex items-center gap-0.5">
@@ -379,83 +293,163 @@
             </div>
           </div>
         </div>
+
+        <!-- 3-Lines Main Menu Hamburger Button (سێ خەت) -->
+        <button id="mainMenuBtn" onclick="toggleMainMenuDrawer()" class="relative p-2 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/40 text-amber-400 hover:text-amber-300 font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow active:scale-95" title="مێنیوی هەموو بەشەکان (سێ خەت)">
+          <i class="fa-solid fa-bars text-base"></i>
+          <span class="hidden sm:inline font-bold text-xs">مێنیو</span>
+          <span id="mainMenuBadgeDot" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"></span>
+        </button>
       </div>
     </header>
 
-    <!-- MOBILE ACTION CHIPS BAR (HORIZONTALLY SCROLLABLE ON SMALL SCREENS) -->
-    <div id="mobileActionBar" class="flex md:hidden items-center gap-1.5 overflow-x-auto px-3 py-2 bg-slate-900/95 border-b border-slate-800 z-20 shrink-0 scrollbar-none">
-      <!-- Live Lesson ("وانە") Mobile Chip -->
-      <button id="mobileLiveLessonBtn" onclick="openLiveLessonModal()" class="relative px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-black text-slate-400 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
-        <span id="mobileLiveLessonPulseDot" class="w-2 h-2 rounded-full bg-rose-950 border border-rose-900/60 shrink-0"></span>
-        <i class="fa-solid fa-microphone-lines text-rose-500/50"></i>
-        <span>وانە</span>
-      </button>
+    <!-- ================= MAIN SLIDE-OUT DRAWER (سێ خەت) ================= -->
+    <div id="mainMenuDrawer" class="hidden fixed inset-0 z-50">
+      <!-- Backdrop -->
+      <div id="mainMenuDrawerBackdrop" onclick="closeMainMenuDrawer()" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity opacity-0"></div>
 
-      <!-- Private Messages Mobile Chip -->
-      <button id="mobilePrivateChatBtn" onclick="openPrivateChatModal()" class="relative px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-sky-300 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
-        <i class="fa-solid fa-envelope text-sky-400"></i>
-        <span>نامەی تایبەت</span>
-        <span id="mobilePrivateUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 bg-sky-500 text-slate-950 text-[9px] font-black rounded-full flex items-center justify-center">
-          0
-        </span>
-      </button>
+      <!-- Drawer Panel (Slides in from the right in RTL) -->
+      <div id="mainMenuDrawerPanel" class="fixed top-0 bottom-0 right-0 w-80 max-w-[85vw] bg-slate-900/95 border-l border-slate-800 backdrop-blur-xl shadow-2xl flex flex-col z-10 transform translate-x-full transition-transform duration-300 ease-out">
+        
+        <!-- Drawer Header -->
+        <div class="p-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-950/60">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center text-sm font-black shadow-inner">
+              <i class="fa-solid fa-bars-staggered"></i>
+            </div>
+            <div>
+              <h3 class="font-black text-sm text-white">مێنیوی ستافی سیرین</h3>
+              <p class="text-[11px] text-slate-400">هەموو بەش و خزمەتگوزارییەکان</p>
+            </div>
+          </div>
+          <button type="button" onclick="closeMainMenuDrawer()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستنی مێنیو">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
 
-      <button id="mobileChatSearchBtn" onclick="toggleChatSearch()" class="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-[#dfaa86] flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
-        <i class="fa-solid fa-magnifying-glass"></i>
-        <span>گەڕان</span>
-      </button>
+        <!-- Drawer Scrollable Content -->
+        <div class="flex-1 overflow-y-auto p-3 space-y-4 text-xs font-bold">
+          
+          <!-- Section: General Services -->
+          <div class="space-y-1.5">
+            <span class="text-[10px] text-slate-400 uppercase tracking-wider px-2 font-black block mb-1">خزمەتگوزارییە سەرەکییەکان</span>
 
-      <button id="mobilePwaInstallBtn" onclick="installPwaApp()" class="hidden px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#c78361] to-[#dfaa86] text-slate-950 text-xs font-black flex items-center gap-1.5 shrink-0 shadow-md active:scale-95 animate-pulse">
-        <i class="fa-solid fa-download"></i>
-        <span>دابەزاندنی ئەپ</span>
-      </button>
+            <!-- Library -->
+            <button id="drawerLibraryBtn" onclick="closeMainMenuDrawer(); openLibraryModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-teal-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-book-open text-teal-400 text-sm w-5 text-center"></i>
+                <span>کتێبخانەی ستاف</span>
+              </span>
+              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
+            </button>
 
-      <button id="mobileMembersBtn" onclick="toggleMembersSidebar()" class="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-slate-200 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
-        <i class="fa-solid fa-users text-indigo-400"></i>
-        <span>ئەندامان</span>
-      </button>
+            <!-- Questions Bank -->
+            <button onclick="closeMainMenuDrawer(); openQuestionsArchiveModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-indigo-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-book-bookmark text-indigo-400 text-sm w-5 text-center"></i>
+                <span>بانکی پرسیار و وەڵامەکان</span>
+              </span>
+              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
+            </button>
 
-      <button id="mobileLibraryBtn" onclick="openLibraryModal()" class="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-teal-300 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
-        <i class="fa-solid fa-book-open text-teal-400"></i>
-        <span>کتێبخانە</span>
-      </button>
+            <!-- Leaderboard -->
+            <button onclick="closeMainMenuDrawer(); openLeaderboardModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-trophy text-amber-400 text-sm w-5 text-center"></i>
+                <span>ڕیزبەندی و خاڵەکان</span>
+              </span>
+              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
+            </button>
 
-      <button onclick="openQuestionsArchiveModal()" class="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-indigo-300 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
-        <i class="fa-solid fa-book-bookmark text-indigo-400"></i>
-        <span>بانکی پرسیار</span>
-      </button>
+            <!-- Private Chat -->
+            <button id="drawerPrivateChatBtn" onclick="closeMainMenuDrawer(); openPrivateChatModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sky-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-envelope text-sky-400 text-sm w-5 text-center"></i>
+                <span>نامەی تایبەت لەگەڵ مامۆستا</span>
+              </span>
+              <span id="drawerPrivateUnreadBadge" class="hidden px-1.5 py-0.5 bg-sky-500 text-slate-950 text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
+            </button>
 
-      <button onclick="openLeaderboardModal()" class="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-amber-300 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
-        <i class="fa-solid fa-trophy text-amber-400"></i>
-        <span>ڕیزبەندی</span>
-      </button>
+            <!-- Chat Search -->
+            <button onclick="closeMainMenuDrawer(); toggleChatSearch();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[#dfaa86] hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-magnifying-glass text-[#dfaa86] text-sm w-5 text-center"></i>
+                <span>گەڕان لەناو پەیامەکان</span>
+              </span>
+              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
+            </button>
 
-      <button id="mobileDreamAdminBtn" onclick="openDreamAdminModal()" class="hidden relative px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-900/80 to-indigo-900/80 border border-purple-500/40 text-xs font-bold text-purple-200 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
-        <i class="fa-solid fa-moon text-amber-300"></i>
-        <span>خەونەکان</span>
-        <span id="mobileDreamUnreadBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-purple-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-900">0</span>
-      </button>
+            <!-- Members List (Staff Only) -->
+            <button id="drawerMembersBtn" onclick="closeMainMenuDrawer(); toggleMembersSidebar();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-users text-indigo-400 text-sm w-5 text-center"></i>
+                <span>لیستی ئەندامان</span>
+              </span>
+              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
+            </button>
 
-      <button id="mobilePostQuestionBtn" onclick="openPostQuestionModal()" class="hidden px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-xs font-black flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
-        <i class="fa-solid fa-circle-question"></i>
-        <span>دانانی پرسیار</span>
-      </button>
+            <!-- PWA Install -->
+            <button id="drawerPwaInstallBtn" onclick="installPwaApp()" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-[#c78361]/20 to-[#dfaa86]/20 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-white transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-download text-[#dfaa86] text-sm w-5 text-center"></i>
+                <span>داگرتنی ئەپڵیکەیشن (PWA)</span>
+              </span>
+              <span class="text-[9px] bg-[#dfaa86] text-slate-950 font-black px-1.5 py-0.5 rounded">ئەپ</span>
+            </button>
+          </div>
 
-      <button id="mobileUnansweredBtn" onclick="openUnansweredStatsModal()" class="hidden px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-rose-300 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
-        <i class="fa-solid fa-clipboard-question text-rose-400"></i>
-        <span>وەڵامنەدراوەکان</span>
-      </button>
+          <!-- Section: Staff & Management Tools (Conditionally Shown for Admin/Teacher) -->
+          <div id="drawerStaffSection" class="hidden space-y-1.5 pt-3 border-t border-slate-800">
+            <span class="text-[10px] text-amber-400 uppercase tracking-wider px-2 font-black block mb-1">ئامرازەکانی ستاف و ئەدمین</span>
 
-      <button id="mobileAdminPanelBtn" onclick="openAdminModal()" class="hidden relative px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-slate-200 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
-        <i class="fa-solid fa-shield-halved text-indigo-400"></i>
-        <span>بەڕێوەبردن</span>
-        <span id="mobilePendingBadgeCount" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-900">0</span>
-      </button>
+            <!-- Post Question -->
+            <button id="drawerPostQuestionBtn" onclick="closeMainMenuDrawer(); openPostQuestionModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 hover:text-white transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-circle-question text-amber-400 text-sm w-5 text-center"></i>
+                <span>دانانی پرسیاری نوێ</span>
+              </span>
+              <span class="text-[9px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded">نوێ</span>
+            </button>
 
-      <button onclick="handleLogout()" class="px-3 py-1.5 rounded-xl bg-rose-950/70 hover:bg-rose-900 border border-rose-500/40 text-xs font-bold text-rose-300 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95" title="چوونە دەرەوە لە ئەکاونت">
-        <i class="fa-solid fa-arrow-right-from-bracket"></i>
-        <span>دەرچوون</span>
-      </button>
+            <!-- Unanswered Stats -->
+            <button id="drawerUnansweredBtn" onclick="closeMainMenuDrawer(); openUnansweredStatsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-rose-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-clipboard-question text-rose-400 text-sm w-5 text-center"></i>
+                <span>لیستی وەڵامنەدراوەکان</span>
+              </span>
+              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
+            </button>
+
+            <!-- Dream Admin -->
+            <button id="drawerDreamAdminBtn" onclick="closeMainMenuDrawer(); openDreamAdminModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-purple-900/30 hover:bg-purple-900/50 border border-purple-500/30 text-purple-200 hover:text-white transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-moon text-amber-300 text-sm w-5 text-center"></i>
+                <span>لێکدانەوەی خەونەکان</span>
+              </span>
+              <span id="drawerDreamUnreadBadge" class="hidden px-1.5 py-0.5 bg-purple-500 text-white text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
+            </button>
+
+            <!-- System Admin Panel -->
+            <button id="drawerAdminPanelBtn" onclick="closeMainMenuDrawer(); openAdminModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-indigo-900/30 hover:bg-indigo-900/50 border border-indigo-500/30 text-indigo-200 hover:text-white transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-shield-halved text-indigo-400 text-sm w-5 text-center"></i>
+                <span>بەڕێوەبردنی ئەندامان و سیستم</span>
+              </span>
+              <span id="drawerPendingBadgeCount" class="hidden px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Drawer Footer (Logout) -->
+        <div class="p-3 border-t border-slate-800 bg-slate-950/60 shrink-0">
+          <button onclick="handleLogout()" class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 hover:text-white transition active:scale-98">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            <span>چوونە دەرەوە لە ئەکاونت</span>
+          </button>
+        </div>
+
+      </div>
     </div>
 
     <!-- MAIN BODY (CHAT SCROLL CONTAINER + SIDEBAR) -->
@@ -871,8 +865,8 @@
   </div>
 
   <!-- ================= MODAL: ACTIVE QUESTION ANSWERING & DETAILS ================= -->
-  <div id="activeQuestionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md">
-    <div class="bg-slate-900 border border-amber-500/40 rounded-2xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-lg shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] transition-all">
+  <div id="activeQuestionModal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div id="activeQuestionModalCard" class="bg-slate-900 border-t sm:border border-amber-500/40 rounded-t-3xl sm:rounded-3xl p-4 sm:p-6 w-full max-w-lg shadow-2xl relative overflow-hidden flex flex-col max-h-[85dvh] sm:max-h-[90vh] transition-all">
       
       <!-- Modal Header -->
       <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0 mb-3">
@@ -892,9 +886,15 @@
           </div>
         </div>
         
-        <button type="button" onclick="closeActiveQuestionModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
-          <i class="fa-solid fa-xmark text-sm"></i>
-        </button>
+        <div class="flex items-center gap-1.5">
+          <button type="button" onclick="minimizeActiveQuestionToChat()" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-white text-xs font-bold border border-slate-700/80 flex items-center gap-1.5 transition active:scale-95 shadow-sm" title="کەمکردنەوە و بینینی چات">
+            <i class="fa-solid fa-eye text-sky-400"></i>
+            <span class="text-xs">بینینی چات</span>
+          </button>
+          <button type="button" onclick="closeActiveQuestionModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Modal Body (Scrollable) -->
@@ -903,7 +903,7 @@
         <!-- Question Text Display -->
         <div class="p-3.5 sm:p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-right shadow-inner">
           <span class="text-[10px] text-amber-400 font-bold block mb-1">دەقی تەواوی پرسیار:</span>
-          <p id="modalStickyQuestionText" class="text-sm sm:text-base font-black text-white leading-relaxed whitespace-pre-wrap select-text">
+          <p id="modalStickyQuestionText" class="text-xs sm:text-sm font-black text-white leading-relaxed whitespace-pre-wrap select-text max-h-28 sm:max-h-36 overflow-y-auto pr-1">
             دەقی پرسیار لێرە دەردەکەوێت...
           </p>
           <div class="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
@@ -937,6 +937,15 @@
             >
               <i class="fa-solid fa-lock"></i>
               <span id="modalSubmitSecretAnswerBtnText">ناردن و جێگیرکردنی وەڵام</span>
+            </button>
+            <button 
+              type="button" 
+              onclick="minimizeActiveQuestionToChat()" 
+              class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition shrink-0 active:scale-95"
+              title="پەیامەکانی چات ببینە و ڕەشنووسەکەت دەپارێزرێت"
+            >
+              <i class="fa-solid fa-comments text-sky-400"></i>
+              <span>بینینی چات</span>
             </button>
             <button 
               type="button"
@@ -2263,6 +2272,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=4.0"></script>
+  <script src="/js/app.js?v=4.2"></script>
 </body>
 </html>
