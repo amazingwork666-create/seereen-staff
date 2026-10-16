@@ -244,6 +244,23 @@
       <!-- Action Buttons & Current User Pill -->
       <div class="flex items-center gap-1.5 md:gap-2">
         
+        <!-- Live Lesson ("وانە") Button - Desktop -->
+        <button id="liveLessonNavBtn" onclick="openLiveLessonModal()" class="relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow" title="ژووری وانەی ڕاستەوخۆ (وانە)">
+          <span id="liveLessonPulseDot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+          <i class="fa-solid fa-microphone-lines text-rose-400"></i>
+          <span>وانە</span>
+          <span id="liveLessonActiveBadge" class="hidden px-1.5 py-0.2 bg-rose-600 text-white text-[9px] font-black rounded-md animate-pulse">ڕاستەوخۆ</span>
+        </button>
+
+        <!-- Private Messages ("نامەی تایبەت") Button - Desktop -->
+        <button id="privateChatNavBtn" onclick="openPrivateChatModal()" class="relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow" title="نامەی تایبەتی لەگەڵ مامۆستا و سوپەر ئەدمین">
+          <i class="fa-solid fa-envelope text-sky-400"></i>
+          <span>نامەی تایبەت</span>
+          <span id="privateChatUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-sky-500 text-slate-950 text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-900">
+            0
+          </span>
+        </button>
+
         <!-- Post Question Button (Admin & Super Admin & Teacher) - Desktop -->
         <button id="postQuestionNavBtn" onclick="openPostQuestionModal()" class="hidden md:flex px-2.5 py-1.5 md:px-3 md:py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow transition items-center gap-1">
           <i class="fa-solid fa-circle-question"></i>
@@ -341,6 +358,22 @@
 
     <!-- MOBILE ACTION CHIPS BAR (HORIZONTALLY SCROLLABLE ON SMALL SCREENS) -->
     <div id="mobileActionBar" class="flex md:hidden items-center gap-1.5 overflow-x-auto px-3 py-2 bg-slate-900/95 border-b border-slate-800 z-20 shrink-0 scrollbar-none">
+      <!-- Live Lesson ("وانە") Mobile Chip -->
+      <button id="mobileLiveLessonBtn" onclick="openLiveLessonModal()" class="relative px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-black text-slate-200 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
+        <span id="mobileLiveLessonPulseDot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+        <i class="fa-solid fa-microphone-lines text-rose-400"></i>
+        <span>وانە</span>
+      </button>
+
+      <!-- Private Messages Mobile Chip -->
+      <button id="mobilePrivateChatBtn" onclick="openPrivateChatModal()" class="relative px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-sky-300 flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
+        <i class="fa-solid fa-envelope text-sky-400"></i>
+        <span>نامەی تایبەت</span>
+        <span id="mobilePrivateUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 bg-sky-500 text-slate-950 text-[9px] font-black rounded-full flex items-center justify-center">
+          0
+        </span>
+      </button>
+
       <button id="mobileChatSearchBtn" onclick="toggleChatSearch()" class="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80 text-xs font-bold text-[#dfaa86] flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95">
         <i class="fa-solid fa-magnifying-glass"></i>
         <span>گەڕان</span>
@@ -694,6 +727,14 @@
           <span class="text-[10px] text-slate-400 block mb-0.5">پلەپێدانەکان</span>
           <span id="profPromotionsCount" class="text-xs font-black text-emerald-400 font-mono">0 جار</span>
         </div>
+      </div>
+
+      <!-- Private Message Action Button -->
+      <div id="profPrivateChatContainer" class="hidden mb-3">
+        <button id="profPrivateChatBtn" type="button" class="w-full py-2.5 px-3 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow active:scale-95">
+          <i class="fa-solid fa-envelope"></i>
+          <span id="profPrivateChatBtnText">ناردنی نامەی تایبەت</span>
+        </button>
       </div>
 
       <div id="profSuperAdminActions" class="hidden mb-4 p-3 bg-indigo-950/30 border border-indigo-800/40 rounded-2xl flex items-center justify-between gap-2">
@@ -1746,6 +1787,318 @@
       <span>سیستەمی پاراستنی ستافی سیرین</span>
     </div>
   </div>
+
+  <!-- ================= MODAL: LIVE LESSON ROOM ("وانە") ================= -->
+  <div id="liveLessonModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 bg-slate-950/90 backdrop-blur-md">
+    <div class="bg-slate-900 border-0 md:border md:border-rose-500/40 rounded-none md:rounded-3xl w-full max-w-4xl h-full md:h-[92vh] flex flex-col shadow-2xl overflow-hidden relative">
+      
+      <!-- Top Header -->
+      <div class="px-4 py-3 bg-slate-950/90 border-b border-rose-500/30 flex items-center justify-between shrink-0 gap-2 flex-wrap">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-rose-600/20 border border-rose-500/40 flex items-center justify-center text-rose-400 text-lg shadow-inner">
+            <i class="fa-solid fa-microphone-lines animate-pulse"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 id="liveLessonModalTitle" class="font-black text-sm md:text-base text-white">ژووری وانەی ڕاستەوخۆ</h3>
+              <span id="liveLessonHeaderBadge" class="hidden px-2 py-0.5 rounded-md bg-rose-600 text-white font-black text-[10px] animate-pulse">
+                🔴 ڕاستەوخۆ
+              </span>
+            </div>
+            <p id="liveLessonPresenterText" class="text-[11px] text-slate-400">مامۆستا و ستاف</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Live Duration Timer -->
+          <div id="liveDurationTimer" class="hidden px-2.5 py-1 bg-slate-900 border border-rose-500/30 rounded-xl text-xs font-mono font-bold text-rose-300 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+            <span id="liveDurationText">00:00:00</span>
+          </div>
+
+          <!-- Minimize Button (بچووککردنەوە) -->
+          <button onclick="minimizeLiveLessonModal()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 transition flex items-center gap-1" title="بچووککردنەوە بۆ گوێگرتن لە پاشبنەما لە کاتی چاتدا">
+            <i class="fa-solid fa-window-minimize -translate-y-1"></i>
+            <span class="hidden sm:inline">بچووککردنەوە</span>
+          </button>
+
+          <!-- Leave Button -->
+          <button onclick="leaveLiveLessonRoom()" class="px-2.5 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl text-xs font-bold border border-rose-500/40 transition flex items-center gap-1" title="دەرچوون لە وانە">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            <span>دەرچوون</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Body: Two Columns (Video & Quran / Participants) -->
+      <div class="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden bg-slate-950/50">
+        
+        <!-- Left / Top Column: Screen Share & Quran Player -->
+        <div class="flex-1 flex flex-col p-3 md:p-4 min-h-0 overflow-y-auto space-y-3">
+          
+          <!-- Screen Share Viewport -->
+          <div id="liveScreenContainer" class="hidden relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center">
+            <video id="liveScreenVideo" autoplay playsinline class="w-full h-full object-contain"></video>
+            <div class="absolute top-2 right-2 px-2.5 py-1 bg-slate-900/80 backdrop-blur-md rounded-xl text-[11px] font-bold text-slate-200 border border-slate-700/60 flex items-center gap-1.5">
+              <i class="fa-solid fa-desktop text-amber-400"></i>
+              <span id="liveScreenSharerName">شاشەی مامۆستا</span>
+            </div>
+            <button onclick="toggleScreenShareFullscreen()" class="absolute bottom-2 left-2 p-2 bg-slate-900/80 hover:bg-slate-800 text-white rounded-xl text-xs border border-slate-700">
+              <i class="fa-solid fa-expand"></i>
+            </button>
+          </div>
+
+          <!-- Standby Screen (When Screen Share is inactive) -->
+          <div id="liveStandbyBox" class="w-full py-8 md:py-12 bg-slate-900/80 rounded-2xl border border-slate-800/80 text-center flex flex-col items-center justify-center p-4">
+            <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-rose-500/20 via-purple-500/10 to-slate-950 border border-rose-500/30 flex items-center justify-center text-rose-400 text-3xl mb-3 shadow-inner">
+              <i class="fa-solid fa-headphones-simple"></i>
+            </div>
+            <h4 id="liveStandbyTitle" class="text-base font-black text-white">ژووری پەخشی دەنگی و وانەی مامۆستا</h4>
+            <p id="liveStandbySub" class="text-xs text-slate-400 mt-1 max-w-sm">گوێ لە وانەکە بگرە. دەتوانیت لەسەر لایڤەکەش لابچیت و هەر گوێت لە دەنگەکە بێت!</p>
+          </div>
+
+          <!-- BUILT-IN QURAN PLAYER SECTION -->
+          <div class="bg-slate-900/90 border border-amber-500/30 rounded-2xl p-3.5 shadow-lg">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-3">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-quran text-amber-400 text-base"></i>
+                <span class="text-xs font-black text-amber-200">قورئانی پیرۆز (پەخشی ڕاستەوخۆ بۆ وانە)</span>
+              </div>
+              <span id="liveQuranNowPlayingBadge" class="hidden px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold animate-pulse">
+                پەخش دەکرێت 🎶
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs mb-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-400 mb-1">دەنگی قاریء:</label>
+                <select id="liveQuranReciterSelect" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-2 text-white font-bold focus:outline-none focus:border-amber-500 text-xs">
+                  <option value="AbdulBaset_Murattal">عبدالباسط عبدالصمد (مورەتەل)</option>
+                  <option value="Alafasy">مشاري راشد العفاسي</option>
+                  <option value="Maher_AlMuaiqly">ماهر المعيقلي</option>
+                  <option value="Minshawi_Murattal">محمد صديق المنشاوي</option>
+                  <option value="Ghamadi">سعد الغامدي</option>
+                  <option value="Islam_Sobhi">إسلام صبحي</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-400 mb-1">سوورەتی پیرۆز:</label>
+                <select id="liveQuranSurahSelect" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-2 text-white font-bold focus:outline-none focus:border-amber-500 text-xs">
+                  <!-- Generated dynamically in JS: 1 to 114 -->
+                </select>
+              </div>
+            </div>
+
+            <!-- Quran Controls for Teacher / Admin -->
+            <div id="liveQuranAdminControls" class="flex items-center gap-2">
+              <button type="button" onclick="toggleBroadcastQuran()" id="liveQuranPlayBtn" class="flex-1 py-2 px-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl transition flex items-center justify-center gap-2 shadow active:scale-95">
+                <i class="fa-solid fa-play"></i>
+                <span id="liveQuranPlayBtnText">دەستپێکردنی قورئان لەناو وانە</span>
+              </button>
+            </div>
+            <div id="liveQuranStudentNotice" class="hidden text-[11px] text-amber-300/80 italic text-center py-1">
+              قورئانی پیرۆز لەلایەن مامۆستاوە پەخش دەکرێت تا دەستپێکردنی وانەکە
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right / Bottom Column: Participant List & Moderation -->
+        <div class="w-full lg:w-80 border-t lg:border-t-0 lg:border-r border-slate-800 flex flex-col bg-slate-950/80">
+          <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+            <span class="text-xs font-black text-white flex items-center gap-1.5">
+              <i class="fa-solid fa-users text-indigo-400"></i>
+              <span>بەشداربووان</span>
+              <span id="liveParticipantsCountBadge" class="px-1.5 py-0.2 rounded-md bg-slate-800 text-slate-300 font-mono text-[11px]">0</span>
+            </span>
+            <span class="text-[10px] text-slate-400">تەنها ئەدمین قسە دەکات</span>
+          </div>
+
+          <!-- Participants Scrollable List -->
+          <div id="liveParticipantsList" class="flex-1 overflow-y-auto p-2 space-y-1.5 text-xs">
+            <!-- Rendered in JS -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom Action Bar / Floating Controls -->
+      <div class="px-3 md:px-5 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap shrink-0">
+        
+        <!-- Left: Mic & Hand Controls -->
+        <div class="flex items-center gap-2 flex-wrap">
+          
+          <!-- Mic Toggle Button -->
+          <button type="button" id="liveMicToggleBtn" onclick="toggleLiveMic()" class="px-3.5 py-2 bg-slate-800 text-slate-400 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+            <i id="liveMicIcon" class="fa-solid fa-microphone-slash text-rose-400"></i>
+            <span id="liveMicText">مایک داخراوە</span>
+          </button>
+
+          <!-- Raise Hand Button (قوتابیان) -->
+          <button type="button" id="liveRaiseHandBtn" onclick="toggleLiveRaiseHand()" class="px-3.5 py-2 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/40 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow active:scale-95">
+            <i class="fa-solid fa-hand"></i>
+            <span id="liveRaiseHandText">دەست هەڵبڕین ✋</span>
+          </button>
+
+          <!-- Screen Share Button (Super Admin & Teacher) -->
+          <button type="button" id="liveScreenShareBtn" onclick="toggleLiveScreenShare()" class="hidden px-3.5 py-2 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 rounded-xl text-xs font-bold transition items-center gap-2 shadow active:scale-95">
+            <i class="fa-solid fa-desktop"></i>
+            <span id="liveScreenShareText">شەیرکردنی شاشە</span>
+          </button>
+
+        </div>
+
+        <!-- Right: Audio Output & Unlimited Recording & Start/End Controls -->
+        <div class="flex items-center gap-2 flex-wrap">
+          
+          <!-- Audio Output Switcher (دەرەوە / ناوەوە / بلوتوس) -->
+          <div class="relative">
+            <button type="button" id="liveAudioOutputBtn" onclick="toggleAudioOutputMenu()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow" title="دەرچوونی دەنگ">
+              <i id="liveAudioOutputIcon" class="fa-solid fa-volume-high text-emerald-400"></i>
+              <span id="liveAudioOutputText">بڵندگۆ (دەرەوە)</span>
+              <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+            </button>
+            <div id="liveAudioOutputMenu" class="hidden absolute bottom-full mb-1 left-0 w-44 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1 z-50 text-xs">
+              <button type="button" onclick="selectLiveAudioOutput('speaker')" class="w-full text-right px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-200 font-bold flex items-center gap-2">
+                <i class="fa-solid fa-volume-high text-emerald-400"></i>
+                <span>بڵندگۆ (دەرەوە)</span>
+              </button>
+              <button type="button" onclick="selectLiveAudioOutput('earpiece')" class="w-full text-right px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-200 font-bold flex items-center gap-2">
+                <i class="fa-solid fa-phone text-sky-400"></i>
+                <span>بیستۆک (ناوەوە)</span>
+              </button>
+              <button type="button" onclick="selectLiveAudioOutput('bluetooth')" class="w-full text-right px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-200 font-bold flex items-center gap-2">
+                <i class="fa-brands fa-bluetooth-b text-indigo-400"></i>
+                <span>بلوتوس / هێدفۆن</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Unlimited Two-Way Recording Button -->
+          <button type="button" id="liveRecordBtn" onclick="toggleLiveRecording()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow" title="تۆمارکردنی دەنگی وانە بە بێسنووری لە هەردوولا">
+            <span id="liveRecordDot" class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+            <span id="liveRecordText">تۆمارکردنی دەنگ</span>
+          </button>
+
+          <!-- Start / End Lesson Button (Super Admin & Teacher) -->
+          <button type="button" id="liveStartEndBtn" onclick="toggleLiveStartEnd()" class="hidden px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition items-center gap-1.5 active:scale-95">
+            <i class="fa-solid fa-tower-broadcast"></i>
+            <span id="liveStartEndBtnText">دەستپێکردنی وانە</span>
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= FLOATING MINI PLAYER (BACKGROUND AUDIO PLAYBACK) ================= -->
+  <div id="floatingLiveBar" class="hidden fixed bottom-4 right-4 z-40 bg-slate-900/95 border-2 border-rose-500/60 rounded-2xl p-2.5 shadow-2xl backdrop-blur-md flex items-center gap-3 transition-all">
+    <div class="flex items-center gap-2 cursor-pointer" onclick="expandLiveLessonModal()">
+      <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+      <div>
+        <div class="font-black text-xs text-white flex items-center gap-1.5">
+          <span>وانەی ڕاستەوخۆ</span>
+          <span class="text-[9px] px-1 py-0.2 bg-rose-600 text-white rounded font-bold">چالاکە</span>
+        </div>
+        <p class="text-[10px] text-slate-400">دەنگ لە پاشبنەما پەخش دەبێت</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-1.5">
+      <button onclick="toggleFloatingMute()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs border border-slate-700">
+        <i id="floatingMuteIcon" class="fa-solid fa-volume-high text-emerald-400"></i>
+      </button>
+      <button onclick="expandLiveLessonModal()" class="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow">
+        <i class="fa-solid fa-expand"></i>
+        <span>گەڕانەوە</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: 1-ON-1 PRIVATE CHAT ("نامەی تایبەت") ================= -->
+  <div id="privateChatModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 bg-slate-950/90 backdrop-blur-md">
+    <div class="bg-slate-900 border-0 md:border md:border-sky-500/40 rounded-none md:rounded-3xl w-full max-w-3xl h-full md:h-[88vh] flex flex-col shadow-2xl overflow-hidden relative">
+      
+      <!-- Top Header -->
+      <div class="px-4 py-3 bg-slate-950/90 border-b border-sky-500/30 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-sky-600/20 border border-sky-500/40 flex items-center justify-center text-sky-400 text-lg shadow-inner">
+            <i class="fa-solid fa-envelope"></i>
+          </div>
+          <div>
+            <h3 id="privateChatHeaderTitle" class="font-black text-sm md:text-base text-white">نامەی تایبەت</h3>
+            <p id="privateChatHeaderSub" class="text-[11px] text-slate-400">تایبەت لەگەڵ مامۆستا و سوپەر ئەدمین</p>
+          </div>
+        </div>
+
+        <button onclick="closePrivateChatModal()" class="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-xl border border-slate-700 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Main Layout: Conversations List & Active Chat Area -->
+      <div class="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
+        
+        <!-- Conversations Sidebar -->
+        <div id="privateConversationsSidebar" class="w-full md:w-72 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col bg-slate-950/60 shrink-0">
+          <div class="p-2.5 border-b border-slate-800 flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-300">گفتوگۆکان</span>
+            <span id="privateConvCountBadge" class="text-[10px] text-sky-400 font-mono">0</span>
+          </div>
+          <div id="privateConversationsList" class="flex-1 overflow-y-auto p-2 space-y-1.5 text-xs">
+            <!-- Rendered in JS -->
+          </div>
+        </div>
+
+        <!-- Active Conversation Area -->
+        <div id="privateChatArea" class="flex-1 flex flex-col bg-slate-950/40 min-h-0">
+          
+          <!-- Empty State (When no user selected) -->
+          <div id="privateChatEmptyState" class="flex-1 flex flex-col items-center justify-center p-6 text-center text-slate-500">
+            <i class="fa-solid fa-comments text-4xl mb-3 text-slate-700"></i>
+            <p class="text-sm font-bold text-slate-400">گفتوگۆیەک هەڵبژێرە بۆ بینینی نامەکان</p>
+            <p class="text-xs text-slate-500 mt-1">یاخود لە پرۆفایلی مامۆستا یان سوپەر ئەدمین کلیک لەسەر «نامەی تایبەت» بکە</p>
+          </div>
+
+          <!-- Active Chat Container -->
+          <div id="privateChatActiveBox" class="hidden flex-1 flex flex-col min-h-0">
+            <!-- Active Recipient Subheader -->
+            <div class="px-4 py-2.5 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <div class="flex items-center gap-2">
+                <span id="privateChatTargetAvatar" class="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs">👤</span>
+                <div>
+                  <h4 id="privateChatTargetName" class="font-black text-xs text-white">ناو</h4>
+                  <span id="privateChatTargetRole" class="text-[10px] text-sky-400 font-bold">مامۆستا</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Messages Stream -->
+            <div id="privateMessagesContainer" class="flex-1 overflow-y-auto p-3 space-y-2.5 text-xs">
+              <!-- Rendered in JS -->
+            </div>
+
+            <!-- Input Bar -->
+            <div class="p-2.5 bg-slate-900 border-t border-slate-800 flex items-center gap-2 shrink-0">
+              <input type="text" id="privateMsgInput" onkeydown="handlePrivateInputKey(event)" placeholder="نامەکەت بنووسە..." class="flex-1 px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-sky-500">
+              <button onclick="sendPrivateChatMessage()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-slate-950 font-black text-xs rounded-xl transition flex items-center gap-1 shadow active:scale-95">
+                <span>ناردن</span>
+                <i class="fa-solid fa-paper-plane text-[10px]"></i>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Audio Element for Live Room & Quran -->
+  <audio id="liveRoomAudio" autoplay playsinline class="hidden"></audio>
+  <audio id="liveQuranAudio" playsinline class="hidden"></audio>
 
   <!-- Socket.io Client -->
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>

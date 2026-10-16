@@ -231,6 +231,8 @@ function showMainApp() {
   loadAllMembers();
   checkMuteState();
   requestNotificationPermission();
+  updatePrivateUnreadBadge();
+  initQuranSurahsList();
 
   if (currentUser && currentUser.role === 'super_admin') {
     checkPendingCount();
@@ -597,6 +599,36 @@ function updateUserUI() {
     if (mobileLibraryBtn) mobileLibraryBtn.classList.remove('hidden');
   }
 
+  // Live Lesson ("وانە") Controls configuration
+  const liveStartEndBtn = document.getElementById('liveStartEndBtn');
+  const liveScreenShareBtn = document.getElementById('liveScreenShareBtn');
+  const liveQuranAdminControls = document.getElementById('liveQuranAdminControls');
+  const liveQuranStudentNotice = document.getElementById('liveQuranStudentNotice');
+
+  if (isSuperAdmin || isTeacher) {
+    if (liveStartEndBtn) {
+      liveStartEndBtn.classList.remove('hidden');
+      liveStartEndBtn.classList.add('flex');
+    }
+    if (liveScreenShareBtn) {
+      liveScreenShareBtn.classList.remove('hidden');
+      liveScreenShareBtn.classList.add('flex');
+    }
+    if (liveQuranAdminControls) liveQuranAdminControls.classList.remove('hidden');
+    if (liveQuranStudentNotice) liveQuranStudentNotice.classList.add('hidden');
+  } else {
+    if (liveStartEndBtn) {
+      liveStartEndBtn.classList.add('hidden');
+      liveStartEndBtn.classList.remove('flex');
+    }
+    if (liveScreenShareBtn) {
+      liveScreenShareBtn.classList.add('hidden');
+      liveScreenShareBtn.classList.remove('flex');
+    }
+    if (liveQuranAdminControls) liveQuranAdminControls.classList.add('hidden');
+    if (liveQuranStudentNotice) liveQuranStudentNotice.classList.remove('hidden');
+  }
+
   // Handle guest / new_student / muted input restrictions
   if (currentUser.role === 'guest') {
     messageInput.disabled = true;
@@ -798,6 +830,11 @@ function initSocket() {
 
   socket = io({
     auth: { token }
+  });
+
+  socket.on('connect', () => {
+    socket.emit('live_get_state');
+    updatePrivateUnreadBadge();
   });
 
   socket.on('online_users', (usersList) => {
@@ -1053,6 +1090,71 @@ function initSocket() {
     if (el) el.remove();
   });
 
+  // Question submission evaluation updated (⭐ or ❌)
+  socket.on('submission_evaluated', (data) => {
+    handleSubmissionEvaluated(data);
+  });
+
+  // Message reaction updated (🏆, 🤲, 👍, 💯)
+  socket.on('message_reaction_updated', (data) => {
+    const el = document.getElementById(`msg-reactions-${data.message_id}`);
+    if (el) el.innerHTML = renderMessageReactionsHtml(data.reactions, data.message_id);
+  });
+
+  // New private message received
+  socket.on('new_private_message', (msg) => {
+    handleNewPrivateMessage(msg);
+  });
+
+  // Live Lesson ("وانە") events
+  socket.on('live_lesson_state', (state) => {
+    handleLiveLessonStateUpdate(state);
+  });
+
+  socket.on('live_lesson_started_alert', (data) => {
+    handleLiveStartedAlert(data);
+  });
+
+  socket.on('live_lesson_ended_notice', () => {
+    handleLiveEndedNotice();
+  });
+
+  socket.on('live_mic_permission_granted', () => {
+    handleLiveMicGranted();
+  });
+
+  socket.on('live_mic_permission_revoked', () => {
+    handleLiveMicRevoked();
+  });
+
+  socket.on('live_kicked_notice', (reason) => {
+    handleLiveKicked(reason);
+  });
+
+  socket.on('live_quran_playing', (data) => {
+    handleLiveQuranPlaying(data);
+  });
+
+  socket.on('live_quran_stopped', () => {
+    handleLiveQuranStopped();
+  });
+
+  socket.on('live_screen_started', (data) => {
+    handleLiveScreenStarted(data);
+  });
+
+  socket.on('live_screen_stopped', () => {
+    handleLiveScreenStopped();
+  });
+
+  socket.on('live_signal', (data) => {
+    handleLiveSignal(data);
+  });
+
+  socket.on('live_audio_chunk', (data) => {
+    handleLiveAudioChunk(data);
+  });
+
   socket.on('error_message', (err) => {
     alert(err);
   });
@@ -1157,32 +1259,64 @@ function appendMessage(msg, scroll = true) {
                   "${escapeHtml(s.answer_text)}"
                 </div>
               </div>
-              ${isSuperAdmin ? `
-                <div class="shrink-0 mt-1">
-                  ${s.is_awarded ? `
-                    <span class="px-3 py-1.5 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 font-bold text-xs rounded-xl inline-flex items-center gap-1">
-                      <i class="fa-solid fa-circle-check"></i>
-                      <span>پەسەندکرا ⭐</span>
+              <div class="shrink-0 mt-1 eval-slot eval-slot-${payload.question_id}-${s.user_id}">
+                ${isStaff ? `
+                  ${s.is_awarded === 1 ? `
+                    <div class="flex items-center gap-1">
+                      <span class="px-2.5 py-1 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 font-black text-xs rounded-xl inline-flex items-center gap-1">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <span>ڕاستە ⭐</span>
+                      </span>
+                      <button onclick="resetEvaluationFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" class="p-1 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
+                        <i class="fa-solid fa-rotate-left text-[10px]"></i>
+                      </button>
+                    </div>
+                  ` : (s.is_awarded === -1 ? `
+                    <div class="flex items-center gap-1">
+                      <span class="px-2.5 py-1 bg-rose-600/20 text-rose-400 border border-rose-500/30 font-black text-xs rounded-xl inline-flex items-center gap-1">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                        <span>هەڵە ❌</span>
+                      </span>
+                      <button onclick="resetEvaluationFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" class="p-1 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
+                        <i class="fa-solid fa-rotate-left text-[10px]"></i>
+                      </button>
+                    </div>
+                  ` : `
+                    <div class="flex items-center gap-1.5">
+                      <button 
+                        onclick="awardStarFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" 
+                        class="award-star-btn px-2.5 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-1 active:scale-95"
+                        title="وەڵامی دروستە ⭐"
+                      >
+                        <i class="fa-solid fa-star"></i>
+                        <span>⭐</span>
+                      </button>
+                      <button 
+                        onclick="markWrongFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" 
+                        class="mark-wrong-btn px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-black text-xs rounded-xl transition flex items-center gap-1 active:scale-95"
+                        title="وەڵامی هەڵەیە ❌"
+                      >
+                        <i class="fa-solid fa-xmark"></i>
+                        <span>❌</span>
+                      </button>
+                    </div>
+                  `)}
+                ` : `
+                  ${s.is_awarded === 1 ? `
+                    <span class="px-2.5 py-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 font-black text-xs rounded-xl inline-flex items-center gap-1">
+                      <i class="fa-solid fa-star text-amber-400"></i>
+                      <span>⭐ وەڵامی دروست</span>
+                    </span>
+                  ` : (s.is_awarded === -1 ? `
+                    <span class="px-2.5 py-1 bg-rose-500/15 border border-rose-500/30 text-rose-400 font-black text-xs rounded-xl inline-flex items-center gap-1">
+                      <i class="fa-solid fa-xmark text-rose-400"></i>
+                      <span>❌ وەڵامی هەڵە</span>
                     </span>
                   ` : `
-                    <button 
-                      onclick="awardStarFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" 
-                      class="award-star-btn px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-1 active:scale-95"
-                      title="پەسەندکردنی ئەم وەڵامە و پێدانی ئەستێرە (تایبەت بە سوپەر ئەدمین)"
-                    >
-                      <i class="fa-solid fa-star"></i>
-                      <span>وەڵامی دروستە ⭐</span>
-                    </button>
-                  `}
-                </div>
-              ` : (s.is_awarded ? `
-                <div class="shrink-0 mt-1">
-                  <span class="px-2.5 py-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold text-xs rounded-xl inline-flex items-center gap-1">
-                    <i class="fa-solid fa-star text-amber-400"></i>
-                    <span>وەڵامی پەسەندکراو ⭐</span>
-                  </span>
-                </div>
-              ` : '')}
+                    <span class="px-2 py-0.5 text-slate-500 font-bold text-[11px] rounded-lg">چاوەڕوانی...</span>
+                  `)}
+                `}
+              </div>
             </div>
           `;
         }).join('');
@@ -1456,6 +1590,9 @@ function appendMessage(msg, scroll = true) {
       ${roleBadge}
       ${starBadge}
       <span class="text-[10px] text-slate-500 font-mono">${dateStr}</span>
+      <button type="button" onclick="toggleReactionPicker(${msg.id}, event)" class="text-slate-400 hover:text-amber-300 px-1 py-0.5 rounded text-[11px] hover:bg-slate-800 transition flex items-center gap-0.5" title="کارلێک بە ئیمۆجی">
+        <i class="fa-regular fa-face-smile"></i>
+      </button>
       ${hasActions ? `
         <button type="button" onclick="toggleMsgActions(${msg.id}, event)" class="md:hidden text-slate-400 hover:text-white px-1.5 py-0.5 rounded text-[11px] hover:bg-slate-800 transition msg-actions-trigger" title="کردارەکان">
           <i class="fa-solid fa-ellipsis"></i>
@@ -1463,9 +1600,22 @@ function appendMessage(msg, scroll = true) {
       ` : ''}
     </div>
 
+    <!-- Quick Reaction Picker Popover (Hidden by default) -->
+    <div id="reaction-picker-${msg.id}" class="hidden my-1 bg-slate-900 border border-slate-700/80 rounded-2xl p-1.5 shadow-2xl z-20 flex items-center gap-1 animate-scale-up">
+      <button type="button" onclick="sendReaction(${msg.id}, '🏆', event)" class="p-1.5 hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="کاس">🏆</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '🤲', event)" class="p-1.5 hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="دوعا">🤲</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '👍', event)" class="p-1.5 hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="ڵایک">👍</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '💯', event)" class="p-1.5 hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="سەد لەسەد">💯</button>
+    </div>
+
     <div onclick="handleMessageBubbleClick(${msg.id}, event)" class="max-w-lg md:max-w-xl rounded-2xl px-3.5 py-2 text-xs md:text-sm leading-relaxed shadow break-words ${bubbleBg} cursor-pointer md:cursor-default">
       ${msg.content ? `<div class="${msgTextClass}">${escapeHtml(msg.content)}</div>` : ''}
       ${attachmentHtml}
+    </div>
+
+    <!-- Reactions Container -->
+    <div id="msg-reactions-${msg.id}" class="flex items-center gap-1 mt-1 flex-wrap">
+      ${renderMessageReactionsHtml(msg.reactions || [], msg.id)}
     </div>
 
     ${messageActionsHtml}
@@ -2087,7 +2237,7 @@ function submitSecretAnswer() { submitSecretAnswerFromModal(); }
 
 // Admin manual award star from revealed submissions card in chat
 async function awardStarFromReveal(questionId, userId, studentName, btn) {
-  if (!confirm(`ئایا دڵنیایت کە وەڵامەکەی (${studentName}) دروستە و ئەستێرەی پێدەدەیت؟`)) return;
+  if (studentName && !confirm(`ئایا دڵنیایت کە وەڵامەکەی (${studentName}) دروستە و ئەستێرەی پێدەدەیت؟`)) return;
   try {
     const res = await fetch('/api/chat/award-star', {
       method: 'POST',
@@ -2104,12 +2254,94 @@ async function awardStarFromReveal(questionId, userId, studentName, btn) {
     if (res.ok) {
       if (btn) {
         btn.disabled = true;
-        btn.className = 'px-3 py-1.5 bg-emerald-600/30 text-emerald-400 border border-emerald-500/40 font-black text-xs rounded-xl flex items-center gap-1 cursor-default';
-        btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> <span>پەسەندکرا ⭐</span>';
+        btn.className = 'px-2.5 py-1 bg-emerald-600/30 text-emerald-400 border border-emerald-500/40 font-black text-xs rounded-xl flex items-center gap-1 cursor-default';
+        btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> <span>ڕاستە ⭐</span>';
       }
       triggerStarCelebration(btn);
     } else {
       alert(data.error || 'هەڵەیەک ڕوویدا');
+    }
+  } catch (e) {
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
+// Admin mark answer as wrong (زەڕب ❌)
+async function markWrongFromReveal(questionId, userId, studentName, btn) {
+  if (studentName && !confirm(`ئایا دڵنیایت کە وەڵامەکەی (${studentName}) هەڵەیە و نیشانەی زەڕبی (❌) لێدەدەیت؟`)) return;
+  try {
+    const res = await fetch('/api/chat/mark-wrong', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        question_id: questionId,
+        user_id: userId
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      if (btn && btn.parentElement) {
+        btn.parentElement.innerHTML = `
+          <div class="flex items-center gap-1">
+            <span class="px-2.5 py-1 bg-rose-600/20 text-rose-400 border border-rose-500/30 font-black text-xs rounded-xl inline-flex items-center gap-1">
+              <i class="fa-solid fa-circle-xmark"></i>
+              <span>هەڵە ❌</span>
+            </span>
+            <button onclick="resetEvaluationFromReveal(${questionId}, ${userId}, '${escapeHtml(studentName || '')}', this)" class="p-1 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
+              <i class="fa-solid fa-rotate-left text-[10px]"></i>
+            </button>
+          </div>
+        `;
+      }
+    } else {
+      alert(data.error || 'هەڵەیەک ڕوویدا');
+    }
+  } catch (e) {
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
+// Reset evaluation for an answer
+async function resetEvaluationFromReveal(questionId, userId, studentName, btn) {
+  try {
+    const res = await fetch('/api/chat/reset-evaluation', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        question_id: questionId,
+        user_id: userId
+      })
+    });
+    if (res.ok) {
+      const slot = btn ? btn.closest('.eval-slot') : null;
+      if (slot) {
+        slot.innerHTML = `
+          <div class="flex items-center gap-1.5">
+            <button 
+              onclick="awardStarFromReveal(${questionId}, ${userId}, '${escapeHtml(studentName || '')}', this)" 
+              class="award-star-btn px-2.5 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-1 active:scale-95"
+              title="وەڵامی دروستە ⭐"
+            >
+              <i class="fa-solid fa-star"></i>
+              <span>⭐</span>
+            </button>
+            <button 
+              onclick="markWrongFromReveal(${questionId}, ${userId}, '${escapeHtml(studentName || '')}', this)" 
+              class="mark-wrong-btn px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-black text-xs rounded-xl transition flex items-center gap-1 active:scale-95"
+              title="وەڵامی هەڵەیە ❌"
+            >
+              <i class="fa-solid fa-xmark"></i>
+              <span>❌</span>
+            </button>
+          </div>
+        `;
+      }
     }
   } catch (e) {
     alert('پەیوەندی ناتەواوە');
@@ -2808,6 +3040,31 @@ async function openUserProfileModal(userId) {
     const isPrivileged = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
     const isMe = currentUser && currentUser.id === prof.id;
     const isMuted = prof.muted_until && prof.muted_until > Date.now();
+
+    // Private Chat Button in Profile
+    const privContainer = document.getElementById('profPrivateChatContainer');
+    if (privContainer) {
+      const isStaffUser = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+      const targetIsStaff = prof.role === 'super_admin' || prof.role === 'teacher';
+      const canSendPrivate = !isMe && (isStaffUser || targetIsStaff);
+
+      if (canSendPrivate) {
+        privContainer.classList.remove('hidden');
+        const privBtn = document.getElementById('profPrivateChatBtn');
+        const privBtnText = document.getElementById('profPrivateChatBtnText');
+        if (privBtn) {
+          privBtn.onclick = () => {
+            closeUserProfileModal();
+            openPrivateChatWithUser(prof.id, prof.full_name, prof.role);
+          };
+        }
+        if (privBtnText) {
+          privBtnText.innerText = `ناردنی نامەی تایبەت بۆ (${prof.full_name}) ✉️`;
+        }
+      } else {
+        privContainer.classList.add('hidden');
+      }
+    }
 
     if (isPrivileged && !isMe) {
       superAdminActions.classList.remove('hidden');
@@ -5881,6 +6138,1150 @@ async function toggleDreamAvailability() {
     }
   };
 })();
+
+// =========================================================================
+// 1. CHAT MESSAGE REACTIONS SYSTEM (🏆, 🤲, 👍, 💯)
+// =========================================================================
+
+function renderMessageReactionsHtml(reactions, messageId) {
+  if (!reactions || !Array.isArray(reactions) || reactions.length === 0) return '';
+  return reactions.map(r => {
+    const activeClass = r.userReacted
+      ? 'bg-sky-500/25 text-sky-300 border-sky-400/60 shadow-sm scale-105'
+      : 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:border-slate-500';
+    return `
+      <button 
+        type="button"
+        onclick="sendReaction(${messageId}, '${r.emoji}', event)" 
+        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border transition shadow-sm active:scale-95 ${activeClass}"
+        title="${r.emoji}"
+      >
+        <span>${r.emoji}</span>
+        <span class="text-[10px] font-mono font-black">${r.count}</span>
+      </button>
+    `;
+  }).join('');
+}
+
+function toggleReactionPicker(messageId, event) {
+  if (event) event.stopPropagation();
+  const picker = document.getElementById(`reaction-picker-${messageId}`);
+  if (!picker) return;
+  const isHidden = picker.classList.contains('hidden');
+  closeAllReactionPickers();
+  if (isHidden) {
+    picker.classList.remove('hidden');
+  }
+}
+
+function closeAllReactionPickers() {
+  document.querySelectorAll('[id^="reaction-picker-"]').forEach(el => el.classList.add('hidden'));
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[id^="reaction-picker-"]') && !e.target.closest('[onclick*="toggleReactionPicker"]')) {
+    closeAllReactionPickers();
+  }
+  const audioMenu = document.getElementById('liveAudioOutputMenu');
+  if (audioMenu && !e.target.closest('#liveAudioOutputBtn') && !e.target.closest('#liveAudioOutputMenu')) {
+    audioMenu.classList.add('hidden');
+  }
+});
+
+async function sendReaction(messageId, emoji, event) {
+  if (event) event.stopPropagation();
+  closeAllReactionPickers();
+  try {
+    const res = await fetch(`/api/chat/messages/${messageId}/react`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ emoji })
+    });
+    const data = await res.json();
+    if (res.ok && data.reactions) {
+      const el = document.getElementById(`msg-reactions-${messageId}`);
+      if (el) el.innerHTML = renderMessageReactionsHtml(data.reactions, messageId);
+    }
+  } catch (e) {
+    console.error('Reaction request failed:', e);
+  }
+}
+
+// =========================================================================
+// 2. QUESTION EVALUATION & REAL-TIME UPDATE (⭐ or ❌)
+// =========================================================================
+
+function handleSubmissionEvaluated(data) {
+  if (!data || !data.question_id || !data.user_id) return;
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  const targetSlots = document.querySelectorAll(`.eval-slot-${data.question_id}-${data.user_id}`);
+
+  targetSlots.forEach(slot => {
+    if (isStaff) {
+      if (data.is_correct === 1) {
+        slot.innerHTML = `
+          <div class="flex items-center gap-1">
+            <span class="px-2.5 py-1 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 font-black text-xs rounded-xl inline-flex items-center gap-1">
+              <i class="fa-solid fa-circle-check"></i>
+              <span>ڕاستە ⭐</span>
+            </span>
+            <button onclick="resetEvaluationFromReveal(${data.question_id}, ${data.user_id}, '${escapeHtml(data.user_name || '')}', this)" class="p-1 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
+              <i class="fa-solid fa-rotate-left text-[10px]"></i>
+            </button>
+          </div>
+        `;
+      } else if (data.is_correct === -1) {
+        slot.innerHTML = `
+          <div class="flex items-center gap-1">
+            <span class="px-2.5 py-1 bg-rose-600/20 text-rose-400 border border-rose-500/30 font-black text-xs rounded-xl inline-flex items-center gap-1">
+              <i class="fa-solid fa-circle-xmark"></i>
+              <span>هەڵە ❌</span>
+            </span>
+            <button onclick="resetEvaluationFromReveal(${data.question_id}, ${data.user_id}, '${escapeHtml(data.user_name || '')}', this)" class="p-1 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
+              <i class="fa-solid fa-rotate-left text-[10px]"></i>
+            </button>
+          </div>
+        `;
+      } else {
+        slot.innerHTML = `
+          <div class="flex items-center gap-1.5">
+            <button 
+              onclick="awardStarFromReveal(${data.question_id}, ${data.user_id}, '${escapeHtml(data.user_name || '')}', this)" 
+              class="award-star-btn px-2.5 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-1 active:scale-95"
+              title="وەڵامی دروستە ⭐"
+            >
+              <i class="fa-solid fa-star"></i>
+              <span>⭐</span>
+            </button>
+            <button 
+              onclick="markWrongFromReveal(${data.question_id}, ${data.user_id}, '${escapeHtml(data.user_name || '')}', this)" 
+              class="mark-wrong-btn px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-black text-xs rounded-xl transition flex items-center gap-1 active:scale-95"
+              title="وەڵامی هەڵەیە ❌"
+            >
+              <i class="fa-solid fa-xmark"></i>
+              <span>❌</span>
+            </button>
+          </div>
+        `;
+      }
+    } else {
+      if (data.is_correct === 1) {
+        slot.innerHTML = `
+          <span class="px-2.5 py-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 font-black text-xs rounded-xl inline-flex items-center gap-1">
+            <i class="fa-solid fa-star text-amber-400"></i>
+            <span>⭐ وەڵامی دروست</span>
+          </span>
+        `;
+      } else if (data.is_correct === -1) {
+        slot.innerHTML = `
+          <span class="px-2.5 py-1 bg-rose-500/15 border border-rose-500/30 text-rose-400 font-black text-xs rounded-xl inline-flex items-center gap-1">
+            <i class="fa-solid fa-xmark text-rose-400"></i>
+            <span>❌ وەڵامی هەڵە</span>
+          </span>
+        `;
+      } else {
+        slot.innerHTML = `<span class="px-2 py-0.5 text-slate-500 font-bold text-[11px] rounded-lg">چاوەڕوانی...</span>`;
+      }
+    }
+  });
+
+  // If the evaluation was for the currently logged in student
+  if (currentUser && currentUser.id === data.user_id) {
+    if (typeof data.total_stars === 'number') {
+      currentUser.correct_answers_count = data.total_stars;
+      updateUserUI();
+    }
+    if (data.is_correct === 1) {
+      playSound('star');
+      alert(`پیرۆزە! وەڵامەکەت دروست بوو و ئەستێرەت (⭐) پێبەخشرا!`);
+    } else if (data.is_correct === -1) {
+      playSound('question');
+      alert(`وەڵامەکەت هەڵەیە (❌) لەلایەن مامۆستاوە.`);
+    }
+  }
+}
+
+// =========================================================================
+// 3. PRIVATE MESSAGING ENGINE (1-ON-1 WITH TEACHER & SUPER ADMIN)
+// =========================================================================
+
+let activePrivateOtherUser = null;
+
+async function openPrivateChatModal() {
+  const modal = document.getElementById('privateChatModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  const sub = document.getElementById('privateChatHeaderSub');
+  if (sub && currentUser) {
+    if (currentUser.role === 'super_admin' || currentUser.role === 'teacher') {
+      sub.innerText = 'ناردنی نامەی تایبەت بۆ هەموو بەکارهێنەران و قوتابیان';
+    } else {
+      sub.innerText = 'گفتوگۆی تایبەت و ڕاستەوخۆ لەگەڵ مامۆستا و سوپەر ئەدمین';
+    }
+  }
+
+  await loadPrivateConversations();
+}
+
+function closePrivateChatModal() {
+  const modal = document.getElementById('privateChatModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function loadPrivateConversations() {
+  const listEl = document.getElementById('privateConversationsList');
+  const countBadge = document.getElementById('privateConvCountBadge');
+  if (!listEl) return;
+
+  try {
+    const res = await fetch('/api/chat/private/conversations', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (res.ok && Array.isArray(data.conversations)) {
+      if (countBadge) countBadge.innerText = data.conversations.length;
+      if (data.conversations.length === 0) {
+        listEl.innerHTML = `
+          <div class="p-4 text-center text-slate-500 text-xs leading-relaxed">
+            هیچ گفتوگۆیەکت نییە.<br>
+            دەتوانیت لە پرۆفایلی مامۆستا یان سوپەر ئەدمین کلیک لە «نامەی تایبەت» بکەیت.
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = data.conversations.map(c => {
+        const isCurrent = activePrivateOtherUser && activePrivateOtherUser.id === c.other_id;
+        const activeBg = isCurrent ? 'bg-sky-600/20 border-sky-500/50' : 'bg-slate-900/60 hover:bg-slate-800/80 border-slate-800';
+        const roleLabel = c.other_role === 'super_admin' ? 'سوپەر ئەدمین' : (c.other_role === 'teacher' ? 'مامۆستا' : 'قوتابی');
+        const roleColor = c.other_role === 'teacher' ? 'text-amber-400' : (c.other_role === 'super_admin' ? 'text-rose-400' : 'text-sky-400');
+        const lastTime = c.last_message_at ? new Date(c.last_message_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
+        const unreadHtml = c.unread_count > 0 
+          ? `<span class="px-1.5 py-0.5 rounded-full bg-sky-500 text-slate-950 text-[10px] font-black">${c.unread_count}</span>` 
+          : '';
+
+        return `
+          <div 
+            onclick="openPrivateChatWithUser(${c.other_id}, '${escapeHtml(c.other_name)}', '${c.other_role}', '${c.other_gender || 'male'}')"
+            class="p-2.5 rounded-2xl border cursor-pointer transition ${activeBg} flex items-center gap-2.5"
+          >
+            <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs shrink-0">
+              ${c.other_gender === 'female' ? '🧕' : '👤'}
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="font-black text-white truncate text-xs">${escapeHtml(c.other_name)}</span>
+                <span class="text-[10px] text-slate-500 font-mono">${lastTime}</span>
+              </div>
+              <div class="flex items-center justify-between mt-0.5">
+                <span class="text-[11px] text-slate-400 truncate max-w-[130px]">${escapeHtml(c.last_message || '')}</span>
+                <div class="flex items-center gap-1">
+                  <span class="text-[9px] ${roleColor} font-bold">${roleLabel}</span>
+                  ${unreadHtml}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  } catch (e) {
+    console.error('Failed to load private conversations:', e);
+  }
+}
+
+async function openPrivateChatWithUser(targetUserId, targetName, targetRole, targetGender) {
+  openPrivateChatModal();
+  activePrivateOtherUser = {
+    id: parseInt(targetUserId),
+    full_name: targetName,
+    role: targetRole,
+    gender: targetGender || 'male'
+  };
+
+  const emptyState = document.getElementById('privateChatEmptyState');
+  const activeBox = document.getElementById('privateChatActiveBox');
+  if (emptyState) emptyState.classList.add('hidden');
+  if (activeBox) activeBox.classList.remove('hidden');
+
+  const nameEl = document.getElementById('privateChatTargetName');
+  const roleEl = document.getElementById('privateChatTargetRole');
+  const avatarEl = document.getElementById('privateChatTargetAvatar');
+  if (nameEl) nameEl.innerText = targetName;
+  if (roleEl) {
+    roleEl.innerText = targetRole === 'super_admin' ? 'سوپەر ئەدمین' : (targetRole === 'teacher' ? 'مامۆستا' : 'قوتابی');
+  }
+  if (avatarEl) {
+    avatarEl.innerText = targetGender === 'female' ? '🧕' : '👤';
+  }
+
+  await loadPrivateThread(targetUserId);
+}
+
+async function loadPrivateThread(otherUserId) {
+  const container = document.getElementById('privateMessagesContainer');
+  if (!container) return;
+  container.innerHTML = '<div class="p-4 text-center text-slate-500 text-xs">لە بارکردندایە...</div>';
+
+  try {
+    const res = await fetch(`/api/chat/private/messages/${otherUserId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (res.ok && Array.isArray(data.messages)) {
+      if (data.messages.length === 0) {
+        container.innerHTML = `
+          <div class="p-6 text-center text-slate-500 text-xs">
+            هیچ نامەیەک لەنێوانتاندا نییە. دەتوانیت ئێستا یەکەم نامە بنێریت!
+          </div>
+        `;
+      } else {
+        container.innerHTML = '';
+        data.messages.forEach(m => appendPrivateMessageToThread(m, false));
+        container.scrollTop = container.scrollHeight;
+      }
+      updatePrivateUnreadBadge();
+    }
+  } catch (e) {
+    console.error('Failed to load private messages:', e);
+  }
+}
+
+function appendPrivateMessageToThread(m, scroll = true) {
+  const container = document.getElementById('privateMessagesContainer');
+  if (!container) return;
+
+  const isMe = currentUser && m.sender_id === currentUser.id;
+  const timeFormatted = m.created_at ? new Date(m.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
+
+  const div = document.createElement('div');
+  div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1.5`;
+  div.innerHTML = `
+    <div class="max-w-[80%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow break-words ${
+      isMe ? 'bg-sky-600 text-white rounded-br-none' : 'bg-slate-800 text-slate-100 border border-slate-700/80 rounded-bl-none'
+    }">
+      <div>${escapeHtml(m.content)}</div>
+      <div class="text-[9px] mt-1 text-right font-mono ${isMe ? 'text-sky-200' : 'text-slate-400'}">
+        ${timeFormatted}
+      </div>
+    </div>
+  `;
+  container.appendChild(div);
+  if (scroll) {
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+async function sendPrivateChatMessage() {
+  if (!activePrivateOtherUser) return;
+  const input = document.getElementById('privateMsgInput');
+  if (!input) return;
+  const content = input.value.trim();
+  if (!content) return;
+
+  input.value = '';
+  try {
+    const res = await fetch('/api/chat/private/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        recipient_id: activePrivateOtherUser.id,
+        content
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.message) {
+      appendPrivateMessageToThread(data.message, true);
+      loadPrivateConversations();
+    } else {
+      alert(data.error || 'نەتوانرا نامە بنێردرێت');
+    }
+  } catch (e) {
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
+function handlePrivateInputKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendPrivateChatMessage();
+  }
+}
+
+async function updatePrivateUnreadBadge() {
+  if (!token) return;
+  try {
+    const res = await fetch('/api/chat/private/unread-count', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    const count = (res.ok && data.unread_count) ? data.unread_count : 0;
+
+    const desktopBadge = document.getElementById('privateChatUnreadBadge');
+    const mobileBadge = document.getElementById('mobilePrivateUnreadBadge');
+
+    [desktopBadge, mobileBadge].forEach(b => {
+      if (!b) return;
+      if (count > 0) {
+        b.innerText = count > 99 ? '99+' : count;
+        b.classList.remove('hidden');
+      } else {
+        b.classList.add('hidden');
+      }
+    });
+  } catch (e) {}
+}
+
+function handleNewPrivateMessage(msg) {
+  updatePrivateUnreadBadge();
+  loadPrivateConversations();
+
+  if (activePrivateOtherUser && (activePrivateOtherUser.id === msg.sender_id || activePrivateOtherUser.id === msg.recipient_id)) {
+    appendPrivateMessageToThread(msg, true);
+    fetch(`/api/chat/private/messages/${activePrivateOtherUser.id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).catch(() => {});
+  } else {
+    playSound('question');
+  }
+}
+
+// =========================================================================
+// 4. BUILT-IN QURAN PLAYER (114 SURAHS & POPULAR RECITERS)
+// =========================================================================
+
+const QURAN_SURAHS_LIST = [
+  "1. سورة الفاتحة", "2. سورة البقرة", "3. سورة آل عمران", "4. سورة النساء", "5. سورة المائدة",
+  "6. سورة الأنعام", "7. سورة الأعراف", "8. سورة الأنفال", "9. سورة التوبة", "10. سورة يونس",
+  "11. سورة هود", "12. سورة يوسف", "13. سورة الرعد", "14. سورة إبراهيم", "15. سورة الحجر",
+  "16. سورة النحل", "17. سورة الإسراء", "18. سورة الكهف", "19. سورة مريم", "20. سورة طه",
+  "21. سورة الأنبياء", "22. سورة الحج", "23. سورة المؤمنون", "24. سورة النور", "25. سورة الفرقان",
+  "26. سورة الشعراء", "27. سورة النمل", "28. سورة القصص", "29. سورة العنكبوت", "30. سورة الروم",
+  "31. سورة لقمان", "32. سورة السجدة", "33. سورة الأحزاب", "34. سورة سبأ", "35. سورة فاطر",
+  "36. سورة يس", "37. سورة الصافات", "38. سورة ص", "39. سورة الزمر", "40. سورة غافر",
+  "41. سورة فصلت", "42. سورة الشورى", "43. سورة الزخرف", "44. سورة الدخان", "45. سورة الجاثية",
+  "46. سورة الأحقاف", "47. سورة محمد", "48. سورة الفتح", "49. سورة الحجرات", "50. سورة ق",
+  "51. سورة الذاريات", "52. سورة الطور", "53. سورة النجم", "54. سورة القمر", "55. سورة الرحمن",
+  "56. سورة الواقعة", "57. سورة الحديد", "58. سورة المجادلة", "59. سورة الحشر", "60. سورة الممتحنة",
+  "61. سورة الصف", "62. سورة الجمعة", "63. سورة المنافقون", "64. سورة التغابن", "65. سورة الطلاق",
+  "66. سورة التحريم", "67. سورة الملك", "68. سورة القلم", "69. سورة الحاقة", "70. سورة المعارج",
+  "71. سورة نوح", "72. سورة الجن", "73. سورة المزمل", "74. سورة المدثر", "75. سورة القيامة",
+  "76. سورة الإنسان", "77. سورة المرسلات", "78. سورة النبأ", "79. سورة النازعات", "80. سورة عبس",
+  "81. سورة التكوير", "82. سورة الانفطار", "83. سورة المطففين", "84. سورة الانشقاق", "85. سورة البروج",
+  "86. سورة الطارق", "87. سورة الأعلى", "88. سورة الغاشية", "89. سورة الفجر", "90. سورة البلد",
+  "91. سورة الشمس", "92. سورة الليل", "93. سورة الضحى", "94. سورة الشرح", "95. سورة التين",
+  "96. سورة العلق", "97. سورة القدر", "98. سورة البينة", "99. سورة الزلزلة", "100. سورة العاديات",
+  "101. سورة القارعة", "102. سورة التكاثر", "103. سورة العصر", "104. سورة الهمزة", "105. سورة الفيل",
+  "106. سورة قريش", "107. سورة الماعون", "108. سورة الكوثر", "109. سورة الكافرون", "110. سورة النصر",
+  "111. سورة المسد", "112. سورة الإخلاص", "113. سورة الفلق", "114. سورة الناس"
+];
+
+function initQuranSurahsList() {
+  const select = document.getElementById('liveQuranSurahSelect');
+  if (!select || select.children.length > 0) return;
+  select.innerHTML = QURAN_SURAHS_LIST.map((name, idx) => {
+    return `<option value="${idx + 1}">${name}</option>`;
+  }).join('');
+}
+
+function getQuranAudioUrl(reciter, surahNum) {
+  const sNum = String(surahNum).padStart(3, '0');
+  switch (reciter) {
+    case 'AbdulBaset_Murattal':
+      return `https://server7.mp3quran.net/basit/${sNum}.mp3`;
+    case 'Alafasy':
+      return `https://server8.mp3quran.net/afs/${sNum}.mp3`;
+    case 'Maher_AlMuaiqly':
+      return `https://server12.mp3quran.net/maher/${sNum}.mp3`;
+    case 'Minshawi_Murattal':
+      return `https://server10.mp3quran.net/minsh/${sNum}.mp3`;
+    case 'Ghamadi':
+      return `https://server8.mp3quran.net/ghamdi/${sNum}.mp3`;
+    case 'Islam_Sobhi':
+      return `https://server14.mp3quran.net/islam/Rewayat-Hafs-A-n-Assem/${sNum}.mp3`;
+    default:
+      return `https://server8.mp3quran.net/afs/${sNum}.mp3`;
+  }
+}
+
+function toggleBroadcastQuran() {
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+  if (!isStaff) return;
+
+  if (currentLiveLessonState && currentLiveLessonState.quranState && currentLiveLessonState.quranState.isPlaying) {
+    socket.emit('live_quran_stop');
+  } else {
+    const reciterSelect = document.getElementById('liveQuranReciterSelect');
+    const surahSelect = document.getElementById('liveQuranSurahSelect');
+    const reciter = reciterSelect ? reciterSelect.value : 'Alafasy';
+    const surahNum = surahSelect ? parseInt(surahSelect.value) || 1 : 1;
+    const surahName = surahSelect ? surahSelect.options[surahSelect.selectedIndex].text : 'سورة الفاتحة';
+    const audioUrl = getQuranAudioUrl(reciter, surahNum);
+
+    socket.emit('live_quran_play', {
+      reciter,
+      surahName,
+      audioUrl
+    });
+  }
+}
+
+function handleLiveQuranPlaying(data) {
+  const audio = document.getElementById('liveQuranAudio');
+  const badge = document.getElementById('liveQuranNowPlayingBadge');
+  const playBtnText = document.getElementById('liveQuranPlayBtnText');
+  const playBtn = document.getElementById('liveQuranPlayBtn');
+
+  if (badge) {
+    badge.innerText = `دەنگی قورئان پەخش دەبێت (${data.surahName || ''}) 🎶`;
+    badge.classList.remove('hidden');
+  }
+  if (playBtnText) playBtnText.innerText = 'وەستاندنی قورئان ⏹️';
+  if (playBtn) {
+    playBtn.className = 'flex-1 py-2 px-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl transition flex items-center justify-center gap-2 shadow active:scale-95';
+  }
+
+  if (audio && data && data.audioUrl) {
+    if (audio.src !== data.audioUrl) {
+      audio.src = data.audioUrl;
+    }
+    audio.play().catch(e => {
+      console.log('Autoplay blocked, user interaction required:', e);
+    });
+  }
+}
+
+function handleLiveQuranStopped() {
+  const audio = document.getElementById('liveQuranAudio');
+  const badge = document.getElementById('liveQuranNowPlayingBadge');
+  const playBtnText = document.getElementById('liveQuranPlayBtnText');
+  const playBtn = document.getElementById('liveQuranPlayBtn');
+
+  if (badge) badge.classList.add('hidden');
+  if (playBtnText) playBtnText.innerText = 'دەستپێکردنی قورئان لەناو وانە';
+  if (playBtn) {
+    playBtn.className = 'flex-1 py-2 px-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl transition flex items-center justify-center gap-2 shadow active:scale-95';
+  }
+  if (audio) {
+    audio.pause();
+    audio.currentTime = 0;
+  }
+}
+
+// =========================================================================
+// 5. LIVE LESSON ("وانە") REAL-TIME ENGINE
+// =========================================================================
+
+let currentLiveLessonState = null;
+let localLiveAudioStream = null;
+let localLiveScreenStream = null;
+let isLocalMicMuted = true;
+let liveLessonDurationTimer = null;
+
+// Unlimited Two-Way Audio Recording state
+let liveMediaRecorder = null;
+let liveRecordedAudioChunks = [];
+let liveRecordingStartTime = null;
+let liveRecordingTimer = null;
+let liveAudioContext = null;
+
+function openLiveLessonModal() {
+  const modal = document.getElementById('liveLessonModal');
+  const floatingBar = document.getElementById('floatingLiveBar');
+  if (modal) modal.classList.remove('hidden');
+  if (floatingBar) floatingBar.classList.add('hidden');
+
+  socket.emit('live_join');
+}
+
+function minimizeLiveLessonModal() {
+  const modal = document.getElementById('liveLessonModal');
+  const floatingBar = document.getElementById('floatingLiveBar');
+  if (modal) modal.classList.add('hidden');
+
+  if (currentLiveLessonState && currentLiveLessonState.isActive) {
+    if (floatingBar) floatingBar.classList.remove('hidden');
+  }
+}
+
+function expandLiveLessonModal() {
+  openLiveLessonModal();
+}
+
+function leaveLiveLessonRoom() {
+  if (currentLiveLessonState && currentLiveLessonState.isActive) {
+    const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+    if (isStaff) {
+      const choice = confirm('ئایا دەتەوێت لە ژوورەکە دەرچیت؟ (بۆ کۆتاییهێنان بە تەواوی وانەکە دوگمەی کۆتاییهێنان داگرە)');
+      if (!choice) return;
+    }
+  }
+
+  socket.emit('live_leave');
+
+  if (localLiveAudioStream) {
+    localLiveAudioStream.getTracks().forEach(t => t.stop());
+    localLiveAudioStream = null;
+  }
+  if (localLiveScreenStream) {
+    localLiveScreenStream.getTracks().forEach(t => t.stop());
+    localLiveScreenStream = null;
+  }
+  if (liveMediaRecorder && liveMediaRecorder.state !== 'inactive') {
+    liveMediaRecorder.stop();
+  }
+
+  const liveAudio = document.getElementById('liveRoomAudio');
+  const quranAudio = document.getElementById('liveQuranAudio');
+  if (liveAudio) { liveAudio.pause(); liveAudio.srcObject = null; }
+  if (quranAudio) { quranAudio.pause(); }
+
+  const modal = document.getElementById('liveLessonModal');
+  const floatingBar = document.getElementById('floatingLiveBar');
+  if (modal) modal.classList.add('hidden');
+  if (floatingBar) floatingBar.classList.add('hidden');
+
+  isLocalMicMuted = true;
+  updateLiveMicUI(true);
+}
+
+function toggleFloatingMute() {
+  const liveAudio = document.getElementById('liveRoomAudio');
+  const quranAudio = document.getElementById('liveQuranAudio');
+  const icon = document.getElementById('floatingMuteIcon');
+  if (!liveAudio) return;
+
+  const willMute = !liveAudio.muted;
+  liveAudio.muted = willMute;
+  if (quranAudio) quranAudio.muted = willMute;
+
+  if (icon) {
+    if (willMute) {
+      icon.className = 'fa-solid fa-volume-xmark text-rose-400';
+    } else {
+      icon.className = 'fa-solid fa-volume-high text-emerald-400';
+    }
+  }
+}
+
+function toggleLiveStartEnd() {
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  if (!isStaff) return;
+
+  if (currentLiveLessonState && currentLiveLessonState.isActive) {
+    if (!confirm('ئایا دڵنیایت لە کۆتاییهێنان بە وانەی ڕاستەوخۆ؟')) return;
+    socket.emit('live_end');
+  } else {
+    const title = prompt('ناوی بابەت یان ناونیشانی وانەکە بنووسە:', 'وانەی ڕاستەوخۆ') || 'وانەی ڕاستەوخۆ';
+    socket.emit('live_start', { title });
+  }
+}
+
+async function toggleLiveMic() {
+  const myParticipant = currentLiveLessonState && currentLiveLessonState.participants 
+    ? currentLiveLessonState.participants.find(p => p.userId === (currentUser ? currentUser.id : null))
+    : null;
+
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+  const hasPermission = isStaff || (myParticipant && myParticipant.hasMicPermission);
+
+  if (!hasPermission) {
+    alert('تەنها مامۆستا و ئەدمین دەتوانن قسە بکەن. تکایە دوگمەی «دەست هەڵبڕین ✋» دابگرە تا مامۆستا مۆڵەتی مایکت پێدەدات.');
+    return;
+  }
+
+  if (isLocalMicMuted) {
+    try {
+      if (!localLiveAudioStream) {
+        localLiveAudioStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+      }
+      localLiveAudioStream.getAudioTracks().forEach(t => t.enabled = true);
+      isLocalMicMuted = false;
+      updateLiveMicUI(false);
+      socket.emit('live_mic_toggle', false);
+    } catch (err) {
+      alert('نەتوانرا مایکرۆفۆن بکرێتەوە: ' + (err.message || 'ڕێگەپێدان پێویستە'));
+    }
+  } else {
+    if (localLiveAudioStream) {
+      localLiveAudioStream.getAudioTracks().forEach(t => t.enabled = false);
+    }
+    isLocalMicMuted = true;
+    updateLiveMicUI(true);
+    socket.emit('live_mic_toggle', true);
+  }
+}
+
+function updateLiveMicUI(muted) {
+  const btn = document.getElementById('liveMicToggleBtn');
+  const icon = document.getElementById('liveMicIcon');
+  const text = document.getElementById('liveMicText');
+
+  if (!btn) return;
+  if (muted) {
+    btn.className = 'px-3.5 py-2 bg-slate-800 text-slate-400 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow active:scale-95';
+    if (icon) icon.className = 'fa-solid fa-microphone-slash text-rose-400';
+    if (text) text.innerText = 'مایک داخراوە';
+  } else {
+    btn.className = 'px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg active:scale-95 animate-pulse';
+    if (icon) icon.className = 'fa-solid fa-microphone text-white';
+    if (text) text.innerText = 'مایک کراوەیە 🎙️';
+  }
+}
+
+function toggleLiveRaiseHand() {
+  socket.emit('live_raise_hand');
+}
+
+async function toggleLiveScreenShare() {
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  if (!isStaff) return;
+
+  const btn = document.getElementById('liveScreenShareBtn');
+  const btnText = document.getElementById('liveScreenShareText');
+  const screenContainer = document.getElementById('liveScreenContainer');
+  const standbyBox = document.getElementById('liveStandbyBox');
+  const video = document.getElementById('liveScreenVideo');
+
+  if (localLiveScreenStream) {
+    localLiveScreenStream.getTracks().forEach(t => t.stop());
+    localLiveScreenStream = null;
+    socket.emit('live_screen_stop');
+    if (video) video.srcObject = null;
+    if (screenContainer) screenContainer.classList.add('hidden');
+    if (standbyBox) standbyBox.classList.remove('hidden');
+    if (btnText) btnText.innerText = 'شەیرکردنی شاشە';
+    if (btn) btn.className = 'px-3.5 py-2 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow active:scale-95';
+  } else {
+    try {
+      localLiveScreenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          cursor: 'always',
+          frameRate: 30,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: true
+      });
+
+      if (video) {
+        video.srcObject = localLiveScreenStream;
+      }
+      if (screenContainer) screenContainer.classList.remove('hidden');
+      if (standbyBox) standbyBox.classList.add('hidden');
+      if (btnText) btnText.innerText = 'وەستاندنی شاشە ⏹️';
+      if (btn) btn.className = 'px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white border border-rose-400 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg active:scale-95';
+
+      socket.emit('live_screen_start');
+
+      localLiveScreenStream.getVideoTracks()[0].onended = () => {
+        toggleLiveScreenShare();
+      };
+    } catch (err) {
+      console.log('Screen sharing cancelled or failed:', err);
+    }
+  }
+}
+
+function toggleScreenShareFullscreen() {
+  const container = document.getElementById('liveScreenContainer');
+  if (!container) return;
+  if (!document.fullscreenElement) {
+    container.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+// Unlimited Two-Way Recording (تۆمارکردنی دەنگی وانە لە هەردوولا بێ سنوور)
+async function toggleLiveRecording() {
+  const recordBtn = document.getElementById('liveRecordBtn');
+  const recordDot = document.getElementById('liveRecordDot');
+  const recordText = document.getElementById('liveRecordText');
+
+  if (liveMediaRecorder && liveMediaRecorder.state !== 'inactive') {
+    liveMediaRecorder.stop();
+    if (liveRecordingTimer) clearInterval(liveRecordingTimer);
+    liveRecordingTimer = null;
+
+    if (recordBtn) recordBtn.className = 'px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow';
+    if (recordDot) recordDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+    if (recordText) recordText.innerText = 'تۆمارکردنی دەنگ';
+    return;
+  }
+
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    liveAudioContext = new AudioCtx();
+    const destination = liveAudioContext.createMediaStreamDestination();
+
+    const liveAudio = document.getElementById('liveRoomAudio');
+    if (liveAudio && liveAudio.srcObject) {
+      try {
+        const remoteSource = liveAudioContext.createMediaStreamSource(liveAudio.srcObject);
+        remoteSource.connect(destination);
+      } catch (e) {}
+    }
+
+    const quranAudio = document.getElementById('liveQuranAudio');
+    if (quranAudio && !quranAudio.paused) {
+      try {
+        const quranSource = liveAudioContext.createMediaElementSource(quranAudio);
+        quranSource.connect(destination);
+        quranSource.connect(liveAudioContext.destination);
+      } catch (e) {}
+    }
+
+    if (localLiveAudioStream) {
+      try {
+        const micSource = liveAudioContext.createMediaStreamSource(localLiveAudioStream);
+        micSource.connect(destination);
+      } catch (e) {}
+    } else {
+      try {
+        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        localLiveAudioStream = micStream;
+        const micSource = liveAudioContext.createMediaStreamSource(micStream);
+        micSource.connect(destination);
+      } catch (e) {}
+    }
+
+    liveRecordedAudioChunks = [];
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+      ? 'audio/webm;codecs=opus' 
+      : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4');
+
+    liveMediaRecorder = new MediaRecorder(destination.stream, { mimeType });
+
+    liveMediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        liveRecordedAudioChunks.push(e.data);
+      }
+    };
+
+    liveMediaRecorder.onstop = () => {
+      const blob = new Blob(liveRecordedAudioChunks, { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}_${now.getHours()}-${now.getMinutes()}`;
+      a.href = url;
+      a.download = `وانەی_ستافی_سیرین_${dateStr}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+      alert('تۆمارکردنی دەنگ تەواو بوو و دەنگەکە بە سەرکەوتوویی داگیرا! 🎙️📥');
+    };
+
+    liveMediaRecorder.start(5000);
+    liveRecordingStartTime = Date.now();
+
+    if (recordBtn) recordBtn.className = 'px-3 py-2 bg-rose-600 hover:bg-rose-500 border border-rose-400 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-lg animate-pulse';
+    if (recordDot) recordDot.className = 'w-2.5 h-2.5 rounded-full bg-white animate-ping';
+
+    liveRecordingTimer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - liveRecordingStartTime) / 1000);
+      const hrs = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+      const secs = String(elapsed % 60).padStart(2, '0');
+      if (recordText) recordText.innerText = `تۆمار دەکرێت (${hrs}:${mins}:${secs})`;
+    }, 1000);
+
+  } catch (err) {
+    alert('نەتوانرا تۆمارکردنی دەنگ دەستپێبکرێت: ' + err.message);
+  }
+}
+
+// Audio Output Switcher (دەرەوە / ناوەوە / بلوتوس)
+function toggleAudioOutputMenu() {
+  const menu = document.getElementById('liveAudioOutputMenu');
+  if (menu) menu.classList.toggle('hidden');
+}
+
+async function selectLiveAudioOutput(type) {
+  const menu = document.getElementById('liveAudioOutputMenu');
+  if (menu) menu.classList.add('hidden');
+
+  const icon = document.getElementById('liveAudioOutputIcon');
+  const text = document.getElementById('liveAudioOutputText');
+
+  let label = 'بڵندگۆ (دەرەوە)';
+  let iconClass = 'fa-solid fa-volume-high text-emerald-400';
+
+  if (type === 'earpiece') {
+    label = 'بیستۆک (ناوەوە)';
+    iconClass = 'fa-solid fa-phone text-sky-400';
+  } else if (type === 'bluetooth') {
+    label = 'بلوتوس / هێدفۆن';
+    iconClass = 'fa-brands fa-bluetooth-b text-indigo-400';
+  }
+
+  if (icon) icon.className = iconClass;
+  if (text) text.innerText = label;
+
+  try {
+    const liveAudio = document.getElementById('liveRoomAudio');
+    const quranAudio = document.getElementById('liveQuranAudio');
+
+    if (typeof HTMLMediaElement.prototype.setSinkId === 'function') {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+      let targetDeviceId = '';
+
+      if (type === 'bluetooth') {
+        const bt = audioOutputs.find(d => d.label.toLowerCase().includes('bluetooth') || d.label.toLowerCase().includes('headset') || d.label.toLowerCase().includes('buds'));
+        if (bt) targetDeviceId = bt.deviceId;
+      } else if (type === 'earpiece') {
+        const ep = audioOutputs.find(d => d.label.toLowerCase().includes('earpiece') || d.label.toLowerCase().includes('receiver'));
+        if (ep) targetDeviceId = ep.deviceId;
+      }
+
+      if (targetDeviceId) {
+        if (liveAudio) await liveAudio.setSinkId(targetDeviceId);
+        if (quranAudio) await quranAudio.setSinkId(targetDeviceId);
+      }
+    }
+  } catch (err) {
+    console.log('Audio sink selection fallback:', err);
+  }
+}
+
+// Moderation: Grant Mic, Revoke Mic, Kick
+function grantLiveMicPermission(targetUserId) {
+  socket.emit('live_grant_mic', { targetUserId });
+}
+
+function revokeLiveMicPermission(targetUserId) {
+  socket.emit('live_revoke_mic', { targetUserId });
+}
+
+function kickUserFromLive(targetUserId, targetName) {
+  if (!confirm(`ئایا دڵنیایت لە دەرکردنی (${targetName}) لەم وانەیە؟`)) return;
+  socket.emit('live_kick', { targetUserId });
+}
+
+// Live Socket Event Handlers
+function handleLiveLessonStateUpdate(state) {
+  currentLiveLessonState = state;
+
+  const isAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+
+  const deskDot = document.getElementById('liveLessonPulseDot');
+  const mobDot = document.getElementById('mobileLiveLessonPulseDot');
+  const activeBadge = document.getElementById('liveLessonActiveBadge');
+  const modalBadge = document.getElementById('liveLessonHeaderBadge');
+  const timerBox = document.getElementById('liveDurationTimer');
+  const modalTitle = document.getElementById('liveLessonModalTitle');
+  const presenterText = document.getElementById('liveLessonPresenterText');
+  const startEndBtn = document.getElementById('liveStartEndBtn');
+  const startEndBtnText = document.getElementById('liveStartEndBtnText');
+
+  if (state.isActive) {
+    if (deskDot) deskDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping';
+    if (mobDot) mobDot.className = 'w-2 h-2 rounded-full bg-rose-500 animate-ping';
+    if (activeBadge) activeBadge.classList.remove('hidden');
+    if (modalBadge) modalBadge.classList.remove('hidden');
+    if (timerBox) timerBox.classList.remove('hidden');
+    if (modalTitle) modalTitle.innerText = state.title || 'ژووری وانەی ڕاستەوخۆ';
+    if (presenterText && state.startedBy) {
+      presenterText.innerText = `وانەبێژ: ${state.startedBy.name} (${state.startedBy.role === 'teacher' ? 'مامۆستا' : 'سوپەر ئەدمین'})`;
+    }
+    if (startEndBtnText) startEndBtnText.innerText = 'کۆتاییهێنان بە وانە ⏹️';
+    if (startEndBtn) {
+      startEndBtn.className = 'px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 active:scale-95';
+    }
+
+    if (!liveLessonDurationTimer && state.startedAt) {
+      liveLessonDurationTimer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - state.startedAt) / 1000);
+        const hrs = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+        const mins = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+        const secs = String(elapsed % 60).padStart(2, '0');
+        const timerText = document.getElementById('liveDurationText');
+        if (timerText) timerText.innerText = `${hrs}:${mins}:${secs}`;
+      }, 1000);
+    }
+  } else {
+    if (deskDot) deskDot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
+    if (mobDot) mobDot.className = 'w-2 h-2 rounded-full bg-slate-500';
+    if (activeBadge) activeBadge.classList.add('hidden');
+    if (modalBadge) modalBadge.classList.add('hidden');
+    if (timerBox) timerBox.classList.add('hidden');
+    if (modalTitle) modalTitle.innerText = 'ژووری وانەی ڕاستەوخۆ';
+    if (presenterText) presenterText.innerText = 'چاوەڕوانی دەستپێکردنی وانەیە...';
+    if (startEndBtnText) startEndBtnText.innerText = 'دەستپێکردنی وانە 🔴';
+    if (startEndBtn) {
+      startEndBtn.className = 'px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 active:scale-95';
+    }
+    if (liveLessonDurationTimer) {
+      clearInterval(liveLessonDurationTimer);
+      liveLessonDurationTimer = null;
+    }
+    const timerText = document.getElementById('liveDurationText');
+    if (timerText) timerText.innerText = '00:00:00';
+  }
+
+  const countBadge = document.getElementById('liveParticipantsCountBadge');
+  const listEl = document.getElementById('liveParticipantsList');
+  const participants = state.participants || [];
+  if (countBadge) countBadge.innerText = participants.length;
+
+  if (listEl) {
+    if (participants.length === 0) {
+      listEl.innerHTML = '<div class="p-3 text-center text-slate-500 text-xs">هیچ کەسێک لە ژوورەکەدا نییە</div>';
+    } else {
+      listEl.innerHTML = participants.map(p => {
+        const isMe = currentUser && p.userId === currentUser.id;
+        const roleLabel = p.role === 'super_admin' ? 'سوپەر ئەدمین' : (p.role === 'teacher' ? 'مامۆستا' : (p.role === 'admin' ? 'ئەدمین' : 'قوتابی'));
+        const roleColor = p.role === 'super_admin' ? 'text-rose-400' : (p.role === 'teacher' ? 'text-amber-400' : (p.role === 'admin' ? 'text-indigo-400' : 'text-slate-400'));
+        const isSpeaking = !p.isMuted && p.hasMicPermission;
+
+        let modButtonsHtml = '';
+        if (isAdmin && !isMe) {
+          modButtonsHtml = `
+            <div class="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-800">
+              ${p.hasMicPermission ? `
+                <button onclick="revokeLiveMicPermission(${p.userId})" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-rose-300 rounded text-[10px] font-bold">
+                  سەندنەوەی مایک 🔇
+                </button>
+              ` : `
+                <button onclick="grantLiveMicPermission(${p.userId})" class="px-2 py-0.5 bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded text-[10px] font-bold">
+                  مۆڵەتدان بە مایک 🎙️
+                </button>
+              `}
+              <button onclick="kickUserFromLive(${p.userId}, '${escapeHtml(p.fullName)}')" class="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded text-[10px] font-bold" title="دەرکردن لە وانە">
+                دەرکردن 🚫
+              </button>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="p-2.5 rounded-2xl bg-slate-900 border ${isSpeaking ? 'border-emerald-500/60 shadow-md' : 'border-slate-800'} transition">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs">
+                  ${p.gender === 'female' ? '🧕' : '👤'}
+                </span>
+                <div>
+                  <div class="font-black text-white text-xs flex items-center gap-1.5">
+                    <span>${escapeHtml(p.fullName)}</span>
+                    ${isMe ? '<span class="text-[9px] text-sky-400 font-bold">(خۆت)</span>' : ''}
+                  </div>
+                  <span class="text-[10px] ${roleColor} font-bold">${roleLabel}</span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-1.5">
+                ${p.handRaised ? '<span class="text-sm animate-bounce" title="دەستی هەڵبڕیوە">✋</span>' : ''}
+                ${isSpeaking 
+                  ? '<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-black flex items-center gap-1"><i class="fa-solid fa-microphone text-xs animate-pulse"></i> قسە دەکات</span>' 
+                  : '<i class="fa-solid fa-microphone-slash text-slate-600 text-xs" title="مایک داخراوە"></i>'
+                }
+              </div>
+            </div>
+            ${modButtonsHtml}
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  const screenContainer = document.getElementById('liveScreenContainer');
+  const standbyBox = document.getElementById('liveStandbyBox');
+  const sharerNameEl = document.getElementById('liveScreenSharerName');
+
+  if (state.screenSharingBy) {
+    if (screenContainer) screenContainer.classList.remove('hidden');
+    if (standbyBox) standbyBox.classList.add('hidden');
+    if (sharerNameEl) sharerNameEl.innerText = `شاشەی ${state.screenSharingBy.name}`;
+  } else if (!localLiveScreenStream) {
+    if (screenContainer) screenContainer.classList.add('hidden');
+    if (standbyBox) standbyBox.classList.remove('hidden');
+  }
+
+  if (state.quranState && state.quranState.isPlaying) {
+    handleLiveQuranPlaying(state.quranState);
+  } else {
+    handleLiveQuranStopped();
+  }
+}
+
+function handleLiveStartedAlert(data) {
+  playSound('question');
+  alert(`🔴 وانەی نوێ دەستیپێکرد: ${data.title || 'وانەی ڕاستەوخۆ'}\nلەلایەن: ${data.startedBy || 'مامۆستا'}`);
+}
+
+function handleLiveEndedNotice() {
+  alert('وانەی ڕاستەوخۆ کۆتایی پێهات.');
+  leaveLiveLessonRoom();
+}
+
+function handleLiveMicGranted() {
+  playSound('star');
+  alert('مۆڵەتی مایکت پێبەخشرا لەلایەن مامۆستاوە! دەتوانیت مایک بکەیتەوە و قسە بکەیت 🎙️');
+  const myParticipant = currentLiveLessonState && currentLiveLessonState.participants 
+    ? currentLiveLessonState.participants.find(p => p.userId === (currentUser ? currentUser.id : null))
+    : null;
+  if (myParticipant) myParticipant.hasMicPermission = true;
+}
+
+function handleLiveMicRevoked() {
+  alert('مۆڵەتی مایکت لێسەندرایەوە لەلایەن بەڕێوەبەرەوە.');
+  isLocalMicMuted = true;
+  if (localLiveAudioStream) {
+    localLiveAudioStream.getAudioTracks().forEach(t => t.enabled = false);
+  }
+  updateLiveMicUI(true);
+}
+
+function handleLiveKicked(reason) {
+  alert(reason || 'تۆ لەم وانەیە دەرکرایت.');
+  leaveLiveLessonRoom();
+}
+
+function handleLiveScreenStarted(sharer) {
+  const screenContainer = document.getElementById('liveScreenContainer');
+  const standbyBox = document.getElementById('liveStandbyBox');
+  const sharerNameEl = document.getElementById('liveScreenSharerName');
+  if (screenContainer) screenContainer.classList.remove('hidden');
+  if (standbyBox) standbyBox.classList.add('hidden');
+  if (sharerNameEl) sharerNameEl.innerText = `شاشەی ${sharer ? sharer.name : 'مامۆستا'}`;
+}
+
+function handleLiveScreenStopped() {
+  if (localLiveScreenStream) return;
+  const screenContainer = document.getElementById('liveScreenContainer');
+  const standbyBox = document.getElementById('liveStandbyBox');
+  const video = document.getElementById('liveScreenVideo');
+  if (screenContainer) screenContainer.classList.add('hidden');
+  if (standbyBox) standbyBox.classList.remove('hidden');
+  if (video) video.srcObject = null;
+}
+
+function handleLiveSignal(data) {
+  // WebRTC signaling relay handler
+}
+
+function handleLiveAudioChunk(data) {
+  // Direct audio chunk receiver handler
+}
 
 
 

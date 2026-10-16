@@ -9,7 +9,7 @@ const multer = require('multer');
 const fs = require('fs');
 let archiver;
 try { archiver = require('archiver'); } catch (e) {}
-const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, calculateStars } = require('./db');
+const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, calculateStars } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 80;
@@ -952,8 +952,8 @@ app.get('/api/chat/unanswered-stats', authMiddleware, requireAdmin, (req, res) =
   res.json({ stats });
 });
 
-// 18. Award Star to a Student for a Question (Super Admin only - Silent Star Award)
-app.post('/api/chat/award-star', authMiddleware, requireSuperAdmin, (req, res) => {
+// 18. Award Star to a Student for a Question (Super Admin & Teacher)
+app.post('/api/chat/award-star', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
   const { question_id, user_id } = req.body;
   if (!user_id) return res.status(400).json({ error: 'ناسنامەی خوێندکار دیارینەکراوە' });
 
@@ -971,8 +971,6 @@ app.post('/api/chat/award-star', authMiddleware, requireSuperAdmin, (req, res) =
     questions.recordStarAward(question_id, user_id, req.user.id);
   }
 
-  // User requested: "ئەو پیرۆزباییانە لاببە کە ئەنوسرێ بەبڕیاری فڵان وەڵامەکەی ڕاست دانراوە"
-  // Silent Star Award - NO text message is created or broadcast into chat!
   io.emit('star_awarded', {
     user_id: student.id,
     student_name: student.full_name,
@@ -981,7 +979,52 @@ app.post('/api/chat/award-star', authMiddleware, requireSuperAdmin, (req, res) =
     starInfo
   });
 
-  res.json({ success: true, message: 'ئەستێرە بە سەرکەوتوویی بەخشرا', starInfo });
+  if (question_id) {
+    io.emit('submission_evaluated', {
+      question_id: parseInt(question_id),
+      user_id: parseInt(user_id),
+      is_correct: 1
+    });
+  }
+
+  res.json({ success: true, message: 'ئەستێرە بە سەرکەوتوویی بەخشرا', starInfo, is_correct: 1 });
+});
+
+// 18a. Mark Answer as Wrong / Incorrect (زەڕب ❌) (Super Admin & Teacher)
+app.post('/api/chat/mark-wrong', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  const { question_id, user_id } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'ناسنامەی خوێندکار دیارینەکراوە' });
+
+  const student = users.findById(user_id);
+  if (!student) return res.status(404).json({ error: 'خوێندکار نەدۆزرایەوە' });
+
+  if (question_id) {
+    questions.recordWrongMark(question_id, user_id);
+    io.emit('submission_evaluated', {
+      question_id: parseInt(question_id),
+      user_id: parseInt(user_id),
+      is_correct: -1
+    });
+  }
+
+  res.json({ success: true, message: 'نیشانەی هەڵە (زەڕب ❌) بەسەرکەوتوویی تۆمارکرا', is_correct: -1 });
+});
+
+// 18b. Reset Answer Evaluation (Super Admin & Teacher)
+app.post('/api/chat/reset-evaluation', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  const { question_id, user_id } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'ناسنامەی خوێندکار دیارینەکراوە' });
+
+  if (question_id) {
+    questions.resetSubmissionEvaluation(question_id, user_id);
+    io.emit('submission_evaluated', {
+      question_id: parseInt(question_id),
+      user_id: parseInt(user_id),
+      is_correct: 0
+    });
+  }
+
+  res.json({ success: true, message: 'هەڵسەنگاندن گەڕێنرایەوە', is_correct: 0 });
 });
 
 // 18b. Get Star Awards for a Question
@@ -1171,13 +1214,130 @@ app.get('/api/chat/leaderboard', authMiddleware, (req, res) => {
   res.json({ leaderboard: list });
 });
 
-// Message History
+// Message History with Reactions
 app.get('/api/chat/messages', authMiddleware, (req, res) => {
-  const history = messages.getRecent(120).map(m => ({
+  const history = messages.getRecent(120);
+  const msgIds = history.map(m => m.id);
+  const reactionsMap = messageReactions.getForMessages(msgIds, req.user.id);
+  const result = history.map(m => ({
     ...m,
-    starInfo: calculateStars(m.correct_answers_count)
+    starInfo: calculateStars(m.correct_answers_count),
+    reactions: reactionsMap[m.id] || []
   }));
-  res.json({ messages: history });
+  res.json({ messages: result });
+});
+
+// Message Reactions (🏆, 🤲, 👍, 💯)
+app.post('/api/chat/messages/:id/react', authMiddleware, (req, res) => {
+  const msgId = parseInt(req.params.id);
+  const { emoji } = req.body;
+  const allowed = ['🏆', '🤲', '👍', '💯'];
+  if (!allowed.includes(emoji)) {
+    return res.status(400).json({ error: 'ئیمۆجی ڕێگاپێدراو نییە' });
+  }
+
+  const updatedReactions = messageReactions.toggle(msgId, req.user.id, emoji);
+  io.emit('message_reaction_updated', { message_id: msgId, reactions: updatedReactions });
+  res.json({ success: true, reactions: updatedReactions });
+});
+
+// --- PRIVATE MESSAGING (تەنها بۆ مامۆستا و سوپەر ئەدمین) ---
+
+// 1. Get Private Conversations List
+app.get('/api/chat/private/conversations', authMiddleware, (req, res) => {
+  try {
+    const list = privateMessages.getConversationsList(req.user.id);
+    res.json({ conversations: list });
+  } catch (err) {
+    console.error('Private conv error:', err);
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی گفتوگۆکان' });
+  }
+});
+
+// 2. Get Messages with a Specific User
+app.get('/api/chat/private/messages/:otherUserId', authMiddleware, (req, res) => {
+  try {
+    const otherId = parseInt(req.params.otherUserId);
+    const otherUser = users.findById(otherId);
+    if (!otherUser) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
+
+    const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher';
+    const otherIsStaff = otherUser.role === 'super_admin' || otherUser.role === 'teacher';
+
+    // Restriction: Normal users can only message Super Admin & Teacher
+    if (!isStaff && !otherIsStaff) {
+      return res.status(403).json({ error: 'تەنها دەتوانیت نامەی تایبەت بۆ مامۆستا و سوپەر ئەدمین بنێریت' });
+    }
+
+    privateMessages.markAsRead(otherId, req.user.id);
+    const chatMsgs = privateMessages.getConversation(req.user.id, otherId, 100);
+    res.json({
+      otherUser: {
+        id: otherUser.id,
+        username: otherUser.username,
+        full_name: otherUser.full_name,
+        role: otherUser.role,
+        gender: otherUser.gender
+      },
+      messages: chatMsgs
+    });
+  } catch (err) {
+    console.error('Private msgs error:', err);
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی پەیامەکان' });
+  }
+});
+
+// 3. Send Private Message
+app.post('/api/chat/private/send', authMiddleware, (req, res) => {
+  try {
+    const { recipient_id, content } = req.body;
+    const recId = parseInt(recipient_id);
+    if (!recId || !content || !content.trim()) {
+      return res.status(400).json({ error: 'پەیام و وەرگر پێویستن' });
+    }
+
+    const recipient = users.findById(recId);
+    if (!recipient) return res.status(404).json({ error: 'وەرگر نەدۆزرایەوە' });
+
+    const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher';
+    const recIsStaff = recipient.role === 'super_admin' || recipient.role === 'teacher';
+
+    // Strict Rule: Normal accounts can ONLY message super_admin and teacher
+    if (!isStaff && !recIsStaff) {
+      return res.status(403).json({ error: 'تەنها دەتوانیت نامەی تایبەت بۆ مامۆستا و سوپەر ئەدمین بنێریت' });
+    }
+
+    const msg = privateMessages.create(
+      req.user.id,
+      recId,
+      req.user.full_name,
+      req.user.role,
+      content.trim(),
+      'text'
+    );
+
+    // Broadcast in real-time to sender and recipient sockets
+    for (const [sockId, u] of onlineUsers.entries()) {
+      if (u.id === recId || u.id === req.user.id) {
+        io.to(sockId).emit('new_private_message', msg);
+      }
+    }
+
+    res.json({ success: true, message: msg });
+  } catch (err) {
+    console.error('Send private msg error:', err);
+    res.status(500).json({ error: 'هەڵە لە ناردنی پەیامی تایبەت' });
+  }
+});
+
+// 4. Get Unread Count for Current User
+app.get('/api/chat/private/unread-count', authMiddleware, (req, res) => {
+  try {
+    const count = privateMessages.getTotalUnreadCount(req.user.id);
+    res.json({ unreadCount: count });
+  } catch (err) {
+    res.json({ unreadCount: 0 });
+  }
 });
 
 // Night Curfew Status Endpoint (12:00 AM - 08:00 AM Iraq Time)
@@ -1603,6 +1763,47 @@ app.get('/api/admin/audio/download-all', authMiddleware, requireSuperAdmin, (req
 // --- SOCKET.IO REAL-TIME HANDLING ---
 const onlineUsers = new Map();
 
+// --- LIVE LESSON ("وانە") STATE & BROADCAST ---
+const liveLessonState = {
+  isActive: false,
+  title: 'وانەی ڕاستەوخۆ',
+  startedBy: null, // { id, name, role }
+  startedAt: null,
+  quranState: { isPlaying: false, reciter: '', surahName: '', audioUrl: '' },
+  screenSharingBy: null, // { id, name } or null
+  bannedUserIds: new Set(),
+  participants: new Map() // socketId -> { socketId, userId, username, fullName, role, gender, isMuted, handRaised, hasMicPermission }
+};
+
+function getLiveLessonSnapshot() {
+  const participantsList = Array.from(liveLessonState.participants.values()).map(p => ({
+    socketId: p.socketId,
+    userId: p.userId,
+    username: p.username,
+    fullName: p.fullName,
+    role: p.role,
+    gender: p.gender,
+    isMuted: p.isMuted,
+    handRaised: p.handRaised,
+    hasMicPermission: p.hasMicPermission
+  }));
+
+  return {
+    isActive: liveLessonState.isActive,
+    title: liveLessonState.title,
+    startedBy: liveLessonState.startedBy,
+    startedAt: liveLessonState.startedAt,
+    quranState: liveLessonState.quranState,
+    screenSharingBy: liveLessonState.screenSharingBy,
+    participantsCount: participantsList.length,
+    participants: participantsList
+  };
+}
+
+function broadcastLiveLessonState() {
+  io.emit('live_lesson_state', getLiveLessonSnapshot());
+}
+
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   const dreamToken = socket.handshake.auth.dreamToken;
@@ -1804,9 +2005,228 @@ io.on('connection', (socket) => {
     }
   });
 
+  // --- LIVE LESSON ("وانە") REAL-TIME SOCKET HANDLERS ---
+  socket.emit('live_lesson_state', getLiveLessonSnapshot());
+
+  socket.on('live_get_state', () => {
+    socket.emit('live_lesson_state', getLiveLessonSnapshot());
+  });
+
+  socket.on('live_start', (data) => {
+    if (user.role !== 'super_admin' && user.role !== 'teacher') return;
+    liveLessonState.isActive = true;
+    liveLessonState.title = (data && data.title) ? data.title.trim() : 'وانەی ڕاستەوخۆ';
+    liveLessonState.startedBy = { id: user.id, name: user.full_name, role: user.role };
+    liveLessonState.startedAt = Date.now();
+    liveLessonState.bannedUserIds.clear();
+    liveLessonState.quranState = { isPlaying: false, reciter: '', surahName: '', audioUrl: '' };
+    liveLessonState.screenSharingBy = null;
+
+    liveLessonState.participants.set(socket.id, {
+      socketId: socket.id,
+      userId: user.id,
+      username: user.username,
+      fullName: user.full_name,
+      role: user.role,
+      gender: user.gender || 'male',
+      isMuted: false,
+      handRaised: false,
+      hasMicPermission: true
+    });
+    socket.join('live_lesson_room');
+
+    broadcastLiveLessonState();
+    io.emit('live_lesson_started_alert', {
+      title: liveLessonState.title,
+      startedBy: user.full_name
+    });
+  });
+
+  socket.on('live_end', () => {
+    if (user.role !== 'super_admin' && user.role !== 'teacher') return;
+    liveLessonState.isActive = false;
+    liveLessonState.startedBy = null;
+    liveLessonState.startedAt = null;
+    liveLessonState.quranState = { isPlaying: false, reciter: '', surahName: '', audioUrl: '' };
+    liveLessonState.screenSharingBy = null;
+    liveLessonState.participants.clear();
+    io.to('live_lesson_room').emit('live_lesson_ended_notice');
+    broadcastLiveLessonState();
+  });
+
+  socket.on('live_join', () => {
+    if (liveLessonState.bannedUserIds.has(user.id)) {
+      socket.emit('live_kicked_notice', 'تۆ لەم وانەیە دەرکراویت و ناتوانیت بەشداربیتەوە');
+      return;
+    }
+
+    const canSpeakByDefault = (user.role === 'super_admin' || user.role === 'teacher' || user.role === 'admin');
+
+    liveLessonState.participants.set(socket.id, {
+      socketId: socket.id,
+      userId: user.id,
+      username: user.username,
+      fullName: user.full_name,
+      role: user.role,
+      gender: user.gender || 'male',
+      isMuted: true,
+      handRaised: false,
+      hasMicPermission: canSpeakByDefault
+    });
+
+    socket.join('live_lesson_room');
+    broadcastLiveLessonState();
+
+    if (liveLessonState.quranState && liveLessonState.quranState.isPlaying) {
+      socket.emit('live_quran_playing', liveLessonState.quranState);
+    }
+    if (liveLessonState.screenSharingBy) {
+      socket.emit('live_screen_started', liveLessonState.screenSharingBy);
+    }
+  });
+
+  socket.on('live_leave', () => {
+    liveLessonState.participants.delete(socket.id);
+    socket.leave('live_lesson_room');
+    if (liveLessonState.screenSharingBy && liveLessonState.screenSharingBy.id === user.id) {
+      liveLessonState.screenSharingBy = null;
+      io.to('live_lesson_room').emit('live_screen_stopped');
+    }
+    broadcastLiveLessonState();
+  });
+
+  socket.on('live_raise_hand', () => {
+    const p = liveLessonState.participants.get(socket.id);
+    if (p) {
+      p.handRaised = !p.handRaised;
+      broadcastLiveLessonState();
+    }
+  });
+
+  socket.on('live_grant_mic', (data) => {
+    const isStaff = user.role === 'super_admin' || user.role === 'teacher' || user.role === 'admin';
+    if (!isStaff || !data || !data.targetUserId) return;
+    const targetId = parseInt(data.targetUserId);
+
+    for (const [sId, p] of liveLessonState.participants.entries()) {
+      if (p.userId === targetId) {
+        p.hasMicPermission = true;
+        p.handRaised = false;
+        io.to(sId).emit('live_mic_permission_granted');
+      }
+    }
+    broadcastLiveLessonState();
+  });
+
+  socket.on('live_revoke_mic', (data) => {
+    const isStaff = user.role === 'super_admin' || user.role === 'teacher' || user.role === 'admin';
+    if (!isStaff || !data || !data.targetUserId) return;
+    const targetId = parseInt(data.targetUserId);
+
+    for (const [sId, p] of liveLessonState.participants.entries()) {
+      if (p.userId === targetId) {
+        p.hasMicPermission = false;
+        p.isMuted = true;
+        io.to(sId).emit('live_mic_permission_revoked');
+      }
+    }
+    broadcastLiveLessonState();
+  });
+
+  socket.on('live_kick', (data) => {
+    const isStaff = user.role === 'super_admin' || user.role === 'teacher' || user.role === 'admin';
+    if (!isStaff || !data || !data.targetUserId) return;
+    const targetId = parseInt(data.targetUserId);
+
+    liveLessonState.bannedUserIds.add(targetId);
+
+    for (const [sId, p] of Array.from(liveLessonState.participants.entries())) {
+      if (p.userId === targetId) {
+        liveLessonState.participants.delete(sId);
+        io.to(sId).emit('live_kicked_notice', 'تۆ لەلایەن بەڕێوەبەرەوە لە وانەکە دەرکرایت');
+        const targetSocket = io.sockets.sockets.get(sId);
+        if (targetSocket) targetSocket.leave('live_lesson_room');
+      }
+    }
+    broadcastLiveLessonState();
+  });
+
+  socket.on('live_quran_play', (data) => {
+    const isStaff = user.role === 'super_admin' || user.role === 'teacher' || user.role === 'admin';
+    if (!isStaff || !data) return;
+    liveLessonState.quranState = {
+      isPlaying: true,
+      reciter: data.reciter || 'قورئانی پیرۆز',
+      surahName: data.surahName || '',
+      audioUrl: data.audioUrl || ''
+    };
+    io.to('live_lesson_room').emit('live_quran_playing', liveLessonState.quranState);
+    broadcastLiveLessonState();
+  });
+
+  socket.on('live_quran_stop', () => {
+    const isStaff = user.role === 'super_admin' || user.role === 'teacher' || user.role === 'admin';
+    if (!isStaff) return;
+    liveLessonState.quranState = { isPlaying: false, reciter: '', surahName: '', audioUrl: '' };
+    io.to('live_lesson_room').emit('live_quran_stopped');
+    broadcastLiveLessonState();
+  });
+
+  socket.on('live_screen_start', () => {
+    if (user.role !== 'super_admin' && user.role !== 'teacher') return;
+    liveLessonState.screenSharingBy = { id: user.id, name: user.full_name };
+    io.to('live_lesson_room').emit('live_screen_started', liveLessonState.screenSharingBy);
+    broadcastLiveLessonState();
+  });
+
+  socket.on('live_screen_stop', () => {
+    liveLessonState.screenSharingBy = null;
+    io.to('live_lesson_room').emit('live_screen_stopped');
+    broadcastLiveLessonState();
+  });
+
+  socket.on('live_signal', (data) => {
+    if (data && data.to) {
+      socket.to(data.to).emit('live_signal', {
+        from: socket.id,
+        fromUser: { id: user.id, fullName: user.full_name, role: user.role },
+        signal: data.signal,
+        type: data.type
+      });
+    }
+  });
+
+  socket.on('live_audio_chunk', (data) => {
+    const p = liveLessonState.participants.get(socket.id);
+    if (p && p.hasMicPermission && data && data.chunk) {
+      socket.to('live_lesson_room').emit('live_audio_chunk', {
+        fromUserId: user.id,
+        fromUserName: user.full_name,
+        chunk: data.chunk
+      });
+    }
+  });
+
+  socket.on('live_mic_toggle', (isMuted) => {
+    const p = liveLessonState.participants.get(socket.id);
+    if (p && p.hasMicPermission) {
+      p.isMuted = Boolean(isMuted);
+      socket.to('live_lesson_room').emit('live_peer_mic_state', { socketId: socket.id, userId: user.id, isMuted: p.isMuted });
+      broadcastLiveLessonState();
+    }
+  });
+
   socket.on('disconnect', () => {
     onlineUsers.delete(socket.id);
     io.emit('online_users', getUniqueOnlineList());
+    if (liveLessonState.participants.has(socket.id)) {
+      liveLessonState.participants.delete(socket.id);
+      if (liveLessonState.screenSharingBy && liveLessonState.screenSharingBy.id === user.id) {
+        liveLessonState.screenSharingBy = null;
+        io.to('live_lesson_room').emit('live_screen_stopped');
+      }
+      broadcastLiveLessonState();
+    }
   });
 });
 

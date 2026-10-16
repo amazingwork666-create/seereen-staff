@@ -164,6 +164,32 @@ function initDb() {
       created_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS private_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender_id INTEGER NOT NULL,
+      recipient_id INTEGER NOT NULL,
+      sender_name TEXT NOT NULL,
+      sender_role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'text',
+      attachment_url TEXT DEFAULT NULL,
+      is_read INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS message_reactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      emoji TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE(message_id, user_id, emoji),
+      FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
 
   try {
@@ -571,7 +597,9 @@ const questions = {
   getSubmissions(questionId) {
     const stmt = db.prepare(`
       SELECT qs.*, u.correct_answers_count,
-        (CASE WHEN sa.id IS NOT NULL OR qs.is_correct = 1 THEN 1 ELSE 0 END) as is_awarded
+        (CASE WHEN sa.id IS NOT NULL OR qs.is_correct = 1 THEN 1 
+              WHEN qs.is_correct = -1 THEN -1 
+              ELSE 0 END) as is_awarded
       FROM question_submissions qs
       LEFT JOIN users u ON qs.user_id = u.id
       LEFT JOIN star_awards sa ON qs.question_id = sa.question_id AND qs.user_id = sa.user_id
@@ -643,6 +671,26 @@ const questions = {
       db.prepare('UPDATE question_submissions SET is_correct = 1 WHERE question_id = ? AND user_id = ?').run(questionId, userId);
     } catch (e) {}
     return stmt.run(questionId, userId, awardedBy, Date.now());
+  },
+  recordWrongMark(questionId, userId) {
+    const wasAwarded = db.prepare('SELECT id FROM star_awards WHERE question_id = ? AND user_id = ?').get(questionId, userId);
+    if (wasAwarded) {
+      db.prepare('DELETE FROM star_awards WHERE question_id = ? AND user_id = ?').run(questionId, userId);
+      try {
+        db.prepare('UPDATE users SET correct_answers_count = MAX(0, correct_answers_count - 1) WHERE id = ?').run(userId);
+      } catch (e) {}
+    }
+    return db.prepare('UPDATE question_submissions SET is_correct = -1 WHERE question_id = ? AND user_id = ?').run(questionId, userId);
+  },
+  resetSubmissionEvaluation(questionId, userId) {
+    const wasAwarded = db.prepare('SELECT id FROM star_awards WHERE question_id = ? AND user_id = ?').get(questionId, userId);
+    if (wasAwarded) {
+      db.prepare('DELETE FROM star_awards WHERE question_id = ? AND user_id = ?').run(questionId, userId);
+      try {
+        db.prepare('UPDATE users SET correct_answers_count = MAX(0, correct_answers_count - 1) WHERE id = ?').run(userId);
+      } catch (e) {}
+    }
+    return db.prepare('UPDATE question_submissions SET is_correct = 0 WHERE question_id = ? AND user_id = ?').run(questionId, userId);
   },
   getQuestionAwards(questionId) {
     const stmt = db.prepare('SELECT user_id FROM star_awards WHERE question_id = ?');
@@ -803,6 +851,128 @@ const dreamMessages = {
   }
 };
 
+// Private Messages (تایبەت بۆ مامۆستا و سوپەر ئەدمین)
+const privateMessages = {
+  create(senderId, recipientId, senderName, senderRole, content, type = 'text', attachmentUrl = null) {
+    const stmt = db.prepare(`
+      INSERT INTO private_messages (sender_id, recipient_id, sender_name, sender_role, content, type, attachment_url, is_read, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+    `);
+    const res = stmt.run(senderId, recipientId, senderName, senderRole, content, type, attachmentUrl, Date.now());
+    return this.findById(res.lastInsertRowid);
+  },
+  findById(id) {
+    return db.prepare('SELECT * FROM private_messages WHERE id = ?').get(id);
+  },
+  getConversation(userId1, userId2, limit = 100) {
+    const stmt = db.prepare(`
+      SELECT * FROM private_messages 
+      WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)
+      ORDER BY id ASC
+      LIMIT ?
+    `);
+    return stmt.all(userId1, userId2, userId2, userId1, limit);
+  },
+  markAsRead(senderId, recipientId) {
+    return db.prepare(`
+      UPDATE private_messages SET is_read = 1 
+      WHERE sender_id = ? AND recipient_id = ? AND is_read = 0
+    `).run(senderId, recipientId);
+  },
+  getConversationsList(userId) {
+    const stmt = db.prepare(`
+      SELECT 
+        u.id as other_user_id,
+        u.username,
+        u.full_name,
+        u.role,
+        u.gender,
+        (
+          SELECT content FROM private_messages 
+          WHERE (sender_id = u.id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.id)
+          ORDER BY id DESC LIMIT 1
+        ) as last_message,
+        (
+          SELECT created_at FROM private_messages 
+          WHERE (sender_id = u.id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.id)
+          ORDER BY id DESC LIMIT 1
+        ) as last_activity,
+        (
+          SELECT COUNT(*) FROM private_messages 
+          WHERE sender_id = u.id AND recipient_id = ? AND is_read = 0
+        ) as unread_count
+      FROM users u
+      WHERE u.id != ? AND EXISTS (
+        SELECT 1 FROM private_messages 
+        WHERE (sender_id = u.id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.id)
+      )
+      ORDER BY last_activity DESC
+    `);
+    return stmt.all(userId, userId, userId, userId, userId, userId, userId, userId);
+  },
+  getTotalUnreadCount(userId) {
+    const row = db.prepare('SELECT COUNT(*) as count FROM private_messages WHERE recipient_id = ? AND is_read = 0').get(userId);
+    return row ? row.count : 0;
+  }
+};
+
+// Message Reactions (🏆, 🤲, 👍, 💯)
+const messageReactions = {
+  toggle(messageId, userId, emoji) {
+    const existing = db.prepare('SELECT id FROM message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?').get(messageId, userId, emoji);
+    if (existing) {
+      db.prepare('DELETE FROM message_reactions WHERE id = ?').run(existing.id);
+    } else {
+      db.prepare('INSERT INTO message_reactions (message_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?)').run(messageId, userId, emoji, Date.now());
+    }
+    return this.getForMessage(messageId, userId);
+  },
+  getForMessage(messageId, currentUserId = null) {
+    const rows = db.prepare(`
+      SELECT emoji, COUNT(*) as count,
+        GROUP_CONCAT(user_id) as user_ids
+      FROM message_reactions
+      WHERE message_id = ?
+      GROUP BY emoji
+    `).all(messageId);
+
+    return rows.map(r => {
+      const uids = (r.user_ids || '').split(',').map(Number);
+      return {
+        emoji: r.emoji,
+        count: r.count,
+        reactedByMe: currentUserId ? uids.includes(Number(currentUserId)) : false
+      };
+    });
+  },
+  getForMessages(messageIds, currentUserId = null) {
+    if (!messageIds || messageIds.length === 0) return {};
+    const placeholders = messageIds.map(() => '?').join(',');
+    const rows = db.prepare(`
+      SELECT message_id, emoji, COUNT(*) as count,
+        GROUP_CONCAT(user_id) as user_ids
+      FROM message_reactions
+      WHERE message_id IN (${placeholders})
+      GROUP BY message_id, emoji
+    `).all(...messageIds);
+
+    const map = {};
+    for (const id of messageIds) {
+      map[id] = [];
+    }
+    for (const r of rows) {
+      const uids = (r.user_ids || '').split(',').map(Number);
+      if (!map[r.message_id]) map[r.message_id] = [];
+      map[r.message_id].push({
+        emoji: r.emoji,
+        count: r.count,
+        reactedByMe: currentUserId ? uids.includes(Number(currentUserId)) : false
+      });
+    }
+    return map;
+  }
+};
+
 // Calculate star level & progress
 function calculateStars(correctCount) {
   const count = Number(correctCount) || 0;
@@ -840,5 +1010,7 @@ module.exports = {
   dreamMessages,
   settings,
   passwordResets,
+  privateMessages,
+  messageReactions,
   calculateStars
 };
