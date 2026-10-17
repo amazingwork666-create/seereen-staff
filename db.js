@@ -615,6 +615,17 @@ const questions = {
     const stmt = db.prepare('SELECT * FROM questions WHERE is_active = 1 AND is_revealed = 0 AND (expires_at = 0 OR expires_at > ?) ORDER BY created_at DESC LIMIT 1');
     return stmt.get(Date.now());
   },
+  getTodayQuestions(todayStart) {
+    const now = Date.now();
+    const stmt = db.prepare(`
+      SELECT q.*, 
+        (SELECT COUNT(*) FROM question_submissions WHERE question_id = q.id) as submission_count
+      FROM questions q 
+      WHERE q.created_at >= ? OR (q.is_active = 1 AND q.is_revealed = 0 AND (q.expires_at = 0 OR q.expires_at > ?))
+      ORDER BY q.created_at ASC
+    `);
+    return stmt.all(todayStart, now);
+  },
   submitAnswer(questionId, userId, username, fullName, gender, answerText) {
     const stmt = db.prepare(`
       INSERT INTO question_submissions (question_id, user_id, username, full_name, gender, answer_text, submitted_at, is_correct)

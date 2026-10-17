@@ -290,28 +290,49 @@ function requireTeacherOrSuperAdmin(req, res, next) {
   next();
 }
 
-// Question Timer State
-let activeQuestionTimeout = null;
+// Question Timer State (Independent Timers for All Active Questions)
+const questionTimeouts = new Map();
 
 function setupQuestionTimer(q) {
-  if (activeQuestionTimeout) {
-    clearTimeout(activeQuestionTimeout);
-    activeQuestionTimeout = null;
+  if (!q || !q.id || !q.is_active || q.is_revealed) return;
+  if (questionTimeouts.has(q.id)) {
+    clearTimeout(questionTimeouts.get(q.id));
+    questionTimeouts.delete(q.id);
   }
 
-  if (!q || !q.is_active || q.is_revealed) return;
-
-  const msRemaining = q.expires_at - Date.now();
-  if (msRemaining <= 0) {
+  const msRemaining = (q.expires_at || 0) - Date.now();
+  if (msRemaining <= 0 && q.expires_at > 0) {
     triggerQuestionReveal(q.id);
-  } else if (msRemaining <= 2147483647) {
-    activeQuestionTimeout = setTimeout(() => {
+  } else if (msRemaining > 0 && msRemaining <= 2147483647) {
+    const timer = setTimeout(() => {
+      questionTimeouts.delete(q.id);
       triggerQuestionReveal(q.id);
     }, msRemaining);
+    questionTimeouts.set(q.id, timer);
   }
 }
 
+function clearQuestionTimer(qId) {
+  if (qId && questionTimeouts.has(qId)) {
+    clearTimeout(questionTimeouts.get(qId));
+    questionTimeouts.delete(qId);
+  }
+}
+
+function getTodayStartTimestamp() {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Baghdad' });
+    const iraqDateStr = formatter.format(new Date());
+    const start = Date.parse(`${iraqDateStr}T00:00:00+03:00`);
+    if (!isNaN(start)) return start;
+  } catch (e) {}
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 function triggerQuestionReveal(questionId) {
+  clearQuestionTimer(questionId);
   const q = questions.findById(questionId);
   if (!q || q.is_revealed) return;
 
@@ -377,23 +398,27 @@ function triggerQuestionReveal(questionId) {
   });
 }
 
-// Periodic check every 5 seconds to ensure any scheduled question reveals immediately when deadline expires
+// Periodic check every 3 seconds to ensure any scheduled question reveals immediately when deadline expires
 setInterval(() => {
   try {
-    const currentActive = questions.getActive();
-    if (currentActive && !currentActive.is_revealed && currentActive.expires_at && Date.now() >= currentActive.expires_at) {
-      triggerQuestionReveal(currentActive.id);
+    const expiredQuestions = db.prepare('SELECT id FROM questions WHERE is_active = 1 AND is_revealed = 0 AND expires_at > 0 AND expires_at <= ?').all(Date.now());
+    for (const q of expiredQuestions) {
+      triggerQuestionReveal(q.id);
     }
   } catch (err) {
     console.error('Error in question timer interval:', err);
   }
-}, 5000);
+}, 3000);
 
-// On startup: check if active question exists and setup timer
+// On startup: check if active questions exist and setup timers
 setTimeout(() => {
-  const currentActive = questions.getActive();
-  if (currentActive && !currentActive.is_revealed) {
-    setupQuestionTimer(currentActive);
+  try {
+    const allActive = db.prepare('SELECT * FROM questions WHERE is_active = 1 AND is_revealed = 0').all();
+    for (const q of allActive) {
+      setupQuestionTimer(q);
+    }
+  } catch (err) {
+    console.error('Error on startup question timer setup:', err);
   }
 }, 1000);
 
@@ -1055,25 +1080,30 @@ app.post('/api/notifications/test', authMiddleware, async (req, res) => {
 
 // --- TIMED QUESTIONS & SECRET SUBMISSIONS ---
 
-// 12. Get Active Question
+// 12. Get Active Question and Today's Questions
 app.get('/api/chat/active-question', authMiddleware, (req, res) => {
-  const activeQ = questions.getActive();
-  if (!activeQ) return res.json({ question: null });
+  const todayStart = getTodayStartTimestamp();
+  const todayQuestions = questions.getTodayQuestions(todayStart);
 
-  // Get total submission count
-  const subs = questions.getSubmissions(activeQ.id);
-  let mySubmission = null;
-  if (req.user.role === 'student') {
-    mySubmission = questions.getStudentSubmission(activeQ.id, req.user.id);
-  }
-
-  res.json({
-    question: {
-      ...activeQ,
-      submission_count: subs.length,
+  const mappedQuestions = todayQuestions.map(q => {
+    let mySubmission = null;
+    if (req.user.role === 'student') {
+      mySubmission = questions.getStudentSubmission(q.id, req.user.id);
+    }
+    return {
+      ...q,
       my_submission: mySubmission ? mySubmission.answer_text : null,
       my_submitted_at: mySubmission ? mySubmission.submitted_at : null
-    }
+    };
+  });
+
+  const activeQ = mappedQuestions.slice().reverse().find(q => q.is_active && !q.is_revealed && (q.expires_at === 0 || q.expires_at > Date.now())) 
+    || mappedQuestions[mappedQuestions.length - 1] 
+    || null;
+
+  res.json({
+    question: activeQ,
+    today_questions: mappedQuestions
   });
 });
 
@@ -1084,11 +1114,7 @@ app.post('/api/chat/question', authMiddleware, requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'تکایە دەقی پرسیار بنووسە' });
   }
 
-  const currentActive = questions.getActive();
-  if (currentActive) {
-    questions.closeQuestion(currentActive.id);
-    if (activeQuestionTimeout) clearTimeout(activeQuestionTimeout);
-  }
+  // NOTE: We do NOT close previous questions so all questions of the day stay pinned/tagged at the top!
 
   let finalExpiresAt = null;
   let finalDurationMinutes = Math.max(1, parseInt(duration_minutes) || 5);
@@ -1210,10 +1236,7 @@ app.post('/api/chat/question/reveal', authMiddleware, requireAdmin, (req, res) =
   const { question_id } = req.body;
   if (!question_id) return res.status(400).json({ error: 'ناسنامەی پرسیار دیارینەکراوە' });
 
-  if (activeQuestionTimeout) {
-    clearTimeout(activeQuestionTimeout);
-    activeQuestionTimeout = null;
-  }
+  clearQuestionTimer(parseInt(question_id));
 
   triggerQuestionReveal(question_id);
   res.json({ success: true, message: 'وەڵامەکان بەیەکەوە لەناو گروپ بڵاوکرانەوە' });
@@ -1370,10 +1393,7 @@ app.post('/api/chat/close-question', authMiddleware, requireTeacherOrSuperAdmin,
   const { question_id } = req.body;
   if (!question_id) return res.status(400).json({ error: 'ناسنامەی پرسیار دیارینەکراوە' });
 
-  if (activeQuestionTimeout) {
-    clearTimeout(activeQuestionTimeout);
-    activeQuestionTimeout = null;
-  }
+  clearQuestionTimer(parseInt(question_id));
 
   questions.closeQuestion(question_id);
   io.emit('question_closed', { question_id });
@@ -1389,13 +1409,7 @@ app.post('/api/chat/question/cancel', authMiddleware, requireTeacherOrSuperAdmin
   const msgId = message_id ? parseInt(message_id) : null;
 
   if (qId) {
-    if (activeQuestionTimeout) {
-      const activeQ = questions.getActive();
-      if (activeQ && activeQ.id === qId) {
-        clearTimeout(activeQuestionTimeout);
-        activeQuestionTimeout = null;
-      }
-    }
+    clearQuestionTimer(qId);
     // Delete question and submissions from db
     questions.delete(qId);
   }

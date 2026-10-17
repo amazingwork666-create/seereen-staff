@@ -1304,49 +1304,45 @@ function initSocket() {
   });
 
   socket.on('new_question', (data) => {
-    activeQuestion = data.question;
-    renderActiveQuestionSticky(data.question);
     playSound('question');
     triggerStarCelebration();
+    loadActiveQuestion();
     sendQuestionNotification(data.question);
   });
 
   // Secret submission count updated in real time
   socket.on('submission_count_updated', (data) => {
-    if (activeQuestion && activeQuestion.id === data.question_id) {
-      activeQuestion.submission_count = data.submission_count;
-      document.getElementById('stickySubmissionCountBadge').innerText = `${data.submission_count} وەڵام تۆمارکراوە`;
+    if (data && data.question_id) {
+      if (todayQuestionsList) {
+        const found = todayQuestionsList.find(q => q.id === data.question_id);
+        if (found) found.submission_count = data.submission_count;
+      }
+      if (activeQuestion && activeQuestion.id === data.question_id) {
+        activeQuestion.submission_count = data.submission_count;
+        const badge = document.getElementById('modalStickySubmissionCountBadge');
+        if (badge) badge.innerText = `${data.submission_count} وەڵام تۆمارکراوە`;
+      }
     }
   });
 
   // Simultaneous reveal of all answers!
   socket.on('question_revealed', (data) => {
-    if (activeQuestion && activeQuestion.id === data.question_id) {
-      activeQuestion = null;
-      stopQuestionCountdown();
-      renderActiveQuestionSticky(null);
-      closeActiveQuestionModal();
-    }
     playSound('question');
     triggerStarCelebration();
+    loadActiveQuestion();
+    loadMessages();
   });
 
   socket.on('question_closed', (data) => {
-    if (activeQuestion && (!data || !data.question_id || activeQuestion.id === data.question_id)) {
-      activeQuestion = null;
-      stopQuestionCountdown();
-      renderActiveQuestionSticky(null);
-      closeActiveQuestionModal();
-    }
+    loadActiveQuestion();
   });
 
   socket.on('question_cancelled', (data) => {
-    if (activeQuestion && (!data || !data.question_id || activeQuestion.id === data.question_id)) {
+    if (activeQuestion && data && activeQuestion.id === data.question_id) {
       activeQuestion = null;
-      stopQuestionCountdown();
-      renderActiveQuestionSticky(null);
       closeActiveQuestionModal();
     }
+    loadActiveQuestion();
   });
 
   socket.on('question_updated', (data) => {
@@ -2484,16 +2480,42 @@ function closeImageZoom() {
   document.getElementById('imageZoomModal').classList.add('hidden');
 }
 
-// --- ACTIVE TIMED QUESTION BANNER & SECRET SUBMISSION ---
+// --- ACTIVE TIMED QUESTIONS BANNER (TODAY'S QUESTIONS) & SECRET SUBMISSION ---
+let todayQuestionsList = [];
+let pinnedQuestionsCountdownTimer = null;
+
+function formatQuestionPublishTime(timestamp) {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
+}
+
 async function loadActiveQuestion() {
   try {
     const res = await fetch('/api/chat/active-question', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
-    activeQuestion = data.question;
-    renderActiveQuestionSticky(activeQuestion);
-  } catch (err) {}
+    todayQuestionsList = Array.isArray(data.today_questions) ? data.today_questions : (data.question ? [data.question] : []);
+
+    // Set or preserve activeQuestion
+    if (activeQuestion && todayQuestionsList.some(q => q.id === activeQuestion.id)) {
+      activeQuestion = todayQuestionsList.find(q => q.id === activeQuestion.id);
+    } else {
+      activeQuestion = todayQuestionsList.slice().reverse().find(q => q.is_active && !q.is_revealed && (q.expires_at === 0 || q.expires_at > Date.now()))
+        || todayQuestionsList[todayQuestionsList.length - 1]
+        || null;
+    }
+
+    renderPinnedQuestionsBar(todayQuestionsList, activeQuestion);
+
+    // If activeQuestionModal is currently open, refresh its content
+    const modal = document.getElementById('activeQuestionModal');
+    if (modal && !modal.classList.contains('hidden') && activeQuestion) {
+      populateActiveQuestionModal(activeQuestion);
+    }
+  } catch (err) {
+    console.warn('loadActiveQuestion error:', err);
+  }
 }
 
 function formatRemainingTime(remainingMs) {
@@ -2513,8 +2535,18 @@ function formatRemainingTime(remainingMs) {
   }
 }
 
-function openActiveQuestionModal() {
+function openActiveQuestionModal(questionId = null) {
+  if (questionId) {
+    const found = todayQuestionsList.find(q => q.id === questionId);
+    if (found) activeQuestion = found;
+  }
+  if (!activeQuestion && todayQuestionsList.length > 0) {
+    activeQuestion = todayQuestionsList[todayQuestionsList.length - 1];
+  }
   if (!activeQuestion) return;
+
+  populateActiveQuestionModal(activeQuestion);
+
   const modal = document.getElementById('activeQuestionModal');
   if (modal) modal.classList.remove('hidden');
 
@@ -2526,102 +2558,46 @@ function openActiveQuestionModal() {
   }
 }
 
-function closeActiveQuestionModal() {
-  const modal = document.getElementById('activeQuestionModal');
-  if (modal) modal.classList.add('hidden');
-}
+function populateActiveQuestionModal(q) {
+  if (!q) return;
 
-function minimizeActiveQuestionToChat() {
-  const input = document.getElementById('modalStickySecretAnswerInput');
-  if (input && activeQuestion) {
-    if (input.value && input.value.trim()) {
-      localStorage.setItem('draft_ans_' + activeQuestion.id, input.value);
-    }
-  }
-  closeActiveQuestionModal();
-
-  // Scroll chat so user can see recent messages
-  const container = document.getElementById('chatMessagesContainer') || document.getElementById('messages');
-  if (container) {
-    container.scrollTop = container.scrollHeight;
-  }
-  
-  if (typeof showToast === 'function') {
-    showToast('نووسینەکەت پارێزراوە، دەتوانیت چات ببینیت و بە دەستنان لە هێمای سەرەوە بگەڕێیتەوە ✨', 'info');
-  }
-}
-
-function renderActiveQuestionSticky(q) {
-  stopQuestionCountdown();
-
-  const sticky = document.getElementById('activeQuestionSticky');
-  const previewText = document.getElementById('stickyQuestionPreviewText');
-  const countdownEl = document.getElementById('stickyCountdownTime');
-  const modalCountdownEl = document.getElementById('modalStickyCountdownTime');
-  const stickyStudentTag = document.getElementById('stickyStudentTag');
-  const stickyAdminTag = document.getElementById('stickyAdminTag');
-
-  // Modal elements
+  const modalTitle = document.getElementById('modalStickyQuestionTitle');
   const modalText = document.getElementById('modalStickyQuestionText');
   const modalAdmin = document.getElementById('modalStickyQuestionAdmin');
+  const modalPublishTime = document.getElementById('modalStickyPublishTime');
   const modalSubCount = document.getElementById('modalStickySubmissionCountBadge');
+  const modalCountdownEl = document.getElementById('modalStickyCountdownTime');
   const modalStudentArea = document.getElementById('modalStickyStudentInputArea');
   const modalSubmittedNotice = document.getElementById('modalStickySubmittedNotice');
   const modalSubmittedText = document.getElementById('modalStickySubmittedText');
   const modalGuestNotice = document.getElementById('modalStickyGuestNotice');
   const modalAdminActions = document.getElementById('modalStickyAdminActions');
 
-  if (!q || q.is_revealed || (q.expires_at && q.expires_at <= Date.now())) {
-    if (sticky) sticky.classList.add('hidden');
-    closeActiveQuestionModal();
-    return;
-  }
-
-  // Update Compact Banner Preview
-  if (previewText) previewText.innerText = q.question_text || 'پرسیاری نوێ';
-  if (sticky) sticky.classList.remove('hidden');
-
-  // Update Modal Content
-  if (modalText) modalText.innerText = q.question_text;
+  if (modalTitle) modalTitle.innerText = `❓ پرسیاری ژمارە #${q.question_number || 1}`;
+  if (modalText) modalText.innerText = q.question_text || '';
   if (modalAdmin) modalAdmin.innerText = `لەلایەن: ${q.admin_name || 'مامۆستا / ئەدمین'}`;
+  if (modalPublishTime) {
+    const pubTime = formatQuestionPublishTime(q.created_at);
+    modalPublishTime.innerHTML = `<i class="fa-regular fa-clock text-[10px] text-amber-400"></i><span>کاتی بڵاوبوونەوە: ${pubTime}</span>`;
+  }
   if (modalSubCount) modalSubCount.innerText = `${q.submission_count || 0} وەڵام تۆمارکراوە`;
+
+  if (modalCountdownEl) {
+    if (q.is_revealed) {
+      modalCountdownEl.innerText = 'ئاشکراکرا 📖';
+    } else if (q.expires_at) {
+      const rem = q.expires_at - Date.now();
+      modalCountdownEl.innerText = rem > 0 ? formatRemainingTime(rem) : 'بەسەرچوو 🔒';
+    } else {
+      modalCountdownEl.innerText = 'بێ سنوور';
+    }
+  }
 
   const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
   const isGuest = currentUser && currentUser.role === 'guest';
   const cachedAns = localStorage.getItem('cached_ans_' + q.id);
   const existingSubmission = q.my_submission || cachedAns;
 
-  // Banner Tags
-  if (isStaff) {
-    if (stickyAdminTag) stickyAdminTag.classList.remove('hidden');
-    if (stickyStudentTag) stickyStudentTag.classList.add('hidden');
-  } else {
-    if (stickyAdminTag) stickyAdminTag.classList.add('hidden');
-    if (stickyStudentTag) {
-      stickyStudentTag.classList.remove('hidden');
-      if (existingSubmission) {
-        stickyStudentTag.innerHTML = `
-          <button type="button" class="px-2.5 py-1 bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-black rounded-lg flex items-center gap-1 shadow-sm">
-            <i class="fa-solid fa-circle-check text-emerald-400"></i>
-            <span>وەڵامت دراوەتەوە ✅</span>
-          </button>
-        `;
-      } else if (isGuest) {
-        stickyStudentTag.innerHTML = `
-          <span class="px-2 py-1 bg-slate-800 text-slate-400 text-xs font-bold rounded-lg border border-slate-700">میوان 👁️</span>
-        `;
-      } else {
-        stickyStudentTag.innerHTML = `
-          <button type="button" class="px-2.5 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 text-xs font-black rounded-lg shadow flex items-center gap-1 active:scale-95 animate-pulse">
-            <i class="fa-solid fa-pen-fancy text-[10px]"></i>
-            <span>وەڵامدانەوە ✍️</span>
-          </button>
-        `;
-      }
-    }
-  }
-
-  // Modal Sections
   if (isStaff) {
     if (modalAdminActions) modalAdminActions.classList.remove('hidden');
     if (modalStudentArea) modalStudentArea.classList.add('hidden');
@@ -2656,32 +2632,198 @@ function renderActiveQuestionSticky(q) {
       if (submitBtnText) submitBtnText.innerText = 'ناردن و جێگیرکردنی وەڵام';
     }
   }
+}
 
-  // Handle countdown timer supporting days, hours, mins, secs
-  if (q.expires_at && !q.is_revealed) {
-    function updateTimer() {
+function closeActiveQuestionModal() {
+  const modal = document.getElementById('activeQuestionModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function minimizeActiveQuestionToChat() {
+  const input = document.getElementById('modalStickySecretAnswerInput');
+  if (input && activeQuestion) {
+    if (input.value && input.value.trim()) {
+      localStorage.setItem('draft_ans_' + activeQuestion.id, input.value);
+    }
+  }
+  closeActiveQuestionModal();
+
+  const container = document.getElementById('messagesContainer') || document.getElementById('messages');
+  if (container) {
+    container.scrollTop = container.scrollHeight;
+  }
+  
+  if (typeof showToast === 'function') {
+    showToast('نووسینەکەت پارێزراوە، دەتوانیت چات ببینیت و بە دەستنان لە هێمای سەرەوە بگەڕێیتەوە ✨', 'info');
+  }
+}
+
+function renderPinnedQuestionsBar(questionsList, currentActive) {
+  stopQuestionCountdown();
+
+  const sticky = document.getElementById('activeQuestionSticky');
+  const container = document.getElementById('pinnedQuestionsList');
+
+  if (!questionsList || questionsList.length === 0) {
+    if (sticky) sticky.classList.add('hidden');
+    if (container) container.innerHTML = '';
+    return;
+  }
+
+  if (sticky) sticky.classList.remove('hidden');
+  if (!container) return;
+
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  const isGuest = currentUser && currentUser.role === 'guest';
+
+  let html = '';
+
+  // Label when multiple questions exist
+  if (questionsList.length > 1) {
+    html += `
+      <div class="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-950/70 border border-slate-800 text-[10px] font-black text-amber-300 select-none">
+        <i class="fa-solid fa-thumbtack text-amber-400 text-[9px]"></i>
+        <span>پرسیارەکانی ئەمڕۆ (${questionsList.length}):</span>
+      </div>
+    `;
+  }
+
+  questionsList.forEach((q, idx) => {
+    const isSelected = currentActive && currentActive.id === q.id;
+    const isActiveNow = q.is_active && !q.is_revealed && (!q.expires_at || q.expires_at > Date.now());
+    const publishTime = formatQuestionPublishTime(q.created_at);
+    const cachedAns = localStorage.getItem('cached_ans_' + q.id);
+    const existingSubmission = q.my_submission || cachedAns;
+    const qNum = q.question_number || (idx + 1);
+
+    // Live countdown or status
+    let statusHtml = '';
+    if (isActiveNow && q.expires_at) {
       const remainingMs = q.expires_at - Date.now();
-      if (remainingMs <= 0) {
-        stopQuestionCountdown();
-        if (sticky) sticky.classList.add('hidden');
-        closeActiveQuestionModal();
-        return;
-      }
       const timeStr = formatRemainingTime(remainingMs);
-      if (countdownEl) countdownEl.innerText = timeStr;
-      if (modalCountdownEl) modalCountdownEl.innerText = timeStr;
+      statusHtml = `
+        <span class="pinned-timer-pill px-1.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-mono font-black flex items-center gap-1 shrink-0" data-expires-at="${q.expires_at}" data-qid="${q.id}">
+          <i class="fa-solid fa-stopwatch animate-pulse text-[9px]"></i>
+          <span class="timer-text">${timeStr}</span>
+        </span>
+      `;
+    } else if (q.is_revealed) {
+      statusHtml = `
+        <span class="px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold shrink-0">
+          ئاشکراکرا 📖
+        </span>
+      `;
+    } else if (q.expires_at && q.expires_at <= Date.now()) {
+      statusHtml = `
+        <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700 text-[10px] font-bold shrink-0">
+          تەواوبوو 🔒
+        </span>
+      `;
     }
 
-    updateTimer();
-    questionCountdownTimer = setInterval(updateTimer, 1000);
+    // Action Pill
+    let actionBadge = '';
+    if (isStaff) {
+      actionBadge = `
+        <button type="button" onclick="event.stopPropagation(); deleteQuestionDirect(${q.id}, null)" class="p-1 hover:bg-rose-600/40 text-rose-400 hover:text-white rounded border border-rose-500/30 text-[10px] transition shrink-0" title="سڕینەوەی پرسیار #${qNum}">
+          <i class="fa-solid fa-trash-can text-[9px]"></i>
+        </button>
+      `;
+    } else if (isGuest) {
+      actionBadge = `<span class="text-[10px] text-slate-400 shrink-0">میوان</span>`;
+    } else {
+      if (existingSubmission) {
+        actionBadge = `
+          <span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-black shrink-0 flex items-center gap-0.5">
+            <i class="fa-solid fa-check text-[9px]"></i> وەڵامدراوە
+          </span>
+        `;
+      } else if (isActiveNow) {
+        actionBadge = `
+          <span class="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black rounded text-[10px] shadow shrink-0 animate-pulse flex items-center gap-1">
+            <i class="fa-solid fa-pen-fancy text-[8px]"></i> وەڵامدانەوە
+          </span>
+        `;
+      }
+    }
+
+    const qText = (q.question_text || 'دەقی پرسیار').trim();
+
+    html += `
+      <div onclick="openActiveQuestionModal(${q.id})" class="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-xl border transition-all cursor-pointer shadow-sm active:scale-98 ${
+        isSelected 
+          ? 'bg-slate-900 border-amber-500/80 shadow-amber-500/10 ring-1 ring-amber-500/50' 
+          : 'bg-slate-900/85 hover:bg-slate-850 border-slate-700/80 hover:border-amber-500/40'
+      }" title="کلیک بکە بۆ کردنەوەی پرسیار #${qNum}">
+        <!-- Question Number -->
+        <span class="w-5 h-5 rounded-md ${isActiveNow ? 'bg-amber-500 text-slate-950 shadow-sm shadow-amber-500/30' : 'bg-slate-800 text-amber-300'} flex items-center justify-center text-[10px] font-black shrink-0">
+          #${qNum}
+        </span>
+
+        <!-- Publication Time Badge (Always Visible!) -->
+        <span class="text-[10px] text-amber-300 font-mono flex items-center gap-1 bg-slate-950/80 px-1.5 py-0.5 rounded border border-slate-800 shrink-0 font-bold" title="کاتی بڵاوبوونەوەی پرسیار">
+          <i class="fa-regular fa-clock text-[9px] text-amber-400"></i>
+          <span>${publishTime}</span>
+        </span>
+
+        <!-- Status / Timer Badge -->
+        ${statusHtml}
+
+        <!-- Truncated snippet -->
+        <span class="text-xs text-slate-200 font-medium truncate max-w-[110px] sm:max-w-[200px] block" title="${escapeHtml(qText)}">
+          ${escapeHtml(qText)}
+        </span>
+
+        <!-- Action or delete -->
+        ${actionBadge}
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+
+  // Running 1s countdown ticker
+  pinnedQuestionsCountdownTimer = setInterval(() => {
+    const pills = container.querySelectorAll('.pinned-timer-pill');
+    pills.forEach(pill => {
+      const expiresAt = Number(pill.getAttribute('data-expires-at'));
+      if (expiresAt) {
+        const remaining = expiresAt - Date.now();
+        if (remaining <= 0) {
+          pill.outerHTML = '<span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700 text-[10px] font-bold shrink-0">تەواوبوو 🔒</span>';
+        } else {
+          const textSpan = pill.querySelector('.timer-text');
+          if (textSpan) textSpan.innerText = formatRemainingTime(remaining);
+        }
+      }
+    });
+
+    // Also update modal countdown if modal is currently open
+    const modal = document.getElementById('activeQuestionModal');
+    if (modal && !modal.classList.contains('hidden') && activeQuestion && activeQuestion.expires_at) {
+      const modalCountdown = document.getElementById('modalStickyCountdownTime');
+      if (modalCountdown) {
+        const rem = activeQuestion.expires_at - Date.now();
+        modalCountdown.innerText = rem > 0 ? formatRemainingTime(rem) : 'بەسەرچوو 🔒';
+      }
+    }
+  }, 1000);
+}
+
+function renderActiveQuestionSticky(q) {
+  if (!q) {
+    renderPinnedQuestionsBar([], null);
   } else {
-    if (countdownEl) countdownEl.innerText = 'بەسەرچوو';
-    if (modalCountdownEl) modalCountdownEl.innerText = 'بەسەرچوو';
+    renderPinnedQuestionsBar([q], q);
   }
 }
 
 function stopQuestionCountdown() {
-  if (questionCountdownTimer) {
+  if (pinnedQuestionsCountdownTimer) {
+    clearInterval(pinnedQuestionsCountdownTimer);
+    pinnedQuestionsCountdownTimer = null;
+  }
+  if (typeof questionCountdownTimer !== 'undefined' && questionCountdownTimer) {
     clearInterval(questionCountdownTimer);
     questionCountdownTimer = null;
   }
@@ -2757,14 +2899,17 @@ async function submitSecretAnswerFromModal() {
     const data = await res.json();
     if (res.ok) {
       localStorage.removeItem('draft_ans_' + activeQuestion.id);
-      renderActiveQuestionSticky(activeQuestion);
+      localStorage.setItem('cached_ans_' + activeQuestion.id, answer);
+      activeQuestion.my_submission = answer;
+      populateActiveQuestionModal(activeQuestion);
+      loadActiveQuestion();
       triggerStarCelebration();
     } else {
       alert(data.error || 'هەڵەیەک ڕوویدا لە ناردنی وەڵام');
     }
   } catch (err) {
     // Offline submission cached
-    renderActiveQuestionSticky(activeQuestion);
+    loadActiveQuestion();
   }
 }
 
@@ -2793,10 +2938,9 @@ async function deleteQuestionDirect(questionId, messageId) {
     if (res.ok) {
       if (activeQuestion && (activeQuestion.id == questionId || activeQuestion.message_id == messageId || !questionId)) {
         activeQuestion = null;
-        stopQuestionCountdown();
-        renderActiveQuestionSticky(null);
         closeActiveQuestionModal();
       }
+      loadActiveQuestion();
       if (messageId) {
         const msgElem = document.getElementById(`msg-${messageId}`);
         if (msgElem) msgElem.remove();
@@ -3058,10 +3202,9 @@ async function revealActiveQuestionNow() {
       body: JSON.stringify({ question_id: activeQuestion.id })
     });
     if (res.ok) {
-      activeQuestion.is_revealed = 1;
-      stopQuestionCountdown();
-      renderActiveQuestionSticky(null);
+      if (activeQuestion) activeQuestion.is_revealed = 1;
       closeActiveQuestionModal();
+      loadActiveQuestion();
     }
   } catch (e) {
     alert('هەڵەیەک ڕوویدا');
@@ -3180,8 +3323,8 @@ async function closeCurrentQuestion() {
       body: JSON.stringify({ question_id: activeQuestion.id })
     });
     if (res.ok) {
-      activeQuestion = null;
-      renderActiveQuestionSticky(null);
+      closeActiveQuestionModal();
+      loadActiveQuestion();
     }
   } catch (err) {}
 }
