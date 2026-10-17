@@ -12,7 +12,7 @@ try { archiver = require('archiver'); } catch (e) {}
 const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, calculateStars } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
-const PORT = process.env.PORT || 80;
+const PORT = process.env.PORT || 4000;
 
 // Initialize Database
 initDb();
