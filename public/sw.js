@@ -1,4 +1,4 @@
-const CACHE_NAME = 'seereen-staff-v1';
+const CACHE_NAME = 'seereen-staff-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/images/logo.jpg',
@@ -59,18 +59,60 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Notification click event: Focus open window or open new window
+// Push Notification Event: Receive background push notifications when screen is locked or app is closed
+self.addEventListener('push', (event) => {
+  let data = {
+    title: 'ستافی سیرین 🌸',
+    body: 'ئاگادارییەکی نوێ هەیە',
+    icon: '/images/logo.jpg',
+    badge: '/images/logo.jpg',
+    data: { url: '/' }
+  };
+
+  if (event.data) {
+    try {
+      data = { ...data, ...event.data.json() };
+    } catch (e) {
+      data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon || '/images/logo.jpg',
+    badge: data.badge || '/images/logo.jpg',
+    image: data.image || null,
+    vibrate: [300, 100, 400, 100, 300],
+    data: data.data || { url: '/' },
+    tag: data.tag || ('seereen-' + Date.now()),
+    renotify: true,
+    requireInteraction: false
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// Notification click event: Focus open window or open new window to specific page
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) 
+    ? event.notification.data.url 
+    : '/';
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if (client.url && 'focus' in client) {
+          if ('navigate' in client && targetUrl !== '/') {
+            client.navigate(targetUrl).catch(() => {});
+          }
           return client.focus();
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(targetUrl);
       }
     })
   );

@@ -203,6 +203,16 @@ function initDb() {
       reviewed_at INTEGER,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      endpoint TEXT UNIQUE NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      user_agent TEXT,
+      created_at INTEGER NOT NULL
+    );
   `);
 
   try {
@@ -1154,6 +1164,57 @@ const profileChangeRequests = {
   }
 };
 
+const pushSubscriptions = {
+  save({ userId, endpoint, p256dh, auth, userAgent }) {
+    try {
+      const existing = db.prepare('SELECT id FROM push_subscriptions WHERE endpoint = ?').get(endpoint);
+      if (existing) {
+        db.prepare(`
+          UPDATE push_subscriptions 
+          SET user_id = ?, p256dh = ?, auth = ?, user_agent = ?, created_at = ?
+          WHERE endpoint = ?
+        `).run(userId || null, p256dh, auth, userAgent || '', Date.now(), endpoint);
+        return existing.id;
+      } else {
+        const info = db.prepare(`
+          INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, user_agent, created_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(userId || null, endpoint, p256dh, auth, userAgent || '', Date.now());
+        return info.lastInsertRowid;
+      }
+    } catch (err) {
+      console.error('Error saving push subscription:', err);
+      return null;
+    }
+  },
+  remove(endpoint) {
+    try {
+      db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint);
+    } catch (err) {
+      console.error('Error removing push subscription:', err);
+    }
+  },
+  getAll(excludeUserId = null) {
+    try {
+      if (excludeUserId) {
+        return db.prepare('SELECT * FROM push_subscriptions WHERE user_id IS NULL OR user_id != ?').all(excludeUserId);
+      }
+      return db.prepare('SELECT * FROM push_subscriptions').all();
+    } catch (err) {
+      console.error('Error getting push subscriptions:', err);
+      return [];
+    }
+  },
+  getByUserId(userId) {
+    try {
+      return db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(userId);
+    } catch (err) {
+      console.error('Error getting user push subscriptions:', err);
+      return [];
+    }
+  }
+};
+
 module.exports = {
   db,
   initDb,
@@ -1168,5 +1229,6 @@ module.exports = {
   privateMessages,
   messageReactions,
   profileChangeRequests,
+  pushSubscriptions,
   calculateStars
 };

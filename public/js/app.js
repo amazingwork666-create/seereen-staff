@@ -263,8 +263,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  handleNotificationUrlParams();
+
   if (token) {
     await fetchCurrentUser();
+    initPushNotifications();
   } else {
     showAuthScreen();
   }
@@ -284,7 +287,7 @@ function showMainApp() {
   loadPodiumWidget();
   loadAllMembers();
   checkMuteState();
-  requestNotificationPermission();
+  initPushNotifications();
   updatePrivateUnreadBadge();
   initQuranSurahsList();
 
@@ -831,12 +834,370 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// --- BROWSER / ANDROID SYSTEM NOTIFICATIONS ---
+// --- BROWSER / ANDROID SYSTEM NOTIFICATIONS & WEB PUSH ---
+let isPushSubscribed = false;
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+function isPushNotificationSupported() {
+  return ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+}
+
+async function updatePushNotificationUI() {
+  if (!isPushNotificationSupported()) {
+    const btn = document.getElementById('pushNotificationBtn');
+    if (btn) btn.classList.add('opacity-50');
+    const drawerBadge = document.getElementById('drawerNotificationStatusBadge');
+    if (drawerBadge) {
+      drawerBadge.innerText = 'پشتگیری ناکرێت';
+      drawerBadge.className = 'text-[10px] bg-rose-500/20 text-rose-300 font-bold px-2 py-0.5 rounded-md';
+    }
+    const profBadge = document.getElementById('profNotificationStatusBadge');
+    if (profBadge) {
+      profBadge.innerText = 'پشتگیری ناکرێت';
+      profBadge.className = 'text-[10px] bg-rose-500/20 text-rose-300 font-bold px-2 py-0.5 rounded-md';
+    }
+    return;
+  }
+
+  const permission = Notification.permission;
+  let active = false;
+
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    active = !!sub && permission === 'granted';
+    isPushSubscribed = active;
+  } catch (err) {
+    // ignore
+  }
+
+  // 1. Header Button
+  const headerIcon = document.getElementById('pushNotificationIcon');
+  const headerText = document.getElementById('pushNotificationText');
+  const headerBtn = document.getElementById('pushNotificationBtn');
+  if (headerBtn) {
+    if (active) {
+      headerBtn.classList.remove('border-slate-800', 'text-slate-400');
+      headerBtn.classList.add('border-amber-500/50', 'text-amber-400', 'bg-amber-500/10');
+      if (headerIcon) headerIcon.className = 'fa-solid fa-bell text-amber-400 text-sm';
+      if (headerText) headerText.innerText = 'ئاگاداری (چالاکە)';
+    } else {
+      headerBtn.classList.remove('border-amber-500/50', 'text-amber-400', 'bg-amber-500/10');
+      headerBtn.classList.add('border-slate-800', 'text-slate-400');
+      if (headerIcon) headerIcon.className = permission === 'denied' ? 'fa-solid fa-bell-slash text-rose-400 text-sm' : 'fa-regular fa-bell text-slate-400 text-sm';
+      if (headerText) headerText.innerText = permission === 'denied' ? 'ئاگاداری (بلۆک)' : 'ئاگاداری';
+    }
+  }
+
+  // 2. Drawer Items
+  const drawerIcon = document.getElementById('drawerNotificationIcon');
+  const drawerBadge = document.getElementById('drawerNotificationStatusBadge');
+  if (drawerBadge) {
+    if (active) {
+      drawerBadge.innerText = 'چالاکە 🔔';
+      drawerBadge.className = 'text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-500/30';
+      if (drawerIcon) drawerIcon.className = 'fa-solid fa-bell text-emerald-400 text-sm w-5 text-center';
+    } else if (permission === 'denied') {
+      drawerBadge.innerText = 'بلۆککراوە 🚫';
+      drawerBadge.className = 'text-[10px] bg-rose-500/20 text-rose-300 font-bold px-2 py-0.5 rounded-md border border-rose-500/30';
+      if (drawerIcon) drawerIcon.className = 'fa-solid fa-bell-slash text-rose-400 text-sm w-5 text-center';
+    } else {
+      drawerBadge.innerText = 'ناچالاک 🔕';
+      drawerBadge.className = 'text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md';
+      if (drawerIcon) drawerIcon.className = 'fa-solid fa-bell text-slate-400 text-sm w-5 text-center';
+    }
+  }
+
+  // 3. User Profile Modal Items
+  const profBadge = document.getElementById('profNotificationStatusBadge');
+  const profToggleBtn = document.getElementById('profNotificationToggleBtn');
+  const profTestBtn = document.getElementById('profNotificationTestBtn');
+
+  if (profBadge) {
+    if (active) {
+      profBadge.innerText = 'چالاکە 🔔';
+      profBadge.className = 'text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/30';
+      if (profToggleBtn) {
+        profToggleBtn.className = 'flex-1 py-2 px-3 bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white font-bold text-xs rounded-xl border border-rose-500/40 transition flex items-center justify-center gap-1.5 active:scale-95';
+        profToggleBtn.innerHTML = '<i class="fa-solid fa-bell-slash"></i><span>ناچالاککردن</span>';
+      }
+      if (profTestBtn) profTestBtn.classList.remove('hidden');
+    } else if (permission === 'denied') {
+      profBadge.innerText = 'بلۆککراوە لە وێبگەڕ 🚫';
+      profBadge.className = 'text-[10px] bg-rose-500/20 text-rose-300 font-bold px-2.5 py-0.5 rounded-full border border-rose-500/30';
+      if (profToggleBtn) {
+        profToggleBtn.className = 'flex-1 py-2 px-3 bg-slate-700 text-slate-400 font-bold text-xs rounded-xl cursor-not-allowed flex items-center justify-center gap-1.5';
+        profToggleBtn.innerHTML = '<i class="fa-solid fa-ban"></i><span>بلۆککراوە لە Settings</span>';
+      }
+      if (profTestBtn) profTestBtn.classList.add('hidden');
+    } else {
+      profBadge.innerText = 'ناچالاک 🔕';
+      profBadge.className = 'text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2.5 py-0.5 rounded-full border border-amber-500/30';
+      if (profToggleBtn) {
+        profToggleBtn.className = 'flex-1 py-2 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-1.5 active:scale-95';
+        profToggleBtn.innerHTML = '<i class="fa-solid fa-bell"></i><span>چالاککردنی ئاگاداری مۆبایل</span>';
+      }
+      if (profTestBtn) profTestBtn.classList.add('hidden');
+    }
+  }
+
+  // 4. Banner visibility
+  const banner = document.getElementById('notificationPermissionBanner');
+  if (banner) {
+    if (active || permission === 'denied' || sessionStorage.getItem('dismissed_push_banner') === 'true' || !currentUser) {
+      banner.classList.add('hidden');
+    } else if (permission === 'default') {
+      banner.classList.remove('hidden');
+    }
+  }
+}
+
+async function initPushNotifications() {
+  if (!isPushNotificationSupported()) return;
+
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    
+    if (sub && Notification.permission === 'granted' && token) {
+      // Sync with server in background to keep active
+      fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          subscription: sub.toJSON(),
+          userAgent: navigator.userAgent
+        })
+      }).catch(() => {});
+      isPushSubscribed = true;
+    }
+  } catch (err) {
+    console.warn('initPushNotifications error:', err);
+  }
+
+  updatePushNotificationUI();
+}
+
 function requestNotificationPermission() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission().then(perm => {
-      console.log('Notification permission:', perm);
-    }).catch(() => {});
+  initPushNotifications();
+}
+
+async function subscribeToPushNotifications(showFeedback = true) {
+  if (!isPushNotificationSupported()) {
+    if (showFeedback) alert('ببورە! ئەم وێبگەڕە پشتگیری لە سیستەمی ئاگاداری مۆبایل و شاشە (Push Notifications) ناکات.');
+    return false;
+  }
+
+  try {
+    // 1. Request permission
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      if (showFeedback) {
+        if (permission === 'denied') {
+          alert('ئاگادارییەکان لە وێبگەڕەکەتدا بلۆک کراون (Blocked).\nتکایە لە بەشی سێتینگی وێبگەڕ یان مۆبایلەکەت ڕێگەپێدان بدە بە Notifications.');
+        } else {
+          showLiveToastNotification('ڕێگەپێدانی ئاگاداری پەسەند نەکرا!', 'amber');
+        }
+      }
+      updatePushNotificationUI();
+      return false;
+    }
+
+    // 2. Fetch VAPID public key
+    const keyRes = await fetch('/api/notifications/vapid-public-key');
+    if (!keyRes.ok) throw new Error('سێرڤەر کلیلی ئاگاداری نەدۆزییەوە');
+    const { publicKey } = await keyRes.json();
+    if (!publicKey) throw new Error('Public key missing');
+
+    // 3. Register or get subscription
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const appKey = urlBase64ToUint8Array(publicKey);
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: appKey
+      });
+    }
+
+    // 4. Send subscription to server
+    if (token) {
+      const res = await fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          subscription: sub.toJSON(),
+          userAgent: navigator.userAgent
+        })
+      });
+      if (!res.ok) throw new Error('نەتوانرا لە سێرڤەر تۆمار بکرێت');
+    }
+
+    isPushSubscribed = true;
+    updatePushNotificationUI();
+    const banner = document.getElementById('notificationPermissionBanner');
+    if (banner) banner.classList.add('hidden');
+
+    if (showFeedback) {
+      showLiveToastNotification('ئاگادارییەکانی مۆبایل و شاشە بە سەرکەوتوویی چالاک کران! 🔔', 'emerald');
+    }
+    return true;
+  } catch (err) {
+    console.error('Error subscribing to push notifications:', err);
+    if (showFeedback) {
+      alert('نەتوانرا ئاگادارییەکان چالاک بکرێن: ' + (err.message || err));
+    }
+    updatePushNotificationUI();
+    return false;
+  }
+}
+
+async function unsubscribeFromPushNotifications(showFeedback = true) {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      if (token) {
+        await fetch('/api/notifications/unsubscribe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ endpoint: sub.endpoint })
+        }).catch(() => {});
+      }
+      await sub.unsubscribe();
+    }
+    isPushSubscribed = false;
+    updatePushNotificationUI();
+    if (showFeedback) {
+      showLiveToastNotification('ئاگادارییەکانی سەر شاشە ناچالاک کران 🔕', 'slate');
+    }
+    return true;
+  } catch (err) {
+    console.error('Error unsubscribing:', err);
+    return false;
+  }
+}
+
+async function togglePushNotifications() {
+  if (!isPushNotificationSupported()) {
+    alert('ئەم ئامێرە یان وێبگەڕە پشتگیری لە ئاگاداری سیستەم ناکات.');
+    return;
+  }
+
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+
+  if (sub && Notification.permission === 'granted') {
+    if (confirm('ئایا دڵنیایت لە ناچالاککردنی ئاگادارییەکانی سەر شاشە و مۆبایل؟')) {
+      await unsubscribeFromPushNotifications(true);
+    }
+  } else {
+    await subscribeToPushNotifications(true);
+  }
+}
+
+async function testPushNotification() {
+  if (!token) {
+    alert('تکایە سەرەتا بچۆ ژوورەوە بۆ تاقیکردنەوە.');
+    return;
+  }
+  if (!isPushSubscribed && Notification.permission !== 'granted') {
+    const ok = confirm('ئاگادارییەکان لەسەر ئەم ئامێرە هێشتا چالاک نەکراون! ئایا دەتەوێت سەرەتا چالاکیان بکەیت؟');
+    if (ok) {
+      const subSuccess = await subscribeToPushNotifications(true);
+      if (!subSuccess) return;
+    } else {
+      return;
+    }
+  }
+
+  try {
+    showLiveToastNotification('ناردنی ئاگاداری تاقیکاری...', 'indigo');
+    const res = await fetch('/api/notifications/test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showLiveToastNotification('ئاگاداری تاقیکاری نێردرا! سەیری سەر شاشە و دەنگی مۆبایلەکەت بکە 🔔', 'emerald');
+    } else {
+      alert(data.error || 'هەڵەیەک لە ناردنی ئاگاداری تاقیکاری ڕوویدا');
+    }
+  } catch (err) {
+    alert('هەڵە لە پەیوەندی بە سێرڤەر: ' + err.message);
+  }
+}
+
+function dismissNotificationBanner() {
+  const banner = document.getElementById('notificationPermissionBanner');
+  if (banner) banner.classList.add('hidden');
+  sessionStorage.setItem('dismissed_push_banner', 'true');
+}
+
+async function enablePushNotificationsFromBanner() {
+  const success = await subscribeToPushNotifications(true);
+  if (success) {
+    dismissNotificationBanner();
+  }
+}
+
+function handleNotificationUrlParams() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get('action');
+    if (!action) return;
+
+    if (action === 'live') {
+      setTimeout(() => {
+        if (typeof openLiveLessonModal === 'function') {
+          openLiveLessonModal();
+        }
+      }, 700);
+    } else if (action === 'question') {
+      const qId = params.get('id');
+      setTimeout(() => {
+        if (qId) {
+          const el = document.querySelector(`[data-question-id="${qId}"]`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('ring-4', 'ring-amber-500', 'transition-all');
+            setTimeout(() => {
+              el.classList.remove('ring-4', 'ring-amber-500');
+            }, 3000);
+          }
+        }
+      }, 900);
+    }
+
+    // Clean up URL parameters cleanly
+    const cleanUrl = window.location.origin + window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+  } catch (e) {
+    console.warn('handleNotificationUrlParams error:', e);
   }
 }
 
@@ -3453,6 +3814,19 @@ async function openUserProfileModal(userId) {
         reqChangeContainer.classList.remove('hidden');
       } else {
         reqChangeContainer.classList.add('hidden');
+      }
+    }
+
+    // Push Notification Controls (Only shown on user's OWN profile)
+    const notifContainer = document.getElementById('profNotificationContainer');
+    if (notifContainer) {
+      if (isMe) {
+        notifContainer.classList.remove('hidden');
+        if (typeof updatePushNotificationUI === 'function') {
+          updatePushNotificationUI();
+        }
+      } else {
+        notifContainer.classList.add('hidden');
       }
     }
 
@@ -6528,7 +6902,11 @@ let pwaDeferredPrompt = null;
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
+    navigator.serviceWorker.register('/sw.js').then((reg) => {
+      if (typeof initPushNotifications === 'function') {
+        initPushNotifications();
+      }
+    }).catch((err) => {
       console.log('SW registration note:', err);
     });
   });

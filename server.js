@@ -9,13 +9,109 @@ const multer = require('multer');
 const fs = require('fs');
 let archiver;
 try { archiver = require('archiver'); } catch (e) {}
-const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, calculateStars } = require('./db');
+const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 4000;
 
 // Initialize Database
 initDb();
+
+// Web Push Notification Setup (VAPID)
+let webpush;
+try { webpush = require('web-push'); } catch (e) { console.log('web-push load note:', e.message); }
+
+let vapidKeys = null;
+const vapidPath = path.join(__dirname, 'vapid.json');
+if (webpush) {
+  try {
+    if (fs.existsSync(vapidPath)) {
+      vapidKeys = JSON.parse(fs.readFileSync(vapidPath, 'utf8'));
+    } else {
+      vapidKeys = webpush.generateVAPIDKeys();
+      fs.writeFileSync(vapidPath, JSON.stringify(vapidKeys, null, 2), 'utf8');
+    }
+    webpush.setVapidDetails(
+      'mailto:support@seereen.duckdns.org',
+      vapidKeys.publicKey,
+      vapidKeys.privateKey
+    );
+  } catch (err) {
+    console.error('VAPID setup error:', err);
+  }
+}
+
+async function sendPushNotificationToAll(payload, excludeUserId = null) {
+  if (!webpush || !vapidKeys) return;
+  try {
+    const subs = pushSubscriptions.getAll(excludeUserId);
+    if (!subs || subs.length === 0) return;
+
+    const payloadStr = JSON.stringify({
+      title: payload.title || 'ستافی سیرین 🌸',
+      body: payload.body || '',
+      icon: payload.icon || '/images/logo.jpg',
+      badge: payload.badge || '/images/logo.jpg',
+      tag: payload.tag || ('seereen-' + Date.now()),
+      data: payload.data || { url: '/' }
+    });
+
+    const promises = subs.map(sub => {
+      const pushConfig = {
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: sub.p256dh,
+          auth: sub.auth
+        }
+      };
+      return webpush.sendNotification(pushConfig, payloadStr).catch(err => {
+        if (err && (err.statusCode === 404 || err.statusCode === 410)) {
+          pushSubscriptions.remove(sub.endpoint);
+        }
+      });
+    });
+
+    await Promise.allSettled(promises);
+  } catch (err) {
+    console.error('Error broadcasting push notification:', err);
+  }
+}
+
+async function sendPushNotificationToUser(userId, payload) {
+  if (!webpush || !vapidKeys || !userId) return;
+  try {
+    const subs = pushSubscriptions.getByUserId(userId);
+    if (!subs || subs.length === 0) return;
+
+    const payloadStr = JSON.stringify({
+      title: payload.title || 'ستافی سیرین 🌸',
+      body: payload.body || '',
+      icon: payload.icon || '/images/logo.jpg',
+      badge: payload.badge || '/images/logo.jpg',
+      tag: payload.tag || ('seereen-' + Date.now()),
+      data: payload.data || { url: '/' }
+    });
+
+    const promises = subs.map(sub => {
+      const pushConfig = {
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: sub.p256dh,
+          auth: sub.auth
+        }
+      };
+      return webpush.sendNotification(pushConfig, payloadStr).catch(err => {
+        if (err && (err.statusCode === 404 || err.statusCode === 410)) {
+          pushSubscriptions.remove(sub.endpoint);
+        }
+      });
+    });
+
+    await Promise.allSettled(promises);
+  } catch (err) {
+    console.error('Error sending push notification to user:', err);
+  }
+}
 
 // Ensure public/uploads directory exists (safe for Vercel)
 const uploadsDir = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(__dirname, 'public', 'uploads');
@@ -271,6 +367,14 @@ function triggerQuestionReveal(questionId) {
     non_responding_students: nonResponding
   });
   io.emit('question_closed', { question_id: q.id });
+
+  // Web Push Notification: Question answers revealed / published
+  sendPushNotificationToAll({
+    title: `📢 وەڵامی (${q.question_number ? 'پرسیاری ' + q.question_number : 'پرسیار'}) بڵاوکرایەوە!`,
+    body: q.correct_answer ? `وەڵامی ڕاست: ${q.correct_answer.slice(0, 90)}...` : 'وەڵامەکانی قوتابیان لەناو گروپ ئاشکراکران.',
+    tag: 'question-reveal-' + q.id,
+    data: { url: '/' }
+  });
 }
 
 // Periodic check every 5 seconds to ensure any scheduled question reveals immediately when deadline expires
@@ -881,6 +985,74 @@ app.get('/api/chat/student-of-the-month', authMiddleware, (req, res) => {
   }
 });
 
+// --- WEB PUSH NOTIFICATIONS ---
+app.get('/api/notifications/vapid-public-key', (req, res) => {
+  if (!vapidKeys) {
+    return res.status(500).json({ error: 'VAPID keys not configured' });
+  }
+  res.json({ publicKey: vapidKeys.publicKey });
+});
+
+app.post('/api/notifications/subscribe', (req, res) => {
+  try {
+    const { subscription } = req.body;
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      return res.status(400).json({ error: 'Invalid subscription object' });
+    }
+
+    let userId = null;
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+        userId = decoded.id;
+      } catch (e) {}
+    }
+
+    const subId = pushSubscriptions.save({
+      userId,
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+      userAgent: req.headers['user-agent'] || ''
+    });
+
+    res.json({ success: true, id: subId, message: 'ئاگاداری مۆبایل بە سەرکەوتوویی چالاک کرا 🔔' });
+  } catch (err) {
+    console.error('Push subscribe error:', err);
+    res.status(500).json({ error: 'هەڵە لە چالاککردنی ئاگاداری' });
+  }
+});
+
+app.post('/api/notifications/unsubscribe', (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (endpoint) {
+      pushSubscriptions.remove(endpoint);
+    }
+    res.json({ success: true, message: 'ئاگاداری ناچالاک کرا' });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە ناچالاککردن' });
+  }
+});
+
+app.post('/api/notifications/test', authMiddleware, async (req, res) => {
+  try {
+    const payload = {
+      title: 'ستافی سیرین 🌸 (تاقیکردنەوە)',
+      body: `سڵاو ${req.user.full_name}! ئاگادارییەکانی مۆبایل بە سەرکەوتوویی کار دەکەن و دەنگ دەدەن 🔔📱`,
+      icon: '/images/logo.jpg',
+      badge: '/images/logo.jpg',
+      tag: 'test-push-' + Date.now(),
+      data: { url: '/' }
+    };
+    await sendPushNotificationToUser(req.user.id, payload);
+    res.json({ success: true, message: 'ئاگاداری تاقیکاری ڕەوانەی شاشەی مۆبایلەکەت کرا!' });
+  } catch (err) {
+    res.status(500).json({ error: 'نەتوانرا ئاگاداری بنێردرێت' });
+  }
+});
+
 // --- TIMED QUESTIONS & SECRET SUBMISSIONS ---
 
 // 12. Get Active Question
@@ -967,6 +1139,14 @@ app.post('/api/chat/question', authMiddleware, requireAdmin, (req, res) => {
     question: q,
     message: questionMsg
   });
+
+  // Web Push Notification: New Question Created
+  sendPushNotificationToAll({
+    title: `❓ پرسیاری نوێ (${q.question_number ? 'پرسیاری ' + q.question_number : 'پرسیار'}) دانرا!`,
+    body: `${req.user.full_name} پرسیارێکی نوێی دانا: ${q.question_text.slice(0, 80)}...`,
+    tag: 'question-new-' + q.id,
+    data: { url: '/?action=question&id=' + q.id }
+  }, req.user.id);
 
   res.status(201).json({ success: true, question: q, message: questionMsg });
 });
@@ -1114,6 +1294,14 @@ app.post('/api/chat/award-star', authMiddleware, requireTeacherOrSuperAdmin, (re
       user_name: student.full_name,
       is_correct: 1
     });
+
+    // Web Push Notification to the specific student
+    sendPushNotificationToUser(parseInt(user_id), {
+      title: '🌟 پیرۆزە! ئەستێرەت پێبەخشرا',
+      body: `مامۆستا وەڵامەکەتی پەسەند کرد و ئەستێرەی نوێت پێبەخشرا! ⭐`,
+      tag: 'star-awarded-' + Date.now(),
+      data: { url: '/' }
+    });
   }
 
   res.json({ success: true, message: 'ئەستێرە بە سەرکەوتوویی بەخشرا', starInfo, is_correct: 1 });
@@ -1135,6 +1323,14 @@ app.post('/api/chat/mark-wrong', authMiddleware, requireTeacherOrSuperAdmin, (re
       user_id: parseInt(user_id),
       user_name: student.full_name,
       is_correct: -1
+    });
+
+    // Web Push Notification to the specific student
+    sendPushNotificationToUser(parseInt(user_id), {
+      title: 'ℹ️ هەڵسەنگاندنی وەڵامی پرسیار',
+      body: `مامۆستا وەڵامەکەی هەڵسەنگاندیت لەسەر پرسیارەکە.`,
+      tag: 'eval-marked-' + Date.now(),
+      data: { url: '/' }
     });
   }
 
@@ -2216,6 +2412,14 @@ io.on('connection', (socket) => {
       title: liveLessonState.title,
       startedBy: user.full_name
     });
+
+    // Web Push Notification: Live Lesson Started
+    sendPushNotificationToAll({
+      title: '🔴 وانەی ڕاستەوخۆ دەستیپێکرد!',
+      body: `${user.full_name} وانەیەکی نوێی دەستپێکرد: ${liveLessonState.title}. ئێستا وەرە بەشداربە! 🎙️`,
+      tag: 'live-lesson-active',
+      data: { url: '/?action=live' }
+    }, user.id);
   });
 
   socket.on('live_end', () => {
