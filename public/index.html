@@ -531,7 +531,7 @@
             </button>
 
             <!-- Dream Interpretation Submission for Students/Members -->
-            <button onclick="closeMainMenuDrawer(); openDreamSection();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-purple-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-purple-500/30 transition">
+            <button id="drawerDreamSubmitBtn" onclick="closeMainMenuDrawer(); openDreamSection();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-purple-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-purple-500/30 transition">
               <span class="flex items-center gap-2.5">
                 <i class="fa-solid fa-moon text-purple-400 text-sm w-5 text-center"></i>
                 <span>ناردنی خەون بۆ لێکدانەوە</span>
@@ -549,7 +549,7 @@
             </button>
 
             <!-- Members List (Staff Only) -->
-            <button id="drawerMembersBtn" onclick="closeMainMenuDrawer(); toggleMembersSidebar();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+            <button id="drawerMembersBtn" onclick="closeMainMenuDrawer(); toggleMembersSidebar();" class="hidden w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
               <span class="flex items-center gap-2.5">
                 <i class="fa-solid fa-users text-indigo-400 text-sm w-5 text-center"></i>
                 <span>لیستی ئەندامان</span>
@@ -712,6 +712,11 @@
             <span>- کرتە بکە بۆ بینین</span>
           </div>
         </div>
+
+        <!-- FLOATING SCROLL TO BOTTOM ARROW (سەهم بۆ کۆتا نامە) -->
+        <button id="scrollToLatestBtn" type="button" onclick="scrollToBottom()" class="hidden absolute bottom-20 left-4 z-20 w-10 h-10 rounded-full bg-slate-900/95 hover:bg-slate-800 text-amber-400 hover:text-white border border-amber-500/40 shadow-2xl items-center justify-center transition-all duration-200 active:scale-90 group cursor-pointer" title="چوون بۆ دوایین پەیام">
+          <i class="fa-solid fa-arrow-down text-xs group-hover:translate-y-0.5 transition-transform"></i>
+        </button>
 
         <!-- NIGHT CURFEW BANNER (AFTER 12:00 AM UNTIL 8:00 AM) -->
         <div id="nightCurfewBanner" class="hidden shrink-0 mx-4 mb-2 p-3 rounded-2xl bg-indigo-950/85 text-white border border-amber-500/40 shadow-xl flex items-center justify-between gap-3">

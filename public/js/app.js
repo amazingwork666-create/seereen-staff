@@ -707,7 +707,10 @@ function updateUserUI() {
       adminMediaTools.classList.add('flex');
     }
     if (libraryUploadSection) libraryUploadSection.classList.remove('hidden');
-    if (drawerMembersBtn) drawerMembersBtn.classList.remove('hidden');
+    if (drawerMembersBtn) {
+      drawerMembersBtn.classList.remove('hidden');
+      drawerMembersBtn.classList.add('flex');
+    }
     if (membersNavBtn) membersNavBtn.classList.remove('hidden');
     if (membersSidebar) {
       if (window.innerWidth >= 768) {
@@ -729,7 +732,10 @@ function updateUserUI() {
       adminMediaTools.classList.remove('flex');
     }
     if (libraryUploadSection) libraryUploadSection.classList.add('hidden');
-    if (drawerMembersBtn) drawerMembersBtn.classList.add('hidden');
+    if (drawerMembersBtn) {
+      drawerMembersBtn.classList.add('hidden');
+      drawerMembersBtn.classList.remove('flex');
+    }
     if (membersNavBtn) membersNavBtn.classList.add('hidden');
     if (membersSidebar) {
       membersSidebar.classList.add('hidden');
@@ -738,6 +744,19 @@ function updateUserUI() {
     }
     const membersBackdrop = document.getElementById('membersBackdrop');
     if (membersBackdrop) membersBackdrop.classList.add('hidden');
+  }
+
+  // Dream Submission Button: Hidden for staff (Admin, Teacher, Super Admin)
+  const drawerDreamSubmitBtn = document.getElementById('drawerDreamSubmitBtn');
+  if (drawerDreamSubmitBtn) {
+    const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.role === 'teacher');
+    if (isStaff) {
+      drawerDreamSubmitBtn.classList.add('hidden');
+      drawerDreamSubmitBtn.classList.remove('flex');
+    } else {
+      drawerDreamSubmitBtn.classList.remove('hidden');
+      drawerDreamSubmitBtn.classList.add('flex');
+    }
   }
 
   // Library button visibility: hidden only for guests
@@ -2484,7 +2503,15 @@ function appendMessage(msg, scroll = true) {
 
 function scrollToBottom() {
   const container = document.getElementById('messagesContainer');
-  container.scrollTop = container.scrollHeight;
+  if (container) {
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+  }
+  const arrowBtn = document.getElementById('scrollToLatestBtn');
+  if (arrowBtn) {
+    arrowBtn.classList.add('hidden');
+    arrowBtn.classList.remove('flex');
+  }
+  hideUnreadJumpPill();
 }
 
 // --- MOBILE MESSAGE ACTIONS TOGGLE ---
@@ -2536,11 +2563,22 @@ document.addEventListener('click', (e) => {
 // Scroll detection & Unread jump
 function handleChatScroll() {
   const container = document.getElementById('messagesContainer');
+  if (!container) return;
   const scrollFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-  if (scrollFromBottom > 150) {
+  const arrowBtn = document.getElementById('scrollToLatestBtn');
+
+  if (scrollFromBottom > 180) {
     isUserScrolledUp = true;
+    if (arrowBtn) {
+      arrowBtn.classList.remove('hidden');
+      arrowBtn.classList.add('flex');
+    }
   } else {
     isUserScrolledUp = false;
+    if (arrowBtn) {
+      arrowBtn.classList.add('hidden');
+      arrowBtn.classList.remove('flex');
+    }
     hideUnreadJumpPill();
   }
 }
@@ -5040,6 +5078,8 @@ async function submitProfileChangeRequest() {
       },
       body: JSON.stringify({
         change_type: type,
+        requested_name: new_name,
+        requested_password: new_password,
         new_name,
         new_password,
         reason
@@ -5048,6 +5088,7 @@ async function submitProfileChangeRequest() {
     const data = await res.json();
     if (res.ok) {
       closeRequestProfileChangeModal();
+      showLiveToastNotification('داواکارییەکەت بەسەرکەوتوویی نێردرا بۆ سوپەر ئەدمین بۆ پەسەندکردن ✨', 'emerald');
       alert('داواکارییەکەت بەسەرکەوتوویی نێردرا بۆ سوپەر ئەدمین بۆ پەسەندکردن ✨');
     } else {
       alert(data.error || 'هەڵەیەک ڕوویدا لە ناردنی داواکاری');
@@ -5635,12 +5676,12 @@ async function loadStudentOfTheMonth() {
           <div class="flex items-center justify-between gap-3">
             <div class="flex items-center gap-3">
               <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 flex items-center justify-center text-xl font-black shadow-lg shadow-amber-500/30">
-                👑
+                🏆
               </div>
               <div>
                 <div class="flex items-center gap-2">
                   <span class="text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md border border-amber-500/30">
-                    خوێندکاری مانگ ✨ Student of the Month
+                    خوێندکاری مانگ 🏆 Student of the Month
                   </span>
                 </div>
                 <h3 class="text-sm md:text-base font-black text-white mt-1 cursor-pointer hover:underline" onclick="openUserProfileModal(${st.id})">
@@ -5662,8 +5703,8 @@ async function loadStudentOfTheMonth() {
     } else {
       container.innerHTML = `
         <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 text-center flex items-center justify-center gap-2 mb-3">
-          <i class="fa-solid fa-crown text-amber-400"></i>
-          <span>کێبڕکێی خوێندکاری مانگ بەردەوامە! وەڵامی پرسیارەکان بدەرەوە بۆ گەیشتن بە لوتکە.</span>
+          <i class="fa-solid fa-trophy text-amber-400"></i>
+          <span>کێبڕکێی خوێندکاری مانگ بەردەوامە! وەڵامی پرسیارەکان بدەرەوە بۆ بردنەوەی کاس.</span>
         </div>
       `;
     }
@@ -6298,6 +6339,11 @@ function stopRingtone() {
 
 // 1. Open Dream Section from Auth Screen
 async function openDreamSection() {
+  if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.role === 'teacher')) {
+    alert('تەنها قوتابیان و بەشداربووان دەتوانن خەون بنێرن بۆ لێکدانەوە.');
+    return;
+  }
+
   const dreamToken = localStorage.getItem('seereen_dream_token');
   if (dreamToken) {
     try {
@@ -6321,12 +6367,42 @@ async function openDreamSection() {
 }
 
 function openDreamAuthModal() {
+  if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.role === 'teacher')) {
+    alert('تەنها قوتابیان و بەشداربووان دەتوانن خەون بنێرن بۆ لێکدانەوە.');
+    return;
+  }
+
   fetchDreamAvailability();
   const modal = document.getElementById('dreamAuthModal');
   if (modal) modal.classList.remove('hidden');
   const nameInput = document.getElementById('dreamerNameInput');
-  if (nameInput && currentUser && currentUser.full_name && !nameInput.value) {
-    nameInput.value = currentUser.full_name;
+  const nameLabel = nameInput ? nameInput.previousElementSibling : null;
+
+  if (currentUser && currentUser.full_name) {
+    if (nameInput) {
+      nameInput.value = currentUser.full_name;
+      nameInput.readOnly = true;
+      nameInput.classList.add('bg-slate-800/50', 'cursor-not-allowed', 'opacity-85');
+    }
+    if (nameLabel) {
+      nameLabel.innerHTML = 'ناوی قوتابی (ناوە فەرمییەکەت <i class="fa-solid fa-lock text-purple-400 text-xs"></i>)';
+    }
+    if (currentUser.gender) {
+      const radio = document.querySelector(`input[name="dreamerGenderRadio"][value="${currentUser.gender}"]`);
+      if (radio) radio.checked = true;
+      const radios = document.querySelectorAll('input[name="dreamerGenderRadio"]');
+      radios.forEach(r => r.disabled = true);
+    }
+  } else {
+    if (nameInput) {
+      nameInput.readOnly = false;
+      nameInput.classList.remove('bg-slate-800/50', 'cursor-not-allowed', 'opacity-85');
+    }
+    if (nameLabel) {
+      nameLabel.innerText = 'ناوی تۆ (ناوی خۆت یان خوازراو)';
+    }
+    const radios = document.querySelectorAll('input[name="dreamerGenderRadio"]');
+    radios.forEach(r => r.disabled = false);
   }
 }
 
@@ -6336,19 +6412,27 @@ function closeDreamAuthModal() {
 }
 
 async function submitDreamerStart() {
+  if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.role === 'teacher')) {
+    alert('مامۆستا و ئەدمین ناتوانن خەون بنێرن بۆ لێکدانەوە.');
+    return;
+  }
+
   const nameInput = document.getElementById('dreamerNameInput');
-  const name = (nameInput ? nameInput.value : '').trim();
+  const name = (currentUser && currentUser.full_name) ? currentUser.full_name : (nameInput ? nameInput.value : '').trim();
   if (!name) {
     alert('تکایە ناوت بنووسە');
     return;
   }
   const genderRadio = document.querySelector('input[name="dreamerGenderRadio"]:checked');
-  const gender = genderRadio ? genderRadio.value : 'male';
+  const gender = (currentUser && currentUser.gender) ? currentUser.gender : (genderRadio ? genderRadio.value : 'male');
 
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     const res = await fetch('/api/dream/start', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ name, gender })
     });
     const data = await res.json();
@@ -6467,7 +6551,7 @@ function getDreamTeacherAlias(senderName) {
   if (lower.startsWith('مامۆستا ') && /[٠-٩\d]+$/.test(clean)) {
     return clean;
   }
-  if (lower.includes('hemn') || lower.includes('هێمن') || lower.includes('taha') || lower.includes('تەها')) {
+  if (lower.includes('hemn') || lower.includes('هێمن') || lower.includes('taha') || lower.includes('تەها') || lower.includes('طه')) {
     return 'مامۆستا ١';
   }
   if (lower.includes('rasti') || lower.includes('ڕاستی') || lower.includes('راستی')) {
@@ -8374,7 +8458,7 @@ async function loadPrivateStaffList() {
 
     if (superAdmins.length > 0) {
       html += `
-        <div class="pt-1 pb-1 px-1 text-[11px] font-bold text-rose-400 flex items-center gap-1">
+        <div class="pt-1 pb-1 px-1 text-[11px] font-bold text-purple-400 flex items-center gap-1">
           <i class="fa-solid fa-shield-halved"></i>
           <span>ئەدمین</span>
         </div>
@@ -8384,7 +8468,7 @@ async function loadPrivateStaffList() {
 
     if (teachers.length > 0) {
       html += `
-        <div class="pt-3 pb-1 px-1 text-[11px] font-bold text-amber-300 flex items-center gap-1">
+        <div class="pt-3 pb-1 px-1 text-[11px] font-bold text-emerald-400 flex items-center gap-1">
           <i class="fa-solid fa-graduation-cap"></i>
           <span>مامۆستاکان</span>
         </div>
@@ -8402,9 +8486,9 @@ async function loadPrivateStaffList() {
 function renderStaffCardHtml(s) {
   const isCurrent = activePrivateOtherUser && activePrivateOtherUser.id === s.id;
   const activeBg = isCurrent ? 'bg-sky-600/20 border-sky-500/50' : 'bg-slate-900/80 hover:bg-slate-800/80 border-slate-800';
-  const roleBadge = s.role === 'super_admin'
-    ? `<span class="px-2 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold">ئەدمین</span>`
-    : `<span class="px-2 py-0.5 rounded-lg bg-[#552776] text-white text-[10px] font-bold shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-graduation-cap text-white text-[10px]"></i> مامۆستا</span>`;
+  const roleBadge = s.role === 'super_admin' || s.role === 'admin'
+    ? `<span class="px-2 py-0.5 rounded-lg badge-admin text-white text-[10px] font-bold shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-shield-halved text-[9px]"></i> ئەدمین</span>`
+    : `<span class="px-2 py-0.5 rounded-lg badge-teacher text-white text-[10px] font-bold shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-graduation-cap text-white text-[10px]"></i> مامۆستا</span>`;
   const onlineDot = s.is_online 
     ? `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30" title="لەسەر هێڵە"></span>`
     : `<span class="w-2.5 h-2.5 rounded-full bg-slate-600" title="دەرەوەی هێڵە"></span>`;
@@ -8466,7 +8550,7 @@ async function loadPrivateConversations() {
         const isCurrent = activePrivateOtherUser && activePrivateOtherUser.id === otherId;
         const activeBg = isCurrent ? 'bg-sky-600/20 border-sky-500/50' : 'bg-slate-900/60 hover:bg-slate-800/80 border-slate-800';
         const roleLabel = otherRole === 'super_admin' ? 'ئەدمین' : (otherRole === 'teacher' ? 'مامۆستا' : 'قوتابی');
-        const roleColor = otherRole === 'teacher' ? 'text-amber-400' : (otherRole === 'super_admin' ? 'text-rose-400' : 'text-sky-400');
+        const roleColor = otherRole === 'teacher' ? 'text-emerald-400' : (otherRole === 'super_admin' || otherRole === 'admin' ? 'text-purple-400' : 'text-sky-400');
         const lastTime = c.last_message_at ? new Date(c.last_message_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
         const unreadHtml = c.unread_count > 0 
           ? `<span class="px-1.5 py-0.5 rounded-full bg-sky-500 text-slate-950 text-[10px] font-black">${c.unread_count}</span>` 

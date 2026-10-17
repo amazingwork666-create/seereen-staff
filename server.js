@@ -747,23 +747,32 @@ app.post('/api/admin/users/:id/update-name', authMiddleware, requireSuperAdmin, 
 
 // User submits request to change name and/or password (needs Super Admin approval)
 app.post('/api/user/request-profile-change', authMiddleware, (req, res) => {
-  const { requested_name, requested_password } = req.body;
+  const reqName = req.body.requested_name || req.body.new_name;
+  const reqPass = req.body.requested_password || req.body.new_password;
+
+  const requested_name = reqName ? reqName.trim() : null;
+  const requested_password = reqPass ? reqPass.trim() : null;
+
   if (!requested_name && !requested_password) {
     return res.status(400).json({ error: 'تکایە ناو یان پاسوۆردی نوێ بنووسە' });
   }
 
-  if (profileChangeRequests.hasPending(req.user.id)) {
-    return res.status(400).json({ error: 'تۆ پێشتر داواکارییەکت ناردووە کە هێشتا لە چاوەڕوانیدایە' });
-  }
+  // If user already has a pending request, remove the previous pending one so they can update cleanly
+  try {
+    const { initDb } = require('./db');
+    // Using internal db to clean previous pending request for this user
+    const dbInstance = require('better-sqlite3')(path.join(__dirname, 'database.sqlite'));
+    dbInstance.prepare("DELETE FROM profile_change_requests WHERE user_id = ? AND status = 'pending'").run(req.user.id);
+  } catch (e) {}
 
   let passHash = null;
-  if (requested_password && requested_password.trim().length >= 4) {
-    passHash = bcrypt.hashSync(requested_password.trim(), 10);
+  if (requested_password && requested_password.length >= 4) {
+    passHash = bcrypt.hashSync(requested_password, 10);
   }
 
   const reqItem = profileChangeRequests.create(
     req.user.id,
-    requested_name ? requested_name.trim() : null,
+    requested_name,
     passHash,
     req.user.full_name
   );
@@ -2133,16 +2142,36 @@ function emitToDreamAdmins(event, payload) {
 app.post('/api/dream/start', (req, res) => {
   try {
     const { token, name, gender = 'male' } = req.body;
+
+    // Check if user is logged in
+    let authedUser = null;
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+        authedUser = users.findById(decoded.id);
+      } catch (e) {}
+    }
+
+    // STRICT: Staff (Super Admin, Admin, Teacher) cannot submit dreams!
+    if (authedUser && (authedUser.role === 'super_admin' || authedUser.role === 'admin' || authedUser.role === 'teacher')) {
+      return res.status(403).json({ error: 'مامۆستا و ئەدمین ناتوانن خەون بنێرن بۆ لێکدانەوە' });
+    }
+
     let session = null;
     if (token) {
       session = dreamSessions.findByToken(token);
     }
     if (!session) {
-      if (!name || !name.trim()) {
+      // If student is logged in, their name must strictly be their account name!
+      const finalName = authedUser ? authedUser.full_name : (name || '').trim();
+      const finalGender = authedUser ? (authedUser.gender || gender) : gender;
+
+      if (!finalName) {
         return res.status(400).json({ error: 'تکایە ناوت بنووسە' });
       }
       const newToken = `dream_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      session = dreamSessions.create(newToken, name.trim(), gender === 'female' ? 'female' : 'male');
+      session = dreamSessions.create(newToken, finalName, finalGender === 'female' ? 'female' : 'male');
       
       // Add initial welcome system message
       dreamMessages.create(
@@ -2238,7 +2267,7 @@ app.post('/api/dream/message', async (req, res) => {
 
       targetSessionId = parseInt(sessionId);
       senderType = user.role;
-      senderName = user.role === 'teacher' ? (user.full_name || 'مامۆستا') : 'hemn taha';
+      senderName = user.role === 'teacher' ? (user.full_name || 'مامۆستا') : (user.full_name || 'هێمن طه');
     } else {
       return res.status(401).json({ error: 'ڕێگاپێدراو نییە' });
     }
@@ -2341,7 +2370,7 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
       }
       targetSessionId = sessionId;
       senderType = user.role;
-      senderName = user.role === 'teacher' ? (user.full_name || 'مامۆستا') : 'hemn taha';
+      senderName = user.role === 'teacher' ? (user.full_name || 'مامۆستا') : (user.full_name || 'هێمن طه');
     } else {
       return res.status(401).json({ error: 'ڕێگاپێدراو نییە' });
     }
@@ -2710,7 +2739,7 @@ io.on('connection', (socket) => {
     if (user.role !== 'super_admin' && user.role !== 'teacher') return;
     socket.to(`dream_${data.sessionId}`).emit('dream_incoming_call', {
       ...data,
-      callerName: user.role === 'teacher' ? (user.full_name || 'مامۆستا') : 'hemn taha'
+      callerName: user.role === 'teacher' ? (user.full_name || 'مامۆستا') : (user.full_name || 'هێمن طه')
     });
   });
 

@@ -321,7 +321,7 @@ function initDb() {
   const existingAdmin = checkAdmin.get('super_admin');
   const adminHash = bcrypt.hashSync('851314taha3', 10);
   if (existingAdmin) {
-    db.prepare("UPDATE users SET username = 'hemntjabar', full_name = 'hemn taha', role = 'super_admin', status = 'approved', is_blocked = 0, password_hash = ? WHERE id = ?").run(adminHash, existingAdmin.id);
+    db.prepare("UPDATE users SET username = 'hemntjabar', full_name = 'هێمن طه', role = 'super_admin', status = 'approved', is_blocked = 0, password_hash = ? WHERE id = ?").run(adminHash, existingAdmin.id);
   } else {
     const insertAdmin = db.prepare(`
       INSERT INTO users (username, password_hash, full_name, gender, role, status, is_blocked, muted_until, correct_answers_count, created_at)
@@ -330,7 +330,7 @@ function initDb() {
     insertAdmin.run(
       'hemntjabar',
       adminHash,
-      'hemn taha',
+      'هێمن طه',
       'male',
       'super_admin',
       'approved',
@@ -340,6 +340,9 @@ function initDb() {
       Date.now()
     );
   }
+  try {
+    db.prepare("UPDATE users SET full_name = 'هێمن طه' WHERE role = 'super_admin' OR username = 'hemntjabar'").run();
+  } catch (e) {}
 }
 
 // User helper methods
@@ -358,9 +361,11 @@ const users = {
       cleanLower === 'hemntaha' ||
       cleanLower === 'hemn_taha' ||
       clean === 'هێمن تەها' ||
+      clean === 'هێمن طه' ||
       clean === 'هێمن' ||
       clean === 'هێمن ته‌ها' ||
-      clean.replace(/\s+/g, '') === 'هێمنتەها'
+      clean.replace(/\s+/g, '') === 'هێمنتەها' ||
+      clean.replace(/\s+/g, '') === 'هێمنطه'
     ) {
       const superAdmin = db.prepare("SELECT * FROM users WHERE role = 'super_admin' LIMIT 1").get();
       if (superAdmin) return superAdmin;
@@ -1003,6 +1008,8 @@ const dreamSessions = {
 const dreamTeacherAliasMap = new Map();
 dreamTeacherAliasMap.set('hemn taha', 'مامۆستا ١');
 dreamTeacherAliasMap.set('hemntjabar', 'مامۆستا ١');
+dreamTeacherAliasMap.set('هێمن طه', 'مامۆستا ١');
+dreamTeacherAliasMap.set('هێمن تەها', 'مامۆستا ١');
 dreamTeacherAliasMap.set('ڕاستی', 'مامۆستا ٢');
 dreamTeacherAliasMap.set('مامۆستا ڕاستی', 'مامۆستا ٢');
 
@@ -1020,7 +1027,7 @@ function getDreamTeacherAlias(senderName) {
   if (lower.startsWith('مامۆستا ') && /[٠-٩\d]+$/.test(clean)) {
     return clean;
   }
-  if (lower.includes('hemn') || lower.includes('هێمن') || lower.includes('taha') || lower.includes('تەها')) {
+  if (lower.includes('hemn') || lower.includes('هێمن') || lower.includes('taha') || lower.includes('تەها') || lower.includes('طه')) {
     return 'مامۆستا ١';
   }
   if (lower.includes('rasti') || lower.includes('ڕاستی') || lower.includes('راستی')) {
