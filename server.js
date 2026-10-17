@@ -2066,6 +2066,23 @@ app.get('/api/chat/curfew', (req, res) => {
 
 // --- DREAM INTERPRETATION (لێکدانەوەی خەون) ROUTES ---
 
+function emitToDreamAdmins(event, payload) {
+  try {
+    if (io && io.sockets && io.sockets.sockets) {
+      for (const [id, s] of io.sockets.sockets) {
+        if (s.user && (s.user.role === 'super_admin' || s.user.role === 'teacher')) {
+          if (s.rooms && !s.rooms.has('dream_admins')) {
+            s.join('dream_admins');
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error synchronizing dream_admins room:', e);
+  }
+  io.to('dream_admins').emit(event, payload);
+}
+
 // 1. Dreamer Start or Resume Session
 app.post('/api/dream/start', (req, res) => {
   try {
@@ -2090,8 +2107,8 @@ app.post('/api/dream/start', (req, res) => {
         'system'
       );
 
-      // Notify Super Admin and Teacher
-      io.to('dream_admins').emit('new_dream_session', {
+      // Notify Super Admin and Teacher reliably
+      emitToDreamAdmins('new_dream_session', {
         id: session.id,
         dreamer_name: session.dreamer_name,
         dreamer_gender: session.dreamer_gender,
@@ -2187,8 +2204,8 @@ app.post('/api/dream/message', async (req, res) => {
     
     // Broadcast message to dream room and dream admins
     io.to(`dream_${targetSessionId}`).emit('dream_new_message', msg);
-    io.to('dream_admins').emit('dream_admin_new_message', { sessionId: targetSessionId, message: msg });
-    io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: content.trim() });
+    emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: msg });
+    emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: content.trim() });
 
     // Automated greeting reply and questionnaire for dreamer
     if (senderType === 'dreamer') {
@@ -2199,8 +2216,8 @@ app.post('/api/dream/message', async (req, res) => {
         setTimeout(() => {
           const reply = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', 'عَلَيْكُمُ السَّلَامُ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ', 'text');
           io.to(`dream_${targetSessionId}`).emit('dream_new_message', reply);
-          io.to('dream_admins').emit('dream_admin_new_message', { sessionId: targetSessionId, message: reply });
-          io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: reply.content });
+          emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: reply });
+          emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: reply.content });
         }, 500);
       }
 
@@ -2217,8 +2234,8 @@ app.post('/api/dream/message', async (req, res) => {
 📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
           const qMsg = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', autoQ, 'text');
           io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
-          io.to('dream_admins').emit('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
-          io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🌸 پرسیارەکانی لێکدانەوەی خەون' });
+          emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
+          emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🌸 پرسیارەکانی لێکدانەوەی خەون' });
         }, isGreeting ? 1500 : 600);
       }
     }
@@ -2268,8 +2285,8 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
     const msg = dreamMessages.create(targetSessionId, senderType, senderName, content, 'voice', voiceUrl);
 
     io.to(`dream_${targetSessionId}`).emit('dream_new_message', msg);
-    io.to('dream_admins').emit('dream_admin_new_message', { sessionId: targetSessionId, message: msg });
-    io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🎤 پەیامی دەنگی' });
+    emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: msg });
+    emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🎤 پەیامی دەنگی' });
 
     // Automated questionnaire if dreamer sends voice as first interaction
     if (senderType === 'dreamer' && !dreamMessages.hasAutoQuestions(targetSessionId)) {
@@ -2285,8 +2302,8 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
 📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
         const qMsg = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', autoQ, 'text');
         io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
-        io.to('dream_admins').emit('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
-        io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🌸 پرسیارەکانی لێکدانەوەی خەون' });
+        emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
+        emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🌸 پرسیارەکانی لێکدانەوەی خەون' });
       }, 800);
     }
 
@@ -2346,8 +2363,8 @@ app.post('/api/dream/upload-call-recording', upload.single('call_recording'), (r
 
     // Send summaryMsg to dreamer in room
     io.to(`dream_${sessionId}`).emit('dream_new_message', summaryMsg);
-    // Send secretMsg with recording audio ONLY to admins
-    io.to('dream_admins').emit('dream_new_secret_recording', { sessionId, message: secretMsg });
+    // Send secretMsg with recording audio ONLY to admins reliably
+    emitToDreamAdmins('dream_new_secret_recording', { sessionId, message: secretMsg });
 
     res.json({ success: true, recordingUrl: callRecordUrl });
   } catch (err) {
@@ -2400,7 +2417,7 @@ app.delete('/api/dream/admin/session/:id', authMiddleware, requireSuperAdmin, (r
     if (!session) return res.status(404).json({ error: 'دانیشتن نەدۆزرایەوە' });
 
     dreamSessions.delete(sessionId);
-    io.to('dream_admins').emit('dream_session_deleted', { sessionId });
+    emitToDreamAdmins('dream_session_deleted', { sessionId });
     res.json({ success: true, message: 'چاتی خەون سڕایەوە' });
   } catch (err) {
     console.error('Delete dream session error:', err);
@@ -2432,7 +2449,7 @@ app.post('/api/dream/admin/session/:id/favorite', authMiddleware, requireTeacher
     if (!session) return res.status(404).json({ error: 'دانیشتن نەدۆزرایەوە' });
 
     const newFavStatus = dreamSessions.toggleFavorite(sessionId);
-    io.to('dream_admins').emit('dream_session_favorited', { sessionId, is_favorite: newFavStatus });
+    emitToDreamAdmins('dream_session_favorited', { sessionId, is_favorite: newFavStatus });
     res.json({ success: true, is_favorite: newFavStatus });
   } catch (err) {
     console.error('Toggle favorite error:', err);
@@ -2675,7 +2692,7 @@ io.on('connection', (socket) => {
       // --- CHAT LOCK COMMAND HANDLING (SUPER ADMIN ONLY) ---
       const hasLockAll = content.includes('@قفڵ.عام') || content.includes('@قفل.عام');
       const hasLockStaff = !hasLockAll && (content.includes('@قفڵ') || content.includes('@قفل'));
-      const hasUnlock = content.includes('@کراوە') || content.includes('@کردنەوە') || content.includes('@بیکەرەوە') || content.includes('@unlock') || content.includes('@قفڵ.کردنەوە') || content.includes('@قفل.کردنەوە');
+      const hasUnlock = content.includes('@کلیل') || content.includes('@كليل') || content.includes('@مفتاح') || content.includes('@کراوە') || content.includes('@کردنەوە') || content.includes('@بیکەرەوە') || content.includes('@unlock') || content.includes('@قفڵ.کردنەوە') || content.includes('@قفل.کردنەوە');
 
       if (hasLockAll || hasLockStaff || hasUnlock) {
         if (freshUser.role !== 'super_admin') {
@@ -2693,7 +2710,7 @@ io.on('connection', (socket) => {
           announceText = '🔒 چات داخرا - تەنها بۆ مامۆستا و ئەدمینەکان کراوەیە (@قفڵ)';
         } else if (hasUnlock) {
           newMode = 'none';
-          announceText = '🔓 چاتی گشتی کرایەوە بۆ هەمووان لەلایەن سوپەر ئەدمینەوە';
+          announceText = '🔓 چاتی گشتی کرایەوە بۆ هەمووان لەلایەن سوپەر ئەدمینەوە (@کلیل 🗝️)';
         }
 
         settings.set('chat_lock_mode', newMode);
@@ -2708,7 +2725,7 @@ io.on('connection', (socket) => {
           timestamp: Date.now()
         });
 
-        const cleaned = content.replace(/@قفڵ\.عام|@قفل\.عام|@قفڵ|@قفل|@کراوە|@کردنەوە|@بیکەرەوە|@unlock|@قفڵ\.کردنەوە|@قفل\.کردنەوە/g, '').trim();
+        const cleaned = content.replace(/@قفڵ\.عام|@قفل\.عام|@قفڵ|@قفل|@کلیل|@كليل|@مفتاح|@کراوە|@کردنەوە|@بیکەرەوە|@unlock|@قفڵ\.کردنەوە|@قفل\.کردنەوە/g, '').trim();
         if (!cleaned) return;
       }
 

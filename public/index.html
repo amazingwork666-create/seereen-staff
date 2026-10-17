@@ -498,6 +498,15 @@
               <span id="drawerPrivateUnreadBadge" class="hidden px-1.5 py-0.5 bg-sky-500 text-slate-950 text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
             </button>
 
+            <!-- Dream Interpretation Submission for Students/Members -->
+            <button onclick="closeMainMenuDrawer(); openDreamSection();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-purple-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-purple-500/30 transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-moon text-purple-400 text-sm w-5 text-center"></i>
+                <span>ناردنی خەون بۆ لێکدانەوە</span>
+              </span>
+              <span class="text-[9px] bg-purple-500/20 text-purple-300 font-bold px-1.5 py-0.5 rounded border border-purple-500/30">١ بە ١</span>
+            </button>
+
             <!-- Chat Search -->
             <button onclick="closeMainMenuDrawer(); toggleChatSearch();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[#dfaa86] hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
               <span class="flex items-center gap-2.5">
@@ -751,9 +760,9 @@
               <span id="chatLockMessage" class="text-xs sm:text-sm font-black">چات داخراوە</span>
             </div>
             <div id="chatLockAdminActions" class="hidden items-center gap-2">
-              <button onclick="unlockChatBySuperAdmin()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black shadow-md border border-emerald-400/40 transition flex items-center gap-1 active:scale-95">
-                <i class="fa-solid fa-lock-open"></i>
-                <span>کردنەوەی چات بۆ هەمووان 🔓</span>
+              <button onclick="unlockChatBySuperAdmin()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black shadow-md border border-emerald-400/40 transition flex items-center gap-1 active:scale-95" title="کردنەوەی چات بۆ هەمووان (@کلیل)">
+                <i class="fa-solid fa-key"></i>
+                <span>کردنەوەی چات بۆ هەمووان (@کلیل 🗝️)</span>
               </button>
             </div>
           </div>

@@ -8,6 +8,22 @@ let questionCountdownTimer = null;
 let currentAdminSubTab = 'pending';
 let memberFilter = 'all';
 let allMembersCache = [];
+const mutedUserIds = new Map();
+
+function isUserCurrentlyMuted(userId) {
+  if (!userId) return false;
+  if (mutedUserIds.has(userId)) {
+    const until = mutedUserIds.get(userId);
+    if (until > Date.now()) return true;
+    mutedUserIds.delete(userId);
+  }
+  const cached = allMembersCache.find(u => u.id === userId);
+  if (cached && cached.muted_until && cached.muted_until > Date.now()) {
+    mutedUserIds.set(userId, cached.muted_until);
+    return true;
+  }
+  return false;
+}
 
 // Unread messages tracking
 let unreadCount = 0;
@@ -1504,6 +1520,10 @@ function initSocket() {
   });
 
   socket.on('user_muted', (data) => {
+    if (data && data.user_id) {
+      mutedUserIds.set(data.user_id, data.muted_until || (Date.now() + 24 * 3600 * 1000));
+      updateMsgMuteButtons(data.user_id);
+    }
     if (currentUser && currentUser.id === data.user_id) {
       currentUser.muted_until = data.muted_until;
       checkMuteState();
@@ -1517,6 +1537,10 @@ function initSocket() {
   });
 
   socket.on('user_unmuted', (data) => {
+    if (data && data.user_id) {
+      mutedUserIds.delete(data.user_id);
+      updateMsgMuteButtons(data.user_id);
+    }
     if (currentUser && currentUser.id === data.user_id) {
       currentUser.muted_until = 0;
       checkMuteState();
@@ -1544,7 +1568,7 @@ function initSocket() {
     if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
       loadDreamSessionsCount();
       playSound('message');
-      if (typeof activeDreamAdminSessionId !== 'undefined' && activeDreamAdminSessionId) loadDreamAdminSessions();
+      if (typeof loadDreamAdminSessions === 'function') loadDreamAdminSessions();
     }
   });
 
@@ -1554,7 +1578,6 @@ function initSocket() {
       if (typeof activeDreamAdminSessionId !== 'undefined' && activeDreamAdminSessionId && (msg.session_id == activeDreamAdminSessionId || msg.sessionId == activeDreamAdminSessionId)) {
         appendDreamMessage(msg, true);
         scrollDreamMessagesToBottom(true);
-        playSound('message');
       }
     }
   });
@@ -1566,6 +1589,8 @@ function initSocket() {
       if (typeof activeDreamAdminSessionId !== 'undefined' && activeDreamAdminSessionId && activeDreamAdminSessionId == sessId) {
         appendDreamMessage(msg, true);
         scrollDreamMessagesToBottom(true);
+      }
+      if (msg && msg.sender_type === 'dreamer') {
         playSound('message');
       }
       loadDreamSessionsCount();
@@ -1582,7 +1607,7 @@ function initSocket() {
   socket.on('dream_session_updated', () => {
     if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
       loadDreamSessionsCount();
-      if (typeof activeDreamAdminSessionId !== 'undefined' && activeDreamAdminSessionId) loadDreamAdminSessions();
+      if (typeof loadDreamAdminSessions === 'function') loadDreamAdminSessions();
     }
   });
 
@@ -2300,6 +2325,17 @@ function appendMessage(msg, scroll = true) {
 
   if (isAdmin && !isMe) {
     hasActions = true;
+    const isTargetMuted = isUserCurrentlyMuted(msg.user_id);
+    const muteBtnHtml = (msg.role === 'student' || msg.role === 'new_student') ? `
+      <button onclick="toggleUserMuteFromMsg(${msg.user_id}, '${escapeHtml(msg.full_name)}', event)" 
+        data-userid="${msg.user_id}" 
+        class="msg-mute-btn text-xs px-2 py-0.5 rounded hover:bg-slate-700 font-bold transition flex items-center gap-1 ${isTargetMuted ? 'text-emerald-400 hover:text-emerald-300' : 'text-rose-400 hover:text-rose-300'}" 
+        title="${isTargetMuted ? 'لابردنی سڕکردن' : 'سڕکردن'}">
+        <i class="fa-solid ${isTargetMuted ? 'fa-microphone' : 'fa-microphone-slash'}"></i>
+        <span>${isTargetMuted ? 'لابردنی سڕکردن' : 'سڕکردن'}</span>
+      </button>
+    ` : '';
+
     messageActionsHtml = `
       <div id="msg-actions-${msg.id}" class="msg-actions-bar hidden md:flex md:opacity-0 md:group-hover:opacity-100 transition duration-150 items-center gap-1 mt-1 bg-slate-800/95 border border-slate-700/80 px-2 py-0.5 rounded-xl shadow-lg z-10">
         ${isSuperAdmin && (msg.role === 'student' || msg.role === 'new_student') ? `
@@ -2307,19 +2343,7 @@ function appendMessage(msg, scroll = true) {
             <i class="fa-solid fa-star"></i> ئەستێرە
           </button>
         ` : ''}
-        ${msg.role === 'student' || msg.role === 'new_student' ? `
-          <button onclick="muteUser24h(${msg.user_id}, '${escapeHtml(msg.full_name)}')" class="text-rose-400 hover:text-rose-300 text-xs px-1.5 py-0.5 rounded hover:bg-slate-700" title="سڕکردن بۆ ٢٤ سەعات">
-            <i class="fa-solid fa-microphone-slash"></i> سڕکردن (24h)
-          </button>
-          <button onclick="unmuteUser(${msg.user_id})" class="text-emerald-400 hover:text-emerald-300 text-xs px-1.5 py-0.5 rounded hover:bg-slate-700 font-bold" title="لابردنی سڕکردن">
-            <i class="fa-solid fa-microphone"></i> لابردنی سڕکردن
-          </button>
-        ` : ''}
-        ${isSuperAdmin && (msg.role === 'student' || msg.role === 'new_student') ? `
-          <button onclick="changeRole(${msg.user_id}, 'admin')" class="text-sky-400 hover:text-sky-300 text-xs px-1.5 py-0.5 rounded hover:bg-slate-700" title="بەرزکردنەوە بۆ ئەدمین">
-            <i class="fa-solid fa-arrow-up"></i> بەرزکردنەوە
-          </button>
-        ` : ''}
+        ${muteBtnHtml}
         <button onclick="deleteMessage(${msg.id})" class="text-rose-400 hover:text-rose-300 text-xs px-1.5 py-0.5 rounded hover:bg-rose-950/60 flex items-center gap-1 font-bold" title="سڕینەوەی پەیام">
           <i class="fa-solid fa-trash-can"></i>
           <span class="text-[10px]">سڕینەوە</span>
@@ -2644,9 +2668,9 @@ function handleSendMessage(e) {
   if (!content) return;
 
   // Chat lock command check (Super Admin only)
-  const isLockCmd = content.includes('@قفڵ') || content.includes('@قفل');
+  const isLockCmd = content.includes('@قفڵ') || content.includes('@قفل') || content.includes('@کلیل') || content.includes('@كليل');
   if (isLockCmd && currentUser && currentUser.role !== 'super_admin') {
-    alert('❌ تەنها سوپەر ئەدمین دەسەڵاتی قفڵکردنی چاتی هەیە!');
+    alert('❌ تەنها سوپەر ئەدمین دەسەڵاتی قفڵکردن یان کردنەوەی چاتی هەیە!');
     return;
   }
 
@@ -3940,6 +3964,73 @@ async function unmuteUser(userId) {
   } catch (err) {}
 }
 
+function updateMsgMuteButtons(userId) {
+  if (!userId) return;
+  const isMuted = isUserCurrentlyMuted(userId);
+  document.querySelectorAll(`.msg-mute-btn[data-userid="${userId}"]`).forEach(btn => {
+    btn.className = `msg-mute-btn text-xs px-2 py-0.5 rounded hover:bg-slate-700 font-bold transition flex items-center gap-1 ${isMuted ? 'text-emerald-400 hover:text-emerald-300' : 'text-rose-400 hover:text-rose-300'}`;
+    btn.title = isMuted ? 'لابردنی سڕکردن' : 'سڕکردن';
+    btn.innerHTML = `<i class="fa-solid ${isMuted ? 'fa-microphone' : 'fa-microphone-slash'}"></i> <span>${isMuted ? 'لابردنی سڕکردن' : 'سڕکردن'}</span>`;
+  });
+}
+
+async function toggleUserMuteFromMsg(userId, studentName, event) {
+  if (event) event.stopPropagation();
+  const currentlyMuted = isUserCurrentlyMuted(userId);
+
+  if (currentlyMuted) {
+    if (!confirm(`ئایا دڵنیایت لە لابردنی سڕکردنی (${studentName})؟`)) return;
+    try {
+      const res = await fetch('/api/admin/unmute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ user_id: userId })
+      });
+      if (res.ok) {
+        mutedUserIds.delete(userId);
+        updateMsgMuteButtons(userId);
+        loadAllMembers();
+        if (document.getElementById('adminModal') && !document.getElementById('adminModal').classList.contains('hidden')) {
+          loadAllUsersList();
+        }
+      } else {
+        const d = await res.json();
+        alert(d.error || 'هەڵەیەک ڕوویدا');
+      }
+    } catch (e) {
+      alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+    }
+  } else {
+    if (!confirm(`ئایا دڵنیایت لە سڕکردنی (${studentName}) بۆ ماوەی ٢٤ کاتژمێر؟`)) return;
+    try {
+      const res = await fetch('/api/admin/mute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ user_id: userId, hours: 24 })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'هەڵەیەک ڕوویدا');
+      } else {
+        mutedUserIds.set(userId, Date.now() + 24 * 3600 * 1000);
+        updateMsgMuteButtons(userId);
+        loadAllMembers();
+        if (document.getElementById('adminModal') && !document.getElementById('adminModal').classList.contains('hidden')) {
+          loadAllUsersList();
+        }
+      }
+    } catch (e) {
+      alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+    }
+  }
+}
+
 async function deleteMessage(msgId) {
   if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم پەیامە؟')) return;
   try {
@@ -4133,6 +4224,14 @@ async function loadAllMembers() {
     if (!res.ok) return;
     const data = await res.json();
     allMembersCache = data.users || [];
+    allMembersCache.forEach(u => {
+      if (u.muted_until && u.muted_until > Date.now()) {
+        mutedUserIds.set(u.id, u.muted_until);
+      } else {
+        mutedUserIds.delete(u.id);
+      }
+      updateMsgMuteButtons(u.id);
+    });
     renderMembersList();
   } catch (err) {}
 }
@@ -6188,6 +6287,10 @@ function openDreamAuthModal() {
   fetchDreamAvailability();
   const modal = document.getElementById('dreamAuthModal');
   if (modal) modal.classList.remove('hidden');
+  const nameInput = document.getElementById('dreamerNameInput');
+  if (nameInput && currentUser && currentUser.full_name && !nameInput.value) {
+    nameInput.value = currentUser.full_name;
+  }
 }
 
 function closeDreamAuthModal() {
