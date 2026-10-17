@@ -824,7 +824,22 @@ function handleLogout() {
   showAuthScreen();
 }
 
-// --- TOP 3 PODIUM WIDGET ---
+// --- TOP 3 PODIUM WIDGET (COLLAPSIBLE) ---
+function togglePodiumDropdown() {
+  const content = document.getElementById('podiumDropdownContent');
+  const arrow = document.getElementById('podiumToggleArrow');
+  if (!content) return;
+  const isHidden = content.classList.contains('hidden');
+  if (isHidden) {
+    content.classList.remove('hidden');
+    if (arrow) arrow.className = 'fa-solid fa-chevron-up text-[10px] text-amber-400/80 transition-transform duration-200';
+    loadPodiumWidget();
+  } else {
+    content.classList.add('hidden');
+    if (arrow) arrow.className = 'fa-solid fa-chevron-down text-[10px] text-amber-400/80 transition-transform duration-200';
+  }
+}
+
 async function loadPodiumWidget() {
   const container = document.getElementById('podiumItems');
   try {
@@ -4428,7 +4443,9 @@ function openMyProfile() {
 
 async function openUserProfileModal(userId) {
   const modal = document.getElementById('userProfileModal');
-  modal.classList.remove('hidden');
+  const dialog = document.getElementById('userProfileModalDialog');
+  if (modal) modal.classList.remove('hidden');
+  if (dialog) dialog.classList.remove('hidden');
 
   const fullNameEl = document.getElementById('profFullName');
   const usernameEl = document.getElementById('profUsername');
@@ -4478,13 +4495,10 @@ async function openUserProfileModal(userId) {
     genderEl.innerHTML = prof.gender === 'female' ? '<span class="text-pink-400 font-bold">🧕 مێ (خوشک)</span>' : '<span class="text-sky-400 font-bold">🧔 نێر (برا)</span>';
     roleEl.innerHTML = renderRoleBadge(prof.role, prof.gender);
     const isProfStudent = prof.role === 'student' || prof.role === 'new_student';
-    const profStarRow = starsEl.closest('.flex') || starsEl.parentElement;
     if (isProfStudent) {
-      if (profStarRow) profStarRow.classList.remove('hidden');
-      starsEl.innerHTML = `${prof.starInfo.starIcons} ${prof.starInfo.points}`;
+      starsEl.innerHTML = prof.starInfo ? `${prof.starInfo.starIcons} ${prof.starInfo.points}` : '⭐ 0/10';
     } else {
-      if (profStarRow) profStarRow.classList.add('hidden');
-      starsEl.innerHTML = '';
+      starsEl.innerHTML = '<span class="text-slate-400 text-xs font-normal">ستاف</span>';
     }
     promoCountEl.innerText = `${prof.promotionsCount} جار`;
 
@@ -4541,14 +4555,18 @@ async function openUserProfileModal(userId) {
       const targetIsStaff = prof.role === 'super_admin' || prof.role === 'teacher';
       const canSendPrivate = !isMe && (isStaffUser || targetIsStaff);
 
-      if (canSendPrivate) {
+      // Gender rule: male student cannot message female teacher
+      const isMaleStudent = currentUser && !isStaffUser && currentUser.gender === 'male';
+      const isForbiddenTarget = prof.role === 'teacher' && prof.gender === 'female';
+
+      if (canSendPrivate && !(isMaleStudent && isForbiddenTarget)) {
         privContainer.classList.remove('hidden');
         const privBtn = document.getElementById('profPrivateChatBtn');
         const privBtnText = document.getElementById('profPrivateChatBtnText');
         if (privBtn) {
           privBtn.onclick = () => {
             closeUserProfileModal();
-            openPrivateChatWithUser(prof.id, prof.full_name, prof.role);
+            openPrivateChatWithUser(prof.id, prof.full_name, prof.role, prof.gender);
           };
         }
         if (privBtnText) {
@@ -4562,10 +4580,10 @@ async function openUserProfileModal(userId) {
     currentProfileUserId = prof.id;
     currentProfileUser = prof;
 
-    // Star Adjustment Controls (Super Admin & Teacher)
+    // Star Adjustment Controls (Super Admin & Teacher only for students)
     const starsAdjustContainer = document.getElementById('profStarsAdjustContainer');
     if (starsAdjustContainer) {
-      if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+      if (isProfStudent && (isSuperAdmin || (currentUser && currentUser.role === 'teacher'))) {
         starsAdjustContainer.classList.remove('hidden');
       } else {
         starsAdjustContainer.classList.add('hidden');

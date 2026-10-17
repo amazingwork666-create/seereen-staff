@@ -654,20 +654,22 @@
       <!-- ================= CHAT CONTAINER ================= -->
       <main class="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden relative">
         
-        <!-- TOP 3 PODIUM WIDGET (VISIBLE TO ALL STUDENTS) -->
-        <div id="topPodiumWidget" class="shrink-0 bg-slate-900/90 border-b border-slate-800/80 px-2.5 sm:px-4 py-1.5 sm:py-2 z-10">
-          <div class="max-w-4xl mx-auto flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
-            <div class="flex items-center gap-1.5 text-xs font-black text-amber-400 shrink-0">
-              <i class="fa-solid fa-crown text-amber-400"></i>
-              <span class="hidden xs:inline">پێشەنگەکانی زانست:</span>
-              <span class="xs:hidden">پێشەنگ:</span>
-            </div>
-            <div id="podiumItems" class="flex items-center gap-1.5 sm:gap-3 shrink-0">
-              <span class="text-xs text-slate-500">لە بارکردندایە...</span>
-            </div>
-            <button onclick="openLeaderboardModal()" class="text-[11px] text-indigo-400 hover:underline shrink-0 font-bold">
-              هەمووی <i class="fa-solid fa-chevron-left text-[9px]"></i>
+        <!-- TOP 3 PODIUM WIDGET (COLLAPSIBLE - TAPPING 'پێشەنگەکان' OPENS/CLOSES) -->
+        <div id="topPodiumWidget" class="shrink-0 bg-slate-900/90 border-b border-slate-800/80 px-2.5 sm:px-4 py-1.5 z-10">
+          <div class="max-w-4xl mx-auto flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <button type="button" id="togglePodiumBtn" onclick="togglePodiumDropdown()" class="flex items-center gap-1.5 text-xs font-black text-amber-400 hover:text-amber-300 transition cursor-pointer select-none px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 active:scale-95 shrink-0" title="پەنجە بنێ بۆ بینینی ناوی پێشەنگەکان 👑">
+              <i class="fa-solid fa-crown text-amber-400 text-xs"></i>
+              <span>پێشەنگەکان</span>
+              <i id="podiumToggleArrow" class="fa-solid fa-chevron-down text-[10px] text-amber-400/80 transition-transform duration-200"></i>
             </button>
+            <div id="podiumDropdownContent" class="hidden flex-1 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+              <div id="podiumItems" class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+                <span class="text-xs text-slate-500">لە بارکردندایە...</span>
+              </div>
+              <button onclick="openLeaderboardModal()" class="text-[11px] text-indigo-400 hover:underline shrink-0 font-bold px-1.5 py-0.5 rounded-lg hover:bg-slate-800 transition">
+                هەمووی <i class="fa-solid fa-chevron-left text-[9px]"></i>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -890,7 +892,7 @@
 
   <!-- ================= MODAL: USER DETAILS & HISTORY ================= -->
   <div id="userProfileModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
-    <div class="w-full max-w-lg max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col overflow-hidden">
+    <div id="userProfileModalDialog" class="w-full max-w-lg max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col overflow-hidden">
       
       <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
         <div class="flex items-center gap-3">
@@ -921,7 +923,7 @@
           <span class="text-[10px] text-slate-400 block mb-0.5">پلەی ئێستا</span>
           <span id="profRoleBadge" class="text-xs font-black text-white">قوتابی</span>
         </div>
-        <div class="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700/60">
+        <div id="profStarsBox" class="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700/60">
           <span class="text-[10px] text-slate-400 block mb-0.5">ئەستێرەکان</span>
           <span id="profStars" class="text-xs font-black text-amber-400">⭐ 0/10</span>
         </div>
