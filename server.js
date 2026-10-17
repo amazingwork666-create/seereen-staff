@@ -1697,7 +1697,12 @@ app.post('/api/chat/messages/:id/react', authMiddleware, (req, res) => {
 // 1. Get Private Conversations List
 app.get('/api/chat/private/conversations', authMiddleware, (req, res) => {
   try {
-    const list = privateMessages.getConversationsList(req.user.id);
+    let list = privateMessages.getConversationsList(req.user.id);
+    const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher';
+    const isMaleStudent = !isStaff && (req.user.gender === 'male');
+    if (isMaleStudent) {
+      list = list.filter(c => !(c.other_role === 'teacher' && c.other_gender === 'female'));
+    }
     res.json({ conversations: list });
   } catch (err) {
     console.error('Private conv error:', err);
@@ -1718,6 +1723,12 @@ app.get('/api/chat/private/messages/:otherUserId', authMiddleware, (req, res) =>
     // Restriction: Normal users can only message Super Admin & Teacher
     if (!isStaff && !otherIsStaff) {
       return res.status(403).json({ error: 'تەنها دەتوانیت نامەی تایبەت بۆ مامۆستا و سوپەر ئەدمین بنێریت' });
+    }
+
+    // Restriction: Male student cannot message female teacher
+    const isMaleStudent = !isStaff && (req.user.gender === 'male');
+    if (isMaleStudent && otherUser.role === 'teacher' && otherUser.gender === 'female') {
+      return res.status(403).json({ error: 'بەپێی ڕێنماییەکان، قوتابی کوڕ ناتوانێت پەیوەندی بە مامۆستای ئافرەتەوە بکات' });
     }
 
     privateMessages.markAsRead(otherId, req.user.id);
@@ -1756,6 +1767,12 @@ app.post('/api/chat/private/send', authMiddleware, (req, res) => {
     // Strict Rule: Normal accounts can ONLY message super_admin and teacher
     if (!isStaff && !recIsStaff) {
       return res.status(403).json({ error: 'تەنها دەتوانیت نامەی تایبەت بۆ مامۆستا و سوپەر ئەدمین بنێریت' });
+    }
+
+    // Gender Rule: Male student cannot message female teacher
+    const isMaleStudent = !isStaff && (req.user.gender === 'male');
+    if (isMaleStudent && recipient.role === 'teacher' && recipient.gender === 'female') {
+      return res.status(403).json({ error: 'بەپێی ڕێنماییەکان، قوتابی کوڕ ناتوانێت نامەی تایبەت بۆ مامۆستای ئافرەت بنێرێت' });
     }
 
     const msg = privateMessages.create(
@@ -1797,8 +1814,11 @@ app.get('/api/chat/private/unread-count', authMiddleware, (req, res) => {
 app.get('/api/chat/private/staff-list', authMiddleware, (req, res) => {
   try {
     const allUsers = users.getAllUsers();
-    const staff = allUsers
-      .filter(u => u.role === 'super_admin' || u.role === 'teacher')
+    const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher';
+    const isMaleStudent = !isStaff && (req.user.gender === 'male');
+
+    let staff = allUsers
+      .filter(u => (u.role === 'super_admin' || u.role === 'teacher') && u.id !== req.user.id)
       .map(u => {
         const isOnline = Array.from(onlineUsers.values()).some(o => o.id === u.id);
         return {
@@ -1810,6 +1830,12 @@ app.get('/api/chat/private/staff-list', authMiddleware, (req, res) => {
           is_online: isOnline
         };
       });
+
+    // Gender Rule: Male student cannot see or contact female teachers
+    if (isMaleStudent) {
+      staff = staff.filter(s => !(s.role === 'teacher' && s.gender === 'female'));
+    }
+
     res.json({ staff });
   } catch (err) {
     console.error('Error fetching staff list:', err);
@@ -1833,6 +1859,12 @@ app.post('/api/chat/private/upload-voice', authMiddleware, upload.fields([{ name
     const recIsStaff = recipient.role === 'super_admin' || recipient.role === 'teacher';
     if (!isStaff && !recIsStaff) {
       return res.status(403).json({ error: 'تەنها دەتوانیت نامەی تایبەت بۆ مامۆستا و سوپەر ئەدمین بنێریت' });
+    }
+
+    // Gender Rule: Male student cannot message female teacher
+    const isMaleStudent = !isStaff && (req.user.gender === 'male');
+    if (isMaleStudent && recipient.role === 'teacher' && recipient.gender === 'female') {
+      return res.status(403).json({ error: 'بەپێی ڕێنماییەکان، قوتابی کوڕ ناتوانێت دەنگ بۆ مامۆستای ئافرەت بنێرێت' });
     }
 
     const voiceUrl = `/uploads/${file.filename}`;
@@ -1877,6 +1909,12 @@ app.post('/api/chat/private/upload-image', authMiddleware, upload.single('image'
     const recIsStaff = recipient.role === 'super_admin' || recipient.role === 'teacher';
     if (!isStaff && !recIsStaff) {
       return res.status(403).json({ error: 'تەنها دەتوانیت نامەی تایبەت بۆ مامۆستا و سوپەر ئەدمین بنێریت' });
+    }
+
+    // Gender Rule: Male student cannot message female teacher
+    const isMaleStudent = !isStaff && (req.user.gender === 'male');
+    if (isMaleStudent && recipient.role === 'teacher' && recipient.gender === 'female') {
+      return res.status(403).json({ error: 'بەپێی ڕێنماییەکان، قوتابی کوڕ ناتوانێت وێنە بۆ مامۆستای ئافرەت بنێرێت' });
     }
 
     const imageUrl = `/uploads/${req.file.filename}`;
@@ -2205,7 +2243,23 @@ app.post('/api/dream/message', async (req, res) => {
     // Broadcast message to dream room and dream admins
     io.to(`dream_${targetSessionId}`).emit('dream_new_message', msg);
     emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: msg });
-    emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: content.trim() });
+
+    if (senderType === 'teacher' || senderType === 'super_admin') {
+      dreamSessions.markAnswered(targetSessionId, senderName, senderType);
+      emitToDreamAdmins('dream_session_answered', {
+        sessionId: targetSessionId,
+        answered_by_name: senderName,
+        answered_by_role: senderType
+      });
+      emitToDreamAdmins('dream_session_updated', {
+        sessionId: targetSessionId,
+        lastMessage: content.trim(),
+        answered_by_name: senderName,
+        answered_by_role: senderType
+      });
+    } else {
+      emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: content.trim() });
+    }
 
     // Automated greeting reply and questionnaire for dreamer
     if (senderType === 'dreamer') {
@@ -2286,7 +2340,23 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
 
     io.to(`dream_${targetSessionId}`).emit('dream_new_message', msg);
     emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: msg });
-    emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🎤 پەیامی دەنگی' });
+
+    if (senderType === 'teacher' || senderType === 'super_admin') {
+      dreamSessions.markAnswered(targetSessionId, senderName, senderType);
+      emitToDreamAdmins('dream_session_answered', {
+        sessionId: targetSessionId,
+        answered_by_name: senderName,
+        answered_by_role: senderType
+      });
+      emitToDreamAdmins('dream_session_updated', {
+        sessionId: targetSessionId,
+        lastMessage: '🎤 پەیامی دەنگی',
+        answered_by_name: senderName,
+        answered_by_role: senderType
+      });
+    } else {
+      emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🎤 پەیامی دەنگی' });
+    }
 
     // Automated questionnaire if dreamer sends voice as first interaction
     if (senderType === 'dreamer' && !dreamMessages.hasAutoQuestions(targetSessionId)) {

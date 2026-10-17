@@ -255,6 +255,32 @@ function initDb() {
   try { db.exec("ALTER TABLE questions ADD COLUMN question_number INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE question_submissions ADD COLUMN is_correct INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE dream_sessions ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0"); } catch (e) {}
+  try { db.exec("ALTER TABLE dream_sessions ADD COLUMN answered_by_name TEXT DEFAULT NULL"); } catch (e) {}
+  try { db.exec("ALTER TABLE dream_sessions ADD COLUMN answered_by_role TEXT DEFAULT NULL"); } catch (e) {}
+  try { db.exec("ALTER TABLE dream_sessions ADD COLUMN answered_at INTEGER DEFAULT NULL"); } catch (e) {}
+  try {
+    db.exec(`
+      UPDATE dream_sessions 
+      SET 
+        answered_by_name = (
+          SELECT sender_name FROM dream_messages m 
+          WHERE m.session_id = dream_sessions.id 
+            AND (m.sender_type = 'teacher' OR m.sender_type = 'super_admin') 
+            AND m.content NOT LIKE '%🌸 بەخێربێیت%' 
+            AND m.content NOT LIKE '%عَلَيْكُمُ السَّلَامُ%' 
+          ORDER BY m.created_at DESC LIMIT 1
+        ),
+        answered_by_role = (
+          SELECT sender_type FROM dream_messages m 
+          WHERE m.session_id = dream_sessions.id 
+            AND (m.sender_type = 'teacher' OR m.sender_type = 'super_admin') 
+            AND m.content NOT LIKE '%🌸 بەخێربێیت%' 
+            AND m.content NOT LIKE '%عَلَيْكُمُ السَّلَامُ%' 
+          ORDER BY m.created_at DESC LIMIT 1
+        )
+      WHERE answered_by_name IS NULL
+    `);
+  } catch (e) {}
   try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS live_recordings (
@@ -938,6 +964,8 @@ const dreamSessions = {
   getAll() {
     const stmt = db.prepare(`
       SELECT s.*, 
+        COALESCE(s.answered_by_name, (SELECT sender_name FROM dream_messages m WHERE m.session_id = s.id AND (m.sender_type = 'teacher' OR m.sender_type = 'super_admin') AND m.content NOT LIKE '%🌸 بەخێربێیت%' AND m.content NOT LIKE '%عَلَيْكُمُ السَّلَامُ%' ORDER BY m.created_at DESC LIMIT 1)) as answered_by_name,
+        COALESCE(s.answered_by_role, (SELECT sender_type FROM dream_messages m WHERE m.session_id = s.id AND (m.sender_type = 'teacher' OR m.sender_type = 'super_admin') AND m.content NOT LIKE '%🌸 بەخێربێیت%' AND m.content NOT LIKE '%عَلَيْكُمُ السَّلَامُ%' ORDER BY m.created_at DESC LIMIT 1)) as answered_by_role,
         (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id) as message_count,
         (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id AND (m.type = 'voice' OR (m.attachment_url IS NOT NULL AND (m.attachment_url LIKE '%.webm%' OR m.attachment_url LIKE '%.ogg%' OR m.attachment_url LIKE '%.mp3%' OR m.attachment_url LIKE '%.m4a%')) OR m.content LIKE '%.webm%' OR m.content LIKE '%.ogg%' OR m.content LIKE '%.mp3%' OR m.content LIKE '%.m4a%') AND m.sender_type = 'dreamer') as has_voice,
         (SELECT content FROM dream_messages m WHERE m.session_id = s.id ORDER BY m.created_at DESC LIMIT 1) as last_message_content,
@@ -946,6 +974,10 @@ const dreamSessions = {
       ORDER BY s.last_activity DESC
     `);
     return stmt.all();
+  },
+  markAnswered(sessionId, staffName, staffRole) {
+    const stmt = db.prepare('UPDATE dream_sessions SET answered_by_name = ?, answered_by_role = ?, answered_at = ?, last_activity = ? WHERE id = ?');
+    return stmt.run(staffName, staffRole, Date.now(), Date.now(), sessionId);
   },
   updateActivity(sessionId) {
     const stmt = db.prepare('UPDATE dream_sessions SET last_activity = ? WHERE id = ?');

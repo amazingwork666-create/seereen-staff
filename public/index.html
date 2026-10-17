@@ -50,6 +50,38 @@
     }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    #profAvatar {
+      width: 56px !important;
+      height: 56px !important;
+      min-width: 56px !important;
+      max-width: 56px !important;
+      max-height: 56px !important;
+      overflow: hidden !important;
+      flex-shrink: 0 !important;
+      aspect-ratio: 1 / 1 !important;
+      border-radius: 1rem !important;
+    }
+    #drawerUserAvatar {
+      width: 36px !important;
+      height: 36px !important;
+      min-width: 36px !important;
+      max-width: 36px !important;
+      max-height: 36px !important;
+      overflow: hidden !important;
+      flex-shrink: 0 !important;
+      aspect-ratio: 1 / 1 !important;
+      border-radius: 0.75rem !important;
+    }
+    #profAvatar img, #drawerUserAvatar img, .no-zoom-avatar {
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+      object-fit: cover !important;
+      pointer-events: none !important;
+      user-select: none !important;
+      -webkit-user-drag: none !important;
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 h-screen overflow-hidden flex flex-col antialiased selection:bg-[#dfaa86] selection:text-slate-950">
@@ -863,7 +895,7 @@
       <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
         <div class="flex items-center gap-3">
           <div class="relative shrink-0">
-            <div id="profAvatar" class="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-xl font-bold border border-indigo-500/30 overflow-hidden select-none pointer-events-none no-zoom-avatar" style="user-select:none;-webkit-user-drag:none;pointer-events:none;">
+            <div id="profAvatar" class="w-14 h-14 sm:w-16 sm:h-16 shrink-0 aspect-square rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-xl font-bold border border-indigo-500/30 overflow-hidden select-none pointer-events-none no-zoom-avatar" style="width:56px;height:56px;min-width:56px;max-width:56px;max-height:56px;aspect-ratio:1/1;overflow:hidden;user-select:none;-webkit-user-drag:none;pointer-events:none;">
               <i class="fa-solid fa-user"></i>
             </div>
             <button id="profChangeAvatarBtn" type="button" onclick="document.getElementById('profAvatarFileInput').click()" class="hidden absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] flex items-center justify-center shadow-md border border-slate-900 pointer-events-auto transition active:scale-90" title="گۆڕینی وێنەی پرۆفایل">
@@ -2384,27 +2416,27 @@
             </div>
 
             <!-- Input Bar -->
-            <div class="p-2.5 bg-slate-900 border-t border-slate-800 flex items-center gap-2 shrink-0">
+            <div class="p-2 sm:p-2.5 bg-slate-900 border-t border-slate-800 flex items-center gap-1.5 sm:gap-2 shrink-0 w-full overflow-hidden">
               <!-- Hidden Image Input -->
               <input type="file" id="privateImageFileInput" accept="image/*" class="hidden" onchange="uploadPrivateImage(this)">
 
               <!-- Image Upload Button -->
-              <button type="button" onclick="document.getElementById('privateImageFileInput').click()" class="p-2 text-slate-400 hover:text-sky-400 bg-slate-800 hover:bg-slate-700 rounded-xl transition border border-slate-700/60 shrink-0" title="ناردنی وێنە 🖼️">
-                <i class="fa-solid fa-image text-sm"></i>
+              <button type="button" onclick="document.getElementById('privateImageFileInput').click()" class="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-sky-400 bg-slate-800 hover:bg-slate-700 rounded-xl transition border border-slate-700/60 shrink-0" title="ناردنی وێنە 🖼️">
+                <i class="fa-solid fa-image text-xs sm:text-sm"></i>
               </button>
 
               <!-- Voice Record Button -->
-              <button type="button" id="privateVoiceRecordBtn" onclick="togglePrivateVoiceRecording()" class="p-2 text-slate-400 hover:text-emerald-400 bg-slate-800 hover:bg-slate-700 rounded-xl transition border border-slate-700/60 shrink-0" title="تۆمارکردنی دەنگ 🎙️">
-                <i class="fa-solid fa-microphone text-sm"></i>
+              <button type="button" id="privateVoiceRecordBtn" onclick="togglePrivateVoiceRecording()" class="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-emerald-400 bg-slate-800 hover:bg-slate-700 rounded-xl transition border border-slate-700/60 shrink-0" title="تۆمارکردنی دەنگ 🎙️">
+                <i class="fa-solid fa-microphone text-xs sm:text-sm"></i>
               </button>
 
               <!-- Text Input -->
-              <input type="text" id="privateMsgInput" onkeydown="handlePrivateInputKey(event)" placeholder="نامەکەت بنووسە..." class="flex-1 px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-sky-500">
+              <input type="text" id="privateMsgInput" onkeydown="handlePrivateInputKey(event)" placeholder="نامەکەت بنووسە..." class="flex-1 min-w-0 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-sky-500">
               
               <!-- Send Button -->
-              <button onclick="sendPrivateChatMessage()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-slate-950 font-black text-xs rounded-xl transition flex items-center gap-1 shadow active:scale-95 shrink-0">
-                <span>ناردن</span>
-                <i class="fa-solid fa-paper-plane text-[10px]"></i>
+              <button type="button" onclick="sendPrivateChatMessage()" class="h-9 px-3 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs rounded-xl transition flex items-center justify-center gap-1 shadow active:scale-95 shrink-0" title="ناردن">
+                <span class="hidden xs:inline">ناردن</span>
+                <i class="fa-solid fa-paper-plane text-xs"></i>
               </button>
             </div>
           </div>

@@ -1472,7 +1472,7 @@ function initSocket() {
     if (typeof currentProfileUserId !== 'undefined' && currentProfileUserId === data.user_id) {
       const profAvatar = document.getElementById('profAvatar');
       if (profAvatar) {
-        profAvatar.innerHTML = `<img src="${escapeHtml(data.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-2xl pointer-events-none select-none no-zoom-avatar" draggable="false" oncontextmenu="return false;">`;
+        profAvatar.innerHTML = `<img src="${escapeHtml(data.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-2xl pointer-events-none select-none no-zoom-avatar" style="width:100%;height:100%;max-width:100%;max-height:100%;object-fit:cover;" draggable="false" oncontextmenu="return false;">`;
       }
     }
   });
@@ -1645,6 +1645,25 @@ function initSocket() {
               favIcon.className = 'fa-regular fa-star text-slate-400 text-sm';
               favBtn.title = 'کردن بە دڵخواز ⭐';
             }
+          }
+        }
+      }
+    }
+  });
+
+  socket.on('dream_session_answered', (data) => {
+    if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+      if (data && data.sessionId) {
+        const s = dreamAdminSessionsCache.find(x => x.id === data.sessionId);
+        if (s) {
+          s.answered_by_name = data.answered_by_name;
+          s.answered_by_role = data.answered_by_role;
+          if (typeof renderDreamAdminSessionsCards === 'function') renderDreamAdminSessionsCards();
+        }
+        if (activeDreamAdminSessionId === data.sessionId) {
+          const statusElem = document.getElementById('dreamAdminChatStatus');
+          if (statusElem) {
+            statusElem.innerHTML = `وەڵامدراوەتەوە لەلایەن: <strong class="text-emerald-400 font-bold">${escapeHtml(data.answered_by_name)}</strong>`;
           }
         }
       }
@@ -4380,11 +4399,11 @@ async function uploadMyAvatar(fileInput) {
       }
       const profAvatar = document.getElementById('profAvatar');
       if (profAvatar) {
-        profAvatar.innerHTML = `<img src="${escapeHtml(data.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-2xl pointer-events-none select-none no-zoom-avatar" draggable="false" oncontextmenu="return false;">`;
+        profAvatar.innerHTML = `<img src="${escapeHtml(data.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-2xl pointer-events-none select-none no-zoom-avatar" style="width:100%;height:100%;max-width:100%;max-height:100%;object-fit:cover;" draggable="false" oncontextmenu="return false;">`;
       }
       const drawerAvatar = document.getElementById('drawerUserAvatar');
       if (drawerAvatar) {
-        drawerAvatar.innerHTML = `<img src="${escapeHtml(data.avatar_url)}" class="w-full h-full object-cover rounded-xl pointer-events-none select-none no-zoom-avatar" draggable="false" oncontextmenu="return false;">`;
+        drawerAvatar.innerHTML = `<img src="${escapeHtml(data.avatar_url)}" class="w-full h-full object-cover rounded-xl pointer-events-none select-none no-zoom-avatar" style="width:100%;height:100%;max-width:100%;max-height:100%;object-fit:cover;" draggable="false" oncontextmenu="return false;">`;
       }
       alert('وێنەی پرۆفایلەکەت بە سەرکەوتوویی دانرا ✨');
     } else {
@@ -4440,7 +4459,7 @@ async function openUserProfileModal(userId) {
     const profChangeAvatarBtn = document.getElementById('profChangeAvatarBtn');
     if (profAvatarEl) {
       if (prof.avatar_url) {
-        profAvatarEl.innerHTML = `<img src="${escapeHtml(prof.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-2xl pointer-events-none select-none no-zoom-avatar" draggable="false" oncontextmenu="return false;">`;
+        profAvatarEl.innerHTML = `<img src="${escapeHtml(prof.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-2xl pointer-events-none select-none no-zoom-avatar" style="width:100%;height:100%;max-width:100%;max-height:100%;object-fit:cover;" draggable="false" oncontextmenu="return false;">`;
       } else {
         profAvatarEl.innerHTML = `<span class="pointer-events-none select-none text-2xl">${getGenderEmoji(prof.gender)}</span>`;
       }
@@ -6964,6 +6983,22 @@ function renderDreamAdminSessionsCards() {
           ${voiceBadgeHtml}
         </div>
       </div>
+      <div class="mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+        ${s.answered_by_name ? `
+          <div class="inline-flex items-center gap-1.5 min-w-0">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+            <span class="text-slate-400 text-[10px] truncate">وەڵامدراوەتەوە لەلایەن: <strong class="text-emerald-400 font-bold">${escapeHtml(s.answered_by_name)}</strong></span>
+          </div>
+          <span class="text-[9px] px-1.5 py-0.5 rounded ${s.answered_by_role === 'teacher' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'} shrink-0 font-bold">
+            ${s.answered_by_role === 'teacher' ? 'مامۆستا' : 'ئەدمین'}
+          </span>
+        ` : `
+          <div class="inline-flex items-center gap-1.5 text-amber-400/90 font-medium">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0"></span>
+            <span class="text-[10px]">چاوەڕوانی وەڵامە ⏳</span>
+          </div>
+        `}
+      </div>
     `;
     listContainer.appendChild(card);
   });
@@ -7051,7 +7086,13 @@ async function selectDreamSession(sessionId) {
 
     if (nameElem) nameElem.innerText = session.dreamer_name;
     if (genderElem) genderElem.innerText = getGenderEmoji(session.dreamer_gender);
-    if (statusElem) statusElem.innerText = `دەستپێکردن: ${new Date(session.created_at).toLocaleDateString('ku-IQ')}`;
+    if (statusElem) {
+      if (session.answered_by_name) {
+        statusElem.innerHTML = `وەڵامدراوەتەوە لەلایەن: <strong class="text-emerald-400 font-bold">${escapeHtml(session.answered_by_name)}</strong>`;
+      } else {
+        statusElem.innerHTML = `<span class="text-amber-400 font-medium">چاوەڕوانی وەڵامە ⏳</span>`;
+      }
+    }
 
     if (favIcon && favBtn) {
       if (session.is_favorite) {
@@ -8267,8 +8308,11 @@ async function loadPrivateStaffList() {
       return;
     }
 
-    const superAdmins = data.staff.filter(s => s.role === 'super_admin');
-    const teachers = data.staff.filter(s => s.role === 'teacher');
+    const isMaleStudent = currentUser && currentUser.role !== 'super_admin' && currentUser.role !== 'teacher' && currentUser.gender === 'male';
+    const availableStaff = isMaleStudent ? data.staff.filter(s => !(s.role === 'teacher' && s.gender === 'female')) : data.staff;
+
+    const superAdmins = availableStaff.filter(s => s.role === 'super_admin');
+    const teachers = availableStaff.filter(s => s.role === 'teacher');
 
     let html = '';
 
@@ -8343,8 +8387,11 @@ async function loadPrivateConversations() {
     });
     const data = await res.json();
     if (res.ok && Array.isArray(data.conversations)) {
-      if (countBadge) countBadge.innerText = data.conversations.length;
-      if (data.conversations.length === 0) {
+      const isMaleStudent = currentUser && currentUser.role !== 'super_admin' && currentUser.role !== 'teacher' && currentUser.gender === 'male';
+      const availableConversations = isMaleStudent ? data.conversations.filter(c => !((c.other_role || c.role) === 'teacher' && (c.other_gender || c.gender) === 'female')) : data.conversations;
+
+      if (countBadge) countBadge.innerText = availableConversations.length;
+      if (availableConversations.length === 0) {
         listEl.innerHTML = `
           <div class="p-6 text-center text-slate-500 text-xs leading-relaxed">
             هیچ گفتوگۆیەکت لەم بەشەدا نییە.<br>
@@ -8354,7 +8401,7 @@ async function loadPrivateConversations() {
         return;
       }
 
-      listEl.innerHTML = data.conversations.map(c => {
+      listEl.innerHTML = availableConversations.map(c => {
         const otherId = c.other_id || c.other_user_id;
         const otherName = c.other_name || c.full_name || 'بەکارهێنەر';
         const otherRole = c.other_role || c.role || 'student';
@@ -8407,6 +8454,12 @@ async function loadPrivateConversations() {
 }
 
 async function openPrivateChatWithUser(targetUserId, targetName, targetRole, targetGender) {
+  const isMaleStudent = currentUser && currentUser.role !== 'super_admin' && currentUser.role !== 'teacher' && currentUser.gender === 'male';
+  if (isMaleStudent && targetRole === 'teacher' && targetGender === 'female') {
+    alert('بەپێی ڕێنماییەکان، قوتابی کوڕ ناتوانێت پەیوەندی بە مامۆستای ئافرەتەوە بکات.');
+    return;
+  }
+
   openPrivateChatModal();
   activePrivateOtherUser = {
     id: parseInt(targetUserId),
@@ -8501,24 +8554,27 @@ function appendPrivateMessageToThread(m, scroll = true) {
   const isMe = currentUser && m.sender_id === currentUser.id;
   const timeFormatted = m.created_at ? new Date(m.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
 
-  const isAudio = m.type === 'voice' || (m.content && m.content.startsWith('/uploads/') && (m.content.endsWith('.webm') || m.content.endsWith('.mp3') || m.content.endsWith('.ogg') || m.content.endsWith('.m4a') || m.content.endsWith('.wav')));
-  const isImage = m.type === 'image' || (m.content && m.content.startsWith('/uploads/') && (m.content.endsWith('.png') || m.content.endsWith('.jpg') || m.content.endsWith('.jpeg') || m.content.endsWith('.webp') || m.content.endsWith('.gif')));
+  const mediaUrl = m.attachment_url || (m.content && m.content.startsWith('/uploads/') ? m.content : '');
+  const isAudio = m.type === 'voice' || (mediaUrl && (mediaUrl.endsWith('.webm') || mediaUrl.endsWith('.mp3') || mediaUrl.endsWith('.ogg') || mediaUrl.endsWith('.m4a') || mediaUrl.endsWith('.wav')));
+  const isImage = m.type === 'image' || (mediaUrl && (mediaUrl.endsWith('.png') || mediaUrl.endsWith('.jpg') || mediaUrl.endsWith('.jpeg') || mediaUrl.endsWith('.webp') || mediaUrl.endsWith('.gif')));
 
   let bodyHtml = '';
-  if (isAudio) {
+  if (isAudio && mediaUrl) {
     bodyHtml = `
-      <div class="my-1">
-        <audio controls src="${escapeHtml(m.content)}" class="max-w-[220px] sm:max-w-[280px] h-8 rounded-xl"></audio>
+      <div class="my-1 space-y-1">
+        <audio controls src="${escapeHtml(mediaUrl)}" class="max-w-[220px] sm:max-w-[280px] h-8 rounded-xl"></audio>
+        ${m.content && !m.content.startsWith('/uploads/') ? `<p class="text-[10px] text-slate-300 font-medium">${escapeHtml(m.content)}</p>` : ''}
       </div>
     `;
-  } else if (isImage) {
+  } else if (isImage && mediaUrl) {
     bodyHtml = `
-      <div class="my-1 cursor-pointer" onclick="openPrivateImageModal('${escapeHtml(m.content)}')">
-        <img src="${escapeHtml(m.content)}" alt="وێنە" class="max-w-[180px] sm:max-w-[260px] max-h-48 rounded-2xl object-cover border border-slate-700/80 shadow hover:opacity-95 transition">
+      <div class="my-1 cursor-pointer space-y-1" onclick="openPrivateImageModal('${escapeHtml(mediaUrl)}')">
+        <img src="${escapeHtml(mediaUrl)}" alt="وێنە" class="max-w-[180px] sm:max-w-[260px] max-h-48 rounded-2xl object-cover border border-slate-700/80 shadow hover:opacity-95 transition" loading="lazy">
+        ${m.content && m.content !== '🖼️ وێنە' && !m.content.startsWith('/uploads/') ? `<p class="text-[11px] text-slate-200 mt-1">${escapeHtml(m.content)}</p>` : ''}
       </div>
     `;
   } else {
-    bodyHtml = `<div class="select-text">${escapeHtml(m.content)}</div>`;
+    bodyHtml = `<div class="select-text whitespace-pre-wrap">${escapeHtml(m.content)}</div>`;
   }
 
   const div = document.createElement('div');
