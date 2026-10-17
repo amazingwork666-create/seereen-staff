@@ -7370,6 +7370,13 @@ let liveAudioContext = null;
 let liveAudioMasterGain = null;
 let liveAudioFilterHigh = null;
 let liveAudioFilterLow = null;
+let liveIncomingBusNode = null;
+let liveRecordingDestination = null;
+let liveHostMicGainNode = null;
+let liveHostMicSourceNode = null;
+let liveQuranMediaElementSource = null;
+let liveQuranRecordingGainNode = null;
+const liveRemoteAudioStreams = new Map();
 let currentLiveAudioOutputMode = 'speaker';
 
 function getLiveAudioMasterGain() {
@@ -7388,16 +7395,47 @@ function getLiveAudioMasterGain() {
       liveAudioFilterLow.type = 'lowpass';
       liveAudioFilterLow.frequency.value = (currentLiveAudioOutputMode === 'earpiece' ? 3400 : 20000);
 
+      // Dedicated summing bus for all remote participants/students
+      liveIncomingBusNode = liveAudioContext.createGain();
+      liveIncomingBusNode.gain.value = 1.0;
+
+      // Routing: incomingBus -> filterHigh -> filterLow -> masterGain -> destination (speakers)
+      liveIncomingBusNode.connect(liveAudioFilterHigh);
       liveAudioFilterHigh.connect(liveAudioFilterLow);
       liveAudioFilterLow.connect(liveAudioMasterGain);
       liveAudioMasterGain.connect(liveAudioContext.destination);
 
       liveAudioMasterGain.gain.value = (currentLiveAudioOutputMode === 'earpiece' ? 0.22 : 1.0);
     }
-    return { masterGain: liveAudioMasterGain, filterHigh: liveAudioFilterHigh, filterLow: liveAudioFilterLow };
+    return { 
+      masterGain: liveAudioMasterGain, 
+      filterHigh: liveAudioFilterHigh, 
+      filterLow: liveAudioFilterLow,
+      incomingBus: liveIncomingBusNode 
+    };
   } catch (err) {
     console.log('getLiveAudioMasterGain error:', err);
-    return { masterGain: null, filterHigh: null, filterLow: null };
+    return { masterGain: null, filterHigh: null, filterLow: null, incomingBus: null };
+  }
+}
+
+function connectHostMicToRecording() {
+  if (!liveRecordingDestination || !liveAudioContext) return;
+  if (!localLiveAudioStream) return;
+  try {
+    if (liveHostMicSourceNode) {
+      try { liveHostMicSourceNode.disconnect(); } catch (e) {}
+    }
+    if (liveHostMicGainNode) {
+      try { liveHostMicGainNode.disconnect(); } catch (e) {}
+    }
+    liveHostMicSourceNode = liveAudioContext.createMediaStreamSource(localLiveAudioStream);
+    liveHostMicGainNode = liveAudioContext.createGain();
+    liveHostMicGainNode.gain.value = 1.0;
+    liveHostMicSourceNode.connect(liveHostMicGainNode);
+    liveHostMicGainNode.connect(liveRecordingDestination);
+  } catch (e) {
+    console.log('connectHostMicToRecording note:', e);
   }
 }
 
@@ -7632,6 +7670,7 @@ async function toggleLiveMic() {
         isLocalMicMuted = false;
         updateLiveMicUI(false);
         socket.emit('live_mic_toggle', false);
+        connectHostMicToRecording();
 
         // Broadcast audio to all room participants
         broadcastLiveMediaToAll();
@@ -7821,14 +7860,16 @@ function toggleScreenShareFullscreen() {
   }
 }
 
-// Unlimited Two-Way Recording (تۆمارکردنی دەنگی وانە لە هەردوولا بێ سنوور)
+// Unlimited Two-Way Recording (تۆمارکردنی دەنگی وانە لە هەردوولا بێ سنوور: مامۆستا + هەموو قوتابیان)
 async function toggleLiveRecording() {
   const recordBtn = document.getElementById('liveRecordBtn');
   const recordDot = document.getElementById('liveRecordDot');
   const recordText = document.getElementById('liveRecordText');
 
   if (liveMediaRecorder && liveMediaRecorder.state !== 'inactive') {
-    liveMediaRecorder.stop();
+    try {
+      liveMediaRecorder.stop();
+    } catch (e) {}
     if (liveRecordingTimer) clearInterval(liveRecordingTimer);
     liveRecordingTimer = null;
 
@@ -7839,39 +7880,72 @@ async function toggleLiveRecording() {
   }
 
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    liveAudioContext = new AudioCtx();
-    const destination = liveAudioContext.createMediaStreamDestination();
-
-    const liveAudio = document.getElementById('liveRoomAudio');
-    if (liveAudio && liveAudio.srcObject) {
-      try {
-        const remoteSource = liveAudioContext.createMediaStreamSource(liveAudio.srcObject);
-        remoteSource.connect(destination);
-      } catch (e) {}
+    const { incomingBus } = getLiveAudioMasterGain();
+    if (liveAudioContext && liveAudioContext.state === 'suspended') {
+      await liveAudioContext.resume().catch(() => {});
     }
 
+    // Destination stream that will mix both Host Microphone + ALL Remote Students/Members Voices + Quran
+    liveRecordingDestination = liveAudioContext.createMediaStreamDestination();
+
+    // 1. Connect remote participants bus directly to recording destination
+    if (incomingBus) {
+      try {
+        incomingBus.connect(liveRecordingDestination);
+      } catch (e) {
+        console.log('incomingBus connect note:', e);
+      }
+    }
+
+    // Fallback: Also connect all active remote streams and DOM audio elements to destination
+    liveRemoteAudioStreams.forEach((rStream) => {
+      try {
+        if (rStream && rStream.getAudioTracks && rStream.getAudioTracks().length > 0) {
+          const peerSrc = liveAudioContext.createMediaStreamSource(rStream);
+          peerSrc.connect(liveRecordingDestination);
+        }
+      } catch (e) {}
+    });
+
+    document.querySelectorAll('audio[id^="live_audio_"]').forEach(el => {
+      if (el && el.srcObject) {
+        try {
+          const domSrc = liveAudioContext.createMediaStreamSource(el.srcObject);
+          domSrc.connect(liveRecordingDestination);
+        } catch (e) {}
+      }
+    });
+
+    // 2. Connect Quran Audio if playing
     const quranAudio = document.getElementById('liveQuranAudio');
     if (quranAudio && !quranAudio.paused) {
       try {
-        const quranSource = liveAudioContext.createMediaElementSource(quranAudio);
-        quranSource.connect(destination);
-        quranSource.connect(liveAudioContext.destination);
-      } catch (e) {}
+        if (!liveQuranMediaElementSource) {
+          liveQuranMediaElementSource = liveAudioContext.createMediaElementSource(quranAudio);
+          liveQuranMediaElementSource.connect(liveAudioContext.destination);
+        }
+        liveQuranRecordingGainNode = liveAudioContext.createGain();
+        liveQuranRecordingGainNode.gain.value = 0.8;
+        liveQuranMediaElementSource.connect(liveQuranRecordingGainNode);
+        liveQuranRecordingGainNode.connect(liveRecordingDestination);
+      } catch (e) {
+        console.log('Quran recording connect note:', e);
+      }
+    }
+
+    // 3. Connect Host's Microphone (خاوەن لایڤ / مامۆستا)
+    if (!localLiveAudioStream) {
+      try {
+        localLiveAudioStream = await requestLiveAudioStream();
+      } catch (e) {
+        try {
+          localLiveAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {}
+      }
     }
 
     if (localLiveAudioStream) {
-      try {
-        const micSource = liveAudioContext.createMediaStreamSource(localLiveAudioStream);
-        micSource.connect(destination);
-      } catch (e) {}
-    } else {
-      try {
-        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        localLiveAudioStream = micStream;
-        const micSource = liveAudioContext.createMediaStreamSource(micStream);
-        micSource.connect(destination);
-      } catch (e) {}
+      connectHostMicToRecording();
     }
 
     liveRecordedAudioChunks = [];
@@ -7879,7 +7953,7 @@ async function toggleLiveRecording() {
       ? 'audio/webm;codecs=opus' 
       : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4');
 
-    liveMediaRecorder = new MediaRecorder(destination.stream, { mimeType });
+    liveMediaRecorder = new MediaRecorder(liveRecordingDestination.stream, { mimeType });
 
     liveMediaRecorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) {
@@ -7888,6 +7962,24 @@ async function toggleLiveRecording() {
     };
 
     liveMediaRecorder.onstop = () => {
+      // Disconnect recording nodes cleanly
+      try {
+        if (incomingBus && liveRecordingDestination) {
+          incomingBus.disconnect(liveRecordingDestination);
+        }
+      } catch (e) {}
+      try {
+        if (liveHostMicGainNode && liveRecordingDestination) {
+          liveHostMicGainNode.disconnect(liveRecordingDestination);
+        }
+      } catch (e) {}
+      try {
+        if (liveQuranRecordingGainNode && liveRecordingDestination) {
+          liveQuranRecordingGainNode.disconnect(liveRecordingDestination);
+        }
+      } catch (e) {}
+      liveRecordingDestination = null;
+
       const blob = new Blob(liveRecordedAudioChunks, { type: mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -7901,10 +7993,10 @@ async function toggleLiveRecording() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }, 100);
-      alert('تۆمارکردنی دەنگ تەواو بوو و دەنگەکە بە سەرکەوتوویی داگیرا! 🎙️📥');
+      alert('تۆمارکردنی دەنگ تەواو بوو و دەنگی (مامۆستا + هەموو ئەندامەکان) بە سەرکەوتوویی داگیرا! 🎙️📥');
     };
 
-    liveMediaRecorder.start(5000);
+    liveMediaRecorder.start(2000);
     liveRecordingStartTime = Date.now();
 
     if (recordBtn) recordBtn.className = 'px-3 py-2 bg-rose-600 hover:bg-rose-500 border border-rose-400 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-lg animate-pulse';
@@ -8466,6 +8558,7 @@ function broadcastLiveMediaToAll() {
 }
 
 function closeLivePeerConnection(targetSocketId) {
+  liveRemoteAudioStreams.delete(targetSocketId);
   if (livePeerConnections.has(targetSocketId)) {
     try {
       livePeerConnections.get(targetSocketId).close();
@@ -8554,6 +8647,8 @@ function handleIncomingLiveAudio(track, stream, fromSocketId) {
   if (!track) return;
   const mediaStream = stream || new MediaStream([track]);
 
+  liveRemoteAudioStreams.set(fromSocketId, mediaStream);
+
   const targetVol = (currentLiveAudioOutputMode === 'earpiece' ? 0.22 : 1.0);
 
   // 1. Dual output A: Off-screen HTML5 Audio element
@@ -8587,15 +8682,22 @@ function handleIncomingLiveAudio(track, stream, fromSocketId) {
     } catch (e) {}
   };
 
-  // 2. Dual output B: Web Audio API routing through masterGain & telephony bandpass filter
+  // 2. Dual output B: Web Audio API routing through incomingBus and recording mixer
   try {
-    const { masterGain, filterHigh } = getLiveAudioMasterGain();
-    if (liveAudioContext && filterHigh && masterGain) {
+    const { masterGain, incomingBus } = getLiveAudioMasterGain();
+    if (liveAudioContext && incomingBus && masterGain) {
       if (liveAudioContext.state === 'suspended') {
         liveAudioContext.resume().catch(() => {});
       }
       const srcNode = liveAudioContext.createMediaStreamSource(mediaStream);
-      srcNode.connect(filterHigh);
+      srcNode.connect(incomingBus);
+
+      // If recording is active, pipe student's voice directly into recording destination
+      if (liveRecordingDestination) {
+        try {
+          srcNode.connect(liveRecordingDestination);
+        } catch (recErr) {}
+      }
 
       // Web Audio is handling output with master gain control; mute HTML element to eliminate echo/doubling
       audioElem.muted = true;
