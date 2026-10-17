@@ -3665,31 +3665,33 @@ function switchAdminSubTab(tab) {
 
   // Reset all tabs to inactive styling
   [tabPending, tabUsers, tabPasswordResets, tabProfileChanges, tabBackups].forEach(t => {
-    if (t) t.className = 'pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2';
+    if (t) t.className = 'px-2.5 py-2 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-1.5 shrink-0 transition';
   });
   // Hide all panels
   [contentPending, contentUsers, contentPasswordResets, contentProfileChanges, contentBackups].forEach(c => {
     if (c) c.classList.add('hidden');
   });
 
+  const activeTabClass = 'px-2.5 py-2 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-1.5 shrink-0 transition';
+
   if (tab === 'pending') {
-    if (tabPending) tabPending.className = 'pb-3 text-sm font-bold border-b-2 border-[#dfaa86] text-[#dfaa86] flex items-center gap-2';
+    if (tabPending) tabPending.className = activeTabClass;
     if (contentPending) contentPending.classList.remove('hidden');
     loadPendingUsersList();
   } else if (tab === 'users') {
-    if (tabUsers) tabUsers.className = 'pb-3 text-sm font-bold border-b-2 border-[#dfaa86] text-[#dfaa86] flex items-center gap-2';
+    if (tabUsers) tabUsers.className = activeTabClass;
     if (contentUsers) contentUsers.classList.remove('hidden');
     loadAllUsersList();
   } else if (tab === 'password_resets') {
-    if (tabPasswordResets) tabPasswordResets.className = 'pb-3 text-sm font-bold border-b-2 border-[#dfaa86] text-[#dfaa86] flex items-center gap-2';
+    if (tabPasswordResets) tabPasswordResets.className = activeTabClass;
     if (contentPasswordResets) contentPasswordResets.classList.remove('hidden');
     loadPasswordResetsList();
   } else if (tab === 'profile_changes') {
-    if (tabProfileChanges) tabProfileChanges.className = 'pb-3 text-sm font-bold border-b-2 border-[#dfaa86] text-[#dfaa86] flex items-center gap-2';
+    if (tabProfileChanges) tabProfileChanges.className = activeTabClass;
     if (contentProfileChanges) contentProfileChanges.classList.remove('hidden');
     loadPendingProfileChangesList();
   } else if (tab === 'backups') {
-    if (tabBackups) tabBackups.className = 'pb-3 text-sm font-bold border-b-2 border-[#dfaa86] text-[#dfaa86] flex items-center gap-2';
+    if (tabBackups) tabBackups.className = activeTabClass;
     if (contentBackups) contentBackups.classList.remove('hidden');
     loadAdminBackupsList();
   }
@@ -4206,39 +4208,42 @@ async function loadPendingUsersList() {
 
     data.pending.forEach(u => {
       const card = document.createElement('div');
-      card.className = 'p-4 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-between flex-wrap gap-3';
+      card.className = 'p-3.5 sm:p-4 rounded-2xl bg-slate-800/90 border border-slate-700/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm hover:border-slate-600 transition';
       const createdDate = new Date(u.created_at).toLocaleDateString('ku-IQ') + ' ' + new Date(u.created_at).toLocaleTimeString('ku-IQ');
 
       card.innerHTML = `
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-lg shrink-0">
             ${u.gender === 'female' ? '👧' : '👦'}
           </div>
-          <div>
-            <h4 class="font-bold text-sm text-white">${escapeHtml(u.full_name)} <span class="text-xs ${u.gender === 'female' ? 'text-pink-400' : 'text-sky-400'} font-normal">(${u.gender === 'female' ? 'کچ' : 'کوڕ'})</span></h4>
-            <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <h4 class="font-bold text-sm text-white truncate">${escapeHtml(u.full_name)}</h4>
+              <span class="text-[11px] px-2 py-0.5 rounded-full ${u.gender === 'female' ? 'bg-pink-500/20 text-pink-300 border border-pink-500/30' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'} font-medium">(${u.gender === 'female' ? 'کچ' : 'کوڕ'})</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5 flex-wrap">
               <span>ناوی بەکارهێنەر: <b class="font-mono text-slate-300">@${escapeHtml(u.username)}</b></span>
               <span>•</span>
-              <span>کاتی داواکاری: ${createdDate}</span>
+              <span class="text-[11px] text-slate-400"><i class="fa-regular fa-clock text-[10px]"></i> ${createdDate}</span>
             </div>
           </div>
         </div>
 
-        <div class="flex items-center gap-1.5 flex-wrap">
-          <button onclick="approveUser(${u.id}, 'student')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs shadow transition flex items-center gap-1" title="پەسەندکردن وەک قوتابی ئاسایی">
+        <div class="grid grid-cols-2 sm:flex sm:items-center gap-1.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-700/50 w-full sm:w-auto">
+          <button onclick="approveUser(${u.id}, 'student')" class="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs shadow transition flex items-center justify-center gap-1 active:scale-95" title="پەسەندکردن وەک قوتابی ئاسایی">
             <i class="fa-solid fa-graduation-cap"></i> قوتابی 🎓
           </button>
-          <button onclick="approveUser(${u.id}, 'teacher')" class="px-3 py-1.5 bg-purple-700 hover:bg-purple-600 text-white rounded-xl font-bold text-xs shadow transition flex items-center gap-1" title="پەسەندکردن وەک مامۆستا">
+          <button onclick="approveUser(${u.id}, 'teacher')" class="px-3 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded-xl font-bold text-xs shadow transition flex items-center justify-center gap-1 active:scale-95" title="پەسەندکردن وەک مامۆستا">
             <span>مامۆستا 👨‍🏫</span>
           </button>
-          <button onclick="approveUser(${u.id}, 'new_student')" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl font-bold text-xs shadow transition flex items-center gap-1" title="پەسەندکردن وەک قوتابی تازە (١ چات لە ٢٤ کاتژمێردا)">
-            <span>قوتابی تازە 🔰</span>
+          <button onclick="approveUser(${u.id}, 'new_student')" class="px-2.5 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl font-bold text-xs shadow transition flex items-center justify-center gap-1 active:scale-95" title="پەسەندکردن وەک قوتابی تازە (١ چات لە ٢٤ کاتژمێردا)">
+            <span>تازە 🔰</span>
           </button>
-          <button onclick="approveUser(${u.id}, 'guest')" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-bold text-xs shadow transition flex items-center gap-1" title="پەسەندکردن وەک میوان (تەنها چاودێر)">
+          <button onclick="approveUser(${u.id}, 'guest')" class="px-2.5 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-bold text-xs shadow transition flex items-center justify-center gap-1 active:scale-95" title="پەسەندکردن وەک میوان (تەنها چاودێر)">
             <span>میوان 👁️</span>
           </button>
-          <button onclick="rejectUser(${u.id})" class="px-2.5 py-1.5 bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 rounded-xl font-bold text-xs transition" title="ڕەتکردنەوە">
-            <i class="fa-solid fa-xmark"></i>
+          <button onclick="rejectUser(${u.id})" class="col-span-2 sm:col-span-1 px-3 py-2 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1 active:scale-95" title="ڕەتکردنەوەی داواکاری">
+            <i class="fa-solid fa-xmark"></i> <span>ڕەتکردنەوە</span>
           </button>
         </div>
       `;
@@ -4313,30 +4318,30 @@ async function loadAllUsersList() {
       const nameClass = getUserNameClass(u);
 
       const card = document.createElement('div');
-      card.className = `p-3.5 rounded-2xl bg-slate-800/80 border ${isBlocked ? 'border-red-500/50 bg-red-950/20' : 'border-slate-700'} flex items-center justify-between flex-wrap gap-2.5`;
+      card.className = `p-3.5 sm:p-4 rounded-2xl bg-slate-800/90 border ${isBlocked ? 'border-red-500/50 bg-red-950/20' : 'border-slate-700/80'} flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm hover:border-slate-600 transition`;
 
       card.innerHTML = `
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl ${isSuper ? 'bg-amber-500/20 text-amber-400' : isAdmin ? 'bg-emerald-500/20 text-emerald-400' : 'bg-indigo-500/20 text-indigo-400'} flex items-center justify-center font-bold text-sm">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-xl ${isSuper ? 'bg-amber-500/20 text-amber-400' : isAdmin ? 'bg-emerald-500/20 text-emerald-400' : 'bg-indigo-500/20 text-indigo-400'} flex items-center justify-center font-bold text-sm shrink-0">
             <i class="fa-solid ${isSuper ? 'fa-user-shield' : isAdmin ? 'fa-shield' : 'fa-graduation-cap'}"></i>
           </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h4 class="font-bold text-sm ${nameClass}">${escapeHtml(u.full_name)}</h4>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h4 class="font-bold text-sm ${nameClass} truncate">${escapeHtml(u.full_name)}</h4>
               ${renderRoleBadge(u.role)}
               ${isBlocked ? '<span class="px-2 py-0.5 rounded bg-red-600 text-white text-[10px] font-black">بلۆککراوە 🚫</span>' : ''}
               ${isMuted ? '<span class="px-2 py-0.5 rounded bg-amber-600 text-white text-[10px] font-black">سڕکراوە 🔇</span>' : ''}
             </div>
-            <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-              <span>@${escapeHtml(u.username)}</span>
+            <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5 flex-wrap">
+              <span class="font-mono">@${escapeHtml(u.username)}</span>
               ${isStudent ? `<span>• خاوەنی ${u.starInfo ? u.starInfo.stars : 1} ئەستێرە (${u.starInfo ? u.starInfo.points : 0}/10)</span>` : ''}
             </div>
           </div>
         </div>
 
-        <div class="flex items-center gap-2 flex-wrap">
-          <button onclick="openUserProfileModal(${u.id})" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1">
-            <i class="fa-solid fa-circle-info"></i> زانیاری کەسەکە
+        <div class="flex items-center gap-2 flex-wrap pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-700/50 w-full sm:w-auto">
+          <button onclick="openUserProfileModal(${u.id})" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95">
+            <i class="fa-solid fa-circle-info"></i> زانیاری
           </button>
 
           ${isSuperAdmin && !isSuper ? `
@@ -4345,13 +4350,13 @@ async function loadAllUsersList() {
               <select onchange="changeRole(${u.id}, this.value)" class="bg-transparent text-xs text-white font-bold focus:outline-none cursor-pointer">
                 <option value="student" class="bg-slate-900 text-sky-400" ${u.role === 'student' ? 'selected' : ''}>🎓 قوتابی</option>
                 <option value="teacher" class="bg-slate-900 text-purple-400" ${u.role === 'teacher' ? 'selected' : ''}>👨‍🏫 مامۆستا</option>
-                <option value="new_student" class="bg-slate-900 text-teal-400" ${u.role === 'new_student' ? 'selected' : ''}>🔰 قوتابی تازە</option>
-                <option value="guest" class="bg-slate-900 text-slate-400" ${u.role === 'guest' ? 'selected' : ''}>👁️ میوان (چاودێر)</option>
+                <option value="new_student" class="bg-slate-900 text-teal-400" ${u.role === 'new_student' ? 'selected' : ''}>🔰 تازە</option>
+                <option value="guest" class="bg-slate-900 text-slate-400" ${u.role === 'guest' ? 'selected' : ''}>👁️ میوان</option>
                 <option value="admin" class="bg-slate-900 text-emerald-400" ${u.role === 'admin' ? 'selected' : ''}>🛡️ ئەدمین</option>
               </select>
             </div>
 
-            <button onclick="toggleBlockUser(${u.id}, ${isBlocked ? 0 : 1})" class="px-2.5 py-1.5 ${isBlocked ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40' : 'bg-red-600/20 text-red-300 border border-red-500/40'} rounded-xl text-xs font-bold transition flex items-center gap-1">
+            <button onclick="toggleBlockUser(${u.id}, ${isBlocked ? 0 : 1})" class="px-2.5 py-1.5 ${isBlocked ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40' : 'bg-red-600/20 text-red-300 border border-red-500/40'} rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95">
               <i class="fa-solid ${isBlocked ? 'fa-unlock' : 'fa-ban'}"></i>
               <span>${isBlocked ? 'لادانی بلۆک' : 'بلۆک'}</span>
             </button>
@@ -4364,11 +4369,11 @@ async function loadAllUsersList() {
 
           ${(u.role === 'student' || u.role === 'new_student') ? `
             ${isMuted ? `
-              <button onclick="unmuteUser(${u.id})" class="px-2.5 py-1.5 bg-amber-600/30 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold transition">
+              <button onclick="unmuteUser(${u.id})" class="px-2.5 py-1.5 bg-amber-600/30 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold transition active:scale-95">
                 لادانی سڕکردن
               </button>
             ` : `
-              <button onclick="muteUser24h(${u.id}, '${escapeHtml(u.full_name)}')" class="px-2.5 py-1.5 bg-slate-700 hover:bg-red-950 text-slate-300 hover:text-red-300 border border-slate-600 rounded-xl text-xs font-bold transition">
+              <button onclick="muteUser24h(${u.id}, '${escapeHtml(u.full_name)}')" class="px-2.5 py-1.5 bg-slate-700 hover:bg-red-950 text-slate-300 hover:text-red-300 border border-slate-600 rounded-xl text-xs font-bold transition active:scale-95">
                 سڕکردن (24h)
               </button>
             `}
@@ -7362,6 +7367,39 @@ let liveRecordedAudioChunks = [];
 let liveRecordingStartTime = null;
 let liveRecordingTimer = null;
 let liveAudioContext = null;
+let liveAudioMasterGain = null;
+let liveAudioFilterHigh = null;
+let liveAudioFilterLow = null;
+let currentLiveAudioOutputMode = 'speaker';
+
+function getLiveAudioMasterGain() {
+  try {
+    if (!liveAudioContext || liveAudioContext.state === 'closed') {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      liveAudioContext = new AudioCtx();
+    }
+    if (!liveAudioMasterGain) {
+      liveAudioMasterGain = liveAudioContext.createGain();
+      liveAudioFilterHigh = liveAudioContext.createBiquadFilter();
+      liveAudioFilterHigh.type = 'highpass';
+      liveAudioFilterHigh.frequency.value = (currentLiveAudioOutputMode === 'earpiece' ? 300 : 20);
+
+      liveAudioFilterLow = liveAudioContext.createBiquadFilter();
+      liveAudioFilterLow.type = 'lowpass';
+      liveAudioFilterLow.frequency.value = (currentLiveAudioOutputMode === 'earpiece' ? 3400 : 20000);
+
+      liveAudioFilterHigh.connect(liveAudioFilterLow);
+      liveAudioFilterLow.connect(liveAudioMasterGain);
+      liveAudioMasterGain.connect(liveAudioContext.destination);
+
+      liveAudioMasterGain.gain.value = (currentLiveAudioOutputMode === 'earpiece' ? 0.22 : 1.0);
+    }
+    return { masterGain: liveAudioMasterGain, filterHigh: liveAudioFilterHigh, filterLow: liveAudioFilterLow };
+  } catch (err) {
+    console.log('getLiveAudioMasterGain error:', err);
+    return { masterGain: null, filterHigh: null, filterLow: null };
+  }
+}
 
 let livePingInterval = null;
 function startLivePingReporting() {
@@ -7581,7 +7619,7 @@ async function toggleLiveMic() {
     const hasPermission = isStaff || localMicPermissionGranted || (myParticipant && myParticipant.hasMicPermission);
 
     if (!hasPermission) {
-      alert('تەنها مامۆستا و ئەدمین دەتوانن قسە بکەن. تکایە دوگمەی «دەست هەڵبڕین ✋» دابگرە تا مامۆستا مۆڵەتی مایکت پێدەدات.');
+      alert('تەنها مامۆستا و ئەدمین دەتوانن قسە بکەن. تکایە دوگمەی «دەست بەرزکردنەوە ✋» دابگرە تا مامۆستا مۆڵەتی مایکت پێدەدات.');
       return;
     }
 
@@ -7720,13 +7758,66 @@ async function toggleLiveScreenShare() {
   }
 }
 
+// Mobile Landscape & Fullscreen for Viewers (سەرلاکردنی شاشەی شەیرکراو و شاشەی پڕ)
+function toggleScreenShareLandscape() {
+  const container = document.getElementById('liveScreenContainer');
+  const btnText = document.getElementById('screenRotateBtnText');
+  const btn = document.getElementById('screenRotateBtn');
+  if (!container) return;
+
+  const isLandscape = container.classList.toggle('live-screen-landscape-active');
+  if (isLandscape) {
+    if (btnText) btnText.textContent = 'ئاسایی 📱';
+    if (btn) {
+      btn.classList.remove('bg-indigo-600/90');
+      btn.classList.add('bg-rose-600/90');
+    }
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(() => {});
+      }
+    } catch (e) {}
+  } else {
+    if (btnText) btnText.textContent = 'سەرلاکردن 🔄';
+    if (btn) {
+      btn.classList.remove('bg-rose-600/90');
+      btn.classList.add('bg-indigo-600/90');
+    }
+    try {
+      if (screen.orientation && screen.orientation.unlock) {
+        screen.orientation.unlock();
+      }
+    } catch (e) {}
+  }
+}
+
 function toggleScreenShareFullscreen() {
   const container = document.getElementById('liveScreenContainer');
+  const video = document.getElementById('liveScreenVideo');
   if (!container) return;
-  if (!document.fullscreenElement) {
-    container.requestFullscreen().catch(() => {});
+
+  // iOS Safari specific fullscreen handling
+  if (video && typeof video.webkitEnterFullscreen === 'function' && !document.fullscreenElement && !document.webkitFullscreenElement) {
+    try {
+      video.webkitEnterFullscreen();
+      return;
+    } catch (e) {}
+  }
+
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    if (container.requestFullscreen) {
+      container.requestFullscreen().catch(() => toggleScreenShareLandscape());
+    } else if (container.webkitRequestFullscreen) {
+      container.webkitRequestFullscreen();
+    } else {
+      toggleScreenShareLandscape();
+    }
   } else {
-    document.exitFullscreen().catch(() => {});
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
   }
 }
 
@@ -7839,6 +7930,7 @@ function toggleAudioOutputMenu() {
 }
 
 async function selectLiveAudioOutput(type) {
+  currentLiveAudioOutputMode = type;
   const menu = document.getElementById('liveAudioOutputMenu');
   if (menu) menu.classList.add('hidden');
 
@@ -7859,35 +7951,76 @@ async function selectLiveAudioOutput(type) {
   if (icon) icon.className = iconClass;
   if (text) text.innerText = label;
 
+  const targetVol = (type === 'earpiece' ? 0.22 : 1.0);
+
+  // 1. Control Web Audio master gain and telephone acoustics
+  try {
+    const { masterGain, filterHigh, filterLow } = getLiveAudioMasterGain();
+    if (liveAudioContext && masterGain) {
+      if (liveAudioContext.state === 'suspended') {
+        liveAudioContext.resume().catch(() => {});
+      }
+      if (type === 'earpiece') {
+        masterGain.gain.setValueAtTime(0.22, liveAudioContext.currentTime);
+        if (filterHigh) filterHigh.frequency.setValueAtTime(300, liveAudioContext.currentTime);
+        if (filterLow) filterLow.frequency.setValueAtTime(3400, liveAudioContext.currentTime);
+      } else {
+        masterGain.gain.setValueAtTime(1.0, liveAudioContext.currentTime);
+        if (filterHigh) filterHigh.frequency.setValueAtTime(20, liveAudioContext.currentTime);
+        if (filterLow) filterLow.frequency.setValueAtTime(20000, liveAudioContext.currentTime);
+      }
+    }
+  } catch (e) {
+    console.log('WebAudio gain update note:', e);
+  }
+
+  // 2. Hardware routing (setSinkId) and fallback HTML audio elements
   try {
     const liveAudio = document.getElementById('liveRoomAudio');
     const quranAudio = document.getElementById('liveQuranAudio');
+    if (liveAudio) liveAudio.volume = targetVol;
 
+    let targetDeviceId = '';
     if (typeof HTMLMediaElement.prototype.setSinkId === 'function') {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
-      let targetDeviceId = '';
 
       if (type === 'bluetooth') {
-        const bt = audioOutputs.find(d => d.label.toLowerCase().includes('bluetooth') || d.label.toLowerCase().includes('headset') || d.label.toLowerCase().includes('buds'));
+        const bt = audioOutputs.find(d => 
+          d.label.toLowerCase().includes('bluetooth') || 
+          d.label.toLowerCase().includes('headset') || 
+          d.label.toLowerCase().includes('buds') ||
+          d.label.toLowerCase().includes('wireless')
+        );
         if (bt) targetDeviceId = bt.deviceId;
       } else if (type === 'earpiece') {
-        const ep = audioOutputs.find(d => d.label.toLowerCase().includes('earpiece') || d.label.toLowerCase().includes('receiver'));
+        const ep = audioOutputs.find(d => 
+          d.label.toLowerCase().includes('earpiece') || 
+          d.label.toLowerCase().includes('receiver') ||
+          d.label.toLowerCase().includes('phone') ||
+          d.label.toLowerCase().includes('telephony')
+        );
         if (ep) targetDeviceId = ep.deviceId;
       }
 
-      if (targetDeviceId) {
-        if (liveAudio && liveAudio.setSinkId) await liveAudio.setSinkId(targetDeviceId);
-        if (quranAudio && quranAudio.setSinkId) await quranAudio.setSinkId(targetDeviceId);
-        document.querySelectorAll('audio[id^="live_audio_"]').forEach(async el => {
-          try { if (el.setSinkId) await el.setSinkId(targetDeviceId); } catch (e) {}
-        });
-      }
+      if (liveAudio && liveAudio.setSinkId) await liveAudio.setSinkId(targetDeviceId || '');
+      if (quranAudio && quranAudio.setSinkId) await quranAudio.setSinkId(targetDeviceId || '');
     }
-    // Set appropriate volume level for output mode
-    document.querySelectorAll('audio[id^="live_audio_"]').forEach(el => {
-      el.volume = (type === 'earpiece' ? 0.35 : 1.0);
+
+    document.querySelectorAll('audio[id^="live_audio_"]').forEach(async el => {
+      try {
+        el.volume = targetVol;
+        if (el.setSinkId) {
+          await el.setSinkId(targetDeviceId || '');
+        }
+      } catch (e) {}
     });
+
+    if (liveAudioContext && typeof liveAudioContext.setSinkId === 'function') {
+      try {
+        await liveAudioContext.setSinkId(targetDeviceId || '');
+      } catch (e) {}
+    }
   } catch (err) {
     console.log('Audio sink selection fallback:', err);
   }
@@ -8081,7 +8214,7 @@ function handleLiveLessonStateUpdate(state) {
               </div>
 
               <div class="flex items-center gap-1.5">
-                ${p.handRaised ? '<span class="px-2 py-0.5 rounded-md bg-indigo-600/30 text-indigo-300 text-[10px] font-black border border-indigo-500/40 animate-pulse">دەست هەڵبڕاو</span>' : ''}
+                ${p.handRaised ? '<span class="px-2 py-0.5 rounded-md bg-indigo-600/30 text-indigo-300 text-[10px] font-black border border-indigo-500/40 animate-pulse">دەست بەرزکراوە ✋</span>' : ''}
                 ${isSpeaking 
                   ? '<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-black flex items-center gap-1"><i class="fa-solid fa-microphone text-xs animate-pulse"></i> قسە دەکات</span>' 
                   : '<i class="fa-solid fa-microphone-slash text-slate-600 text-xs" title="مایک داخراوە"></i>'
@@ -8092,6 +8225,20 @@ function handleLiveLessonStateUpdate(state) {
           </div>
         `;
       }).join('');
+    }
+  }
+
+  // Update student's raise hand button state dynamically
+  const myParticipant = participants.find(p => currentUser && Number(p.userId) === Number(currentUser.id));
+  const raiseHandBtn = document.getElementById('liveRaiseHandBtn');
+  const raiseHandText = document.getElementById('liveRaiseHandText');
+  if (raiseHandBtn && raiseHandText) {
+    if (myParticipant && myParticipant.handRaised) {
+      raiseHandText.innerText = 'دەستت بەرزکراوەتەوە ✋';
+      raiseHandBtn.className = 'px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-400 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow active:scale-95 animate-pulse';
+    } else {
+      raiseHandText.innerText = 'دەست بەرزکردنەوە ✋';
+      raiseHandBtn.className = 'px-3.5 py-2 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/40 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow active:scale-95';
     }
   }
 
@@ -8407,7 +8554,9 @@ function handleIncomingLiveAudio(track, stream, fromSocketId) {
   if (!track) return;
   const mediaStream = stream || new MediaStream([track]);
 
-  // 1. Dual output A: Off-screen unmuted HTML5 Audio element
+  const targetVol = (currentLiveAudioOutputMode === 'earpiece' ? 0.22 : 1.0);
+
+  // 1. Dual output A: Off-screen HTML5 Audio element
   let audioElem = document.getElementById(`live_audio_${fromSocketId}`);
   if (!audioElem) {
     audioElem = document.createElement('audio');
@@ -8420,7 +8569,7 @@ function handleIncomingLiveAudio(track, stream, fromSocketId) {
   }
 
   audioElem.srcObject = mediaStream;
-  audioElem.muted = false;
+  audioElem.volume = targetVol;
 
   const playAudio = () => {
     audioElem.play().catch(err => {
@@ -8438,21 +8587,24 @@ function handleIncomingLiveAudio(track, stream, fromSocketId) {
     } catch (e) {}
   };
 
-  // 2. Dual output B: Web Audio API direct hardware audio destination
+  // 2. Dual output B: Web Audio API routing through masterGain & telephony bandpass filter
   try {
-    if (!liveAudioContext || liveAudioContext.state === 'closed') {
-      liveAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const { masterGain, filterHigh } = getLiveAudioMasterGain();
+    if (liveAudioContext && filterHigh && masterGain) {
+      if (liveAudioContext.state === 'suspended') {
+        liveAudioContext.resume().catch(() => {});
+      }
+      const srcNode = liveAudioContext.createMediaStreamSource(mediaStream);
+      srcNode.connect(filterHigh);
+
+      // Web Audio is handling output with master gain control; mute HTML element to eliminate echo/doubling
+      audioElem.muted = true;
+    } else {
+      audioElem.muted = false;
     }
-    if (liveAudioContext.state === 'suspended') {
-      liveAudioContext.resume().catch(() => {});
-    }
-    const srcNode = liveAudioContext.createMediaStreamSource(mediaStream);
-    const gainNode = liveAudioContext.createGain();
-    gainNode.gain.value = 1.0;
-    srcNode.connect(gainNode);
-    gainNode.connect(liveAudioContext.destination);
   } catch (e) {
-    console.log('WebAudio live direct routing note:', e);
+    console.log('WebAudio live direct routing note, fallback to HTML5 audio:', e);
+    audioElem.muted = false;
   }
 
   // Apply volume / earphone mode
@@ -8461,13 +8613,8 @@ function handleIncomingLiveAudio(track, stream, fromSocketId) {
 
 function applyLiveAudioOutputMode(audioElem) {
   if (!audioElem) return;
-  const currentOutput = document.getElementById('liveAudioOutputText');
-  const label = currentOutput ? currentOutput.innerText : '';
-  if (label.includes('بیستۆک')) {
-    audioElem.volume = 0.35;
-  } else {
-    audioElem.volume = 1.0;
-  }
+  const targetVol = (currentLiveAudioOutputMode === 'earpiece' ? 0.22 : 1.0);
+  audioElem.volume = targetVol;
 }
 
 function handleLivePeerJoined(data) {

@@ -26,6 +26,30 @@
       color: #000000 !important;
       text-shadow: none !important;
     }
+
+    /* Screen Share Landscape Mode on Mobile */
+    .live-screen-landscape-active {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      max-width: none !important;
+      max-height: none !important;
+      z-index: 99999 !important;
+      border-radius: 0 !important;
+      background-color: #000 !important;
+    }
+    @media (orientation: portrait) and (max-width: 800px) {
+      .live-screen-landscape-active {
+        width: 100vh !important;
+        height: 100vw !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) rotate(90deg) !important;
+      }
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 h-screen overflow-hidden flex flex-col antialiased selection:bg-[#dfaa86] selection:text-slate-950">
@@ -1023,17 +1047,17 @@
   </div>
 
   <!-- ================= MODAL: SUPER ADMIN MANAGEMENT ================= -->
-  <div id="adminModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-    <div class="w-full max-w-4xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+  <div id="adminModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="w-full max-w-4xl h-[95vh] sm:max-h-[90vh] bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
       
-      <div class="p-5 border-b border-slate-800 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-lg border border-indigo-500/30">
+      <div class="p-3.5 sm:p-5 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2.5 sm:gap-3">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-base sm:text-lg border border-indigo-500/30 shrink-0">
             <i class="fa-solid fa-shield-halved"></i>
           </div>
           <div>
-            <h3 class="font-black text-base md:text-lg text-white">بەشی بەڕێوەبردن (Super Admin)</h3>
-            <p class="text-xs text-slate-400">پەسەندکردنی خۆتۆمارکردنەکان و بەڕێوەبردنی بەکارهێنەران</p>
+            <h3 class="font-black text-sm sm:text-base md:text-lg text-white">بەشی بەڕێوەبردن (Super Admin)</h3>
+            <p class="text-[11px] sm:text-xs text-slate-400">پەسەندکردنی خۆتۆمارکردنەکان و بەڕێوەبردنی بەکارهێنەران</p>
           </div>
         </div>
         <button onclick="closeAdminModal()" class="text-slate-400 hover:text-white p-2 text-lg">
@@ -1041,32 +1065,32 @@
         </button>
       </div>
 
-      <div class="flex border-b border-slate-800 bg-slate-950/40 px-5 pt-3 gap-4">
-        <button id="adminTabPending" onclick="switchAdminSubTab('pending')" class="pb-3 text-sm font-bold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2">
+      <div class="flex items-center border-b border-slate-800 bg-slate-950/60 px-3 sm:px-5 pt-2 gap-2 sm:gap-4 overflow-x-auto no-scrollbar whitespace-nowrap">
+        <button id="adminTabPending" onclick="switchAdminSubTab('pending')" class="px-2.5 py-2 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-1.5 shrink-0">
           <span>داواکارییە چاوەڕوانکراوەکان</span>
-          <span id="adminPendingBadge" class="px-2 py-0.2 rounded-full text-xs bg-indigo-500/20 text-indigo-300">0</span>
+          <span id="adminPendingBadge" class="px-2 py-0.5 rounded-full text-xs bg-indigo-500/20 text-indigo-300">0</span>
         </button>
 
-        <button id="adminTabUsers" onclick="switchAdminSubTab('users')" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+        <button id="adminTabUsers" onclick="switchAdminSubTab('users')" class="px-2.5 py-2 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-1.5 shrink-0">
           <span>هەموو بەکارهێنەران و پلەکان</span>
         </button>
 
-        <button id="adminTabPasswordResets" onclick="switchAdminSubTab('password_resets')" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
-          <span>🔑 داواکاری وشەی نهێنی</span>
+        <button id="adminTabPasswordResets" onclick="switchAdminSubTab('password_resets')" class="px-2.5 py-2 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-1.5 shrink-0">
+          <span>🔑 وشەی نهێنی</span>
           <span id="adminPasswordResetsBadge" class="hidden px-2 py-0.5 rounded-full text-xs bg-amber-500 text-slate-950 font-black">0</span>
         </button>
 
-        <button id="adminTabProfileChanges" onclick="switchAdminSubTab('profile_changes')" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
-          <span>📝 داواکاری گۆڕینی ناو و پاسوۆرد</span>
+        <button id="adminTabProfileChanges" onclick="switchAdminSubTab('profile_changes')" class="px-2.5 py-2 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-1.5 shrink-0">
+          <span>📝 داواکاری گۆڕین</span>
           <span id="adminProfileChangesBadge" class="hidden px-2 py-0.5 rounded-full text-xs bg-indigo-500 text-white font-black">0</span>
         </button>
 
-        <button id="adminTabBackups" onclick="switchAdminSubTab('backups')" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
-          <span>💾 یەدەگی داتابەیس (Backup)</span>
+        <button id="adminTabBackups" onclick="switchAdminSubTab('backups')" class="px-2.5 py-2 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-1.5 shrink-0">
+          <span>💾 یەدەگی داتابەیس</span>
         </button>
       </div>
 
-      <div id="adminContentPending" class="flex-1 overflow-y-auto p-5">
+      <div id="adminContentPending" class="flex-1 overflow-y-auto p-3.5 sm:p-5">
         <div id="pendingEmptyMessage" class="hidden text-center py-12 text-slate-500">
           <i class="fa-solid fa-check-circle text-3xl text-emerald-500 mb-2"></i>
           <p class="text-sm font-bold">هیچ داواکارییەکی چاوەڕوانکراو نییە</p>
@@ -1900,13 +1924,22 @@
           <!-- Screen Share Viewport -->
           <div id="liveScreenContainer" class="hidden relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center">
             <video id="liveScreenVideo" autoplay playsinline webkit-playsinline class="w-full h-full object-contain"></video>
-            <div class="absolute top-2 right-2 px-2.5 py-1 bg-slate-900/80 backdrop-blur-md rounded-xl text-[11px] font-bold text-slate-200 border border-slate-700/60 flex items-center gap-1.5">
+            
+            <div class="absolute top-2 right-2 px-2.5 py-1 bg-slate-900/80 backdrop-blur-md rounded-xl text-[11px] font-bold text-slate-200 border border-slate-700/60 flex items-center gap-1.5 z-10 shadow">
               <i class="fa-solid fa-desktop text-amber-400"></i>
               <span id="liveScreenSharerName">شاشەی مامۆستا</span>
             </div>
-            <button onclick="toggleScreenShareFullscreen()" class="absolute bottom-2 left-2 p-2 bg-slate-900/80 hover:bg-slate-800 text-white rounded-xl text-xs border border-slate-700">
-              <i class="fa-solid fa-expand"></i>
-            </button>
+
+            <!-- View Controls for Viewers: Landscape / Rotate + Fullscreen -->
+            <div class="absolute bottom-2 left-2 flex items-center gap-1.5 z-10">
+              <button type="button" id="screenRotateBtn" onclick="toggleScreenShareLandscape()" class="px-2.5 py-1.5 bg-indigo-600/90 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold border border-indigo-500/50 flex items-center gap-1.5 shadow-lg transition active:scale-95" title="سەرلاکردنی شاشە بۆ بینینی ئاسۆیی">
+                <i class="fa-solid fa-arrows-rotate"></i>
+                <span id="screenRotateBtnText">سەرلاکردن 🔄</span>
+              </button>
+              <button type="button" onclick="toggleScreenShareFullscreen()" class="p-2 bg-slate-900/90 hover:bg-slate-800 text-white rounded-xl text-xs border border-slate-700 shadow-lg transition active:scale-95" title="شاشەی پڕ">
+                <i id="screenFullscreenIcon" class="fa-solid fa-expand"></i>
+              </button>
+            </div>
           </div>
 
           <!-- Standby Screen (When Screen Share is inactive) -->
@@ -1997,7 +2030,7 @@
           <!-- Raise Hand Button (قوتابیان) -->
           <button type="button" id="liveRaiseHandBtn" onclick="toggleLiveRaiseHand()" class="px-3.5 py-2 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/40 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow active:scale-95">
             <i class="fa-solid fa-hand"></i>
-            <span id="liveRaiseHandText">دەست هەڵبڕین ✋</span>
+            <span id="liveRaiseHandText">دەست بەرزکردنەوە ✋</span>
           </button>
 
           <!-- Screen Share Button (Super Admin & Teacher) -->
