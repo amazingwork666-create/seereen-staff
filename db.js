@@ -587,14 +587,15 @@ const questions = {
     const expiresAt = customExpiresAt ? Number(customExpiresAt) : (Date.now() + (durationMinutes * 60 * 1000));
     const finalDurationMinutes = customExpiresAt ? Math.max(1, Math.round((expiresAt - Date.now()) / 60000)) : durationMinutes;
     
-    const nextNumRow = db.prepare('SELECT COALESCE(MAX(question_number), 0) + 1 as next_num FROM questions').get();
-    const questionNumber = nextNumRow ? nextNumRow.next_num : 1;
+    const countRow = db.prepare('SELECT COUNT(*) as total FROM questions').get();
+    const questionNumber = (countRow ? countRow.total : 0) + 1;
 
     const stmt = db.prepare(`
       INSERT INTO questions (admin_id, admin_name, question_text, correct_answer, duration_minutes, expires_at, is_revealed, is_active, question_number, created_at)
       VALUES (?, ?, ?, ?, ?, ?, 0, 1, ?, ?)
     `);
     const result = stmt.run(adminId, adminName, questionText, correctAnswer ? correctAnswer.trim() : null, finalDurationMinutes, expiresAt, questionNumber, Date.now());
+    this.renumberQuestions();
     return this.findById(result.lastInsertRowid);
   },
   getAllArchive() {
@@ -702,22 +703,24 @@ const questions = {
     try {
       const allQ = db.prepare('SELECT id FROM questions ORDER BY created_at ASC, id ASC').all();
       const updateQ = db.prepare('UPDATE questions SET question_number = ? WHERE id = ?');
+      const qNumberMap = new Map();
       allQ.forEach((q, idx) => {
         const newNum = idx + 1;
         updateQ.run(newNum, q.id);
+        qNumberMap.set(q.id, newNum);
       });
 
       // Also update messages in chat for questions and revealed submissions
-      const allMsgs = db.prepare("SELECT id, content FROM messages WHERE message_type = 'question' OR message_type = 'revealed_submissions'").all();
+      const allMsgs = db.prepare("SELECT id, content, question_id FROM messages WHERE type = 'question' OR type = 'revealed_submissions'").all();
       const updateMsg = db.prepare('UPDATE messages SET content = ? WHERE id = ?');
       for (const m of allMsgs) {
         try {
           const parsed = JSON.parse(m.content);
-          const qId = parsed.id || parsed.question_id;
-          if (qId) {
-            const currentQ = db.prepare('SELECT question_number FROM questions WHERE id = ?').get(qId);
-            if (currentQ) {
-              parsed.question_number = currentQ.question_number;
+          const qId = m.question_id || parsed.question_id || parsed.id;
+          if (qId && qNumberMap.has(qId)) {
+            const newNum = qNumberMap.get(qId);
+            if (parsed.question_number !== newNum) {
+              parsed.question_number = newNum;
               updateMsg.run(JSON.stringify(parsed), m.id);
             }
           }
@@ -743,7 +746,7 @@ const questions = {
 
     // Update active question message in messages table
     try {
-      const qMsgs = db.prepare("SELECT id, content FROM messages WHERE message_type = 'question'").all();
+      const qMsgs = db.prepare("SELECT id, content FROM messages WHERE type = 'question'").all();
       const updateMsg = db.prepare('UPDATE messages SET content = ? WHERE id = ?');
       for (const m of qMsgs) {
         try {

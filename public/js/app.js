@@ -181,7 +181,12 @@ function formatUserDisplayName(user) {
   return `${prefix}${user.full_name}${suffix}`;
 }
 
-function renderRoleBadge(role) {
+function getGenderEmoji(gender) {
+  return gender === 'female' ? '🧕' : '🧔';
+}
+
+function renderRoleBadge(role, gender) {
+  const isGirl = gender === 'female';
   if (role === 'super_admin') {
     return `<span class="badge-super-admin-shield inline-flex items-center text-xs select-none" title="ئەدمین">🛡️</span>`;
   } else if (role === 'teacher') {
@@ -189,11 +194,13 @@ function renderRoleBadge(role) {
   } else if (role === 'admin') {
     return `<span class="badge-admin px-2 py-0.5 rounded-md text-[10px] font-black inline-flex items-center gap-1 shadow"><i class="fa-solid fa-shield-halved text-[9px]"></i> ئەدمین</span>`;
   } else if (role === 'new_student') {
-    return `<span class="badge-new-student px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 shadow">🔰 قوتابی تازە</span>`;
+    const badgeClass = isGirl ? 'badge-new-student-girl' : 'badge-new-student';
+    return `<span class="${badgeClass} px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 shadow">🔰 قوتابی تازە</span>`;
   } else if (role === 'guest') {
     return `<span class="badge-guest px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 shadow">👁️ میوان (چاودێر)</span>`;
   } else {
-    return `<span class="badge-student px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1"><i class="fa-solid fa-graduation-cap text-[9px]"></i> قوتابی</span>`;
+    const badgeClass = isGirl ? 'badge-student-girl' : 'badge-student';
+    return `<span class="${badgeClass} px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 shadow"><i class="fa-solid fa-graduation-cap text-[9px]"></i> قوتابی</span>`;
   }
 }
 
@@ -2034,7 +2041,7 @@ function appendMessage(msg, scroll = true) {
 
   // 3. REGULAR MESSAGES (TEXT, VOICE, IMAGE)
   const isMsgSuperAdmin = msg.role === 'super_admin' || (msg.username && (msg.username.toLowerCase() === 'hemntjabar' || msg.username.toLowerCase() === 'admin'));
-  const roleBadge = isMsgSuperAdmin ? renderRoleBadge('super_admin') : renderRoleBadge(msg.role);
+  const roleBadge = isMsgSuperAdmin ? renderRoleBadge('super_admin', msg.gender) : renderRoleBadge(msg.role, msg.gender);
   const starBadge = (msg.role === 'student' || msg.role === 'new_student') ? renderStarBadge(msg.correct_answers_count || 0) : '';
   const nameColorClass = getUserNameClass(msg);
 
@@ -3237,7 +3244,7 @@ async function showActiveNonResponding() {
       card.className = 'p-2 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-between text-xs';
       card.innerHTML = `
         <div class="flex items-center gap-2">
-          <span>${st.gender === 'female' ? '👧' : '👦'}</span>
+          <span>${getGenderEmoji(st.gender)}</span>
           <span class="font-bold ${nameClass}">${escapeHtml(st.full_name)}</span>
         </div>
         <span class="text-rose-400 font-bold text-[11px]">وەڵامی نەداوەتەوە ❌</span>
@@ -3281,7 +3288,7 @@ async function openUnansweredStatsModal() {
       card.innerHTML = `
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center text-sm font-bold">
-            ${st.gender === 'female' ? '👧' : '👦'}
+            ${getGenderEmoji(st.gender)}
           </div>
           <div>
             <h4 class="font-bold text-sm ${nameClass}">${escapeHtml(st.full_name)}</h4>
@@ -3713,6 +3720,12 @@ function filterMembersList(filter) {
   renderMembersList();
 }
 
+let membersSearchQuery = '';
+function handleMembersSearch(query) {
+  membersSearchQuery = (query || '').trim().toLowerCase();
+  renderMembersList();
+}
+
 async function loadAllMembers() {
   try {
     const res = await fetch('/api/admin/users', {
@@ -3737,13 +3750,30 @@ function renderMembersList() {
   if (memberFilter === 'student') filtered = filtered.filter(u => u.role === 'student');
   if (memberFilter === 'admin') filtered = filtered.filter(u => u.role === 'admin' || u.role === 'super_admin' || u.role === 'teacher');
 
+  if (membersSearchQuery) {
+    filtered = filtered.filter(u => 
+      (u.full_name && u.full_name.toLowerCase().includes(membersSearchQuery)) ||
+      (u.username && u.username.toLowerCase().includes(membersSearchQuery))
+    );
+  }
+
   countBadge.innerText = filtered.length;
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-8 text-slate-500">
+        <i class="fa-solid fa-magnifying-glass text-2xl text-slate-600 mb-2"></i>
+        <p class="text-xs font-bold">هیچ ئەندامێک نەدۆزرایەوە</p>
+      </div>
+    `;
+    return;
+  }
 
   filtered.forEach(u => {
     const isMe = currentUser && u.id === currentUser.id;
     const nameClass = getUserNameClass(u);
     const starBadge = u.role === 'student' ? renderStarBadge(u.correct_answers_count) : '';
-    const roleBadge = renderRoleBadge(u.role);
+    const roleBadge = renderRoleBadge(u.role, u.gender);
     const isMuted = u.muted_until && u.muted_until > Date.now();
 
     let actionBtn = '';
@@ -3789,7 +3819,7 @@ function renderMembersList() {
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer" onclick="openUserProfileModal(${u.id})">
           <div class="w-9 h-9 rounded-xl bg-slate-700/80 flex items-center justify-center text-sm font-black text-slate-300 shrink-0 shadow-inner border border-slate-600/40">
-            ${u.gender === 'female' ? '👧' : '👦'}
+            ${getGenderEmoji(u.gender)}
           </div>
           <div class="min-w-0 flex-1">
             <div class="text-xs font-black flex items-center gap-1.5 flex-wrap">
@@ -3860,8 +3890,8 @@ async function openUserProfileModal(userId) {
     fullNameEl.innerText = prof.full_name;
     fullNameEl.className = `font-black text-base ${getUserNameClass(prof)}`;
     usernameEl.innerText = `@${prof.username}`;
-    genderEl.innerHTML = prof.gender === 'female' ? '<span class="text-pink-400 font-bold">👧 کچ</span>' : '<span class="text-sky-400 font-bold">👦 کوڕ</span>';
-    roleEl.innerHTML = renderRoleBadge(prof.role);
+    genderEl.innerHTML = prof.gender === 'female' ? '<span class="text-pink-400 font-bold">🧕 مێ (خوشک)</span>' : '<span class="text-sky-400 font-bold">🧔 نێر (برا)</span>';
+    roleEl.innerHTML = renderRoleBadge(prof.role, prof.gender);
     starsEl.innerHTML = `${prof.starInfo.starIcons} (${prof.starInfo.points}/10)`;
     promoCountEl.innerText = `${prof.promotionsCount} جار`;
 
@@ -4256,7 +4286,7 @@ async function loadPasswordResetsList() {
           <div>
             <div class="flex items-center gap-2 flex-wrap">
               <h4 class="font-bold text-sm text-white">${escapeHtml(req.full_name)}</h4>
-              ${renderRoleBadge(req.role)}
+              ${renderRoleBadge(req.role, req.gender)}
               <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                 داواکاری وشەی نهێنی نوێ
               </span>
@@ -4731,12 +4761,12 @@ async function loadPendingUsersList() {
       card.innerHTML = `
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-lg shrink-0">
-            ${u.gender === 'female' ? '👧' : '👦'}
+            ${getGenderEmoji(u.gender)}
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-1.5 flex-wrap">
               <h4 class="font-bold text-sm text-white truncate">${escapeHtml(u.full_name)}</h4>
-              <span class="text-[11px] px-2 py-0.5 rounded-full ${u.gender === 'female' ? 'bg-pink-500/20 text-pink-300 border border-pink-500/30' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'} font-medium">(${u.gender === 'female' ? 'کچ' : 'کوڕ'})</span>
+              <span class="text-[11px] px-2 py-0.5 rounded-full ${u.gender === 'female' ? 'bg-pink-500/20 text-pink-300 border border-pink-500/30' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'} font-medium">(${u.gender === 'female' ? 'مێ (کچ)' : 'نێر (کوڕ)'})</span>
             </div>
             <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5 flex-wrap">
               <span>ناوی بەکارهێنەر: <b class="font-mono text-slate-300">@${escapeHtml(u.username)}</b></span>
@@ -4813,6 +4843,14 @@ async function rejectUser(userId) {
   }
 }
 
+let allUsersAdminCache = [];
+let adminUsersSearchQuery = '';
+
+function handleAdminUsersSearch(query) {
+  adminUsersSearchQuery = (query || '').trim().toLowerCase();
+  renderAllUsersList();
+}
+
 async function loadAllUsersList() {
   const container = document.getElementById('allUsersList');
   container.innerHTML = `<div class="text-center py-6 text-slate-400"><i class="fa-solid fa-circle-notch fa-spin text-xl"></i> بارکردن...</div>`;
@@ -4822,30 +4860,59 @@ async function loadAllUsersList() {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
-    container.innerHTML = '';
+    allUsersAdminCache = data.users || [];
+    renderAllUsersList();
+  } catch (e) {
+    container.innerHTML = `<div class="text-center py-6 text-rose-400 text-xs font-bold">هەڵەیەک ڕوویدا لە بارکردن</div>`;
+  }
+}
 
+function renderAllUsersList() {
+  const container = document.getElementById('allUsersList');
+  if (!container) return;
+  container.innerHTML = '';
+
+  try {
     const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
 
-    data.users.forEach(u => {
-      const isSuper = u.role === 'super_admin';
-      const isAdmin = u.role === 'admin';
-      const isStudent = u.role === 'student';
-      const isMuted = u.muted_until && u.muted_until > Date.now();
-      const isBlocked = !!u.is_blocked;
-      const nameClass = getUserNameClass(u);
+    let list = allUsersAdminCache;
+    if (adminUsersSearchQuery) {
+      list = list.filter(u => 
+        (u.full_name && u.full_name.toLowerCase().includes(adminUsersSearchQuery)) ||
+        (u.username && u.username.toLowerCase().includes(adminUsersSearchQuery))
+      );
+    }
 
-      const card = document.createElement('div');
-      card.className = `p-3.5 sm:p-4 rounded-2xl bg-slate-800/90 border ${isBlocked ? 'border-red-500/50 bg-red-950/20' : 'border-slate-700/80'} flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm hover:border-slate-600 transition`;
+    if (list.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-10 text-slate-500">
+          <i class="fa-solid fa-user-slash text-2xl text-slate-600 mb-2"></i>
+          <p class="text-xs font-bold">هیچ بەکارهێنەرێک بەم ناوە نەدۆزرایەوە</p>
+        </div>
+      `;
+      return;
+    }
 
-      card.innerHTML = `
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="w-10 h-10 rounded-xl ${isSuper ? 'bg-amber-500/20 text-amber-400' : isAdmin ? 'bg-emerald-500/20 text-emerald-400' : 'bg-indigo-500/20 text-indigo-400'} flex items-center justify-center font-bold text-sm shrink-0">
-            <i class="fa-solid ${isSuper ? 'fa-user-shield' : isAdmin ? 'fa-shield' : 'fa-graduation-cap'}"></i>
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2 flex-wrap">
-              <h4 class="font-bold text-sm ${nameClass} truncate">${escapeHtml(u.full_name)}</h4>
-              ${renderRoleBadge(u.role)}
+  list.forEach(u => {
+    const isSuper = u.role === 'super_admin';
+    const isAdmin = u.role === 'admin';
+    const isStudent = u.role === 'student';
+    const isMuted = u.muted_until && u.muted_until > Date.now();
+    const isBlocked = !!u.is_blocked;
+    const nameClass = getUserNameClass(u);
+
+    const card = document.createElement('div');
+    card.className = `p-3.5 sm:p-4 rounded-2xl bg-slate-800/90 border ${isBlocked ? 'border-red-500/50 bg-red-950/20' : 'border-slate-700/80'} flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm hover:border-slate-600 transition`;
+
+    card.innerHTML = `
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl ${isSuper ? 'bg-amber-500/20 text-amber-400' : isAdmin ? 'bg-emerald-500/20 text-emerald-400' : 'bg-indigo-500/20 text-indigo-400'} flex items-center justify-center font-bold text-sm shrink-0">
+          <i class="fa-solid ${isSuper ? 'fa-user-shield' : isAdmin ? 'fa-shield' : 'fa-graduation-cap'}"></i>
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <h4 class="font-bold text-sm ${nameClass} truncate">${escapeHtml(u.full_name)}</h4>
+            ${renderRoleBadge(u.role, u.gender)}
               ${isBlocked ? '<span class="px-2 py-0.5 rounded bg-red-600 text-white text-[10px] font-black">بلۆککراوە 🚫</span>' : ''}
               ${isMuted ? '<span class="px-2 py-0.5 rounded bg-amber-600 text-white text-[10px] font-black">سڕکراوە 🔇</span>' : ''}
             </div>
@@ -6270,7 +6337,7 @@ function renderDreamAdminSessionsCards() {
   listToRender.forEach(s => {
     const card = document.createElement('div');
     const isSelected = activeDreamAdminSessionId === s.id;
-    const genderEmoji = s.dreamer_gender === 'female' ? '👧' : '👦';
+    const genderEmoji = getGenderEmoji(s.dreamer_gender);
     const timeStr = new Date(s.last_activity).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
     const isFav = !!s.is_favorite;
 
@@ -6396,7 +6463,7 @@ async function selectDreamSession(sessionId) {
     const statusElem = document.getElementById('dreamAdminChatStatus');
 
     if (nameElem) nameElem.innerText = session.dreamer_name;
-    if (genderElem) genderElem.innerText = session.dreamer_gender === 'female' ? '👧' : '👦';
+    if (genderElem) genderElem.innerText = getGenderEmoji(session.dreamer_gender);
     if (statusElem) statusElem.innerText = `دەستپێکردن: ${new Date(session.created_at).toLocaleDateString('ku-IQ')}`;
 
     if (favIcon && favBtn) {
@@ -7526,7 +7593,7 @@ async function loadPrivateConversations() {
             class="p-2.5 rounded-2xl border cursor-pointer transition ${activeBg} flex items-center gap-2.5"
           >
             <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs shrink-0">
-              ${c.other_gender === 'female' ? '🧕' : '👤'}
+              ${getGenderEmoji(c.other_gender)}
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between">
@@ -7572,7 +7639,7 @@ async function openPrivateChatWithUser(targetUserId, targetName, targetRole, tar
     roleEl.innerText = targetRole === 'super_admin' ? 'سوپەر ئەدمین' : (targetRole === 'teacher' ? 'مامۆستا' : 'قوتابی');
   }
   if (avatarEl) {
-    avatarEl.innerText = targetGender === 'female' ? '🧕' : '👤';
+    avatarEl.innerText = getGenderEmoji(targetGender);
   }
 
   await loadPrivateThread(targetUserId);
@@ -8811,7 +8878,7 @@ function handleLiveLessonStateUpdate(state) {
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <span class="w-8 h-8 rounded-full bg-slate-800 border-2 ${netColorClass} flex items-center justify-center text-xs relative shrink-0">
-                  ${p.gender === 'female' ? '🧕' : '👤'}
+                  ${getGenderEmoji(p.gender)}
                   ${p.handRaised ? '<span class="absolute -top-1 -right-1 text-xs">✋</span>' : ''}
                 </span>
                 <div>

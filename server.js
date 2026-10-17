@@ -16,6 +16,7 @@ const PORT = process.env.PORT || 4000;
 
 // Initialize Database
 initDb();
+try { questions.renumberQuestions(); } catch (e) {}
 
 // Web Push Notification Setup (VAPID)
 let webpush;
@@ -1259,7 +1260,7 @@ function updateRevealedSubmissionEvaluationInMessages(questionId, userId, isCorr
   try {
     const qId = parseInt(questionId);
     const uId = parseInt(userId);
-    const msgs = db.prepare("SELECT id, content FROM messages WHERE message_type = 'revealed_submissions' AND (attachment_url = ? OR content LIKE ?)").all(String(qId), `%"question_id":${qId}%`);
+    const msgs = db.prepare("SELECT id, content FROM messages WHERE type = 'revealed_submissions' AND (question_id = ? OR attachment_url = ? OR content LIKE ?)").all(qId, String(qId), `%"question_id":${qId}%`);
     for (const msg of msgs) {
       try {
         const payload = JSON.parse(msg.content);
@@ -1421,7 +1422,7 @@ app.post('/api/chat/question/cancel', authMiddleware, requireTeacherOrSuperAdmin
       io.emit('message_deleted', { id: msgId });
     }
     if (qId) {
-      const qMsgs = db.prepare("SELECT id FROM messages WHERE (message_type = 'question' OR message_type = 'revealed_submissions') AND (content LIKE ? OR attachment_url = ? OR metadata LIKE ?)").all(`%"question_id":${qId}%`, String(qId), `%"question_id":${qId}%`);
+      const qMsgs = db.prepare("SELECT id FROM messages WHERE (type = 'question' OR type = 'revealed_submissions') AND (question_id = ? OR content LIKE ? OR attachment_url = ?)").all(qId, `%"question_id":${qId}%`, String(qId));
       for (const msg of qMsgs) {
         messages.delete(msg.id);
         io.emit('message_deleted', { id: msg.id });
