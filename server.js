@@ -9,7 +9,7 @@ const multer = require('multer');
 const fs = require('fs');
 let archiver;
 try { archiver = require('archiver'); } catch (e) {}
-const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars } = require('./db');
+const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 4000;
@@ -1727,6 +1727,268 @@ app.get('/api/chat/private/unread-count', authMiddleware, (req, res) => {
   }
 });
 
+// 5. Get Staff List (Teachers & Super Admins) for Private Chat
+app.get('/api/chat/private/staff-list', authMiddleware, (req, res) => {
+  try {
+    const allUsers = users.getAll();
+    const staff = allUsers
+      .filter(u => u.role === 'super_admin' || u.role === 'teacher')
+      .map(u => {
+        const isOnline = Array.from(onlineUsers.values()).some(o => o.id === u.id);
+        return {
+          id: u.id,
+          username: u.username,
+          full_name: u.full_name,
+          role: u.role,
+          gender: u.gender || 'male',
+          is_online: isOnline
+        };
+      });
+    res.json({ staff });
+  } catch (err) {
+    console.error('Error fetching staff list:', err);
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی لیستی مامۆستاکان' });
+  }
+});
+
+// 6. Upload Voice in Private Chat
+app.post('/api/chat/private/upload-voice', authMiddleware, upload.fields([{ name: 'voice', maxCount: 1 }, { name: 'audio', maxCount: 1 }]), (req, res) => {
+  try {
+    const file = (req.files && (req.files.voice?.[0] || req.files.audio?.[0])) || req.file;
+    if (!file) return res.status(400).json({ error: 'هیچ دەنگێک بارنەکراوە' });
+    const { recipient_id, duration } = req.body;
+    const recId = parseInt(recipient_id);
+    if (!recId) return res.status(400).json({ error: 'وەرگر دیارینەکراوە' });
+
+    const recipient = users.findById(recId);
+    if (!recipient) return res.status(404).json({ error: 'وەرگر نەدۆزرایەوە' });
+
+    const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher';
+    const recIsStaff = recipient.role === 'super_admin' || recipient.role === 'teacher';
+    if (!isStaff && !recIsStaff) {
+      return res.status(403).json({ error: 'تەنها دەتوانیت نامەی تایبەت بۆ مامۆستا و سوپەر ئەدمین بنێریت' });
+    }
+
+    const voiceUrl = `/uploads/${req.file.filename}`;
+    const content = duration ? `🎤 پەیامی دەنگی (${duration})` : '🎤 پەیامی دەنگی';
+    const msg = privateMessages.create(
+      req.user.id,
+      recId,
+      req.user.full_name,
+      req.user.role,
+      content,
+      'voice',
+      voiceUrl
+    );
+
+    const notifiedSockets = new Set();
+    for (const [sockId, u] of onlineUsers.entries()) {
+      if (u.id === recId && !notifiedSockets.has(sockId)) {
+        notifiedSockets.add(sockId);
+        io.to(sockId).emit('new_private_message', msg);
+      }
+    }
+
+    res.json({ success: true, message: msg });
+  } catch (err) {
+    console.error('Private voice upload error:', err);
+    res.status(500).json({ error: 'هەڵە لە ناردنی دەنگ' });
+  }
+});
+
+// 7. Upload Image in Private Chat
+app.post('/api/chat/private/upload-image', authMiddleware, upload.single('image'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'هیچ وێنەیەک بارنەکراوە' });
+    const { recipient_id, caption } = req.body;
+    const recId = parseInt(recipient_id);
+    if (!recId) return res.status(400).json({ error: 'وەرگر دیارینەکراوە' });
+
+    const recipient = users.findById(recId);
+    if (!recipient) return res.status(404).json({ error: 'وەرگر نەدۆزرایەوە' });
+
+    const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher';
+    const recIsStaff = recipient.role === 'super_admin' || recipient.role === 'teacher';
+    if (!isStaff && !recIsStaff) {
+      return res.status(403).json({ error: 'تەنها دەتوانیت نامەی تایبەت بۆ مامۆستا و سوپەر ئەدمین بنێریت' });
+    }
+
+    const imageUrl = `/uploads/${req.file.filename}`;
+    const content = (caption && caption.trim()) ? caption.trim() : '🖼️ وێنە';
+    const msg = privateMessages.create(
+      req.user.id,
+      recId,
+      req.user.full_name,
+      req.user.role,
+      content,
+      'image',
+      imageUrl
+    );
+
+    const notifiedSockets = new Set();
+    for (const [sockId, u] of onlineUsers.entries()) {
+      if (u.id === recId && !notifiedSockets.has(sockId)) {
+        notifiedSockets.add(sockId);
+        io.to(sockId).emit('new_private_message', msg);
+      }
+    }
+
+    res.json({ success: true, message: msg });
+  } catch (err) {
+    console.error('Private image upload error:', err);
+    res.status(500).json({ error: 'هەڵە لە ناردنی وێنە' });
+  }
+});
+
+// Translation Proxy Endpoint (Kurdish/Arabic/English)
+app.post('/api/translate', async (req, res) => {
+  try {
+    const { text, targetLang, target: reqTarget } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Text required' });
+    }
+    const chosenTarget = reqTarget || targetLang || 'ar';
+    const target = (chosenTarget === 'en' || chosenTarget === 'ar') ? chosenTarget : 'ar';
+    const cleanText = text.trim();
+    
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(cleanText)}`;
+    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!response.ok) {
+      return res.status(502).json({ error: 'Translation service unavailable' });
+    }
+    const data = await response.json();
+    let translated = '';
+    if (Array.isArray(data) && Array.isArray(data[0])) {
+      translated = data[0].map(segment => segment[0]).join('');
+    }
+    if (!translated) {
+      translated = cleanText;
+    }
+    res.json({ success: true, translatedText: translated, targetLang: target });
+  } catch (err) {
+    console.error('Translation error:', err);
+    res.status(500).json({ error: 'Translation failed' });
+  }
+});
+
+// --- LIVE LESSON RECORDINGS (تۆماری وانەکانی لایڤ - مامۆستا و سوپەر ئەدمین) ---
+app.get('/api/live-recordings', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const list = liveRecordings.getAll();
+    res.json({ recordings: list });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی تۆمارەکان' });
+  }
+});
+
+app.post('/api/live-recordings/upload', authMiddleware, requireTeacherOrSuperAdmin, upload.single('audio'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'هیچ فایلی دەنگێک بارنەکراوە' });
+    const audioUrl = `/uploads/${req.file.filename}`;
+    const duration = req.body.duration || '';
+    const nextNum = liveRecordings.getNextNumber();
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
+    const defaultTitle = req.body.title ? req.body.title.trim() : `وانەی لایڤ #${nextNum} (${dateStr})`;
+    const recNum = req.body.recording_number ? parseInt(req.body.recording_number) : nextNum;
+
+    const item = liveRecordings.create(
+      recNum,
+      defaultTitle,
+      audioUrl,
+      duration,
+      req.user.id,
+      req.user.full_name
+    );
+    res.json({ success: true, recording: item });
+  } catch (err) {
+    console.error('Live recording upload error:', err);
+    res.status(500).json({ error: 'هەڵە لە تۆمارکردنی وانەکە' });
+  }
+});
+
+app.put('/api/live-recordings/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { title, recording_number } = req.body;
+    if (!title || !title.trim()) return res.status(400).json({ error: 'ناوی تۆمار پێویستە' });
+    liveRecordings.updateTitle(id, title.trim(), recording_number ? parseInt(recording_number) : null);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە نوێکردنەوەی ناوی تۆمار' });
+  }
+});
+
+app.delete('/api/live-recordings/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    liveRecordings.delete(id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە سڕینەوە' });
+  }
+});
+
+// --- RECORDED LESSONS FOR STUDENTS (وانە تۆمارکراوەکان - بێ داونلۆد) ---
+app.get('/api/recorded-lessons', authMiddleware, (req, res) => {
+  try {
+    const list = recordedLessons.getAll();
+    res.json({ lessons: list });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی وانەکان' });
+  }
+});
+
+app.post('/api/recorded-lessons/upload', authMiddleware, requireTeacherOrSuperAdmin, upload.single('audio'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'هیچ فایلی دەنگێک بارنەکراوە' });
+    const audioUrl = `/uploads/${req.file.filename}`;
+    const duration = req.body.duration || '';
+    const nextNum = recordedLessons.getNextNumber();
+    const lessonNum = req.body.lesson_number ? parseInt(req.body.lesson_number) : nextNum;
+    const title = req.body.title ? req.body.title.trim() : `وانەی ژمارە #${lessonNum}`;
+    const description = req.body.description ? req.body.description.trim() : '';
+
+    const lesson = recordedLessons.create(
+      lessonNum,
+      title,
+      description,
+      audioUrl,
+      duration,
+      req.user.id,
+      req.user.full_name,
+      req.user.role
+    );
+    res.json({ success: true, lesson });
+  } catch (err) {
+    console.error('Recorded lesson upload error:', err);
+    res.status(500).json({ error: 'هەڵە لە بارکردنی وانە' });
+  }
+});
+
+app.put('/api/recorded-lessons/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { title, description, lesson_number } = req.body;
+    if (!title || !title.trim()) return res.status(400).json({ error: 'ناوی وانە پێویستە' });
+    const lNum = lesson_number ? parseInt(lesson_number) : 1;
+    recordedLessons.update(id, title.trim(), description || '', lNum);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە نوێکردنەوەی وانە' });
+  }
+});
+
+app.delete('/api/recorded-lessons/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    recordedLessons.delete(id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە سڕینەوە' });
+  }
+});
+
 // Night Curfew Status Endpoint (12:00 AM - 08:00 AM Iraq Time)
 app.get('/api/chat/curfew', (req, res) => {
   res.json({
@@ -1868,7 +2130,7 @@ app.post('/api/dream/message', async (req, res) => {
 
       if (isGreeting) {
         setTimeout(() => {
-          const reply = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', 'علیک سلام و ڕەحمەتی خوات لێبێت 🌸', 'text');
+          const reply = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', 'عَلَيْكُمُ السَّلَامُ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ', 'text');
           io.to(`dream_${targetSessionId}`).emit('dream_new_message', reply);
           io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: reply.content });
         }, 500);
@@ -2379,11 +2641,36 @@ io.on('connection', (socket) => {
         null
       );
 
+      const isStaffUser = freshUser.role === 'super_admin' || freshUser.role === 'teacher';
+      const isMentionAll = isStaffUser && (
+        content.includes('@هەموو') || 
+        content.includes('@هەمو') || 
+        content.includes('@1') ||
+        content.includes('@all')
+      );
+
+      if (isMentionAll) {
+        sendPushNotificationToAll({
+          title: `📢 ئاگاداری هەمووان لەلایەن ${freshUser.full_name}`,
+          body: content.trim(),
+          icon: '/favicon.png',
+          tag: 'mention-all-' + Date.now()
+        }, freshUser.id);
+
+        io.emit('mention_all_alert', {
+          sender: freshUser.full_name,
+          senderRole: freshUser.role,
+          content: content.trim(),
+          messageId: savedMsg.id
+        });
+      }
+
       const starInfo = calculateStars(freshUser.correct_answers_count);
       const broadcastMsg = {
         ...savedMsg,
         gender: freshUser.gender || 'male',
-        starInfo
+        starInfo,
+        is_mention_all: !!isMentionAll
       };
 
       io.emit('new_message', broadcastMsg);

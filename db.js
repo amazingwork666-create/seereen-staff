@@ -213,6 +213,30 @@ function initDb() {
       user_agent TEXT,
       created_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS live_recordings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recording_number INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      audio_url TEXT NOT NULL,
+      duration TEXT DEFAULT '',
+      recorded_by_id INTEGER NOT NULL,
+      recorded_by_name TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS recorded_lessons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lesson_number INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      audio_url TEXT NOT NULL,
+      duration TEXT DEFAULT '',
+      uploaded_by_id INTEGER NOT NULL,
+      uploaded_by_name TEXT NOT NULL,
+      uploaded_by_role TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
   `);
 
   try {
@@ -230,6 +254,32 @@ function initDb() {
   try { db.exec("ALTER TABLE questions ADD COLUMN question_number INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE question_submissions ADD COLUMN is_correct INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE dream_sessions ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0"); } catch (e) {}
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS live_recordings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recording_number INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        audio_url TEXT NOT NULL,
+        duration TEXT DEFAULT '',
+        recorded_by_id INTEGER NOT NULL,
+        recorded_by_name TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS recorded_lessons (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lesson_number INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        audio_url TEXT NOT NULL,
+        duration TEXT DEFAULT '',
+        uploaded_by_id INTEGER NOT NULL,
+        uploaded_by_name TEXT NOT NULL,
+        uploaded_by_role TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+    `);
+  } catch (e) {}
 
   // Backfill question_number sequentially for any unnumbered questions
   try {
@@ -880,6 +930,7 @@ const dreamSessions = {
     const stmt = db.prepare(`
       SELECT s.*, 
         (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id) as message_count,
+        (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id AND (m.type = 'voice' OR m.voice_url IS NOT NULL OR m.content LIKE '%.webm%' OR m.content LIKE '%.ogg%' OR m.content LIKE '%.mp3%' OR m.content LIKE '%.m4a%') AND m.sender_type = 'dreamer') as has_voice,
         (SELECT content FROM dream_messages m WHERE m.session_id = s.id ORDER BY m.created_at DESC LIMIT 1) as last_message_content,
         (SELECT type FROM dream_messages m WHERE m.session_id = s.id ORDER BY m.created_at DESC LIMIT 1) as last_message_type
       FROM dream_sessions s 
@@ -996,16 +1047,25 @@ const privateMessages = {
   getConversationsList(userId) {
     const stmt = db.prepare(`
       SELECT 
+        u.id as other_id,
         u.id as other_user_id,
         u.username,
+        u.full_name as other_name,
         u.full_name,
+        u.role as other_role,
         u.role,
+        u.gender as other_gender,
         u.gender,
         (
           SELECT content FROM private_messages 
           WHERE (sender_id = u.id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.id)
           ORDER BY id DESC LIMIT 1
         ) as last_message,
+        (
+          SELECT type FROM private_messages 
+          WHERE (sender_id = u.id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.id)
+          ORDER BY id DESC LIMIT 1
+        ) as last_message_type,
         (
           SELECT created_at FROM private_messages 
           WHERE (sender_id = u.id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.id)
@@ -1022,7 +1082,7 @@ const privateMessages = {
       )
       ORDER BY last_activity DESC
     `);
-    return stmt.all(userId, userId, userId, userId, userId, userId, userId, userId);
+    return stmt.all(userId, userId, userId, userId, userId, userId, userId, userId, userId, userId);
   },
   getTotalUnreadCount(userId) {
     const row = db.prepare('SELECT COUNT(*) as count FROM private_messages WHERE recipient_id = ? AND is_read = 0').get(userId);
@@ -1088,28 +1148,48 @@ const messageReactions = {
 };
 
 // Calculate star level & progress
+// Level progression requested by user:
+// 0 - 9: Level 0 (Yellow star ⭐) - restarts at 0 after reaching 10
+// 10 - 19: Level 1 (Green star ⭐/green) - restarts at 0
+// 20 - 29: Level 2 (Purple star ⭐/purple) - restarts at 0
+// 30+: Level 3+ (Trophy 🏆)
 function calculateStars(correctCount) {
   const count = Number(correctCount) || 0;
-  if (count <= 0) {
-    return {
-      stars: 1,
-      points: 0,
-      total: 0,
-      starIcons: '⭐',
-      badgeText: '⭐ 0/10'
-    };
-  }
-  const starLevel = Math.floor(count / 10) + 1;
   const currentPoints = count % 10;
+  const level = Math.floor(count / 10);
   
-  const starIcons = '⭐'.repeat(Math.min(starLevel, 5)) + (starLevel > 5 ? ` +${starLevel - 5}` : '');
+  let starType = 'yellow';
+  let icon = '⭐';
+  let badgeColor = 'text-amber-400 border-amber-500/30 bg-amber-500/10';
+  let levelName = 'ئاستی یەکەم (زەرد)';
+  
+  if (level === 1) {
+    starType = 'green';
+    icon = '⭐';
+    badgeColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10';
+    levelName = 'ئاستی دووەم (سەوز)';
+  } else if (level === 2) {
+    starType = 'purple';
+    icon = '⭐';
+    badgeColor = 'text-purple-400 border-purple-500/30 bg-purple-500/10';
+    levelName = 'ئاستی سێیەم (مۆر)';
+  } else if (level >= 3) {
+    starType = 'trophy';
+    icon = '🏆';
+    badgeColor = 'text-amber-300 border-amber-500/40 bg-amber-500/20';
+    levelName = 'ئاستی قارەمان (کاس)';
+  }
 
   return {
-    stars: starLevel,
+    stars: level + 1,
+    level,
     points: currentPoints,
     total: count,
-    starIcons: starIcons,
-    badgeText: `${starIcons} (${currentPoints}/10)`
+    starType,
+    starIcons: icon,
+    badgeColor,
+    levelName,
+    badgeText: `${icon} ${currentPoints}`
   };
 }
 
@@ -1229,6 +1309,66 @@ const pushSubscriptions = {
   }
 };
 
+// Live Lesson Recordings Archive (Admin / Teacher only)
+const liveRecordings = {
+  create(recordingNumber, title, audioUrl, duration, recordedById, recordedByName) {
+    const stmt = db.prepare(`
+      INSERT INTO live_recordings (recording_number, title, audio_url, duration, recorded_by_id, recorded_by_name, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const res = stmt.run(recordingNumber, title, audioUrl, duration || '', recordedById, recordedByName, Date.now());
+    return this.findById(res.lastInsertRowid);
+  },
+  findById(id) {
+    return db.prepare('SELECT * FROM live_recordings WHERE id = ?').get(id);
+  },
+  getAll() {
+    return db.prepare('SELECT * FROM live_recordings ORDER BY recording_number DESC, created_at DESC').all();
+  },
+  getNextNumber() {
+    const row = db.prepare('SELECT MAX(recording_number) as max_num FROM live_recordings').get();
+    return (row && row.max_num) ? row.max_num + 1 : 1;
+  },
+  updateTitle(id, title, recordingNumber) {
+    if (recordingNumber) {
+      return db.prepare('UPDATE live_recordings SET title = ?, recording_number = ? WHERE id = ?').run(title.trim(), recordingNumber, id);
+    }
+    return db.prepare('UPDATE live_recordings SET title = ? WHERE id = ?').run(title.trim(), id);
+  },
+  delete(id) {
+    return db.prepare('DELETE FROM live_recordings WHERE id = ?').run(id);
+  }
+};
+
+// Recorded Lessons for Students (Uploaded by Teacher/Admin, No Download Allowed)
+const recordedLessons = {
+  create(lessonNumber, title, description, audioUrl, duration, uploadedById, uploadedByName, uploadedByRole) {
+    const stmt = db.prepare(`
+      INSERT INTO recorded_lessons (lesson_number, title, description, audio_url, duration, uploaded_by_id, uploaded_by_name, uploaded_by_role, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const res = stmt.run(lessonNumber, title, description || '', audioUrl, duration || '', uploadedById, uploadedByName, uploadedByRole, Date.now());
+    return this.findById(res.lastInsertRowid);
+  },
+  findById(id) {
+    return db.prepare('SELECT * FROM recorded_lessons WHERE id = ?').get(id);
+  },
+  getAll() {
+    return db.prepare('SELECT * FROM recorded_lessons ORDER BY lesson_number ASC, created_at DESC').all();
+  },
+  getNextNumber() {
+    const row = db.prepare('SELECT MAX(lesson_number) as max_num FROM recorded_lessons').get();
+    return (row && row.max_num) ? row.max_num + 1 : 1;
+  },
+  update(id, title, description, lessonNumber) {
+    return db.prepare('UPDATE recorded_lessons SET title = ?, description = ?, lesson_number = ? WHERE id = ?')
+      .run(title.trim(), description ? description.trim() : '', lessonNumber, id);
+  },
+  delete(id) {
+    return db.prepare('DELETE FROM recorded_lessons WHERE id = ?').run(id);
+  }
+};
+
 module.exports = {
   db,
   initDb,
@@ -1244,5 +1384,7 @@ module.exports = {
   messageReactions,
   profileChangeRequests,
   pushSubscriptions,
-  calculateStars
+  calculateStars,
+  liveRecordings,
+  recordedLessons
 };

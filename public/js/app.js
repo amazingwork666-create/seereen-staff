@@ -117,25 +117,41 @@ function triggerStarCelebration(targetElem = null) {
 // Helper: Calculate stars
 function calculateStars(correctCount) {
   const count = Number(correctCount) || 0;
-  if (count <= 0) {
-    return {
-      stars: 1,
-      points: 0,
-      total: 0,
-      starIcons: '⭐',
-      badgeText: '⭐ 0/10'
-    };
-  }
-  const starLevel = Math.floor(count / 10) + 1;
   const currentPoints = count % 10;
-  const starIcons = '⭐'.repeat(Math.min(starLevel, 5)) + (starLevel > 5 ? ` +${starLevel - 5}` : '');
+  const level = Math.floor(count / 10);
+  
+  let starType = 'yellow';
+  let icon = '⭐';
+  let badgeClass = 'star-badge-yellow';
+  let levelName = 'ئاستی یەکەم (زەرد)';
+  
+  if (level === 1) {
+    starType = 'green';
+    icon = '⭐';
+    badgeClass = 'star-badge-green';
+    levelName = 'ئاستی دووەم (سەوز)';
+  } else if (level === 2) {
+    starType = 'purple';
+    icon = '⭐';
+    badgeClass = 'star-badge-purple';
+    levelName = 'ئاستی سێیەم (مۆر)';
+  } else if (level >= 3) {
+    starType = 'trophy';
+    icon = '🏆';
+    badgeClass = 'star-badge-trophy';
+    levelName = 'ئاستی قارەمان (کاس)';
+  }
 
   return {
-    stars: starLevel,
+    stars: level + 1,
+    level,
     points: currentPoints,
     total: count,
-    starIcons: starIcons,
-    badgeText: `${starIcons} (${currentPoints}/10)`
+    starType,
+    starIcons: icon,
+    badgeClass,
+    levelName,
+    badgeText: `${icon} ${currentPoints}`
   };
 }
 
@@ -174,7 +190,7 @@ function formatUserDisplayName(user) {
   } else if (user.role === 'new_student') {
     suffix = ' 🔰';
   } else if (user.role === 'teacher') {
-    suffix = ' 👨‍🏫';
+    suffix = ' 🎓';
   } else if (isSuper) {
     suffix = ' 🛡️';
   }
@@ -190,7 +206,7 @@ function renderRoleBadge(role, gender) {
   if (role === 'super_admin') {
     return `<span class="badge-super-admin-shield inline-flex items-center text-xs select-none" title="ئەدمین">🛡️</span>`;
   } else if (role === 'teacher') {
-    return `<span class="badge-teacher px-2 py-0.5 rounded-md text-[10px] font-black inline-flex items-center gap-1 shadow">👨‍🏫 مامۆستا</span>`;
+    return `<span class="badge-teacher px-2 py-0.5 rounded-md text-[10px] font-black inline-flex items-center gap-1 shadow"><i class="fa-solid fa-graduation-cap text-white text-[10px]"></i> مامۆستا</span>`;
   } else if (role === 'admin') {
     return `<span class="badge-admin px-2 py-0.5 rounded-md text-[10px] font-black inline-flex items-center gap-1 shadow"><i class="fa-solid fa-shield-halved text-[9px]"></i> ئەدمین</span>`;
   } else if (role === 'new_student') {
@@ -204,12 +220,15 @@ function renderRoleBadge(role, gender) {
   }
 }
 
-function renderStarBadge(correctCount) {
+function renderStarBadge(correctCount, role = 'student') {
+  if (role && role !== 'student' && role !== 'new_student') {
+    return '';
+  }
   const info = calculateStars(correctCount);
   return `
-    <span class="star-badge px-2 py-0.5 rounded-lg text-xs font-bold inline-flex items-center gap-1 border" title="کۆی گشتی: ${info.total} | پلەی ${info.stars} ئەستێرە">
+    <span class="star-badge ${info.badgeClass} px-2 py-0.5 rounded-lg text-xs font-black inline-flex items-center gap-1 border" title="کۆی گشتی: ${info.total} (${info.levelName})">
       <span>${info.starIcons}</span>
-      <span class="font-mono text-[11px] font-black">(${info.points}/10)</span>
+      <span class="font-mono text-[11px] font-black">${info.points}</span>
     </span>
   `;
 }
@@ -224,6 +243,8 @@ function containsLink(text) {
 // --- INIT APP ---
 window.addEventListener('DOMContentLoaded', async () => {
   initTheme();
+  initAppLanguage();
+  initAppFontSize();
   fetchDreamAvailability();
 
   // Handle mobile keyboard adaptation and secret answer draft
@@ -555,8 +576,8 @@ function updateUserUI() {
     roleBadgeElem.className = 'hidden';
     roleBadgeElem.innerText = '';
   } else if (currentUser.role === 'teacher') {
-    roleBadgeElem.className = 'badge-teacher text-[9px] px-1.5 py-0.2 rounded font-black hidden sm:inline-block';
-    roleBadgeElem.innerText = 'مامۆستا 👨‍🏫';
+    roleBadgeElem.className = 'badge-teacher text-[9px] px-1.5 py-0.2 rounded font-black hidden sm:inline-flex items-center gap-1';
+    roleBadgeElem.innerHTML = '<i class="fa-solid fa-graduation-cap text-white text-[9px]"></i> مامۆستا';
   } else if (currentUser.role === 'admin') {
     roleBadgeElem.className = 'badge-admin text-[9px] px-1.5 py-0.2 rounded font-black hidden sm:inline-block';
     roleBadgeElem.innerText = 'ئەدمین 🛡️';
@@ -571,11 +592,21 @@ function updateUserUI() {
     roleBadgeElem.innerText = 'قوتابی 🎓';
   }
 
+  const isStudentUser = currentUser.role === 'student' || currentUser.role === 'new_student';
+  const headerStarEl = document.getElementById('headerStarBadge');
   const starInfo = calculateStars(currentUser.correct_answers_count);
-  document.getElementById('headerStarBadge').innerHTML = `
-    <span>${starInfo.starIcons}</span>
-    <span class="font-mono font-black">${starInfo.points}/10</span>
-  `;
+
+  if (headerStarEl) {
+    if (isStudentUser) {
+      headerStarEl.classList.remove('hidden');
+      headerStarEl.innerHTML = `
+        <span>${starInfo.starIcons}</span>
+        <span class="font-mono font-black">${starInfo.points}</span>
+      `;
+    } else {
+      headerStarEl.classList.add('hidden');
+    }
+  }
 
   // Update Drawer User Profile Card
   const drawerAvatar = document.getElementById('drawerUserAvatar');
@@ -591,7 +622,12 @@ function updateUserUI() {
     drawerRole.innerHTML = renderRoleBadge(currentUser.role, currentUser.gender);
   }
   if (drawerStars) {
-    drawerStars.innerHTML = `${starInfo.starIcons} (${starInfo.points}/10)`;
+    if (isStudentUser) {
+      drawerStars.classList.remove('hidden');
+      drawerStars.innerHTML = `${starInfo.starIcons} ${starInfo.points}`;
+    } else {
+      drawerStars.classList.add('hidden');
+    }
   }
 
   const isSuperAdmin = currentUser.role === 'super_admin';
@@ -1393,7 +1429,7 @@ function initSocket() {
     if (typeof currentProfileUserId !== 'undefined' && currentProfileUserId === data.user_id) {
       const starInfo = calculateStars(data.new_stars);
       const profStars = document.getElementById('profStars');
-      if (profStars) profStars.innerHTML = `${starInfo.starIcons} (${starInfo.points}/10)`;
+      if (profStars) profStars.innerHTML = `${starInfo.starIcons} ${starInfo.points}`;
     }
     loadPodiumWidget();
     loadLeaderboard();
@@ -1619,6 +1655,11 @@ function initSocket() {
   // New private message received
   socket.on('new_private_message', (msg) => {
     handleNewPrivateMessage(msg);
+  });
+
+  // Group tag mention alert (@هەموو, @هەمو, @1)
+  socket.on('mention_all_alert', (data) => {
+    handleMentionAllAlert(data);
   });
 
   // Live Lesson ("وانە") events
@@ -2174,6 +2215,8 @@ function appendMessage(msg, scroll = true) {
     msgTextClass = 'msg-text-student';
   }
 
+  const isMentionAllMsg = msg.is_mention_all || (msg.content && (msg.content.includes('@هەموو') || msg.content.includes('@هەمو') || msg.content.includes('@1') || msg.content.includes('@all')));
+
   let bubbleBg = '';
   if (isMsgSuperAdmin) {
     bubbleBg = isMe 
@@ -2185,15 +2228,36 @@ function appendMessage(msg, scroll = true) {
     bubbleBg = 'bg-slate-800/90 text-slate-100 border border-slate-700/60 rounded-tr-sm';
   }
 
+  if (isMentionAllMsg) {
+    bubbleBg += ' msg-mention-all';
+  }
+
+  const mentionAllBadge = isMentionAllMsg 
+    ? `<span class="px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-black text-[10px] inline-flex items-center gap-1 shadow animate-pulse"><i class="fa-solid fa-bullhorn text-[9px]"></i> @هەمووان</span>` 
+    : '';
+
+  let translateBtnHtml = '';
+  if ((currentAppLanguage === 'ar' || currentAppLanguage === 'en') && msg.content && msg.type !== 'system') {
+    const tLabel = currentAppLanguage === 'ar' ? 'ترجمة' : 'Translate';
+    translateBtnHtml = `
+      <button type="button" onclick="translateGroupMessage(${msg.id}, this)" class="text-[10px] text-sky-300 hover:text-white px-1.5 py-0.5 bg-slate-800/80 hover:bg-slate-700 rounded-lg border border-slate-700/60 inline-flex items-center gap-1 transition" title="${tLabel}">
+        <i class="fa-solid fa-language text-sky-400"></i>
+        <span>${tLabel}</span>
+      </button>
+    `;
+  }
+
   msgElem.innerHTML = `
-    <div class="flex items-center gap-2 mb-1 px-1">
+    <div class="flex items-center gap-2 mb-1 px-1 flex-wrap">
       <span onclick="openUserProfileModal(${msg.user_id})" class="text-xs cursor-pointer hover:underline ${nameColorClass}">${escapeHtml(msg.full_name)}</span>
       ${roleBadge}
       ${starBadge}
+      ${mentionAllBadge}
       <span class="text-[10px] text-slate-500 font-mono">${dateStr}</span>
       <button type="button" onclick="toggleReactionPicker(${msg.id}, event)" class="text-slate-400 hover:text-amber-300 px-1 py-0.5 rounded text-[11px] hover:bg-slate-800 transition flex items-center gap-0.5" title="کارلێک بە ئیمۆجی">
         <i class="fa-regular fa-face-smile"></i>
       </button>
+      ${translateBtnHtml}
       ${hasActions ? `
         <button type="button" onclick="toggleMsgActions(${msg.id}, event)" class="md:hidden text-slate-400 hover:text-white px-1.5 py-0.5 rounded text-[11px] hover:bg-slate-800 transition msg-actions-trigger" title="کردارەکان">
           <i class="fa-solid fa-ellipsis"></i>
@@ -2209,8 +2273,8 @@ function appendMessage(msg, scroll = true) {
       <button type="button" onclick="sendReaction(${msg.id}, '💯', event)" class="p-1.5 hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="سەد لەسەد">💯</button>
     </div>
 
-    <div onclick="handleMessageBubbleClick(${msg.id}, event)" class="max-w-lg md:max-w-xl rounded-2xl px-3.5 py-2 text-xs md:text-sm leading-relaxed shadow break-words ${bubbleBg} cursor-pointer md:cursor-default">
-      ${msg.content ? `<div class="${msgTextClass}">${escapeHtml(msg.content)}</div>` : ''}
+    <div id="msg-bubble-${msg.id}" onclick="handleMessageBubbleClick(${msg.id}, event)" class="max-w-lg md:max-w-xl rounded-2xl px-3.5 py-2 text-xs md:text-sm leading-relaxed shadow break-words ${bubbleBg} cursor-pointer md:cursor-default">
+      ${msg.content ? `<div id="msg-content-${msg.id}" class="${msgTextClass}">${escapeHtml(msg.content)}</div>` : ''}
       ${attachmentHtml}
     </div>
 
@@ -3930,7 +3994,15 @@ async function openUserProfileModal(userId) {
     usernameEl.innerText = `@${prof.username}`;
     genderEl.innerHTML = prof.gender === 'female' ? '<span class="text-pink-400 font-bold">🧕 مێ (خوشک)</span>' : '<span class="text-sky-400 font-bold">🧔 نێر (برا)</span>';
     roleEl.innerHTML = renderRoleBadge(prof.role, prof.gender);
-    starsEl.innerHTML = `${prof.starInfo.starIcons} (${prof.starInfo.points}/10)`;
+    const isProfStudent = prof.role === 'student' || prof.role === 'new_student';
+    const profStarRow = starsEl.closest('.flex') || starsEl.parentElement;
+    if (isProfStudent) {
+      if (profStarRow) profStarRow.classList.remove('hidden');
+      starsEl.innerHTML = `${prof.starInfo.starIcons} ${prof.starInfo.points}`;
+    } else {
+      if (profStarRow) profStarRow.classList.add('hidden');
+      starsEl.innerHTML = '';
+    }
     promoCountEl.innerText = `${prof.promotionsCount} جار`;
 
     historyList.innerHTML = '';
@@ -4125,7 +4197,7 @@ async function adjustCurrentProfileStars(delta) {
     if (res.ok) {
       const starInfo = calculateStars(data.new_stars);
       const profStars = document.getElementById('profStars');
-      if (profStars) profStars.innerHTML = `${starInfo.starIcons} (${starInfo.points}/10)`;
+      if (profStars) profStars.innerHTML = `${starInfo.starIcons} ${starInfo.points}`;
       alert(`ئەستێرە بەسەرکەوتوویی گۆڕدرا: (${data.new_stars} ئەستێرە) ⭐`);
     } else {
       alert(data.error || 'هەڵەیەک ڕوویدا لە دەستکاریکردنی ئەستێرە');
@@ -4818,8 +4890,8 @@ async function loadPendingUsersList() {
           <button onclick="approveUser(${u.id}, 'student')" class="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs shadow transition flex items-center justify-center gap-1 active:scale-95" title="پەسەندکردن وەک قوتابی ئاسایی">
             <i class="fa-solid fa-graduation-cap"></i> قوتابی 🎓
           </button>
-          <button onclick="approveUser(${u.id}, 'teacher')" class="px-3 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded-xl font-bold text-xs shadow transition flex items-center justify-center gap-1 active:scale-95" title="پەسەندکردن وەک مامۆستا">
-            <span>مامۆستا 👨‍🏫</span>
+          <button onclick="approveUser(${u.id}, 'teacher')" class="px-3 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded-xl font-bold text-xs shadow transition flex items-center justify-center gap-1.5 active:scale-95" title="پەسەندکردن وەک مامۆستا">
+            <i class="fa-solid fa-graduation-cap text-white text-[11px]"></i> <span>مامۆستا</span>
           </button>
           <button onclick="approveUser(${u.id}, 'new_student')" class="px-2.5 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl font-bold text-xs shadow transition flex items-center justify-center gap-1 active:scale-95" title="پەسەندکردن وەک قوتابی تازە (١ چات لە ٢٤ کاتژمێردا)">
             <span>تازە 🔰</span>
@@ -5986,7 +6058,7 @@ function appendDreamMessage(msg, isAdminView = false) {
   if (isSuperAdminSender) {
     senderBadge = '<span class="badge-super-admin-shield inline-flex items-center text-xs select-none mr-1.5" title="سوپەر ئەدمین">🛡️</span>';
   } else if (isTeacherSender) {
-    senderBadge = '<span class="badge-teacher inline-flex items-center text-xs select-none mr-1.5" title="مامۆستا">👨‍🏫</span>';
+    senderBadge = '<span class="badge-teacher px-1.5 py-0.5 rounded text-[10px] inline-flex items-center gap-1 select-none mr-1.5 shadow-sm" title="مامۆستا"><i class="fa-solid fa-graduation-cap text-white text-[9px]"></i> مامۆستا</span>';
   } else {
     senderBadge = '<span class="text-[9px] font-bold text-purple-300 mr-1.5">خەون بین</span>';
   }
@@ -6270,8 +6342,8 @@ function openDreamAdminModal() {
       roleIndicator.innerText = 'سوپەر ئەدمین (دەسەڵاتی تەواو)';
       roleIndicator.className = 'text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-md border border-amber-500/30';
     } else {
-      roleIndicator.innerText = 'مامۆستا 👨‍🏫 (وەڵامدانەوەی خەون)';
-      roleIndicator.className = 'text-[10px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded-md border border-purple-500/30';
+      roleIndicator.innerHTML = '<i class="fa-solid fa-graduation-cap text-white text-[10px]"></i> مامۆستا (وەڵامدانەوەی خەون)';
+      roleIndicator.className = 'text-[10px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded-md border border-purple-500/30 inline-flex items-center gap-1';
     }
   }
 
@@ -6378,12 +6450,17 @@ function renderDreamAdminSessionsCards() {
     const genderEmoji = getGenderEmoji(s.dreamer_gender);
     const timeStr = new Date(s.last_activity).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
     const isFav = !!s.is_favorite;
+    const hasVoice = Boolean(s.has_voice && s.has_voice > 0);
 
-    card.className = `p-2.5 rounded-2xl cursor-pointer transition border text-right relative group ${
-      isSelected 
-        ? 'bg-purple-950/70 border-purple-500 shadow-md ring-1 ring-purple-500/50' 
-        : 'bg-slate-900/80 hover:bg-slate-800/80 border-slate-800'
-    }`;
+    const voiceBadgeHtml = hasVoice 
+      ? `<span class="px-2 py-0.5 rounded-lg bg-emerald-500 text-slate-950 font-black text-[10px] inline-flex items-center gap-1 shadow animate-pulse"><i class="fa-solid fa-microphone text-[10px]"></i> 🎙️ ڤۆیسی هەیە</span>`
+      : `<span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-500 border border-slate-700/60 font-bold text-[9px] inline-flex items-center gap-1">بێ دەنگ</span>`;
+
+    let cardBgClass = isSelected 
+      ? 'bg-purple-950/70 border-purple-500 shadow-md ring-1 ring-purple-500/50' 
+      : (hasVoice ? 'dream-has-voice-card bg-emerald-950/30 hover:bg-emerald-950/50 border-emerald-500/50' : 'bg-slate-900/80 hover:bg-slate-800/80 border-slate-800');
+
+    card.className = `p-2.5 rounded-2xl cursor-pointer transition border text-right relative group ${cardBgClass}`;
 
     card.onclick = () => selectDreamSession(s.id);
 
@@ -6412,8 +6489,13 @@ function renderDreamAdminSessionsCards() {
           ${deleteBtnHtml}
         </div>
       </div>
-      <div class="text-[11px] text-slate-400 truncate pr-1">
-        ${escapeHtml(s.last_message_content || 'دانیشتنی نوێ')}
+      <div class="flex items-center justify-between gap-1 mt-1">
+        <div class="text-[11px] text-slate-400 truncate pr-1 flex-1">
+          ${escapeHtml(s.last_message_content || 'دانیشتنی نوێ')}
+        </div>
+        <div class="shrink-0">
+          ${voiceBadgeHtml}
+        </div>
       </div>
     `;
     listContainer.appendChild(card);
@@ -6986,21 +7068,60 @@ function startCallTimer() {
 }
 
 // Two-Way Audio Mixing via AudioContext Destination
-function startTwoWayCallRecording(localStream, remoteStream, sessionId) {
+async function startTwoWayCallRecording(localStream, remoteStream, sessionId) {
   try {
+    if (callTwoWayRecorder && callTwoWayRecorder.state === 'recording') {
+      return;
+    }
     callTwoWayChunks = [];
+    callRecordingUploaded = false;
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) return;
-    callAudioContext = new AudioContextClass();
+
+    // Reuse callOutputAudioContext if available so Web Audio graphs don't conflict
+    if (callOutputAudioContext && callOutputAudioContext.state !== 'closed') {
+      callAudioContext = callOutputAudioContext;
+    } else if (!callAudioContext || callAudioContext.state === 'closed') {
+      callAudioContext = new AudioContextClass();
+    }
+    if (callAudioContext.state === 'suspended') {
+      await callAudioContext.resume().catch(() => {});
+    }
     const dest = callAudioContext.createMediaStreamDestination();
 
-    if (localStream && localStream.getAudioTracks().length > 0) {
-      const src1 = callAudioContext.createMediaStreamSource(localStream);
-      src1.connect(dest);
+    // 1. Connect Local Microphone (Caller / Admin)
+    const local = localStream || callLocalStream;
+    if (local && local.getAudioTracks().length > 0) {
+      try {
+        const src1 = callAudioContext.createMediaStreamSource(local);
+        const gain1 = callAudioContext.createGain();
+        gain1.gain.value = 1.0;
+        src1.connect(gain1);
+        gain1.connect(dest);
+      } catch (e) {
+        console.warn('Call record local stream source warning:', e);
+      }
     }
-    if (remoteStream && remoteStream.getAudioTracks().length > 0) {
-      const src2 = callAudioContext.createMediaStreamSource(remoteStream);
-      src2.connect(dest);
+
+    // 2. Connect Remote Audio (Peer / Dreamer)
+    const remote = remoteStream || callRemoteStream;
+    if (remote && remote.getAudioTracks().length > 0) {
+      try {
+        const src2 = callAudioContext.createMediaStreamSource(remote);
+        const gain2 = callAudioContext.createGain();
+        gain2.gain.value = 1.25;
+        src2.connect(gain2);
+        gain2.connect(dest);
+      } catch (e) {
+        console.warn('Call record remote stream source warning:', e);
+      }
+    }
+
+    // 3. Fallback: connect from output source if available
+    if (callOutputSource) {
+      try {
+        callOutputSource.connect(dest);
+      } catch (e) {}
     }
 
     let mimeType = '';
@@ -7570,6 +7691,11 @@ function handleSubmissionEvaluated(data) {
 // =========================================================================
 
 let activePrivateOtherUser = null;
+let privateMediaRecorder = null;
+let privateAudioChunks = [];
+let privateRecordingInterval = null;
+let privateRecordingSeconds = 0;
+let privateAudioStream = null;
 
 async function openPrivateChatModal() {
   const modal = document.getElementById('privateChatModal');
@@ -7585,12 +7711,132 @@ async function openPrivateChatModal() {
     }
   }
 
-  await loadPrivateConversations();
+  // If student: default to staff tab. If staff: default to conversations tab
+  if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+    switchPrivateChatTab('conversations');
+  } else {
+    switchPrivateChatTab('staff');
+  }
 }
 
 function closePrivateChatModal() {
+  cancelPrivateVoiceRecording();
   const modal = document.getElementById('privateChatModal');
   if (modal) modal.classList.add('hidden');
+}
+
+function switchPrivateChatTab(tab) {
+  const staffContainer = document.getElementById('privateStaffListContainer');
+  const convList = document.getElementById('privateConversationsList');
+  const staffBtn = document.getElementById('privateTabStaffBtn');
+  const convBtn = document.getElementById('privateTabConvBtn');
+
+  if (tab === 'staff') {
+    if (staffContainer) staffContainer.classList.remove('hidden');
+    if (convList) convList.classList.add('hidden');
+    if (staffBtn) {
+      staffBtn.className = 'flex-1 py-1.5 px-2 rounded-xl text-white font-bold bg-sky-600 shadow transition flex items-center justify-center gap-1.5 text-xs';
+    }
+    if (convBtn) {
+      convBtn.className = 'flex-1 py-1.5 px-2 rounded-xl text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5 text-xs';
+    }
+    loadPrivateStaffList();
+  } else {
+    if (staffContainer) staffContainer.classList.add('hidden');
+    if (convList) convList.classList.remove('hidden');
+    if (staffBtn) {
+      staffBtn.className = 'flex-1 py-1.5 px-2 rounded-xl text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5 text-xs';
+    }
+    if (convBtn) {
+      convBtn.className = 'flex-1 py-1.5 px-2 rounded-xl text-white font-bold bg-sky-600 shadow transition flex items-center justify-center gap-1.5 text-xs';
+    }
+    loadPrivateConversations();
+  }
+}
+
+async function loadPrivateStaffList() {
+  const listEl = document.getElementById('privateStaffList');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="p-4 text-center text-slate-500 text-xs">لە بارکردندایە...</div>';
+
+  try {
+    const res = await fetch('/api/chat/private/staff-list', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok || !Array.isArray(data.staff)) {
+      listEl.innerHTML = '<div class="p-4 text-center text-rose-400 text-xs">نەتوانرا لیستی مامۆستاکان بهێنرێت</div>';
+      return;
+    }
+
+    if (data.staff.length === 0) {
+      listEl.innerHTML = '<div class="p-4 text-center text-slate-500 text-xs">هیچ مامۆستا یان ئەدمینێک بەردەست نییە</div>';
+      return;
+    }
+
+    const superAdmins = data.staff.filter(s => s.role === 'super_admin');
+    const teachers = data.staff.filter(s => s.role === 'teacher');
+
+    let html = '';
+
+    if (superAdmins.length > 0) {
+      html += `
+        <div class="pt-1 pb-1 px-1 text-[11px] font-bold text-rose-400 flex items-center gap-1">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>سوپەر ئەدمین</span>
+        </div>
+      `;
+      html += superAdmins.map(s => renderStaffCardHtml(s)).join('');
+    }
+
+    if (teachers.length > 0) {
+      html += `
+        <div class="pt-3 pb-1 px-1 text-[11px] font-bold text-amber-300 flex items-center gap-1">
+          <i class="fa-solid fa-graduation-cap"></i>
+          <span>مامۆستاکان</span>
+        </div>
+      `;
+      html += teachers.map(t => renderStaffCardHtml(t)).join('');
+    }
+
+    listEl.innerHTML = html;
+  } catch (err) {
+    console.error('Error loading private staff list:', err);
+    listEl.innerHTML = '<div class="p-4 text-center text-rose-400 text-xs">هەڵەیەک لە هێناندا ڕوویدا</div>';
+  }
+}
+
+function renderStaffCardHtml(s) {
+  const isCurrent = activePrivateOtherUser && activePrivateOtherUser.id === s.id;
+  const activeBg = isCurrent ? 'bg-sky-600/20 border-sky-500/50' : 'bg-slate-900/80 hover:bg-slate-800/80 border-slate-800';
+  const roleBadge = s.role === 'super_admin'
+    ? `<span class="px-2 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold">👑 سوپەر ئەدمین</span>`
+    : `<span class="px-2 py-0.5 rounded-lg bg-[#552776] text-white text-[10px] font-bold shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-graduation-cap text-white text-[10px]"></i> مامۆستا</span>`;
+  const onlineDot = s.is_online 
+    ? `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30" title="لەسەر هێڵە"></span>`
+    : `<span class="w-2.5 h-2.5 rounded-full bg-slate-600" title="دەرەوەی هێڵە"></span>`;
+
+  return `
+    <div 
+      onclick="openPrivateChatWithUser(${s.id}, '${escapeHtml(s.full_name)}', '${s.role}', '${s.gender || 'male'}')"
+      class="p-2.5 rounded-2xl border cursor-pointer transition ${activeBg} flex items-center justify-between gap-2 shadow-sm"
+    >
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="relative w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs shrink-0 shadow">
+          ${getGenderEmoji(s.gender)}
+          <span class="absolute -bottom-0.5 -right-0.5">${onlineDot}</span>
+        </div>
+        <div class="min-w-0">
+          <div class="font-black text-white text-xs truncate">${escapeHtml(s.full_name)}</div>
+          <div class="mt-0.5">${roleBadge}</div>
+        </div>
+      </div>
+      <button type="button" class="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-slate-950 font-black rounded-xl text-[11px] shadow transition active:scale-95 shrink-0 flex items-center gap-1">
+        <span>چات</span>
+        <i class="fa-solid fa-paper-plane text-[9px]"></i>
+      </button>
+    </div>
+  `;
 }
 
 async function loadPrivateConversations() {
@@ -7607,40 +7853,52 @@ async function loadPrivateConversations() {
       if (countBadge) countBadge.innerText = data.conversations.length;
       if (data.conversations.length === 0) {
         listEl.innerHTML = `
-          <div class="p-4 text-center text-slate-500 text-xs leading-relaxed">
-            هیچ گفتوگۆیەکت نییە.<br>
-            دەتوانیت لە پرۆفایلی مامۆستا یان سوپەر ئەدمین کلیک لە «نامەی تایبەت» بکەیت.
+          <div class="p-6 text-center text-slate-500 text-xs leading-relaxed">
+            هیچ گفتوگۆیەکت لەم بەشەدا نییە.<br>
+            <span class="text-[11px] text-sky-400 mt-1 block">دەتوانیت لە تابی «مامۆستا و ئەدمین» دەست بکەیت بە گفتوگۆ.</span>
           </div>
         `;
         return;
       }
 
       listEl.innerHTML = data.conversations.map(c => {
-        const isCurrent = activePrivateOtherUser && activePrivateOtherUser.id === c.other_id;
+        const otherId = c.other_id || c.other_user_id;
+        const otherName = c.other_name || c.full_name || 'بەکارهێنەر';
+        const otherRole = c.other_role || c.role || 'student';
+        const otherGender = c.other_gender || c.gender || 'male';
+
+        const isCurrent = activePrivateOtherUser && activePrivateOtherUser.id === otherId;
         const activeBg = isCurrent ? 'bg-sky-600/20 border-sky-500/50' : 'bg-slate-900/60 hover:bg-slate-800/80 border-slate-800';
-        const roleLabel = c.other_role === 'super_admin' ? 'سوپەر ئەدمین' : (c.other_role === 'teacher' ? 'مامۆستا' : 'قوتابی');
-        const roleColor = c.other_role === 'teacher' ? 'text-amber-400' : (c.other_role === 'super_admin' ? 'text-rose-400' : 'text-sky-400');
+        const roleLabel = otherRole === 'super_admin' ? 'سوپەر ئەدمین' : (otherRole === 'teacher' ? 'مامۆستا' : 'قوتابی');
+        const roleColor = otherRole === 'teacher' ? 'text-amber-400' : (otherRole === 'super_admin' ? 'text-rose-400' : 'text-sky-400');
         const lastTime = c.last_message_at ? new Date(c.last_message_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
         const unreadHtml = c.unread_count > 0 
           ? `<span class="px-1.5 py-0.5 rounded-full bg-sky-500 text-slate-950 text-[10px] font-black">${c.unread_count}</span>` 
           : '';
 
+        let previewText = escapeHtml(c.last_message || '');
+        if (c.last_message_type === 'voice') {
+          previewText = '<span class="text-emerald-400 font-bold">🎙️ پەیامی دەنگی</span>';
+        } else if (c.last_message_type === 'image') {
+          previewText = '<span class="text-sky-300 font-bold">🖼️ وێنە</span>';
+        }
+
         return `
           <div 
-            onclick="openPrivateChatWithUser(${c.other_id}, '${escapeHtml(c.other_name)}', '${c.other_role}', '${c.other_gender || 'male'}')"
-            class="p-2.5 rounded-2xl border cursor-pointer transition ${activeBg} flex items-center gap-2.5"
+            onclick="openPrivateChatWithUser(${otherId}, '${escapeHtml(otherName)}', '${otherRole}', '${otherGender}')"
+            class="p-2.5 rounded-2xl border cursor-pointer transition ${activeBg} flex items-center gap-2.5 shadow-sm"
           >
             <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs shrink-0">
-              ${getGenderEmoji(c.other_gender)}
+              ${getGenderEmoji(otherGender)}
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between">
-                <span class="font-black text-white truncate text-xs">${escapeHtml(c.other_name)}</span>
+                <span class="font-black text-white truncate text-xs">${escapeHtml(otherName)}</span>
                 <span class="text-[10px] text-slate-500 font-mono">${lastTime}</span>
               </div>
               <div class="flex items-center justify-between mt-0.5">
-                <span class="text-[11px] text-slate-400 truncate max-w-[130px]">${escapeHtml(c.last_message || '')}</span>
-                <div class="flex items-center gap-1">
+                <span class="text-[11px] text-slate-400 truncate max-w-[140px]">${previewText}</span>
+                <div class="flex items-center gap-1 shrink-0">
                   <span class="text-[9px] ${roleColor} font-bold">${roleLabel}</span>
                   ${unreadHtml}
                 </div>
@@ -7669,6 +7927,12 @@ async function openPrivateChatWithUser(targetUserId, targetName, targetRole, tar
   if (emptyState) emptyState.classList.add('hidden');
   if (activeBox) activeBox.classList.remove('hidden');
 
+  // On mobile view: show chat area and hide sidebar
+  if (window.innerWidth < 768) {
+    const sidebar = document.getElementById('privateConversationsSidebar');
+    if (sidebar) sidebar.classList.add('hidden');
+  }
+
   const nameEl = document.getElementById('privateChatTargetName');
   const roleEl = document.getElementById('privateChatTargetRole');
   const avatarEl = document.getElementById('privateChatTargetAvatar');
@@ -7681,6 +7945,26 @@ async function openPrivateChatWithUser(targetUserId, targetName, targetRole, tar
   }
 
   await loadPrivateThread(targetUserId);
+}
+
+function showPrivateConversationsSidebarMobile() {
+  const sidebar = document.getElementById('privateConversationsSidebar');
+  const emptyState = document.getElementById('privateChatEmptyState');
+  const activeBox = document.getElementById('privateChatActiveBox');
+  if (!sidebar) return;
+
+  if (sidebar.classList.contains('hidden')) {
+    sidebar.classList.remove('hidden');
+    if (activeBox) activeBox.classList.add('hidden');
+    if (emptyState) emptyState.classList.add('hidden');
+  } else {
+    sidebar.classList.add('hidden');
+    if (activePrivateOtherUser && activeBox) {
+      activeBox.classList.remove('hidden');
+    } else if (emptyState) {
+      emptyState.classList.remove('hidden');
+    }
+  }
 }
 
 async function loadPrivateThread(otherUserId) {
@@ -7697,7 +7981,7 @@ async function loadPrivateThread(otherUserId) {
       if (data.messages.length === 0) {
         container.innerHTML = `
           <div class="p-6 text-center text-slate-500 text-xs">
-            هیچ نامەیەک لەنێوانتاندا نییە. دەتوانیت ئێستا یەکەم نامە بنێریت!
+            هیچ نامەیەک لەنێوانتاندا نییە. دەتوانیت ئێستا نامەی دەنگی، وێنە یان نوسراو بنێریت!
           </div>
         `;
       } else {
@@ -7724,14 +8008,34 @@ function appendPrivateMessageToThread(m, scroll = true) {
   const isMe = currentUser && m.sender_id === currentUser.id;
   const timeFormatted = m.created_at ? new Date(m.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
 
+  const isAudio = m.type === 'voice' || (m.content && m.content.startsWith('/uploads/') && (m.content.endsWith('.webm') || m.content.endsWith('.mp3') || m.content.endsWith('.ogg') || m.content.endsWith('.m4a') || m.content.endsWith('.wav')));
+  const isImage = m.type === 'image' || (m.content && m.content.startsWith('/uploads/') && (m.content.endsWith('.png') || m.content.endsWith('.jpg') || m.content.endsWith('.jpeg') || m.content.endsWith('.webp') || m.content.endsWith('.gif')));
+
+  let bodyHtml = '';
+  if (isAudio) {
+    bodyHtml = `
+      <div class="my-1">
+        <audio controls src="${escapeHtml(m.content)}" class="max-w-[220px] sm:max-w-[280px] h-8 rounded-xl"></audio>
+      </div>
+    `;
+  } else if (isImage) {
+    bodyHtml = `
+      <div class="my-1 cursor-pointer" onclick="openPrivateImageModal('${escapeHtml(m.content)}')">
+        <img src="${escapeHtml(m.content)}" alt="وێنە" class="max-w-[180px] sm:max-w-[260px] max-h-48 rounded-2xl object-cover border border-slate-700/80 shadow hover:opacity-95 transition">
+      </div>
+    `;
+  } else {
+    bodyHtml = `<div class="select-text">${escapeHtml(m.content)}</div>`;
+  }
+
   const div = document.createElement('div');
   if (m.id) div.id = `private-msg-${m.id}`;
   div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1.5`;
   div.innerHTML = `
-    <div class="max-w-[80%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow break-words ${
+    <div class="max-w-[85%] sm:max-w-[75%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow break-words ${
       isMe ? 'bg-sky-600 text-white rounded-br-none' : 'bg-slate-800 text-slate-100 border border-slate-700/80 rounded-bl-none'
     }">
-      <div>${escapeHtml(m.content)}</div>
+      ${bodyHtml}
       <div class="text-[9px] mt-1 text-right font-mono ${isMe ? 'text-sky-200' : 'text-slate-400'}">
         ${timeFormatted}
       </div>
@@ -7741,6 +8045,171 @@ function appendPrivateMessageToThread(m, scroll = true) {
   if (scroll) {
     container.scrollTop = container.scrollHeight;
   }
+}
+
+// Voice recording in private chat
+async function togglePrivateVoiceRecording() {
+  if (privateMediaRecorder && privateMediaRecorder.state === 'recording') {
+    finishAndSendPrivateVoice();
+    return;
+  }
+
+  try {
+    privateAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    privateAudioChunks = [];
+    privateRecordingSeconds = 0;
+
+    let mimeType = '';
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+      else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+      else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+      else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg';
+    }
+    const options = mimeType ? { mimeType } : {};
+    privateMediaRecorder = new MediaRecorder(privateAudioStream, options);
+
+    privateMediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        privateAudioChunks.push(e.data);
+      }
+    };
+
+    privateMediaRecorder.start(250);
+
+    const bar = document.getElementById('privateRecordingBar');
+    const timer = document.getElementById('privateRecordingTimer');
+    if (bar) bar.classList.remove('hidden');
+    if (timer) timer.innerText = '00:00';
+
+    if (privateRecordingInterval) clearInterval(privateRecordingInterval);
+    privateRecordingInterval = setInterval(() => {
+      privateRecordingSeconds++;
+      const mins = String(Math.floor(privateRecordingSeconds / 60)).padStart(2, '0');
+      const secs = String(privateRecordingSeconds % 60).padStart(2, '0');
+      if (timer) timer.innerText = `${mins}:${secs}`;
+    }, 1000);
+  } catch (err) {
+    console.error('Private voice recording error:', err);
+    alert('ڕێگەپێدانی مایکرۆفۆن ڕەتکرایەوە یان مایکرۆفۆن لەم وێبگەڕەدا کار ناکات.');
+  }
+}
+
+async function finishAndSendPrivateVoice() {
+  if (!privateMediaRecorder || !activePrivateOtherUser) return;
+  if (privateRecordingInterval) clearInterval(privateRecordingInterval);
+
+  const bar = document.getElementById('privateRecordingBar');
+  if (bar) bar.classList.add('hidden');
+
+  privateMediaRecorder.onstop = async () => {
+    try {
+      if (privateAudioChunks.length === 0) return;
+      const mimeType = privateMediaRecorder.mimeType || 'audio/webm';
+      const ext = mimeType.includes('mp4') ? 'mp4' : (mimeType.includes('ogg') ? 'ogg' : 'webm');
+      const blob = new Blob(privateAudioChunks, { type: mimeType });
+
+      const formData = new FormData();
+      formData.append('recipient_id', activePrivateOtherUser.id);
+      formData.append('voice', blob, `voice_${Date.now()}.${ext}`);
+      formData.append('audio', blob, `voice_${Date.now()}.${ext}`);
+      const durationStr = `${Math.floor(privateRecordingSeconds / 60)}:${String(privateRecordingSeconds % 60).padStart(2, '0')}`;
+      formData.append('duration', durationStr);
+
+      const res = await fetch('/api/chat/private/upload-voice', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok && data.message) {
+        appendPrivateMessageToThread(data.message, true);
+        loadPrivateConversations();
+      } else {
+        alert(data.error || 'نەتوانرا دەنگەکە بنێردرێت');
+      }
+    } catch (e) {
+      console.error('Failed to send private voice:', e);
+      alert('هەڵەیەک لە ناردنی دەنگدا ڕوویدا');
+    } finally {
+      if (privateAudioStream) {
+        privateAudioStream.getTracks().forEach(t => t.stop());
+        privateAudioStream = null;
+      }
+      privateMediaRecorder = null;
+      privateAudioChunks = [];
+    }
+  };
+
+  privateMediaRecorder.stop();
+}
+
+function cancelPrivateVoiceRecording() {
+  if (privateRecordingInterval) clearInterval(privateRecordingInterval);
+  if (privateMediaRecorder && privateMediaRecorder.state !== 'inactive') {
+    privateMediaRecorder.onstop = null;
+    privateMediaRecorder.stop();
+  }
+  if (privateAudioStream) {
+    privateAudioStream.getTracks().forEach(t => t.stop());
+    privateAudioStream = null;
+  }
+  privateMediaRecorder = null;
+  privateAudioChunks = [];
+  const bar = document.getElementById('privateRecordingBar');
+  if (bar) bar.classList.add('hidden');
+}
+
+// Image upload in private chat
+async function uploadPrivateImage(input) {
+  if (!input || !input.files || input.files.length === 0 || !activePrivateOtherUser) return;
+  const file = input.files[0];
+  input.value = '';
+
+  const formData = new FormData();
+  formData.append('recipient_id', activePrivateOtherUser.id);
+  formData.append('image', file);
+
+  try {
+    showLiveToastNotification('وێنەکە لە بارکردندایە... 🖼️', 'emerald');
+    const res = await fetch('/api/chat/private/upload-image', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
+    });
+    const data = await res.json();
+    if (res.ok && data.message) {
+      appendPrivateMessageToThread(data.message, true);
+      loadPrivateConversations();
+    } else {
+      alert(data.error || 'نەتوانرا وێنەکە بنێردرێت');
+    }
+  } catch (err) {
+    console.error('Failed to upload private image:', err);
+    alert('هەڵەیەک لە ناردنی وێنەدا ڕوویدا');
+  }
+}
+
+function openPrivateImageModal(src) {
+  let modal = document.getElementById('privateImagePreviewModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'privateImagePreviewModal';
+    modal.className = 'fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md cursor-pointer';
+    modal.onclick = () => modal.remove();
+    modal.innerHTML = `
+      <div class="relative max-w-2xl max-h-[90vh] flex flex-col items-center" onclick="event.stopPropagation()">
+        <img id="privatePreviewImg" src="" class="max-w-full max-h-[85vh] rounded-2xl object-contain shadow-2xl border border-slate-700">
+        <button onclick="document.getElementById('privateImagePreviewModal').remove()" class="mt-3 px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition">
+          داخستن ✕
+        </button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  const img = document.getElementById('privatePreviewImg');
+  if (img) img.src = src;
+  modal.classList.remove('hidden');
 }
 
 let isSendingPrivateMessage = false;
@@ -8619,7 +9088,31 @@ async function toggleLiveRecording() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }, 100);
-      alert('تۆمارکردنی دەنگ تەواو بوو و دەنگی (مامۆستا + هەموو ئەندامەکان) بە سەرکەوتوویی داگیرا! 🎙️📥');
+
+      // Auto archive to server live recordings list
+      try {
+        if (token && currentUser && (currentUser.role === 'teacher' || currentUser.role === 'super_admin')) {
+          const totalSecs = Math.max(1, Math.floor((Date.now() - (liveRecordingStartTime || Date.now())) / 1000));
+          const durStr = `${String(Math.floor(totalSecs / 60)).padStart(2, '0')}:${String(totalSecs % 60).padStart(2, '0')}`;
+          const formData = new FormData();
+          formData.append('audio', blob, `live_lesson_${Date.now()}.${mimeType.includes('mp4') ? 'mp4' : 'webm'}`);
+          formData.append('duration', durStr);
+          formData.append('title', `وانەی لایڤ (${now.toLocaleDateString('ku-IQ')})`);
+          fetch('/api/live-recordings/upload', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+          }).then(r => r.json()).then(data => {
+            if (data && data.success) {
+              showLiveToastNotification('وانەکە بە سەرکەوتوویی لە بەشی تۆماری وانەکان پاشەکەوت کرا 🎙️', 'emerald');
+            }
+          }).catch(e => console.error('Failed to auto-archive live lesson:', e));
+        }
+      } catch (archErr) {
+        console.error('Archive error:', archErr);
+      }
+
+      alert('تۆمارکردنی دەنگ تەواو بوو و دەنگی (مامۆستا + هەموو ئەندامەکان) بە سەرکەوتوویی داگیرا و لە بەشی تۆماری وانەکان ئەرشیڤ کرا! 🎙️📥');
     };
 
     liveMediaRecorder.start(2000);
@@ -9371,6 +9864,714 @@ function handleLivePeerMicState(data) {
 
 function handleLiveAudioChunk(data) {
   // Reserved for optional fallback streaming
+}
+
+// =========================================================================
+// 5. LOGO POPUP ANIMATION (ستافی سیرین 3D ZOOM)
+// =========================================================================
+let logoPopupTimeout = null;
+
+function showLogoPopupAnimation() {
+  const modal = document.getElementById('logoPopupModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  if (logoPopupTimeout) clearTimeout(logoPopupTimeout);
+  logoPopupTimeout = setTimeout(() => {
+    closeLogoPopupAnimation();
+  }, 3000);
+}
+
+function closeLogoPopupAnimation() {
+  const modal = document.getElementById('logoPopupModal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  if (logoPopupTimeout) {
+    clearTimeout(logoPopupTimeout);
+    logoPopupTimeout = null;
+  }
+}
+
+// =========================================================================
+// 6. MULTI-LANGUAGE ENGINE & GROUP CHAT TRANSLATION (کوردی / العربية / English)
+// =========================================================================
+let currentAppLanguage = localStorage.getItem('seereen_lang') || 'ku';
+const translatedMsgsCache = new Map();
+
+const APP_TRANSLATIONS = {
+  ar: {
+    drawerLangTitle: 'اللغة',
+    drawerFontTitle: 'حجم الخط',
+    drawerRecordedLessonsBtn: 'الدروس المسجلة',
+    drawerPrivateChatBtn: 'رسالة خاصة',
+    drawerLiveRecordingsBtn: 'تۆماری وانەکانی لایڤ (الإدارة)',
+    drawerProfileBtn: 'ملفي الشخصي',
+    drawerLogoutBtn: 'تسجيل الخروج',
+    drawerDreamBtn: 'تفسير الأحلام',
+    drawerQuranBtn: 'القرآن الكريم',
+    drawerPendingBtn: 'الطلبات المعلقة',
+    drawerAdminBtn: 'لوحة التحكم',
+    drawerLiveBtn: 'غرفة البث المباشر',
+    chatTabBtn: 'الدردشة',
+    membersTabBtn: 'الأعضاء',
+    privateChatHeaderTitle: 'الرسائل الخاصة',
+    privateTabStaffText: 'الأستاذ والمشرف',
+    privateTabConvText: 'المحادثات'
+  },
+  en: {
+    drawerLangTitle: 'Language',
+    drawerFontTitle: 'Font Size',
+    drawerRecordedLessonsBtn: 'Recorded Lessons',
+    drawerPrivateChatBtn: 'Private Messages',
+    drawerLiveRecordingsBtn: 'Live Recordings Archive',
+    drawerProfileBtn: 'My Profile',
+    drawerLogoutBtn: 'Sign Out',
+    drawerDreamBtn: 'Dream Interpretation',
+    drawerQuranBtn: 'Holy Quran',
+    drawerPendingBtn: 'Pending Requests',
+    drawerAdminBtn: 'Admin Dashboard',
+    drawerLiveBtn: 'Live Stream Room',
+    chatTabBtn: 'Chat',
+    membersTabBtn: 'Members',
+    privateChatHeaderTitle: 'Private Messages',
+    privateTabStaffText: 'Staff & Admin',
+    privateTabConvText: 'Conversations'
+  }
+};
+
+function initAppLanguage() {
+  setAppLanguage(currentAppLanguage, false);
+}
+
+function setAppLanguage(lang, triggerRerender = true) {
+  currentAppLanguage = lang;
+  localStorage.setItem('seereen_lang', lang);
+
+  // Update Drawer Language Buttons
+  const kuBtn = document.getElementById('langBtn_ku');
+  const arBtn = document.getElementById('langBtn_ar');
+  const enBtn = document.getElementById('langBtn_en');
+  const badge = document.getElementById('drawerCurrentLangBadge');
+
+  const activeBtnClass = 'py-1.5 px-2 rounded-xl bg-amber-500 text-slate-950 font-black text-center transition active:scale-95 shadow';
+  const inactiveBtnClass = 'py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-center border border-slate-700 transition active:scale-95';
+
+  if (kuBtn) kuBtn.className = (lang === 'ku') ? activeBtnClass : inactiveBtnClass;
+  if (arBtn) arBtn.className = (lang === 'ar') ? activeBtnClass : inactiveBtnClass;
+  if (enBtn) enBtn.className = (lang === 'en') ? activeBtnClass : inactiveBtnClass;
+
+  if (badge) {
+    badge.innerText = (lang === 'ku') ? 'کوردی' : (lang === 'ar' ? 'العربية' : 'English');
+  }
+
+  applyAppLanguage(lang);
+
+  // Re-render chat messages if needed so translation buttons update
+  if (triggerRerender && typeof loadMessages === 'function') {
+    loadMessages();
+  }
+}
+
+function applyAppLanguage(lang) {
+  if (lang === 'ku') {
+    // Restore default Kurdish text
+    const kuDefaults = {
+      drawerLangTitle: 'زمان / Language',
+      drawerFontTitle: 'قەبارەی فۆنت',
+      drawerRecordedLessonsBtn: 'وانە تۆمارکراوەکان',
+      drawerPrivateChatBtn: 'نامەی تایبەت',
+      drawerLiveRecordingsBtn: 'تۆماری وانەکان (لایڤ)',
+      drawerProfileBtn: 'پرۆفایلەکەم',
+      drawerLogoutBtn: 'چوونەدەرەوە',
+      drawerDreamBtn: 'لێکدانەوەی خەون',
+      drawerQuranBtn: 'قورئانی پیرۆز',
+      drawerPendingBtn: 'داواکارییە هەڵپەسێردراوەکان',
+      drawerAdminBtn: 'بەڕێوەبردن (Admin)',
+      drawerLiveBtn: 'ژووری وانەی ڕاستەوخۆ',
+      chatTabBtn: 'چات',
+      membersTabBtn: 'ئەندامان',
+      privateChatHeaderTitle: 'نامەی تایبەت',
+      privateTabStaffText: 'مامۆستا و ئەدمین',
+      privateTabConvText: 'گفتوگۆکان'
+    };
+    for (const [id, val] of Object.entries(kuDefaults)) {
+      const el = document.getElementById(id);
+      if (el) {
+        const span = el.querySelector('span:last-child') || el;
+        span.innerText = val;
+      }
+    }
+    return;
+  }
+
+  const dict = APP_TRANSLATIONS[lang];
+  if (!dict) return;
+
+  for (const [id, val] of Object.entries(dict)) {
+    const el = document.getElementById(id);
+    if (el) {
+      const span = el.querySelector('span:last-child') || el;
+      span.innerText = val;
+    }
+  }
+}
+
+async function translateGroupMessage(msgId, btnElem) {
+  const bubble = document.getElementById(`msg-bubble-${msgId}`) || (btnElem ? btnElem.closest('.msg-bubble') : null);
+  const contentEl = document.getElementById(`msg-content-${msgId}`) || (bubble ? bubble.querySelector('.msg-text-content') : null);
+
+  if (!bubble || !contentEl) return;
+
+  const translationBoxId = `translated-box-${msgId}`;
+  const existingBox = document.getElementById(translationBoxId);
+  if (existingBox) {
+    if (existingBox.classList.contains('hidden')) {
+      existingBox.classList.remove('hidden');
+    } else {
+      existingBox.classList.add('hidden');
+    }
+    return;
+  }
+
+  const originalText = contentEl.innerText.trim();
+  if (!originalText) return;
+
+  const targetLang = (currentAppLanguage === 'ar' || currentAppLanguage === 'en') ? currentAppLanguage : 'ar';
+  const cacheKey = `${msgId}_${targetLang}`;
+
+  if (translatedMsgsCache.has(cacheKey)) {
+    renderTranslationBox(bubble, translationBoxId, translatedMsgsCache.get(cacheKey), targetLang);
+    return;
+  }
+
+  const originalBtnHtml = btnElem ? btnElem.innerHTML : '';
+  if (btnElem) {
+    btnElem.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-sky-400"></i>`;
+    btnElem.disabled = true;
+  }
+
+  try {
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ text: originalText, target: targetLang })
+    });
+    const data = await res.json();
+    if (res.ok && data.translatedText) {
+      translatedMsgsCache.set(cacheKey, data.translatedText);
+      renderTranslationBox(bubble, translationBoxId, data.translatedText, targetLang);
+    } else {
+      alert('نەتوانرا تەرجومە بکرێت: ' + (data.error || 'هەڵەیەک ڕوویدا'));
+    }
+  } catch (err) {
+    console.error('Translation error:', err);
+  } finally {
+    if (btnElem) {
+      btnElem.innerHTML = originalBtnHtml;
+      btnElem.disabled = false;
+    }
+  }
+}
+
+function renderTranslationBox(container, boxId, text, lang) {
+  const existing = document.getElementById(boxId);
+  if (existing) {
+    existing.classList.remove('hidden');
+    return;
+  }
+  const box = document.createElement('div');
+  box.id = boxId;
+  box.className = 'mt-2 pt-1.5 border-t border-slate-700/60 text-xs text-sky-200 select-text leading-relaxed bg-slate-950/40 p-2 rounded-xl border border-sky-500/30';
+  const label = lang === 'ar' ? '🌐 الترجمة:' : '🌐 Translation:';
+  box.innerHTML = `<span class="text-[10px] text-sky-400 font-bold block mb-0.5">${label}</span><span>${escapeHtml(text)}</span>`;
+  container.appendChild(box);
+}
+
+// =========================================================================
+// 7. FONT SIZE CONTROLLER (بەشی گەورەکردنی فۆنت لە سێ خەتەکە)
+// =========================================================================
+let currentAppFontSize = localStorage.getItem('seereen_font_size') || 'normal';
+
+function initAppFontSize() {
+  setAppFontSize(currentAppFontSize);
+}
+
+function setAppFontSize(size) {
+  currentAppFontSize = size;
+  localStorage.setItem('seereen_font_size', size);
+  document.documentElement.setAttribute('data-font-size', size);
+
+  // Update button highlights in Drawer
+  const sizes = ['small', 'normal', 'large', 'xl'];
+  const labels = {
+    small: 'بچووک',
+    normal: 'ئاسایی',
+    large: 'گەورە',
+    xl: 'زۆر گەورە'
+  };
+
+  sizes.forEach(s => {
+    const btn = document.getElementById(`fontBtn_${s}`);
+    if (btn) {
+      if (s === size) {
+        btn.className = 'py-1.5 rounded-xl bg-sky-600 text-slate-950 font-black transition active:scale-95 shadow';
+      } else {
+        btn.className = 'py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95';
+      }
+    }
+  });
+
+  const badge = document.getElementById('drawerCurrentFontBadge');
+  if (badge) {
+    badge.innerText = labels[size] || 'ئاسایی';
+  }
+}
+
+// =========================================================================
+// 8. GROUP TAG MENTION ALERT (@هەموو, @هەمو, @1)
+// =========================================================================
+function handleMentionAllAlert(data) {
+  if (!data) return;
+  playSound('question');
+
+  if (navigator.vibrate) {
+    try { navigator.vibrate([200, 100, 200]); } catch (e) {}
+  }
+
+  // Display on-screen announcement toast
+  const banner = document.createElement('div');
+  banner.className = 'fixed top-3 left-1/2 -translate-x-1/2 z-[110] px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs shadow-2xl border-2 border-amber-300 flex items-center gap-2.5 transition-all transform duration-300 animate-bounce cursor-pointer';
+  banner.onclick = () => banner.remove();
+  banner.innerHTML = `
+    <span class="text-base">📢</span>
+    <div class="leading-tight">
+      <span class="block text-[11px] font-black">${escapeHtml(data.sender_name)} (@هەمووان):</span>
+      <span class="text-[10px] font-bold text-slate-900">${escapeHtml(data.content)}</span>
+    </div>
+  `;
+  document.body.appendChild(banner);
+
+  setTimeout(() => {
+    banner.style.opacity = '0';
+    setTimeout(() => banner.remove(), 400);
+  }, 7000);
+
+  // Send desktop notification if enabled
+  if (window.Notification && Notification.permission === 'granted' && document.hidden) {
+    try {
+      new Notification(`📢 ${data.sender_name} (@هەمووان)`, {
+        body: data.content,
+        icon: '/logo.png'
+      });
+    } catch (e) {}
+  }
+}
+
+// =========================================================================
+// 9. LIVE RECORDINGS ARCHIVE CONTROLLER (تۆماری وانەکانی لایڤ - بێ چات)
+// =========================================================================
+function openLiveRecordingsModal() {
+  const modal = document.getElementById('liveRecordingsModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  loadLiveRecordings();
+}
+
+function closeLiveRecordingsModal() {
+  const modal = document.getElementById('liveRecordingsModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function loadLiveRecordings() {
+  const container = document.getElementById('liveRecordingsListContainer');
+  const countBadge = document.getElementById('liveRecordingsCountBadge');
+  if (!container) return;
+  container.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs">لە بارکردندایە...</div>';
+
+  try {
+    const res = await fetch('/api/live-recordings', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok || !Array.isArray(data.recordings)) {
+      container.innerHTML = '<div class="p-6 text-center text-rose-400 text-xs">نەتوانرا تۆمارەکان بهێنرێت</div>';
+      return;
+    }
+
+    if (countBadge) countBadge.innerText = `${data.recordings.length} تۆمار`;
+
+    if (data.recordings.length === 0) {
+      container.innerHTML = `
+        <div class="p-8 text-center text-slate-500 text-xs leading-relaxed">
+          هیچ وانەیەکی لایڤ تۆمار نەکراوە.<br>
+          کاتێک لە کاتی پەخشی ڕاستەوخۆ دوگمەی تۆمارکردن 🎙️ دابگریت و ڕایبگریت، بە شێوەیەکی ئۆتۆماتیکی لێرە ئەرشیڤ دەبێت.
+        </div>
+      `;
+      return;
+    }
+
+    const isStaff = currentUser && (currentUser.role === 'teacher' || currentUser.role === 'super_admin');
+
+    container.innerHTML = data.recordings.map(rec => {
+      const createdTime = rec.created_at ? new Date(rec.created_at).toLocaleString('ku-IQ') : '';
+      const editBtn = isStaff ? `
+        <button type="button" onclick="editLiveRecordingTitle(${rec.id}, '${escapeHtml(rec.title)}', ${rec.recording_number})" class="p-1 text-slate-400 hover:text-amber-300 rounded-lg hover:bg-slate-800 transition" title="دەستکاریکردنی ناو و ژمارە">
+          <i class="fa-solid fa-pen-to-square text-xs"></i>
+        </button>
+      ` : '';
+
+      const deleteBtn = isStaff ? `
+        <button type="button" onclick="deleteLiveRecording(${rec.id})" class="p-1 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="سڕینەوە">
+          <i class="fa-solid fa-trash text-xs"></i>
+        </button>
+      ` : '';
+
+      return `
+        <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2 shadow-sm">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 font-mono font-bold text-xs border border-rose-500/30">
+                #${rec.recording_number}
+              </span>
+              <h4 class="font-black text-xs sm:text-sm text-white">${escapeHtml(rec.title)}</h4>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              ${editBtn}
+              ${deleteBtn}
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between text-[11px] text-slate-400">
+            <span>تۆمارکراوە لەلایەن: <strong class="text-slate-300">${escapeHtml(rec.uploaded_by_name || 'مامۆستا')}</strong></span>
+            <span class="font-mono text-[10px] text-slate-500">${createdTime}</span>
+          </div>
+
+          <div class="pt-1 flex items-center gap-2">
+            <audio controls src="${escapeHtml(rec.audio_url)}" class="flex-1 h-9 rounded-xl"></audio>
+            <a href="${escapeHtml(rec.audio_url)}" download="${escapeHtml(rec.title)}.webm" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow transition active:scale-95 shrink-0" title="داگرتنی فایل">
+              <i class="fa-solid fa-download text-[11px]"></i>
+              <span>داگرتن</span>
+            </a>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Error loading live recordings:', err);
+    container.innerHTML = '<div class="p-6 text-center text-rose-400 text-xs">هەڵەیەک ڕوویدا</div>';
+  }
+}
+
+async function editLiveRecordingTitle(id, currentTitle, currentNum) {
+  const newTitle = prompt('ناوی نوێی ئەم وانەیە بنووسە:', currentTitle);
+  if (newTitle === null) return;
+  if (!newTitle.trim()) {
+    alert('ناوی وانە نابێت بەتاڵ بێت');
+    return;
+  }
+
+  const newNumStr = prompt('ژمارەی نوێی وانەکە (یان هەر وەک خۆی):', String(currentNum || 1));
+  const newNum = parseInt(newNumStr) || currentNum;
+
+  try {
+    const res = await fetch(`/api/live-recordings/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ title: newTitle.trim(), recording_number: newNum })
+    });
+    if (res.ok) {
+      loadLiveRecordings();
+      showLiveToastNotification('ناوی وانەکە بە سەرکەوتوویی نوێکرایەوە ✏️', 'emerald');
+    } else {
+      alert('نەتوانرا ناوی وانە بگۆڕدرێت');
+    }
+  } catch (e) {
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
+async function deleteLiveRecording(id) {
+  if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم تۆمارەی لایڤ؟')) return;
+  try {
+    const res = await fetch(`/api/live-recordings/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      loadLiveRecordings();
+      showLiveToastNotification('تۆمارەکە سڕایەوە 🗑️', 'amber');
+    }
+  } catch (e) {
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
+// =========================================================================
+// 10. RECORDED LESSONS FOR STUDENTS (وانە تۆمارکراوەکان - بێ داونلۆد)
+// =========================================================================
+let lessonAudioFileBlob = null;
+let lessonMediaRecorder = null;
+let lessonAudioChunks = [];
+let lessonRecordTimerInterval = null;
+let lessonRecordSeconds = 0;
+let lessonAudioStream = null;
+
+function openRecordedLessonsModal() {
+  const modal = document.getElementById('recordedLessonsModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  const staffBox = document.getElementById('addRecordedLessonStaffBox');
+  if (staffBox) {
+    if (currentUser && (currentUser.role === 'teacher' || currentUser.role === 'super_admin')) {
+      staffBox.classList.remove('hidden');
+    } else {
+      staffBox.classList.add('hidden');
+    }
+  }
+
+  loadRecordedLessons();
+}
+
+function closeRecordedLessonsModal() {
+  const modal = document.getElementById('recordedLessonsModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function toggleAddLessonForm() {
+  const form = document.getElementById('addLessonForm');
+  const btn = document.getElementById('toggleAddLessonBtn');
+  if (!form) return;
+  if (form.classList.contains('hidden')) {
+    form.classList.remove('hidden');
+    if (btn) btn.innerText = '✕ داخستنی فۆرم';
+  } else {
+    form.classList.add('hidden');
+    if (btn) btn.innerText = '+ زیادکردنی وانە';
+  }
+}
+
+function handleLessonAudioSelected(input) {
+  const label = document.getElementById('lessonAudioSelectLabel');
+  if (input && input.files && input.files[0]) {
+    lessonAudioFileBlob = input.files[0];
+    if (label) label.innerText = `فایل: ${input.files[0].name.slice(0, 15)}...`;
+  }
+}
+
+async function toggleLessonVoiceRecord() {
+  if (lessonMediaRecorder && lessonMediaRecorder.state === 'recording') {
+    // Stop recording
+    if (lessonRecordTimerInterval) clearInterval(lessonRecordTimerInterval);
+    const timerBar = document.getElementById('lessonRecordTimerBar');
+    if (timerBar) timerBar.classList.add('hidden');
+
+    const label = document.getElementById('lessonRecordLabel');
+    if (label) label.innerText = 'تۆمارکردن بە مایک';
+
+    lessonMediaRecorder.onstop = () => {
+      const mimeType = lessonMediaRecorder.mimeType || 'audio/webm';
+      lessonAudioFileBlob = new Blob(lessonAudioChunks, { type: mimeType });
+      const selLabel = document.getElementById('lessonAudioSelectLabel');
+      if (selLabel) selLabel.innerText = `دەنگ تۆمارکرا (${lessonRecordSeconds} چـ)`;
+      if (lessonAudioStream) {
+        lessonAudioStream.getTracks().forEach(t => t.stop());
+        lessonAudioStream = null;
+      }
+      lessonMediaRecorder = null;
+    };
+    lessonMediaRecorder.stop();
+    return;
+  }
+
+  try {
+    lessonAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    lessonAudioChunks = [];
+    lessonRecordSeconds = 0;
+
+    let mimeType = '';
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+      else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+      else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+      else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg';
+    }
+    const options = mimeType ? { mimeType } : {};
+    lessonMediaRecorder = new MediaRecorder(lessonAudioStream, options);
+
+    lessonMediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) lessonAudioChunks.push(e.data);
+    };
+
+    lessonMediaRecorder.start(250);
+
+    const timerBar = document.getElementById('lessonRecordTimerBar');
+    const timerText = document.getElementById('lessonRecordTimer');
+    const label = document.getElementById('lessonRecordLabel');
+    if (timerBar) timerBar.classList.remove('hidden');
+    if (label) label.innerText = 'ڕاگرتن و پاشەکەوت ⏹️';
+
+    if (lessonRecordTimerInterval) clearInterval(lessonRecordTimerInterval);
+    lessonRecordTimerInterval = setInterval(() => {
+      lessonRecordSeconds++;
+      const mins = String(Math.floor(lessonRecordSeconds / 60)).padStart(2, '0');
+      const secs = String(lessonRecordSeconds % 60).padStart(2, '0');
+      if (timerText) timerText.innerText = `${mins}:${secs}`;
+    }, 1000);
+  } catch (err) {
+    console.error('Lesson voice record error:', err);
+    alert('ڕێگەپێدانی مایکرۆفۆن ڕەتکرایەوە یان مایکرۆفۆن بەردەست نییە.');
+  }
+}
+
+async function submitNewRecordedLesson() {
+  const titleInput = document.getElementById('newLessonTitleInput');
+  const numInput = document.getElementById('newLessonNumberInput');
+  const descInput = document.getElementById('newLessonDescInput');
+
+  const title = titleInput ? titleInput.value.trim() : '';
+  const lessonNumber = numInput ? numInput.value.trim() : '';
+  const description = descInput ? descInput.value.trim() : '';
+
+  if (!title) {
+    alert('تکایە ناوی وانە بنووسە');
+    return;
+  }
+
+  if (!lessonAudioFileBlob) {
+    alert('تکایە سەرەتا فایلی دەنگ هەڵبژێرە یان بە مایک تۆماری بکە');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('title', title);
+  if (lessonNumber) formData.append('lesson_number', lessonNumber);
+  if (description) formData.append('description', description);
+  formData.append('audio', lessonAudioFileBlob, `lesson_${Date.now()}.webm`);
+
+  try {
+    showLiveToastNotification('وانەکە لە بڵاوکردنەوەدایە... 🎙️', 'emerald');
+    const res = await fetch('/api/recorded-lessons/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      showLiveToastNotification('وانەکە بە سەرکەوتوویی بڵاوکرایەوە! 🎉', 'emerald');
+      // Reset form
+      if (titleInput) titleInput.value = '';
+      if (numInput) numInput.value = '';
+      if (descInput) descInput.value = '';
+      lessonAudioFileBlob = null;
+      const fileInput = document.getElementById('newLessonAudioFileInput');
+      if (fileInput) fileInput.value = '';
+      const label = document.getElementById('lessonAudioSelectLabel');
+      if (label) label.innerText = 'هەڵبژاردنی فایلی دەنگ';
+      toggleAddLessonForm();
+      loadRecordedLessons();
+    } else {
+      alert(data.error || 'نەتوانرا وانەکە باربکرێت');
+    }
+  } catch (err) {
+    console.error('Submit recorded lesson error:', err);
+    alert('هەڵەیەک ڕوویدا لە بارکردنی وانەدا');
+  }
+}
+
+async function loadRecordedLessons() {
+  const container = document.getElementById('recordedLessonsListContainer');
+  if (!container) return;
+  container.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs">لە بارکردندایە...</div>';
+
+  try {
+    const res = await fetch('/api/recorded-lessons', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok || !Array.isArray(data.lessons)) {
+      container.innerHTML = '<div class="p-6 text-center text-rose-400 text-xs">نەتوانرا وانەکان بهێنرێت</div>';
+      return;
+    }
+
+    if (data.lessons.length === 0) {
+      container.innerHTML = `
+        <div class="p-8 text-center text-slate-500 text-xs leading-relaxed">
+          هیچ وانەیەکی تۆمارکراو بەردەست نییە.<br>
+          کاتێک مامۆستا یان سوپەر ئەدمین وانەی دەنگی دابنێن، لێرەدا دەتوانیت گوێیان لێ بگریت.
+        </div>
+      `;
+      return;
+    }
+
+    const isStaff = currentUser && (currentUser.role === 'teacher' || currentUser.role === 'super_admin');
+
+    container.innerHTML = data.lessons.map(lesson => {
+      const createdTime = lesson.created_at ? new Date(lesson.created_at).toLocaleDateString('ku-IQ') : '';
+      const deleteBtn = isStaff ? `
+        <button type="button" onclick="deleteRecordedLesson(${lesson.id})" class="p-1 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="سڕینەوە">
+          <i class="fa-solid fa-trash text-xs"></i>
+        </button>
+      ` : '';
+
+      return `
+        <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2.5 shadow-sm">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-mono font-bold text-xs border border-emerald-500/30">
+                #${lesson.lesson_number}
+              </span>
+              <h4 class="font-black text-xs sm:text-sm text-white">${escapeHtml(lesson.title)}</h4>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              ${deleteBtn}
+            </div>
+          </div>
+
+          ${lesson.description ? `
+            <p class="text-xs text-slate-300 leading-relaxed bg-slate-950/40 p-2.5 rounded-xl border border-slate-800/80">
+              ${escapeHtml(lesson.description)}
+            </p>
+          ` : ''}
+
+          <div class="flex items-center justify-between text-[11px] text-slate-400">
+            <span>مامۆستا: <strong class="text-amber-300">${escapeHtml(lesson.instructor_name || 'مامۆستا')}</strong></span>
+            <span class="font-mono text-[10px] text-slate-500">${createdTime}</span>
+          </div>
+
+          <!-- Audio Player Protected from Download (داونلۆد بە تەواوی قەدەغەیە) -->
+          <div class="pt-1">
+            <audio controls controlsList="nodownload" oncontextmenu="return false;" src="${escapeHtml(lesson.audio_url)}" class="w-full h-9 rounded-xl"></audio>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Error loading recorded lessons:', err);
+    container.innerHTML = '<div class="p-6 text-center text-rose-400 text-xs">هەڵەیەک ڕوویدا</div>';
+  }
+}
+
+async function deleteRecordedLesson(id) {
+  if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم وانەیە؟')) return;
+  try {
+    const res = await fetch(`/api/recorded-lessons/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      loadRecordedLessons();
+      showLiveToastNotification('وانەکە سڕایەوە 🗑️', 'amber');
+    }
+  } catch (e) {
+    alert('پەیوەندی ناتەواوە');
+  }
 }
 
 
