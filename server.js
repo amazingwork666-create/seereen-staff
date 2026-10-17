@@ -889,6 +889,13 @@ app.post('/api/chat/upload-image', authMiddleware, requireAdmin, upload.single('
 
 app.post('/api/chat/upload-voice', authMiddleware, requireAdmin, upload.single('voice'), (req, res) => {
   try {
+    const activeLockMode = settings.get('chat_lock_mode', 'none');
+    if (activeLockMode === 'total_lock' && req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: '🔒 چات بە تەواوەتی داخراوە لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام)' });
+    }
+    if (activeLockMode === 'staff_only' && !['super_admin', 'admin', 'teacher'].includes(req.user.role)) {
+      return res.status(403).json({ error: '🔒 چات داخراوە، تەنها مامۆستا و دەستەی بەڕێوەبەرایەتی دەتوانن دەنگ بنێرن' });
+    }
     if (!req.file) return res.status(400).json({ error: 'هیچ دەنگێک نەدۆزرایەوە' });
     const voiceUrl = `/uploads/${req.file.filename}`;
     const durationText = req.body.duration || '';
@@ -1079,6 +1086,48 @@ app.post('/api/notifications/test', authMiddleware, async (req, res) => {
   }
 });
 
+// --- CHAT LOCK MANAGEMENT (SUPER ADMIN) ---
+app.get('/api/chat/lock-status', authMiddleware, (req, res) => {
+  res.json({
+    mode: settings.get('chat_lock_mode', 'none'),
+    locked_by: settings.get('chat_lock_by', ''),
+    timestamp: settings.get('chat_lock_time', '')
+  });
+});
+
+app.post('/api/chat/lock', authMiddleware, requireSuperAdmin, (req, res) => {
+  const { mode } = req.body;
+  const validModes = ['none', 'staff_only', 'total_lock'];
+  if (!validModes.includes(mode)) {
+    return res.status(400).json({ error: 'دۆخی قفڵکردن نادیارە' });
+  }
+
+  settings.set('chat_lock_mode', mode);
+  const lockBy = mode === 'none' ? '' : req.user.full_name;
+  const lockTime = mode === 'none' ? '' : String(Date.now());
+  settings.set('chat_lock_by', lockBy);
+  settings.set('chat_lock_time', lockTime);
+
+  let announceText = '';
+  if (mode === 'total_lock') {
+    announceText = '🔒 چاتی گشتی بە تەواوەتی داخرا لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام - تەنانەت مامۆستا و ئەدمینەکانیش ناتوانن بنووسن)';
+  } else if (mode === 'staff_only') {
+    announceText = '🔒 چات داخرا - تەنها بۆ مامۆستا و ئەدمینەکان کراوەیە (@قفڵ)';
+  } else {
+    announceText = '🔓 چاتی گشتی کرایەوە بۆ هەمووان لەلایەن سوپەر ئەدمینەوە';
+  }
+
+  const sysMsg = messages.create(req.user.id, 'سیستەم', 'سیستەم', 'system', announceText, 'system');
+  io.emit('new_message', sysMsg);
+  io.emit('chat_lock_status_updated', {
+    mode,
+    locked_by: lockBy,
+    timestamp: Date.now()
+  });
+
+  res.json({ success: true, mode, locked_by: lockBy });
+});
+
 // --- TIMED QUESTIONS & SECRET SUBMISSIONS ---
 
 // 12. Get Active Question and Today's Questions
@@ -1099,7 +1148,6 @@ app.get('/api/chat/active-question', authMiddleware, (req, res) => {
   });
 
   const activeQ = mappedQuestions.slice().reverse().find(q => q.is_active && !q.is_revealed && (q.expires_at === 0 || q.expires_at > Date.now())) 
-    || mappedQuestions[mappedQuestions.length - 1] 
     || null;
 
   res.json({
@@ -2119,8 +2167,9 @@ app.post('/api/dream/message', async (req, res) => {
 
     const msg = dreamMessages.create(targetSessionId, senderType, senderName, content.trim(), 'text');
     
-    // Broadcast message to dream room
+    // Broadcast message to dream room and dream admins
     io.to(`dream_${targetSessionId}`).emit('dream_new_message', msg);
+    io.to('dream_admins').emit('dream_admin_new_message', { sessionId: targetSessionId, message: msg });
     io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: content.trim() });
 
     // Automated greeting reply and questionnaire for dreamer
@@ -2132,6 +2181,7 @@ app.post('/api/dream/message', async (req, res) => {
         setTimeout(() => {
           const reply = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', 'عَلَيْكُمُ السَّلَامُ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ', 'text');
           io.to(`dream_${targetSessionId}`).emit('dream_new_message', reply);
+          io.to('dream_admins').emit('dream_admin_new_message', { sessionId: targetSessionId, message: reply });
           io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: reply.content });
         }, 500);
       }
@@ -2149,6 +2199,7 @@ app.post('/api/dream/message', async (req, res) => {
 📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
           const qMsg = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', autoQ, 'text');
           io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
+          io.to('dream_admins').emit('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
           io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🌸 پرسیارەکانی لێکدانەوەی خەون' });
         }, isGreeting ? 1500 : 600);
       }
@@ -2199,6 +2250,7 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
     const msg = dreamMessages.create(targetSessionId, senderType, senderName, content, 'voice', voiceUrl);
 
     io.to(`dream_${targetSessionId}`).emit('dream_new_message', msg);
+    io.to('dream_admins').emit('dream_admin_new_message', { sessionId: targetSessionId, message: msg });
     io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🎤 پەیامی دەنگی' });
 
     // Automated questionnaire if dreamer sends voice as first interaction
@@ -2215,6 +2267,7 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
 📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
         const qMsg = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', autoQ, 'text');
         io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
+        io.to('dream_admins').emit('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
         io.to('dream_admins').emit('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🌸 پرسیارەکانی لێکدانەوەی خەون' });
       }, 800);
     }
@@ -2600,6 +2653,57 @@ io.on('connection', (socket) => {
 
       const content = (data.content || '').trim();
       if (!content) return;
+
+      // --- CHAT LOCK COMMAND HANDLING (SUPER ADMIN ONLY) ---
+      const hasLockAll = content.includes('@قفڵ.عام') || content.includes('@قفل.عام');
+      const hasLockStaff = !hasLockAll && (content.includes('@قفڵ') || content.includes('@قفل'));
+      const hasUnlock = content.includes('@کراوە') || content.includes('@کردنەوە') || content.includes('@بیکەرەوە') || content.includes('@unlock') || content.includes('@قفڵ.کردنەوە') || content.includes('@قفل.کردنەوە');
+
+      if (hasLockAll || hasLockStaff || hasUnlock) {
+        if (freshUser.role !== 'super_admin') {
+          socket.emit('error_message', '❌ تەنها سوپەر ئەدمین دەسەڵاتی قفڵکردن یان کردنەوەی چاتی هەیە!');
+          return;
+        }
+
+        let newMode = 'none';
+        let announceText = '';
+        if (hasLockAll) {
+          newMode = 'total_lock';
+          announceText = '🔒 چاتی گشتی بە تەواوەتی داخرا لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام - تەنانەت مامۆستا و ئەدمینەکانیش ناتوانن بنووسن)';
+        } else if (hasLockStaff) {
+          newMode = 'staff_only';
+          announceText = '🔒 چات داخرا - تەنها بۆ مامۆستا و ئەدمینەکان کراوەیە (@قفڵ)';
+        } else if (hasUnlock) {
+          newMode = 'none';
+          announceText = '🔓 چاتی گشتی کرایەوە بۆ هەمووان لەلایەن سوپەر ئەدمینەوە';
+        }
+
+        settings.set('chat_lock_mode', newMode);
+        settings.set('chat_lock_by', newMode === 'none' ? '' : freshUser.full_name);
+        settings.set('chat_lock_time', newMode === 'none' ? '' : String(Date.now()));
+
+        const sysMsg = messages.create(freshUser.id, 'سیستەم', 'سیستەم', 'system', announceText, 'system');
+        io.emit('new_message', sysMsg);
+        io.emit('chat_lock_status_updated', {
+          mode: newMode,
+          locked_by: newMode === 'none' ? '' : freshUser.full_name,
+          timestamp: Date.now()
+        });
+
+        const cleaned = content.replace(/@قفڵ\.عام|@قفل\.عام|@قفڵ|@قفل|@کراوە|@کردنەوە|@بیکەرەوە|@unlock|@قفڵ\.کردنەوە|@قفل\.کردنەوە/g, '').trim();
+        if (!cleaned) return;
+      }
+
+      // --- CHAT LOCK PERMISSION ENFORCEMENT ---
+      const activeLockMode = settings.get('chat_lock_mode', 'none');
+      if (activeLockMode === 'total_lock' && freshUser.role !== 'super_admin') {
+        socket.emit('error_message', '🔒 چات بە تەواوەتی داخراوە لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام)، هیچ کەسێک ناتوانێت پەیام بنێرێت.');
+        return;
+      }
+      if (activeLockMode === 'staff_only' && !['super_admin', 'admin', 'teacher'].includes(freshUser.role)) {
+        socket.emit('error_message', '🔒 چات داخراوە لەلایەن سوپەر ئەدمینەوە، تەنها مامۆستا و دەستەی بەڕێوەبەرایەتی دەتوانن پەیام بنێرن.');
+        return;
+      }
 
       // Night Curfew (12:00 AM - 08:00 AM Iraq Time): Only Super Admin, Admin, and Teacher can send messages
       const curfewExemptRoles = ['super_admin', 'admin', 'teacher'];

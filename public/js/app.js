@@ -312,6 +312,7 @@ function showMainApp() {
   initSocket();
   loadMessages();
   loadActiveQuestion();
+  fetchChatLockStatus();
   loadPodiumWidget();
   loadAllMembers();
   checkMuteState();
@@ -1395,11 +1396,20 @@ function initSocket() {
   });
 
   socket.on('question_closed', (data) => {
+    const qId = data && data.question_id;
+    if (qId && todayQuestionsList) {
+      const found = todayQuestionsList.find(q => q.id == qId);
+      if (found) found.is_active = 0;
+    }
     loadActiveQuestion();
   });
 
   socket.on('question_cancelled', (data) => {
-    if (activeQuestion && data && activeQuestion.id === data.question_id) {
+    const qId = data && data.question_id;
+    if (qId && todayQuestionsList) {
+      todayQuestionsList = todayQuestionsList.filter(q => q.id != qId);
+    }
+    if (activeQuestion && (!qId || activeQuestion.id == qId)) {
       activeQuestion = null;
       closeActiveQuestionModal();
     }
@@ -1520,6 +1530,37 @@ function initSocket() {
       playSound('message');
       if (typeof activeDreamAdminSessionId !== 'undefined' && activeDreamAdminSessionId) loadDreamAdminSessions();
     }
+  });
+
+  // Receive live dream messages for Super Admin & Teacher
+  socket.on('dream_new_message', (msg) => {
+    if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+      if (typeof activeDreamAdminSessionId !== 'undefined' && activeDreamAdminSessionId && (msg.session_id == activeDreamAdminSessionId || msg.sessionId == activeDreamAdminSessionId)) {
+        appendDreamMessage(msg, true);
+        scrollDreamMessagesToBottom(true);
+        playSound('message');
+      }
+    }
+  });
+
+  socket.on('dream_admin_new_message', (data) => {
+    if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+      const msg = data.message || data;
+      const sessId = data.sessionId || (msg && msg.session_id);
+      if (typeof activeDreamAdminSessionId !== 'undefined' && activeDreamAdminSessionId && activeDreamAdminSessionId == sessId) {
+        appendDreamMessage(msg, true);
+        scrollDreamMessagesToBottom(true);
+        playSound('message');
+      }
+      loadDreamSessionsCount();
+      if (typeof loadDreamAdminSessions === 'function') {
+        loadDreamAdminSessions();
+      }
+    }
+  });
+
+  socket.on('chat_lock_status_updated', (data) => {
+    updateChatLockUI(data);
   });
 
   socket.on('dream_session_updated', () => {
@@ -1816,99 +1857,121 @@ function appendMessage(msg, scroll = true) {
           const sNameClass = getUserNameClass(s);
           const timeFormatted = s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
           
-          let cardBorderClass = 'border-slate-700/70 bg-slate-800/80 hover:border-slate-600';
+          let cardBorderClass = 'border-slate-700/70 bg-slate-850/80 hover:border-slate-600 shadow';
+          let answerBoxClass = 'bg-slate-900/90 border-slate-750 text-slate-100';
           let statusBadge = '';
+          let cornerBadge = '';
           
           if (s.is_awarded === 1) {
-            cardBorderClass = 'border-2 border-emerald-500/80 bg-emerald-950/25 ring-1 ring-emerald-500/30 shadow-md shadow-emerald-500/10';
+            cardBorderClass = 'border-2 border-teal-500/80 bg-teal-950/30 ring-1 ring-teal-400/30 shadow-lg shadow-teal-500/10';
+            answerBoxClass = 'answer-box-turquoise';
             statusBadge = `
-              <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-black text-[11px] rounded-lg inline-flex items-center gap-1 animate-pulse">
+              <span class="px-2 py-0.5 bg-teal-500/20 text-teal-300 border border-teal-500/40 font-black text-[11px] rounded-lg inline-flex items-center gap-1 animate-pulse">
                 <i class="fa-solid fa-star text-amber-400"></i>
                 <span>وەڵامی دروستە ⭐</span>
               </span>
             `;
+            cornerBadge = `
+              <div class="eval-corner-star">
+                <span>⭐</span>
+                <span>ڕاستە</span>
+              </div>
+            `;
           } else if (s.is_awarded === -1) {
-            cardBorderClass = 'border-2 border-rose-500/70 bg-rose-950/20 ring-1 ring-rose-500/30 shadow-md shadow-rose-500/10';
+            cardBorderClass = 'border-2 border-amber-500/80 bg-amber-950/20 ring-1 ring-amber-500/30 shadow-md shadow-amber-500/10';
+            answerBoxClass = 'answer-box-yellow';
             statusBadge = `
-              <span class="px-2 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/40 font-black text-[11px] rounded-lg inline-flex items-center gap-1">
+              <span class="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 font-black text-[11px] rounded-lg inline-flex items-center gap-1">
                 <i class="fa-solid fa-circle-xmark text-rose-400"></i>
                 <span>وەڵامی هەڵەیە ❌</span>
               </span>
             `;
+            cornerBadge = `
+              <div class="eval-corner-wrong">
+                <span>❌</span>
+                <span>هەڵە</span>
+              </div>
+            `;
           }
 
           return `
-            <div id="sub-card-${payload.question_id}-${s.user_id}" class="submission-card-item p-3 sm:p-3.5 rounded-2xl border flex items-start justify-between gap-3 transition-all duration-200 ${cardBorderClass}">
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+            <div id="sub-card-${payload.question_id}-${s.user_id}" class="submission-card-item p-3 sm:p-4 rounded-2xl border flex flex-col gap-2.5 transition-all duration-300 relative ${cardBorderClass}">
+              <!-- Header Row: Student Info & Actions -->
+              <div class="flex items-center justify-between gap-2 flex-wrap w-full border-b border-white/5 pb-2">
+                <div class="flex items-center gap-2 flex-wrap min-w-0">
                   <span class="text-xs font-mono font-bold text-slate-400">${idx + 1}.</span>
-                  <span class="text-xs font-black cursor-pointer hover:underline ${sNameClass}" onclick="openUserProfileModal(${s.user_id})">${escapeHtml(s.full_name)}</span>
-                  <span class="text-[10px] text-slate-500 font-mono">${timeFormatted}</span>
+                  <span class="text-xs sm:text-sm font-black cursor-pointer hover:underline ${sNameClass}" onclick="openUserProfileModal(${s.user_id})">${escapeHtml(s.full_name)}</span>
+                  <span class="text-[10px] text-slate-400 font-mono">${timeFormatted}</span>
                   <span class="eval-badge-container-${payload.question_id}-${s.user_id}">
                     ${statusBadge}
                   </span>
                 </div>
-                <div class="text-xs md:text-sm text-slate-100 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 font-medium whitespace-pre-wrap leading-relaxed select-text">
-                  "${escapeHtml(s.answer_text)}"
+                <div class="shrink-0 eval-slot eval-slot-${payload.question_id}-${s.user_id}">
+                  ${isStaff ? `
+                    ${s.is_awarded === 1 ? `
+                      <div class="flex items-center gap-1">
+                        <span class="px-2.5 py-1 bg-teal-600/30 text-teal-300 border border-teal-500/40 font-black text-xs rounded-xl inline-flex items-center gap-1">
+                          <i class="fa-solid fa-circle-check text-teal-400"></i>
+                          <span>ڕاستە ⭐</span>
+                        </span>
+                        <button onclick="resetEvaluationFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" class="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
+                          <i class="fa-solid fa-rotate-left text-[11px]"></i>
+                        </button>
+                      </div>
+                    ` : (s.is_awarded === -1 ? `
+                      <div class="flex items-center gap-1">
+                        <span class="px-2.5 py-1 bg-amber-600/30 text-amber-300 border border-amber-500/40 font-black text-xs rounded-xl inline-flex items-center gap-1">
+                          <i class="fa-solid fa-circle-xmark text-rose-400"></i>
+                          <span>هەڵە ❌</span>
+                        </span>
+                        <button onclick="resetEvaluationFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" class="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
+                          <i class="fa-solid fa-rotate-left text-[11px]"></i>
+                        </button>
+                      </div>
+                    ` : `
+                      <div class="flex items-center gap-1.5">
+                        <button 
+                          onclick="awardStarFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" 
+                          class="award-star-btn px-2.5 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-1 active:scale-95"
+                          title="وەڵامی دروستە ⭐"
+                        >
+                          <i class="fa-solid fa-star"></i>
+                          <span>⭐ ڕاستە</span>
+                        </button>
+                        <button 
+                          onclick="markWrongFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" 
+                          class="mark-wrong-btn px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-black text-xs rounded-xl transition flex items-center gap-1 active:scale-95"
+                          title="وەڵامی هەڵەیە ❌"
+                        >
+                          <i class="fa-solid fa-xmark"></i>
+                          <span>❌ هەڵە</span>
+                        </button>
+                      </div>
+                    `)}
+                  ` : `
+                    ${s.is_awarded === 1 ? `
+                      <span class="px-2.5 py-1 bg-teal-500/20 border border-teal-500/40 text-teal-300 font-black text-xs rounded-xl inline-flex items-center gap-1 shadow-sm">
+                        <i class="fa-solid fa-star text-amber-400"></i>
+                        <span>وەڵامی دروست ⭐</span>
+                      </span>
+                    ` : (s.is_awarded === -1 ? `
+                      <span class="px-2.5 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-black text-xs rounded-xl inline-flex items-center gap-1 shadow-sm">
+                        <i class="fa-solid fa-circle-xmark text-rose-400"></i>
+                        <span>وەڵامی هەڵە ❌</span>
+                      </span>
+                    ` : `
+                      <span class="px-2 py-0.5 text-slate-500 font-medium text-[11px] rounded-lg bg-slate-900/60 border border-slate-800">هێشتا نەپشکنراوە</span>
+                    `)}
+                  `}
                 </div>
               </div>
-              <div class="shrink-0 mt-1 eval-slot eval-slot-${payload.question_id}-${s.user_id}">
-                ${isStaff ? `
-                  ${s.is_awarded === 1 ? `
-                    <div class="flex items-center gap-1">
-                      <span class="px-2.5 py-1 bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-black text-xs rounded-xl inline-flex items-center gap-1">
-                        <i class="fa-solid fa-circle-check text-emerald-400"></i>
-                        <span>ڕاستە ⭐</span>
-                      </span>
-                      <button onclick="resetEvaluationFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" class="p-1 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
-                        <i class="fa-solid fa-rotate-left text-[10px]"></i>
-                      </button>
-                    </div>
-                  ` : (s.is_awarded === -1 ? `
-                    <div class="flex items-center gap-1">
-                      <span class="px-2.5 py-1 bg-rose-600/30 text-rose-300 border border-rose-500/40 font-black text-xs rounded-xl inline-flex items-center gap-1">
-                        <i class="fa-solid fa-circle-xmark text-rose-400"></i>
-                        <span>هەڵە ❌</span>
-                      </span>
-                      <button onclick="resetEvaluationFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" class="p-1 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
-                        <i class="fa-solid fa-rotate-left text-[10px]"></i>
-                      </button>
-                    </div>
-                  ` : `
-                    <div class="flex items-center gap-1.5">
-                      <button 
-                        onclick="awardStarFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" 
-                        class="award-star-btn px-2.5 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-1 active:scale-95"
-                        title="وەڵامی دروستە ⭐"
-                      >
-                        <i class="fa-solid fa-star"></i>
-                        <span>⭐ ڕاستە</span>
-                      </button>
-                      <button 
-                        onclick="markWrongFromReveal(${payload.question_id}, ${s.user_id}, '${escapeHtml(s.full_name)}', this)" 
-                        class="mark-wrong-btn px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-black text-xs rounded-xl transition flex items-center gap-1 active:scale-95"
-                        title="وەڵامی هەڵەیە ❌"
-                      >
-                        <i class="fa-solid fa-xmark"></i>
-                        <span>❌ هەڵە</span>
-                      </button>
-                    </div>
-                  `)}
-                ` : `
-                  ${s.is_awarded === 1 ? `
-                    <span class="px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-black text-xs rounded-xl inline-flex items-center gap-1 shadow-sm">
-                      <i class="fa-solid fa-star text-amber-400"></i>
-                      <span>وەڵامی دروست ⭐</span>
-                    </span>
-                  ` : (s.is_awarded === -1 ? `
-                    <span class="px-2.5 py-1 bg-rose-500/20 border border-rose-500/40 text-rose-300 font-black text-xs rounded-xl inline-flex items-center gap-1 shadow-sm">
-                      <i class="fa-solid fa-circle-xmark text-rose-400"></i>
-                      <span>وەڵامی هەڵە ❌</span>
-                    </span>
-                  ` : `
-                    <span class="px-2 py-0.5 text-slate-500 font-medium text-[11px] rounded-lg bg-slate-900/60 border border-slate-800">هێشتا نەپشکنراوە</span>
-                  `)}
-                `}
+
+              <!-- Full Width Answer Box with Corner Badge -->
+              <div class="relative w-full mt-1">
+                <div id="sub-answer-box-${payload.question_id}-${s.user_id}" class="sub-answer-box relative w-full text-xs sm:text-sm p-3.5 rounded-xl border font-medium whitespace-pre-wrap leading-relaxed select-text shadow-sm transition-all duration-300 ${answerBoxClass}">
+                  ${cornerBadge}
+                  "${escapeHtml(s.answer_text)}"
+                </div>
               </div>
             </div>
           `;
@@ -2371,12 +2434,160 @@ function jumpToNewestMessages() {
   hideUnreadJumpPill();
 }
 
+let currentChatLockMode = 'none';
+
+async function fetchChatLockStatus() {
+  if (!token) return;
+  try {
+    const res = await fetch('/api/chat/lock-status', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      updateChatLockUI(data);
+    }
+  } catch (e) {
+    console.warn('fetchChatLockStatus error:', e);
+  }
+}
+
+function updateChatLockUI(data) {
+  if (!data || !data.mode) return;
+  currentChatLockMode = data.mode;
+
+  const banner = document.getElementById('chatLockBanner');
+  const icon = document.getElementById('chatLockIcon');
+  const msgEl = document.getElementById('chatLockMessage');
+  const adminActions = document.getElementById('chatLockAdminActions');
+  const input = document.getElementById('messageInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.role === 'teacher');
+
+  if (!banner || !msgEl) return;
+
+  if (currentChatLockMode === 'total_lock') {
+    banner.classList.remove('hidden', 'bg-amber-950/80', 'border-amber-500/50', 'text-amber-200');
+    banner.classList.add('bg-rose-950/90', 'border-rose-500/60', 'text-rose-100');
+    if (icon) icon.innerText = '🔒';
+    msgEl.innerText = isSuperAdmin
+      ? '🔒 چات بە تەواوەتی داخراوە (@قفڵ.عام) - تەنها تۆ وەک سوپەر ئەدمین دەتوانیت بنووسیت.'
+      : '🔒 چاتی گشتی بە تەواوەتی داخراوە لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام - هیچ کەس ناتوانێت بنووسێت).';
+
+    if (adminActions) {
+      if (isSuperAdmin) {
+        adminActions.classList.remove('hidden');
+        adminActions.classList.add('flex');
+      } else {
+        adminActions.classList.add('hidden');
+        adminActions.classList.remove('flex');
+      }
+    }
+
+    if (!isSuperAdmin) {
+      if (input) {
+        input.disabled = true;
+        input.placeholder = '🔒 چات بە تەواوەتی داخراوە لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام)';
+      }
+      if (sendBtn) sendBtn.disabled = true;
+    } else {
+      if (input) {
+        input.disabled = false;
+        input.placeholder = '👑 تۆ سوپەر ئەدمینیت: پەیام بنووسە یان بیکەرەوە...';
+      }
+      if (sendBtn) sendBtn.disabled = false;
+    }
+  } else if (currentChatLockMode === 'staff_only') {
+    banner.classList.remove('hidden', 'bg-rose-950/90', 'border-rose-500/60', 'text-rose-100');
+    banner.classList.add('bg-amber-950/80', 'border-amber-500/50', 'text-amber-200');
+    if (icon) icon.innerText = '🛡️';
+    msgEl.innerText = isStaff
+      ? 'ℹ️ چات تەنها بۆ مامۆستا و دەستەی بەڕێوەبەرایەتی کراوەیە (@قفڵ).'
+      : '🔒 چات داخراوە لەلایەن سوپەر ئەدمینەوە، تەنها مامۆستا و دەستەی بەڕێوەبەرایەتی دەتوانن بنووسن.';
+
+    if (adminActions) {
+      if (isSuperAdmin) {
+        adminActions.classList.remove('hidden');
+        adminActions.classList.add('flex');
+      } else {
+        adminActions.classList.add('hidden');
+        adminActions.classList.remove('flex');
+      }
+    }
+
+    if (!isStaff) {
+      if (input) {
+        input.disabled = true;
+        input.placeholder = '🔒 چات تەنها بۆ مامۆستا و دەستەی بەڕێوەبەرایەتی کراوەیە (@قفڵ)';
+      }
+      if (sendBtn) sendBtn.disabled = true;
+    } else {
+      if (input) {
+        input.disabled = false;
+        input.placeholder = 'پەیامەکەت بنووسە (تایبەت بە دەستەی بەڕێوەبەرایەتی)...';
+      }
+      if (sendBtn) sendBtn.disabled = false;
+    }
+  } else {
+    // Mode is 'none' (Chat open)
+    banner.classList.add('hidden');
+    if (adminActions) adminActions.classList.add('hidden');
+    if (input) {
+      if (currentUser && currentUser.role === 'guest') {
+        input.disabled = true;
+        input.placeholder = '👁️ تۆ وەک میوان (چاودێر) داخڵبوویت و ناتوانیت لە چات قسە بکەیت';
+      } else {
+        input.disabled = false;
+        input.placeholder = 'پەیامەکەت بنووسە...';
+      }
+    }
+    if (sendBtn) sendBtn.disabled = false;
+  }
+}
+
+async function unlockChatBySuperAdmin() {
+  if (!token || !currentUser || currentUser.role !== 'super_admin') return;
+  try {
+    const res = await fetch('/api/chat/lock', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ mode: 'none' })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'هەڵەیەک ڕوویدا لە کردنەوەی چات');
+    }
+  } catch (e) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  }
+}
+
 // Send Message with Student Link Block & Guest check
 function handleSendMessage(e) {
   e.preventDefault();
   const input = document.getElementById('messageInput');
   const content = input.value.trim();
   if (!content) return;
+
+  // Chat lock command check (Super Admin only)
+  const isLockCmd = content.includes('@قفڵ') || content.includes('@قفل');
+  if (isLockCmd && currentUser && currentUser.role !== 'super_admin') {
+    alert('❌ تەنها سوپەر ئەدمین دەسەڵاتی قفڵکردنی چاتی هەیە!');
+    return;
+  }
+
+  // Active chat lock mode client validation
+  if (currentChatLockMode === 'total_lock' && currentUser && currentUser.role !== 'super_admin') {
+    alert('🔒 چات بە تەواوەتی داخراوە لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام)، هیچ کەس ناتوانێت بنووسێت.');
+    return;
+  }
+  if (currentChatLockMode === 'staff_only' && currentUser && !['super_admin', 'admin', 'teacher'].includes(currentUser.role)) {
+    alert('🔒 چات داخراوە، تەنها مامۆستا و دەستەی بەڕێوەبەرایەتی دەتوانن پەیام بنێرن.');
+    return;
+  }
 
   const isPrivileged = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
   if (isNightCurfewActive() && !isPrivileged) {
@@ -2605,13 +2816,14 @@ async function loadActiveQuestion() {
     const data = await res.json();
     todayQuestionsList = Array.isArray(data.today_questions) ? data.today_questions : (data.question ? [data.question] : []);
 
-    // Set or preserve activeQuestion
-    if (activeQuestion && todayQuestionsList.some(q => q.id === activeQuestion.id)) {
-      activeQuestion = todayQuestionsList.find(q => q.id === activeQuestion.id);
+    // Set or preserve activeQuestion: ONLY choose active, unrevealed questions!
+    const unrevealedActive = todayQuestionsList.filter(q => q.is_active && !q.is_revealed && (q.expires_at === 0 || q.expires_at > Date.now()));
+    if (activeQuestion && unrevealedActive.some(q => q.id == activeQuestion.id)) {
+      activeQuestion = unrevealedActive.find(q => q.id == activeQuestion.id);
+    } else if (unrevealedActive.length > 0) {
+      activeQuestion = unrevealedActive[unrevealedActive.length - 1];
     } else {
-      activeQuestion = todayQuestionsList.slice().reverse().find(q => q.is_active && !q.is_revealed && (q.expires_at === 0 || q.expires_at > Date.now()))
-        || todayQuestionsList[todayQuestionsList.length - 1]
-        || null;
+      activeQuestion = null;
     }
 
     renderPinnedQuestionsBar(todayQuestionsList, activeQuestion);
@@ -2645,11 +2857,12 @@ function formatRemainingTime(remainingMs) {
 
 function openActiveQuestionModal(questionId = null) {
   if (questionId) {
-    const found = todayQuestionsList.find(q => q.id === questionId);
+    const found = todayQuestionsList.find(q => q.id == questionId);
     if (found) activeQuestion = found;
   }
   if (!activeQuestion && todayQuestionsList.length > 0) {
-    activeQuestion = todayQuestionsList[todayQuestionsList.length - 1];
+    const unrevealedActive = todayQuestionsList.filter(q => q.is_active && !q.is_revealed && (q.expires_at === 0 || q.expires_at > Date.now()));
+    activeQuestion = unrevealedActive.length > 0 ? unrevealedActive[unrevealedActive.length - 1] : todayQuestionsList[todayQuestionsList.length - 1];
   }
   if (!activeQuestion) return;
 
@@ -2772,7 +2985,10 @@ function renderPinnedQuestionsBar(questionsList, currentActive) {
   const sticky = document.getElementById('activeQuestionSticky');
   const container = document.getElementById('pinnedQuestionsList');
 
-  if (!questionsList || questionsList.length === 0) {
+  // Filter out revealed questions so revealed questions do NOT linger pinned on top!
+  const unrevealedQuestions = (questionsList || []).filter(q => !q.is_revealed);
+
+  if (!unrevealedQuestions || unrevealedQuestions.length === 0) {
     if (sticky) sticky.classList.add('hidden');
     if (container) container.innerHTML = '';
     return;
@@ -2787,17 +3003,17 @@ function renderPinnedQuestionsBar(questionsList, currentActive) {
   let html = '';
 
   // Label when multiple questions exist
-  if (questionsList.length > 1) {
+  if (unrevealedQuestions.length > 1) {
     html += `
       <div class="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-950/70 border border-slate-800 text-[10px] font-black text-amber-300 select-none">
         <i class="fa-solid fa-thumbtack text-amber-400 text-[9px]"></i>
-        <span class="hidden sm:inline">پرسیارەکانی ئەمڕۆ (${questionsList.length}):</span>
-        <span class="sm:hidden">پرسیارەکان (${questionsList.length}):</span>
+        <span class="hidden sm:inline">پرسیارەکانی ئەمڕۆ (${unrevealedQuestions.length}):</span>
+        <span class="sm:hidden">پرسیارەکان (${unrevealedQuestions.length}):</span>
       </div>
     `;
   }
 
-  questionsList.forEach((q, idx) => {
+  unrevealedQuestions.forEach((q, idx) => {
     const isSelected = currentActive && currentActive.id === q.id;
     const isActiveNow = q.is_active && !q.is_revealed && (!q.expires_at || q.expires_at > Date.now());
     const publishTime = formatQuestionPublishTime(q.created_at);
@@ -2976,7 +3192,15 @@ function cancelEditSecretAnswerInModal() {
 
 // Student Submits Secret Answer from Modal
 async function submitSecretAnswerFromModal() {
-  if (!activeQuestion) return;
+  if (!activeQuestion) {
+    const unrevealedActive = (todayQuestionsList || []).find(q => q.is_active && !q.is_revealed && (q.expires_at === 0 || q.expires_at > Date.now()));
+    if (unrevealedActive) {
+      activeQuestion = unrevealedActive;
+    } else {
+      alert('هیچ پرسیارێکی چالاک نییە لە ئێستادا بۆ وەڵامدانەوە');
+      return;
+    }
+  }
   if (currentUser && currentUser.role === 'guest') {
     alert('تۆ وەک میوان (چاودێر) لە گروپیت و ناتوانیت وەڵامی پرسیار بنێریت 👁️');
     return;
@@ -7564,32 +7788,59 @@ function handleSubmissionEvaluated(data) {
   const card = document.getElementById(`sub-card-${data.question_id}-${data.user_id}`);
   if (card) {
     card.classList.remove(
-      'border-slate-700/70', 'bg-slate-800/80',
-      'border-2', 'border-emerald-500/80', 'bg-emerald-950/25', 'ring-emerald-500/30', 'shadow-emerald-500/10',
-      'border-rose-500/70', 'bg-rose-950/20', 'ring-rose-500/30', 'shadow-rose-500/10', 'ring-1', 'shadow-md'
+      'border-slate-700/70', 'bg-slate-800/80', 'bg-slate-850/80', 'hover:border-slate-600',
+      'border-2', 'border-teal-500/80', 'bg-teal-950/30', 'ring-teal-400/30', 'shadow-teal-500/10',
+      'border-amber-500/80', 'bg-amber-950/20', 'ring-amber-500/30', 'shadow-amber-500/10',
+      'border-emerald-500/80', 'bg-emerald-950/25', 'ring-emerald-500/30', 'shadow-emerald-500/10',
+      'border-rose-500/70', 'bg-rose-950/20', 'ring-rose-500/30', 'shadow-rose-500/10', 'ring-1', 'shadow-md', 'shadow-lg'
     );
     if (data.is_correct === 1) {
-      card.classList.add('border-2', 'border-emerald-500/80', 'bg-emerald-950/25', 'ring-1', 'ring-emerald-500/30', 'shadow-md', 'shadow-emerald-500/10');
+      card.classList.add('border-2', 'border-teal-500/80', 'bg-teal-950/30', 'ring-1', 'ring-teal-400/30', 'shadow-lg', 'shadow-teal-500/10');
     } else if (data.is_correct === -1) {
-      card.classList.add('border-2', 'border-rose-500/70', 'bg-rose-950/20', 'ring-1', 'ring-rose-500/30', 'shadow-md', 'shadow-rose-500/10');
+      card.classList.add('border-2', 'border-amber-500/80', 'bg-amber-950/20', 'ring-1', 'ring-amber-500/30', 'shadow-md', 'shadow-amber-500/10');
     } else {
-      card.classList.add('border-slate-700/70', 'bg-slate-800/80');
+      card.classList.add('border-slate-700/70', 'bg-slate-850/80', 'shadow');
     }
   }
 
-  // 2. Update Student Header Badge Container
+  // 2. Update Answer Box Styling & Prominent Corner Star / Wrong Badge
+  const answerBox = document.getElementById(`sub-answer-box-${data.question_id}-${data.user_id}`);
+  if (answerBox) {
+    const oldCorner = answerBox.querySelector('.eval-corner-star, .eval-corner-wrong');
+    if (oldCorner) oldCorner.remove();
+
+    answerBox.classList.remove('answer-box-turquoise', 'answer-box-yellow', 'bg-slate-900/90', 'border-slate-750', 'text-slate-100');
+
+    if (data.is_correct === 1) {
+      answerBox.classList.add('answer-box-turquoise');
+      const starBadge = document.createElement('div');
+      starBadge.className = 'eval-corner-star';
+      starBadge.innerHTML = '<span>⭐</span><span>ڕاستە</span>';
+      answerBox.prepend(starBadge);
+    } else if (data.is_correct === -1) {
+      answerBox.classList.add('answer-box-yellow');
+      const wrongBadge = document.createElement('div');
+      wrongBadge.className = 'eval-corner-wrong';
+      wrongBadge.innerHTML = '<span>❌</span><span>هەڵە</span>';
+      answerBox.prepend(wrongBadge);
+    } else {
+      answerBox.classList.add('bg-slate-900/90', 'border-slate-750', 'text-slate-100');
+    }
+  }
+
+  // 3. Update Student Header Badge Container
   const badgeContainers = document.querySelectorAll(`.eval-badge-container-${data.question_id}-${data.user_id}`);
   badgeContainers.forEach(container => {
     if (data.is_correct === 1) {
       container.innerHTML = `
-        <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-black text-[11px] rounded-lg inline-flex items-center gap-1 animate-pulse">
+        <span class="px-2 py-0.5 bg-teal-500/20 text-teal-300 border border-teal-500/40 font-black text-[11px] rounded-lg inline-flex items-center gap-1 animate-pulse">
           <i class="fa-solid fa-star text-amber-400"></i>
           <span>وەڵامی دروستە ⭐</span>
         </span>
       `;
     } else if (data.is_correct === -1) {
       container.innerHTML = `
-        <span class="px-2 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-500/40 font-black text-[11px] rounded-lg inline-flex items-center gap-1">
+        <span class="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 font-black text-[11px] rounded-lg inline-flex items-center gap-1">
           <i class="fa-solid fa-circle-xmark text-rose-400"></i>
           <span>وەڵامی هەڵەیە ❌</span>
         </span>
@@ -7599,31 +7850,31 @@ function handleSubmissionEvaluated(data) {
     }
   });
 
-  // 3. Update evaluation slot buttons / student status
+  // 4. Update evaluation slot buttons / student status
   const targetSlots = document.querySelectorAll(`.eval-slot-${data.question_id}-${data.user_id}`);
   targetSlots.forEach(slot => {
     if (isStaff) {
       if (data.is_correct === 1) {
         slot.innerHTML = `
           <div class="flex items-center gap-1">
-            <span class="px-2.5 py-1 bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-black text-xs rounded-xl inline-flex items-center gap-1">
-              <i class="fa-solid fa-circle-check text-emerald-400"></i>
+            <span class="px-2.5 py-1 bg-teal-600/30 text-teal-300 border border-teal-500/40 font-black text-xs rounded-xl inline-flex items-center gap-1">
+              <i class="fa-solid fa-circle-check text-teal-400"></i>
               <span>ڕاستە ⭐</span>
             </span>
-            <button onclick="resetEvaluationFromReveal(${data.question_id}, ${data.user_id}, '${escapeHtml(data.user_name || '')}', this)" class="p-1 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
-              <i class="fa-solid fa-rotate-left text-[10px]"></i>
+            <button onclick="resetEvaluationFromReveal(${data.question_id}, ${data.user_id}, '${escapeHtml(data.user_name || '')}', this)" class="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
+              <i class="fa-solid fa-rotate-left text-[11px]"></i>
             </button>
           </div>
         `;
       } else if (data.is_correct === -1) {
         slot.innerHTML = `
           <div class="flex items-center gap-1">
-            <span class="px-2.5 py-1 bg-rose-600/30 text-rose-300 border border-rose-500/40 font-black text-xs rounded-xl inline-flex items-center gap-1">
+            <span class="px-2.5 py-1 bg-amber-600/30 text-amber-300 border border-amber-500/40 font-black text-xs rounded-xl inline-flex items-center gap-1">
               <i class="fa-solid fa-circle-xmark text-rose-400"></i>
               <span>هەڵە ❌</span>
             </span>
-            <button onclick="resetEvaluationFromReveal(${data.question_id}, ${data.user_id}, '${escapeHtml(data.user_name || '')}', this)" class="p-1 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
-              <i class="fa-solid fa-rotate-left text-[10px]"></i>
+            <button onclick="resetEvaluationFromReveal(${data.question_id}, ${data.user_id}, '${escapeHtml(data.user_name || '')}', this)" class="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs" title="گەڕاندنەوە">
+              <i class="fa-solid fa-rotate-left text-[11px]"></i>
             </button>
           </div>
         `;
@@ -7652,14 +7903,14 @@ function handleSubmissionEvaluated(data) {
     } else {
       if (data.is_correct === 1) {
         slot.innerHTML = `
-          <span class="px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-black text-xs rounded-xl inline-flex items-center gap-1 shadow-sm">
+          <span class="px-2.5 py-1 bg-teal-500/20 border border-teal-500/40 text-teal-300 font-black text-xs rounded-xl inline-flex items-center gap-1 shadow-sm">
             <i class="fa-solid fa-star text-amber-400"></i>
             <span>وەڵامی دروست ⭐</span>
           </span>
         `;
       } else if (data.is_correct === -1) {
         slot.innerHTML = `
-          <span class="px-2.5 py-1 bg-rose-500/20 border border-rose-500/40 text-rose-300 font-black text-xs rounded-xl inline-flex items-center gap-1 shadow-sm">
+          <span class="px-2.5 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 font-black text-xs rounded-xl inline-flex items-center gap-1 shadow-sm">
             <i class="fa-solid fa-circle-xmark text-rose-400"></i>
             <span>وەڵامی هەڵە ❌</span>
           </span>
@@ -7669,7 +7920,6 @@ function handleSubmissionEvaluated(data) {
       }
     }
   });
-
   // If the evaluation was for the currently logged in student
   if (currentUser && currentUser.id === data.user_id) {
     if (typeof data.total_stars === 'number') {

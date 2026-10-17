@@ -743,6 +743,22 @@
           </div>
         </div>
 
+        <!-- CHAT LOCK BANNER -->
+        <div id="chatLockBanner" class="hidden shrink-0 px-3 py-2 bg-rose-950/80 border-t border-rose-500/50 text-rose-200 text-xs font-bold transition-all duration-300 shadow-md">
+          <div class="max-w-5xl mx-auto flex items-center justify-between gap-2 flex-wrap">
+            <div class="flex items-center gap-2">
+              <span id="chatLockIcon" class="text-base animate-pulse">🔒</span>
+              <span id="chatLockMessage" class="text-xs sm:text-sm font-black">چات داخراوە</span>
+            </div>
+            <div id="chatLockAdminActions" class="hidden items-center gap-2">
+              <button onclick="unlockChatBySuperAdmin()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black shadow-md border border-emerald-400/40 transition flex items-center gap-1 active:scale-95">
+                <i class="fa-solid fa-lock-open"></i>
+                <span>کردنەوەی چات بۆ هەمووان 🔓</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- CHAT INPUT BAR -->
         <div id="chatInputBar" class="shrink-0 p-2.5 md:p-3 bg-slate-900 border-t border-slate-800">
           <form onsubmit="handleSendMessage(event)" class="flex items-center gap-2 max-w-5xl mx-auto">
