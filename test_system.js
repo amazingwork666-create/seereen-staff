@@ -38,7 +38,7 @@ async function runTests() {
   // Test 3: User Registration Flow & Pending State
   const hash = bcrypt.hashSync('pass123', 10);
   const testStudentUsername = 'test_student_' + Date.now();
-  const studentId = users.create(testStudentUsername, hash, 'قوتابی تاقیکاری', 'student', 'pending');
+  const studentId = users.create(testStudentUsername, hash, 'قوتابی تاقیکاری', 'male', 'student', 'pending');
   const registeredStudent = users.findById(studentId);
 
   if (registeredStudent.status !== 'pending' || registeredStudent.role !== 'student') {

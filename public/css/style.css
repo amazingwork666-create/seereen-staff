@@ -469,10 +469,7 @@ body.light-theme .border-slate-700\/60 {
   border-color: rgba(199, 131, 97, 0.25) !important;
 }
 
-body.light-theme .text-white {
-  color: #000000 !important;
-}
-
+/* Light Theme Typography & High Contrast Fixes */
 body.light-theme .text-slate-100 {
   color: #000000 !important;
 }
@@ -485,19 +482,112 @@ body.light-theme .text-slate-300 {
   color: #1e293b !important;
 }
 
+/* Headings and body text that use text-white get high-contrast slate in light mode */
+body.light-theme h1.text-white,
+body.light-theme h2.text-white,
+body.light-theme h3.text-white,
+body.light-theme h4.text-white,
+body.light-theme p.text-white,
+body.light-theme .sub-answer-box,
+body.light-theme div.text-white:not(button *):not([class*="bg-indigo"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-sky"]):not([class*="bg-purple"]):not([class*="bg-[#552776]"]),
+body.light-theme span.text-white:not(button *):not([class*="bg-indigo"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-sky"]):not([class*="bg-purple"]):not([class*="bg-[#552776]"]) {
+  color: #0f172a !important;
+}
+
+/* Explicitly preserve crisp WHITE text on all colored buttons and badges */
+body.light-theme button.bg-indigo-600,
+body.light-theme button.bg-indigo-700,
+body.light-theme button.bg-emerald-600,
+body.light-theme button.bg-emerald-700,
+body.light-theme button.bg-rose-600,
+body.light-theme button.bg-rose-700,
+body.light-theme button.bg-sky-600,
+body.light-theme button.bg-sky-700,
+body.light-theme button.bg-purple-600,
+body.light-theme button.bg-purple-700,
+body.light-theme .bg-indigo-600,
+body.light-theme .bg-emerald-600,
+body.light-theme .bg-rose-600,
+body.light-theme .bg-sky-600,
+body.light-theme .bg-purple-600,
+body.light-theme .btn-primary,
+body.light-theme [class*="bg-[#552776]"] {
+  color: #ffffff !important;
+}
+
+body.light-theme button.bg-indigo-600 *,
+body.light-theme button.bg-indigo-700 *,
+body.light-theme button.bg-emerald-600 *,
+body.light-theme button.bg-emerald-700 *,
+body.light-theme button.bg-rose-600 *,
+body.light-theme button.bg-rose-700 *,
+body.light-theme button.bg-sky-600 *,
+body.light-theme button.bg-sky-700 *,
+body.light-theme button.bg-purple-600 *,
+body.light-theme button.bg-purple-700 *,
+body.light-theme .bg-indigo-600 *,
+body.light-theme .bg-emerald-600 *,
+body.light-theme .bg-rose-600 *,
+body.light-theme .bg-sky-600 *,
+body.light-theme .bg-purple-600 *,
+body.light-theme .btn-primary *,
+body.light-theme [class*="bg-[#552776]"] * {
+  color: #ffffff !important;
+}
+
+/* Deepen pastel colors on light backgrounds for crisp legibility */
+body.light-theme .text-amber-200,
+body.light-theme .text-amber-300,
+body.light-theme .text-amber-400 {
+  color: #b45309 !important;
+}
+
+body.light-theme .text-sky-200,
+body.light-theme .text-sky-300,
+body.light-theme .text-sky-400 {
+  color: #0369a1 !important;
+}
+
+body.light-theme .text-emerald-200,
+body.light-theme .text-emerald-300,
+body.light-theme .text-emerald-400 {
+  color: #047857 !important;
+}
+
+body.light-theme .text-teal-200,
+body.light-theme .text-teal-300,
+body.light-theme .text-teal-400 {
+  color: #0f766e !important;
+}
+
+body.light-theme .text-rose-200,
+body.light-theme .text-rose-300,
+body.light-theme .text-rose-400 {
+  color: #be123c !important;
+}
+
+body.light-theme .text-purple-200,
+body.light-theme .text-purple-300,
+body.light-theme .text-purple-400 {
+  color: #6b21a8 !important;
+}
+
+body.light-theme .text-indigo-200,
+body.light-theme .text-indigo-300,
+body.light-theme .text-indigo-400 {
+  color: #4338ca !important;
+}
+
 /* Chat messages text: pure black for readability in light mode */
 body.light-theme .chat-msg-item .text-slate-100,
-body.light-theme .chat-msg-item .text-white,
 body.light-theme .chat-msg-item .text-slate-200,
 body.light-theme .chat-msg-item .text-slate-300,
-body.light-theme .chat-msg-item .text-xs,
-body.light-theme .chat-msg-item .text-sm,
 body.light-theme .msg-text-student,
 body.light-theme [class*="msg-text-student"],
 body.light-theme .chat-msg-item .msg-text-student,
 body.light-theme .chat-msg-item div.msg-text-student,
 body.light-theme .chat-msg-item div[class*="msg-text-student"] {
-  color: #000000 !important;
+  color: #0f172a !important;
   text-shadow: none !important;
 }
 
@@ -507,7 +597,7 @@ body.light-theme .chat-msg-item .bg-slate-900\/95,
 body.light-theme .chat-msg-item .bg-slate-900 {
   background-color: #ffffff !important;
   border-color: #cbd5e1 !important;
-  color: #000000 !important;
+  color: #0f172a !important;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
 }
 
@@ -545,6 +635,59 @@ body.light-theme textarea::placeholder {
 body.light-theme .voice-bubble {
   background-color: #fbf5ef !important;
   border-color: rgba(199, 131, 97, 0.3) !important;
+}
+
+/* Light Theme Revealed Answers Card */
+body.light-theme .revealed-answers-card {
+  background-color: #ffffff !important;
+  border-color: #a5b4fc !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08) !important;
+}
+
+body.light-theme .revealed-answers-card .bg-slate-950\/70,
+body.light-theme .revealed-answers-card .bg-slate-950\/60 {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-theme .submission-card-item {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-theme .answer-box-turquoise {
+  background-color: #f0fdfa !important;
+  border: 2px solid #0d9488 !important;
+  color: #042f2e !important;
+  box-shadow: 0 2px 10px rgba(13, 148, 136, 0.15) !important;
+}
+
+body.light-theme .answer-box-yellow {
+  background-color: #fffbeb !important;
+  border: 2px solid #d97706 !important;
+  color: #451a03 !important;
+  box-shadow: 0 2px 10px rgba(217, 119, 6, 0.15) !important;
+}
+
+body.light-theme .revealed-answers-card .bg-emerald-950\/40 {
+  background-color: #ecfdf5 !important;
+  border-color: #10b981 !important;
+}
+
+body.light-theme .revealed-answers-card .bg-slate-900\/90 {
+  background-color: #ffffff !important;
+  border-color: #6ee7b7 !important;
+  color: #064e3b !important;
+}
+
+/* Strict Avatar Privacy: No user can click, zoom, drag, or bring forward another user's avatar */
+.no-zoom-avatar {
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-user-drag: none !important;
+  -webkit-touch-callout: none !important;
+  cursor: default !important;
 }
 
 /* ================= MOBILE OPTIMIZATIONS ================= */

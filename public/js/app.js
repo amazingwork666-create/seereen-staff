@@ -1445,6 +1445,22 @@ function initSocket() {
     loadLeaderboard();
   });
 
+  socket.on('user_avatar_updated', (data) => {
+    if (currentUser && currentUser.id === data.user_id) {
+      currentUser.avatar_url = data.avatar_url;
+      const drawerAvatar = document.getElementById('drawerUserAvatar');
+      if (drawerAvatar) {
+        drawerAvatar.innerHTML = `<img src="${escapeHtml(data.avatar_url)}" class="w-full h-full object-cover rounded-xl pointer-events-none select-none no-zoom-avatar" draggable="false" oncontextmenu="return false;">`;
+      }
+    }
+    if (typeof currentProfileUserId !== 'undefined' && currentProfileUserId === data.user_id) {
+      const profAvatar = document.getElementById('profAvatar');
+      if (profAvatar) {
+        profAvatar.innerHTML = `<img src="${escapeHtml(data.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-2xl pointer-events-none select-none no-zoom-avatar" draggable="false" oncontextmenu="return false;">`;
+      }
+    }
+  });
+
   socket.on('new_profile_change_request', () => {
     if (currentUser && currentUser.role === 'super_admin') {
       loadPendingProfileChangesCount();
@@ -1894,6 +1910,17 @@ function appendMessage(msg, scroll = true) {
             `;
           }
 
+          let subTransBtnHtml = '';
+          if ((currentAppLanguage === 'ar' || currentAppLanguage === 'en') && s.answer_text) {
+            const tLabel = currentAppLanguage === 'ar' ? 'ترجمة' : 'Translate';
+            subTransBtnHtml = `
+              <button type="button" onclick="translateSubmissionAnswer(${payload.question_id}, ${s.user_id}, this)" class="text-[10px] text-sky-300 hover:text-white px-1.5 py-0.5 bg-slate-800/80 hover:bg-slate-700 rounded-lg border border-slate-700/60 inline-flex items-center gap-1 transition shadow-sm" title="${tLabel}">
+                <i class="fa-solid fa-language text-sky-400"></i>
+                <span>${tLabel}</span>
+              </button>
+            `;
+          }
+
           return `
             <div id="sub-card-${payload.question_id}-${s.user_id}" class="submission-card-item p-3 sm:p-4 rounded-2xl border flex flex-col gap-2.5 transition-all duration-300 relative ${cardBorderClass}">
               <!-- Header Row: Student Info & Actions -->
@@ -1905,6 +1932,7 @@ function appendMessage(msg, scroll = true) {
                   <span class="eval-badge-container-${payload.question_id}-${s.user_id}">
                     ${statusBadge}
                   </span>
+                  ${subTransBtnHtml}
                 </div>
                 <div class="shrink-0 eval-slot eval-slot-${payload.question_id}-${s.user_id}">
                   ${isStaff ? `
@@ -1970,7 +1998,7 @@ function appendMessage(msg, scroll = true) {
               <div class="relative w-full mt-1">
                 <div id="sub-answer-box-${payload.question_id}-${s.user_id}" class="sub-answer-box relative w-full text-xs sm:text-sm p-3.5 rounded-xl border font-medium whitespace-pre-wrap leading-relaxed select-text shadow-sm transition-all duration-300 ${answerBoxClass}">
                   ${cornerBadge}
-                  "${escapeHtml(s.answer_text)}"
+                  <div id="sub-answer-content-${payload.question_id}-${s.user_id}">"${escapeHtml(s.answer_text)}"</div>
                 </div>
               </div>
             </div>
@@ -1982,6 +2010,17 @@ function appendMessage(msg, scroll = true) {
       let modelAnswerHtml = '';
       if (payload.model_answer && payload.model_answer.trim()) {
         const reactionsHtml = renderMessageReactionsHtml(msg.reactions || [], msg.id);
+        let modelTransBtnHtml = '';
+        if ((currentAppLanguage === 'ar' || currentAppLanguage === 'en') && payload.model_answer) {
+          const tLabel = currentAppLanguage === 'ar' ? 'ترجمة' : 'Translate';
+          modelTransBtnHtml = `
+            <button type="button" onclick="translateModelAnswer(${payload.question_id}, this)" class="text-[10px] text-emerald-300 hover:text-white px-2 py-0.5 bg-emerald-900/60 hover:bg-emerald-800 rounded-lg border border-emerald-500/40 inline-flex items-center gap-1 transition shadow-sm" title="${tLabel}">
+              <i class="fa-solid fa-language text-emerald-300"></i>
+              <span>${tLabel}</span>
+            </button>
+          `;
+        }
+
         modelAnswerHtml = `
           <div class="mt-3.5 p-3.5 rounded-2xl bg-emerald-950/40 border-2 border-emerald-500/70 shadow-lg text-emerald-200">
             <div class="flex items-center justify-between mb-2 flex-wrap gap-1">
@@ -1989,12 +2028,15 @@ function appendMessage(msg, scroll = true) {
                 <i class="fa-solid fa-circle-check text-base text-emerald-400"></i>
                 <span>وەڵامی دروستی دیاریکراوی مامۆستا (کۆتا وەڵام):</span>
               </span>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-500/30">
-                ڕاستیی پرسیار ✨
-              </span>
+              <div class="flex items-center gap-1.5">
+                ${modelTransBtnHtml}
+                <span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-500/30">
+                  ڕاستیی پرسیار ✨
+                </span>
+              </div>
             </div>
 
-            <div class="text-xs md:text-sm font-black text-white bg-slate-900/90 p-3 rounded-xl border border-emerald-500/30 whitespace-pre-wrap leading-relaxed select-text shadow-inner">
+            <div id="model-answer-content-${payload.question_id}" class="text-xs md:text-sm font-black text-white bg-slate-900/90 p-3 rounded-xl border border-emerald-500/30 whitespace-pre-wrap leading-relaxed select-text shadow-inner">
               ${escapeHtml(payload.model_answer)}
             </div>
 
@@ -2041,6 +2083,17 @@ function appendMessage(msg, scroll = true) {
         `;
       }
 
+      let qTransBtnHtml = '';
+      if ((currentAppLanguage === 'ar' || currentAppLanguage === 'en') && payload.question_text) {
+        const tLabel = currentAppLanguage === 'ar' ? 'ترجمة' : 'Translate';
+        qTransBtnHtml = `
+          <button type="button" onclick="translateQuestionContent(${payload.question_id}, this)" class="text-[10px] text-amber-300 hover:text-white px-1.5 py-0.5 bg-slate-800/80 hover:bg-slate-700 rounded-lg border border-slate-700/60 inline-flex items-center gap-1 transition shadow-sm" title="${tLabel}">
+            <i class="fa-solid fa-language text-amber-400"></i>
+            <span>${tLabel}</span>
+          </button>
+        `;
+      }
+
       msgElem.innerHTML = `
         <div class="revealed-answers-card bg-slate-900 border-2 border-indigo-500/50 rounded-3xl p-4 md:p-5 shadow-2xl relative max-w-2xl mx-auto overflow-hidden">
           <div class="flex items-center justify-between pb-3 border-b border-indigo-500/30 mb-3.5 gap-2 flex-wrap">
@@ -2069,11 +2122,14 @@ function appendMessage(msg, scroll = true) {
           </div>
 
           <div class="bg-slate-950/70 p-3 rounded-2xl border border-slate-800 mb-3.5">
-            <div class="text-[11px] text-amber-400 font-black mb-1 flex items-center gap-1">
-              <i class="fa-solid fa-circle-question"></i>
-              <span>دەقی پرسیاری ژمارە ${payload.question_number || ''}:</span>
+            <div class="flex items-center justify-between text-[11px] text-amber-400 font-black mb-1">
+              <div class="flex items-center gap-1">
+                <i class="fa-solid fa-circle-question"></i>
+                <span>دەقی پرسیاری ژمارە ${payload.question_number || ''}:</span>
+              </div>
+              ${qTransBtnHtml}
             </div>
-            <p class="text-sm font-black text-white leading-relaxed">
+            <p id="question-content-${payload.question_id}" class="text-sm font-black text-white leading-relaxed">
               ${escapeHtml(payload.question_text)}
             </p>
           </div>
@@ -2119,6 +2175,17 @@ function appendMessage(msg, scroll = true) {
       durationText = m > 0 ? `${h} کاتژمێر و ${m} خولەک` : `${h} کاتژمێر`;
     }
 
+    let activeQTransBtnHtml = '';
+    if ((currentAppLanguage === 'ar' || currentAppLanguage === 'en') && qData.question_text) {
+      const tLabel = currentAppLanguage === 'ar' ? 'ترجمة' : 'Translate';
+      activeQTransBtnHtml = `
+        <button type="button" onclick="translateQuestionContent(${qData.question_id || msg.id}, this)" class="text-[10px] text-amber-300 hover:text-white px-1.5 py-0.5 bg-slate-800/80 hover:bg-slate-700 rounded-lg border border-slate-700/60 inline-flex items-center gap-1 transition shadow-sm" title="${tLabel}">
+          <i class="fa-solid fa-language text-amber-400"></i>
+          <span>${tLabel}</span>
+        </button>
+      `;
+    }
+
     msgElem.className = 'chat-msg-item w-full my-3';
     msgElem.setAttribute('data-question-id', qData.question_id || msg.id);
     msgElem.setAttribute('data-question-number', qData.question_number || '1');
@@ -2161,7 +2228,11 @@ function appendMessage(msg, scroll = true) {
 
         <!-- Question Text Box -->
         <div class="my-2.5 p-3 sm:p-4 rounded-2xl bg-slate-950/60 border border-amber-500/15">
-          <p class="text-sm md:text-base font-black text-white leading-relaxed select-text">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[10px] text-amber-400 font-bold">دەقی پرسیار:</span>
+            ${activeQTransBtnHtml}
+          </div>
+          <p id="question-content-${qData.question_id || msg.id}" class="text-sm md:text-base font-black text-white leading-relaxed select-text">
             ${escapeHtml(qData.question_text)}
           </p>
         </div>
@@ -2791,6 +2862,8 @@ async function sendPendingImage() {
 }
 
 function openImageZoom(src) {
+  // STRICT PRIVACY: Profile pictures can NEVER be zoomed or brought forward!
+  if (!src || src.includes('avatar') || src.includes('/uploads/avatar_')) return;
   document.getElementById('imageZoomSrc').src = src;
   document.getElementById('imageZoomModal').classList.remove('hidden');
 }
@@ -4181,6 +4254,55 @@ function renderMembersList() {
   });
 }
 
+async function uploadMyAvatar(fileInput) {
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('avatar', file);
+
+  const changeBtn = document.getElementById('profChangeAvatarBtn');
+  const originalBtnHtml = changeBtn ? changeBtn.innerHTML : '';
+  if (changeBtn) {
+    changeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[10px]"></i>';
+    changeBtn.disabled = true;
+  }
+
+  try {
+    const res = await fetch('/api/users/profile/avatar', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
+    });
+    const data = await res.json();
+    if (res.ok && data.success && data.avatar_url) {
+      if (currentUser) {
+        currentUser.avatar_url = data.avatar_url;
+      }
+      const profAvatar = document.getElementById('profAvatar');
+      if (profAvatar) {
+        profAvatar.innerHTML = `<img src="${escapeHtml(data.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-2xl pointer-events-none select-none no-zoom-avatar" draggable="false" oncontextmenu="return false;">`;
+      }
+      const drawerAvatar = document.getElementById('drawerUserAvatar');
+      if (drawerAvatar) {
+        drawerAvatar.innerHTML = `<img src="${escapeHtml(data.avatar_url)}" class="w-full h-full object-cover rounded-xl pointer-events-none select-none no-zoom-avatar" draggable="false" oncontextmenu="return false;">`;
+      }
+      alert('وێنەی پرۆفایلەکەت بە سەرکەوتوویی دانرا ✨');
+    } else {
+      alert('نەتوانرا وێنە باربکرێت: ' + (data.error || 'هەڵەیەک ڕوویدا'));
+    }
+  } catch (err) {
+    console.error('Error uploading avatar:', err);
+    alert('هەڵەیەک ڕوویدا لە کاتی بارکردنی وێنە');
+  } finally {
+    if (changeBtn) {
+      changeBtn.innerHTML = originalBtnHtml || '<i class="fa-solid fa-camera"></i>';
+      changeBtn.disabled = false;
+    }
+    fileInput.value = '';
+  }
+}
+
 // --- USER PROFILE & DETAILS MODAL ---
 function openMyProfile() {
   if (currentUser) openUserProfileModal(currentUser.id);
@@ -4212,6 +4334,25 @@ async function openUserProfileModal(userId) {
     if (!res.ok) return;
     const data = await res.json();
     const prof = data.profile;
+    const isMe = currentUser && currentUser.id === prof.id;
+
+    // Strict Privacy Avatar: Owner can change via camera button; NO ONE can zoom or click any avatar
+    const profAvatarEl = document.getElementById('profAvatar');
+    const profChangeAvatarBtn = document.getElementById('profChangeAvatarBtn');
+    if (profAvatarEl) {
+      if (prof.avatar_url) {
+        profAvatarEl.innerHTML = `<img src="${escapeHtml(prof.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-2xl pointer-events-none select-none no-zoom-avatar" draggable="false" oncontextmenu="return false;">`;
+      } else {
+        profAvatarEl.innerHTML = `<span class="pointer-events-none select-none text-2xl">${getGenderEmoji(prof.gender)}</span>`;
+      }
+    }
+    if (profChangeAvatarBtn) {
+      if (isMe) {
+        profChangeAvatarBtn.classList.remove('hidden');
+      } else {
+        profChangeAvatarBtn.classList.add('hidden');
+      }
+    }
 
     fullNameEl.innerText = prof.full_name;
     fullNameEl.className = `font-black text-base ${getUserNameClass(prof)}`;
@@ -4273,7 +4414,6 @@ async function openUserProfileModal(userId) {
 
     const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
     const isPrivileged = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
-    const isMe = currentUser && currentUser.id === prof.id;
     const isMuted = prof.muted_until && prof.muted_until > Date.now();
 
     // Private Chat Button in Profile
@@ -10153,8 +10293,10 @@ const APP_TRANSLATIONS = {
     drawerLangTitle: 'اللغة',
     drawerFontTitle: 'حجم الخط',
     drawerRecordedLessonsBtn: 'الدروس المسجلة',
+    drawerRecordedLessonsText: 'الدروس المسجلة',
     drawerPrivateChatBtn: 'رسالة خاصة',
-    drawerLiveRecordingsBtn: 'تۆماری وانەکانی لایڤ (الإدارة)',
+    drawerLiveRecordingsBtn: 'تسجيلات البث المباشر (الإدارة)',
+    drawerLiveRecordingsText: 'تسجيلات البث المباشر (الإدارة)',
     drawerProfileBtn: 'ملفي الشخصي',
     drawerLogoutBtn: 'تسجيل الخروج',
     drawerDreamBtn: 'تفسير الأحلام',
@@ -10172,8 +10314,10 @@ const APP_TRANSLATIONS = {
     drawerLangTitle: 'Language',
     drawerFontTitle: 'Font Size',
     drawerRecordedLessonsBtn: 'Recorded Lessons',
+    drawerRecordedLessonsText: 'Recorded Lessons',
     drawerPrivateChatBtn: 'Private Messages',
     drawerLiveRecordingsBtn: 'Live Recordings Archive',
+    drawerLiveRecordingsText: 'Live Recordings Archive',
     drawerProfileBtn: 'My Profile',
     drawerLogoutBtn: 'Sign Out',
     drawerDreamBtn: 'Dream Interpretation',
@@ -10223,14 +10367,70 @@ function setAppLanguage(lang, triggerRerender = true) {
 }
 
 function applyAppLanguage(lang) {
+  const isEn = lang === 'en';
+  const isAr = lang === 'ar';
+
+  // Update Direction and Language attribute
+  document.documentElement.setAttribute('lang', lang);
+
+  // Placeholders
+  const msgInput = document.getElementById('messageInput');
+  if (msgInput) {
+    if (isAr) msgInput.placeholder = 'اكتب رسالتك هنا...';
+    else if (isEn) msgInput.placeholder = 'Type your message here...';
+    else msgInput.placeholder = 'پەیامەکەت بنووسە...';
+  }
+
+  const searchInput = document.getElementById('chatSearchInput');
+  if (searchInput) {
+    if (isAr) searchInput.placeholder = 'بحث في الرسائل والمواضيع...';
+    else if (isEn) searchInput.placeholder = 'Search messages...';
+    else searchInput.placeholder = 'گەڕان بەپێی دەق، بابەت یان ناوی نێرەر...';
+  }
+
+  const privInput = document.getElementById('privateMsgInput');
+  if (privInput) {
+    if (isAr) privInput.placeholder = 'اكتب رسالتك...';
+    else if (isEn) privInput.placeholder = 'Type your message...';
+    else privInput.placeholder = 'نامەکەت بنووسە...';
+  }
+
+  const sendBtn = document.getElementById('sendBtn');
+  if (sendBtn) {
+    sendBtn.title = isAr ? 'إرسال' : (isEn ? 'Send' : 'ناردن');
+  }
+
+  const themeToggleText = document.getElementById('themeToggleText');
+  if (themeToggleText) {
+    themeToggleText.innerText = isAr ? 'المظهر' : (isEn ? 'Theme' : 'مۆد');
+  }
+
+  const pushText = document.getElementById('pushNotificationText');
+  if (pushText) {
+    pushText.innerText = isAr ? 'إشعارات' : (isEn ? 'Alerts' : 'ئاگاداری');
+  }
+
+  const liveNav = document.getElementById('liveLessonNavBtn');
+  if (liveNav) {
+    const span = liveNav.querySelector('span.hidden.sm\\:inline') || liveNav.querySelector('span:not([id])');
+    if (span) span.innerText = isAr ? 'الدرس' : (isEn ? 'Lesson' : 'وانە');
+  }
+
+  const sidebarHeading = document.querySelector('#membersSidebar h3');
+  if (sidebarHeading) {
+    sidebarHeading.innerText = isAr ? 'قائمة الطلاب والأعضاء' : (isEn ? 'Students & Members' : 'لیستی خوێندکاران و ئەندامان');
+  }
+
   if (lang === 'ku') {
     // Restore default Kurdish text
     const kuDefaults = {
       drawerLangTitle: 'زمان / Language',
       drawerFontTitle: 'قەبارەی فۆنت',
       drawerRecordedLessonsBtn: 'وانە تۆمارکراوەکان',
+      drawerRecordedLessonsText: 'وانە تۆمارکراوەکان',
       drawerPrivateChatBtn: 'نامەی تایبەت',
       drawerLiveRecordingsBtn: 'تۆماری وانەکان (لایڤ)',
+      drawerLiveRecordingsText: 'تۆماری وانەکان (لایڤ)',
       drawerProfileBtn: 'پرۆفایلەکەم',
       drawerLogoutBtn: 'چوونەدەرەوە',
       drawerDreamBtn: 'لێکدانەوەی خەون',
@@ -10338,6 +10538,172 @@ function renderTranslationBox(container, boxId, text, lang) {
   const label = lang === 'ar' ? '🌐 الترجمة:' : '🌐 Translation:';
   box.innerHTML = `<span class="text-[10px] text-sky-400 font-bold block mb-0.5">${label}</span><span>${escapeHtml(text)}</span>`;
   container.appendChild(box);
+}
+
+// 6b. QUESTION ANSWERS & CONTENT TRANSLATION (ترجمة إجابات الطلاب والأسئلة)
+async function translateSubmissionAnswer(questionId, userId, btnElem) {
+  const container = document.getElementById(`sub-answer-box-${questionId}-${userId}`);
+  const contentEl = document.getElementById(`sub-answer-content-${questionId}-${userId}`);
+  if (!container || !contentEl) return;
+
+  const translationBoxId = `sub-trans-${questionId}-${userId}`;
+  const existingBox = document.getElementById(translationBoxId);
+  if (existingBox) {
+    existingBox.classList.toggle('hidden');
+    return;
+  }
+
+  const originalText = contentEl.innerText.replace(/^["“”']|["“”']$/g, '').trim();
+  if (!originalText) return;
+
+  const targetLang = (currentAppLanguage === 'ar' || currentAppLanguage === 'en') ? currentAppLanguage : 'ar';
+  const cacheKey = `sub_${questionId}_${userId}_${targetLang}`;
+
+  if (translatedMsgsCache.has(cacheKey)) {
+    renderTranslationBox(container, translationBoxId, translatedMsgsCache.get(cacheKey), targetLang);
+    return;
+  }
+
+  const originalBtnHtml = btnElem ? btnElem.innerHTML : '';
+  if (btnElem) {
+    btnElem.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-sky-400"></i>`;
+    btnElem.disabled = true;
+  }
+
+  try {
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ text: originalText, target: targetLang })
+    });
+    const data = await res.json();
+    if (res.ok && data.translatedText) {
+      translatedMsgsCache.set(cacheKey, data.translatedText);
+      renderTranslationBox(container, translationBoxId, data.translatedText, targetLang);
+    } else {
+      alert('نەتوانرا تەرجومە بکرێت: ' + (data.error || 'هەڵەیەک ڕوویدا'));
+    }
+  } catch (err) {
+    console.error('Translation error:', err);
+  } finally {
+    if (btnElem) {
+      btnElem.innerHTML = originalBtnHtml;
+      btnElem.disabled = false;
+    }
+  }
+}
+
+async function translateModelAnswer(questionId, btnElem) {
+  const contentEl = document.getElementById(`model-answer-content-${questionId}`);
+  if (!contentEl) return;
+  const container = contentEl.parentElement || contentEl;
+
+  const translationBoxId = `model-trans-${questionId}`;
+  const existingBox = document.getElementById(translationBoxId);
+  if (existingBox) {
+    existingBox.classList.toggle('hidden');
+    return;
+  }
+
+  const originalText = contentEl.innerText.trim();
+  if (!originalText) return;
+
+  const targetLang = (currentAppLanguage === 'ar' || currentAppLanguage === 'en') ? currentAppLanguage : 'ar';
+  const cacheKey = `model_${questionId}_${targetLang}`;
+
+  if (translatedMsgsCache.has(cacheKey)) {
+    renderTranslationBox(container, translationBoxId, translatedMsgsCache.get(cacheKey), targetLang);
+    return;
+  }
+
+  const originalBtnHtml = btnElem ? btnElem.innerHTML : '';
+  if (btnElem) {
+    btnElem.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-emerald-300"></i>`;
+    btnElem.disabled = true;
+  }
+
+  try {
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ text: originalText, target: targetLang })
+    });
+    const data = await res.json();
+    if (res.ok && data.translatedText) {
+      translatedMsgsCache.set(cacheKey, data.translatedText);
+      renderTranslationBox(container, translationBoxId, data.translatedText, targetLang);
+    } else {
+      alert('نەتوانرا تەرجومە بکرێت: ' + (data.error || 'هەڵەیەک ڕوویدا'));
+    }
+  } catch (err) {
+    console.error('Translation error:', err);
+  } finally {
+    if (btnElem) {
+      btnElem.innerHTML = originalBtnHtml;
+      btnElem.disabled = false;
+    }
+  }
+}
+
+async function translateQuestionContent(questionId, btnElem) {
+  const contentEl = document.getElementById(`question-content-${questionId}`);
+  if (!contentEl) return;
+  const container = contentEl.parentElement || contentEl;
+
+  const translationBoxId = `q-trans-${questionId}`;
+  const existingBox = document.getElementById(translationBoxId);
+  if (existingBox) {
+    existingBox.classList.toggle('hidden');
+    return;
+  }
+
+  const originalText = contentEl.innerText.trim();
+  if (!originalText) return;
+
+  const targetLang = (currentAppLanguage === 'ar' || currentAppLanguage === 'en') ? currentAppLanguage : 'ar';
+  const cacheKey = `q_${questionId}_${targetLang}`;
+
+  if (translatedMsgsCache.has(cacheKey)) {
+    renderTranslationBox(container, translationBoxId, translatedMsgsCache.get(cacheKey), targetLang);
+    return;
+  }
+
+  const originalBtnHtml = btnElem ? btnElem.innerHTML : '';
+  if (btnElem) {
+    btnElem.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-amber-300"></i>`;
+    btnElem.disabled = true;
+  }
+
+  try {
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ text: originalText, target: targetLang })
+    });
+    const data = await res.json();
+    if (res.ok && data.translatedText) {
+      translatedMsgsCache.set(cacheKey, data.translatedText);
+      renderTranslationBox(container, translationBoxId, data.translatedText, targetLang);
+    } else {
+      alert('نەتوانرا تەرجومە بکرێت: ' + (data.error || 'هەڵەیەک ڕوویدا'));
+    }
+  } catch (err) {
+    console.error('Translation error:', err);
+  } finally {
+    if (btnElem) {
+      btnElem.innerHTML = originalBtnHtml;
+      btnElem.disabled = false;
+    }
+  }
 }
 
 // =========================================================================

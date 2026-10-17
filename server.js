@@ -520,6 +520,7 @@ app.post('/api/auth/login', (req, res) => {
         gender: user.gender || 'male',
         role: user.role,
         status: user.status,
+        avatar_url: user.avatar_url || null,
         muted_until: user.muted_until,
         correct_answers_count: user.correct_answers_count,
         starInfo
@@ -584,6 +585,7 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
       gender: req.user.gender || 'male',
       role: req.user.role,
       status: req.user.status,
+      avatar_url: req.user.avatar_url || null,
       muted_until: req.user.muted_until,
       correct_answers_count: req.user.correct_answers_count,
       starInfo
@@ -597,6 +599,22 @@ app.get('/api/users/:id/profile', authMiddleware, (req, res) => {
   const profile = users.getUserProfile(userId);
   if (!profile) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
   res.json({ profile });
+});
+
+// Upload Profile Picture (Allowed for all users on their OWN profile)
+app.post('/api/users/profile/avatar', authMiddleware, upload.single('avatar'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'تکایە وێنەیەک دیاری بکە' });
+    }
+    const avatarUrl = `/uploads/${req.file.filename}`;
+    users.updateAvatar(req.user.id, avatarUrl);
+    io.emit('user_avatar_updated', { user_id: req.user.id, avatar_url: avatarUrl });
+    res.json({ success: true, avatar_url: avatarUrl });
+  } catch (err) {
+    console.error('Error updating avatar:', err);
+    res.status(500).json({ error: 'نەتوانرا وێنەی پرۆفایل نوێ بکرێتەوە' });
+  }
 });
 
 // --- SUPER ADMIN MANAGEMENT ROUTES ---
@@ -1778,7 +1796,7 @@ app.get('/api/chat/private/unread-count', authMiddleware, (req, res) => {
 // 5. Get Staff List (Teachers & Super Admins) for Private Chat
 app.get('/api/chat/private/staff-list', authMiddleware, (req, res) => {
   try {
-    const allUsers = users.getAll();
+    const allUsers = users.getAllUsers();
     const staff = allUsers
       .filter(u => u.role === 'super_admin' || u.role === 'teacher')
       .map(u => {
@@ -1817,7 +1835,7 @@ app.post('/api/chat/private/upload-voice', authMiddleware, upload.fields([{ name
       return res.status(403).json({ error: 'تەنها دەتوانیت نامەی تایبەت بۆ مامۆستا و سوپەر ئەدمین بنێریت' });
     }
 
-    const voiceUrl = `/uploads/${req.file.filename}`;
+    const voiceUrl = `/uploads/${file.filename}`;
     const content = duration ? `🎤 پەیامی دەنگی (${duration})` : '🎤 پەیامی دەنگی';
     const msg = privateMessages.create(
       req.user.id,
