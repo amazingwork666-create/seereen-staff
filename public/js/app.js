@@ -547,26 +547,27 @@ function updateUserUI() {
 
   const headerNameElem = document.getElementById('headerFullName');
   headerNameElem.innerText = formatUserDisplayName(currentUser);
-  headerNameElem.className = `text-xs font-black ${getUserNameClass(currentUser)}`;
+  headerNameElem.className = `text-xs font-black max-w-[65px] xs:max-w-[85px] sm:max-w-[120px] truncate block ${getUserNameClass(currentUser)}`;
   
+  const isGirl = currentUser.gender === 'female';
   const roleBadgeElem = document.getElementById('headerRoleBadge');
   if (currentUser.role === 'super_admin') {
     roleBadgeElem.className = 'hidden';
     roleBadgeElem.innerText = '';
   } else if (currentUser.role === 'teacher') {
-    roleBadgeElem.className = 'badge-teacher text-[9px] px-1.5 py-0.2 rounded font-black';
+    roleBadgeElem.className = 'badge-teacher text-[9px] px-1.5 py-0.2 rounded font-black hidden sm:inline-block';
     roleBadgeElem.innerText = 'مامۆستا 👨‍🏫';
   } else if (currentUser.role === 'admin') {
-    roleBadgeElem.className = 'badge-admin text-[9px] px-1.5 py-0.2 rounded font-black';
+    roleBadgeElem.className = 'badge-admin text-[9px] px-1.5 py-0.2 rounded font-black hidden sm:inline-block';
     roleBadgeElem.innerText = 'ئەدمین 🛡️';
   } else if (currentUser.role === 'new_student') {
-    roleBadgeElem.className = 'badge-new-student text-[9px] px-1.5 py-0.2 rounded font-bold';
+    roleBadgeElem.className = `${isGirl ? 'badge-new-student-girl' : 'badge-new-student'} text-[9px] px-1.5 py-0.2 rounded font-bold hidden sm:inline-block`;
     roleBadgeElem.innerText = 'قوتابی تازە 🔰';
   } else if (currentUser.role === 'guest') {
-    roleBadgeElem.className = 'badge-guest text-[9px] px-1.5 py-0.2 rounded font-bold';
+    roleBadgeElem.className = 'badge-guest text-[9px] px-1.5 py-0.2 rounded font-bold hidden sm:inline-block';
     roleBadgeElem.innerText = 'میوان 👁️';
   } else {
-    roleBadgeElem.className = 'badge-student text-[9px] px-1.5 py-0.2 rounded font-bold';
+    roleBadgeElem.className = `${isGirl ? 'badge-student-girl' : 'badge-student'} text-[9px] px-1.5 py-0.2 rounded font-bold hidden sm:inline-block`;
     roleBadgeElem.innerText = 'قوتابی 🎓';
   }
 
@@ -575,6 +576,23 @@ function updateUserUI() {
     <span>${starInfo.starIcons}</span>
     <span class="font-mono font-black">${starInfo.points}/10</span>
   `;
+
+  // Update Drawer User Profile Card
+  const drawerAvatar = document.getElementById('drawerUserAvatar');
+  const drawerName = document.getElementById('drawerUserName');
+  const drawerRole = document.getElementById('drawerUserRoleBadge');
+  const drawerStars = document.getElementById('drawerUserStars');
+  if (drawerAvatar) drawerAvatar.innerText = getGenderEmoji(currentUser.gender);
+  if (drawerName) {
+    drawerName.innerText = currentUser.full_name;
+    drawerName.className = `font-black text-xs truncate ${getUserNameClass(currentUser)}`;
+  }
+  if (drawerRole) {
+    drawerRole.innerHTML = renderRoleBadge(currentUser.role, currentUser.gender);
+  }
+  if (drawerStars) {
+    drawerStars.innerHTML = `${starInfo.starIcons} (${starInfo.points}/10)`;
+  }
 
   const isSuperAdmin = currentUser.role === 'super_admin';
   const isTeacher = currentUser.role === 'teacher';
@@ -775,12 +793,12 @@ async function loadPodiumWidget() {
       const stNameClass = getUserNameClass(st);
 
       const pill = document.createElement('div');
-      pill.className = `flex items-center gap-1.5 px-2.5 py-1 rounded-xl border ${borders[idx]} cursor-pointer hover:scale-105 transition`;
+      pill.className = `flex items-center gap-1.5 px-2 py-0.5 rounded-xl border ${borders[idx]} cursor-pointer hover:scale-105 transition shrink-0 shadow-sm`;
       pill.onclick = () => openUserProfileModal(st.id);
       pill.innerHTML = `
-        <span class="text-sm">${medals[idx]}</span>
-        <span class="text-xs font-bold ${stNameClass}">${escapeHtml(st.full_name)}</span>
-        <span class="text-[11px] text-amber-400 font-mono font-black">${st.starInfo.starIcons}</span>
+        <span class="text-xs sm:text-sm shrink-0">${medals[idx]}</span>
+        <span class="text-[11px] sm:text-xs font-bold max-w-[75px] xs:max-w-[95px] sm:max-w-[140px] truncate block ${stNameClass}">${escapeHtml(st.full_name)}</span>
+        <span class="text-[10px] text-amber-400 font-mono font-black shrink-0">${st.starInfo.starIcons}</span>
       `;
       container.appendChild(pill);
     });
@@ -1989,45 +2007,64 @@ function appendMessage(msg, scroll = true) {
       qData = { question_text: msg.content, admin_name: msg.full_name, duration_minutes: 5, question_number: 1 };
     }
 
+    let durationText = `${qData.duration_minutes || 5} خولەک`;
+    const dur = parseInt(qData.duration_minutes) || 5;
+    if (dur >= 60) {
+      const h = Math.floor(dur / 60);
+      const m = dur % 60;
+      durationText = m > 0 ? `${h} کاتژمێر و ${m} خولەک` : `${h} کاتژمێر`;
+    }
+
     msgElem.className = 'chat-msg-item w-full my-3';
     msgElem.setAttribute('data-question-id', qData.question_id || msg.id);
     msgElem.setAttribute('data-question-number', qData.question_number || '1');
     msgElem.innerHTML = `
-      <div class="question-glow bg-slate-900 border border-amber-500/40 rounded-3xl p-4 md:p-5 shadow-2xl relative overflow-hidden max-w-2xl mx-auto">
-        <div class="flex items-center justify-between mb-2.5 border-b border-amber-500/20 pb-2">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="px-2.5 py-0.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs flex items-center gap-1 shadow">
-              <i class="fa-solid fa-circle-question"></i> پرسیاری ژمارە ${qData.question_number || 1}
-            </span>
-            <span class="text-xs text-amber-200 font-bold">لەلایەن: ${escapeHtml(qData.admin_name || msg.full_name)}</span>
-            <span class="text-[10px] text-indigo-400 font-mono bg-indigo-500/10 px-2 py-0.5 rounded-md">@هەمووان</span>
-            <span class="text-[10px] text-rose-300 font-bold bg-rose-500/15 border border-rose-500/30 px-2 py-0.5 rounded-md">
-              تەوقیت: ${qData.duration_minutes || 5} خولەک
-            </span>
-          </div>
-          <div class="flex items-center gap-2">
+      <div class="question-glow bg-slate-900 border border-amber-500/40 rounded-2xl md:rounded-3xl p-3.5 sm:p-5 shadow-2xl relative overflow-hidden max-w-2xl mx-auto">
+        <!-- Row 1: Question Badge + Date & Staff Controls -->
+        <div class="flex items-center justify-between pb-2 mb-2 border-b border-amber-500/20 gap-2">
+          <span class="px-2.5 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow shrink-0">
+            <i class="fa-solid fa-circle-question text-[11px]"></i>
+            <span>پرسیاری ژمارە #${qData.question_number || 1}</span>
+          </span>
+
+          <div class="flex items-center gap-1.5 shrink-0">
             ${isStaff ? `
-              <button type="button" onclick="openEditQuestionModal(${qData.question_id || msg.id})" class="px-2.5 py-1 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95" title="دەستکاریکردنی ئەم پرسیارە">
-                <i class="fa-solid fa-pen-to-square text-[11px]"></i>
-                <span>دەستکاری</span>
+              <button type="button" onclick="openEditQuestionModal(${qData.question_id || msg.id})" class="px-2 py-1 bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm active:scale-95" title="دەستکاریکردنی ئەم پرسیارە">
+                <i class="fa-solid fa-pen-to-square text-[10px]"></i>
+                <span class="hidden sm:inline">دەستکاری</span>
               </button>
-              <button type="button" onclick="deleteQuestionDirect(${qData.question_id || msg.id}, ${msg.id})" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95" title="سڕینەوەی ئەم پرسیارە">
-                <i class="fa-solid fa-trash-can text-[11px]"></i>
-                <span>سڕینەوە</span>
+              <button type="button" onclick="deleteQuestionDirect(${qData.question_id || msg.id}, ${msg.id})" class="px-2 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm active:scale-95" title="سڕینەوەی ئەم پرسیارە">
+                <i class="fa-solid fa-trash-can text-[10px]"></i>
+                <span class="hidden sm:inline">سڕینەوە</span>
               </button>
             ` : ''}
-            <span class="text-[11px] text-slate-400 font-mono">${dateStr}</span>
+            <span class="text-[10px] text-slate-400 font-mono bg-slate-950/70 border border-slate-800 px-1.5 py-0.5 rounded-md">${dateStr}</span>
           </div>
         </div>
 
-        <div class="my-2.5">
-          <p class="text-sm md:text-base font-black text-white leading-relaxed">
+        <!-- Row 2: Author, Target, and Timer Pills -->
+        <div class="flex items-center gap-2 flex-wrap mb-2 text-[11px]">
+          <span class="text-xs text-amber-200 font-bold flex items-center gap-1">
+            <i class="fa-solid fa-user-pen text-[10px] text-amber-400"></i>
+            <span>لەلایەن: <b>${escapeHtml(qData.admin_name || msg.full_name)}</b></span>
+          </span>
+          <span class="text-[10px] text-indigo-400 font-mono bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-md font-bold">@هەمووان</span>
+          <span class="text-[10px] text-rose-300 font-bold bg-rose-500/15 border border-rose-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+            <i class="fa-regular fa-clock text-[9px]"></i>
+            <span>تەوقیت: ${durationText}</span>
+          </span>
+        </div>
+
+        <!-- Question Text Box -->
+        <div class="my-2.5 p-3 sm:p-4 rounded-2xl bg-slate-950/60 border border-amber-500/15">
+          <p class="text-sm md:text-base font-black text-white leading-relaxed select-text">
             ${escapeHtml(qData.question_text)}
           </p>
         </div>
 
-        <div class="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
-          <div class="text-amber-300 flex items-center gap-1.5 font-bold">
+        <!-- Footer Notice -->
+        <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2 text-xs">
+          <div class="text-amber-300/90 flex items-center gap-1.5 text-[11px] font-bold">
             <i class="fa-solid fa-lock text-amber-400"></i>
             <span>وەڵامەکان بە نهێنی دەمێننەوە تا کۆتایی تەوقیت و پاشان بەیەکەوە لە گروپ بڵاودەبنەوە!</span>
           </div>
@@ -2690,7 +2727,8 @@ function renderPinnedQuestionsBar(questionsList, currentActive) {
     html += `
       <div class="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-950/70 border border-slate-800 text-[10px] font-black text-amber-300 select-none">
         <i class="fa-solid fa-thumbtack text-amber-400 text-[9px]"></i>
-        <span>پرسیارەکانی ئەمڕۆ (${questionsList.length}):</span>
+        <span class="hidden sm:inline">پرسیارەکانی ئەمڕۆ (${questionsList.length}):</span>
+        <span class="sm:hidden">پرسیارەکان (${questionsList.length}):</span>
       </div>
     `;
   }
@@ -2777,7 +2815,7 @@ function renderPinnedQuestionsBar(questionsList, currentActive) {
         ${statusHtml}
 
         <!-- Truncated snippet -->
-        <span class="text-xs text-slate-200 font-medium truncate max-w-[110px] sm:max-w-[200px] block" title="${escapeHtml(qText)}">
+        <span class="text-xs text-slate-200 font-medium truncate max-w-[95px] xs:max-w-[140px] sm:max-w-[220px] block" title="${escapeHtml(qText)}">
           ${escapeHtml(qText)}
         </span>
 

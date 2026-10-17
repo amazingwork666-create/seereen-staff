@@ -270,51 +270,49 @@
   <div id="mainApp" class="hidden flex-1 flex flex-col h-full min-h-0 overflow-hidden">
     
     <!-- TOP NAVBAR -->
-    <header class="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 md:px-5 py-2.5 flex items-center justify-between z-30 shrink-0">
+    <header class="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-2.5 sm:px-4 py-2 flex items-center justify-between z-30 shrink-0 w-full overflow-hidden">
       
-      <!-- Logo & Channel Info -->
-      <div class="flex items-center gap-2.5">
-        <div class="relative">
-          <img src="/images/logo.jpg" alt="ستافی سیرین" class="w-9 h-9 md:w-10 md:h-10 rounded-xl object-cover border border-[#dfaa86]/60 shadow-md shadow-[#dfaa86]/20 ring-1 ring-[#dfaa86]/30">
+      <!-- Logo & Channel Info (Right side in RTL) -->
+      <div class="flex items-center gap-2 min-w-0 shrink-0">
+        <div class="relative shrink-0">
+          <img src="/images/logo.jpg" alt="ستافی سیرین" class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover border border-[#dfaa86]/60 shadow-md shadow-[#dfaa86]/20 ring-1 ring-[#dfaa86]/30">
         </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h2 class="font-black text-sm md:text-base text-transparent bg-clip-text bg-gradient-to-r from-[#ffffff] via-[#fae2cc] to-[#dfaa86]">ستافی سیرین</h2>
-          </div>
-          <p class="text-[11px] text-[#dfaa86]/70 flex items-center gap-1.5 font-bold">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400"></span>
+        <div class="shrink-0 leading-tight">
+          <h2 class="font-black text-xs sm:text-sm text-transparent bg-clip-text bg-gradient-to-r from-white via-[#fae2cc] to-[#dfaa86] truncate">ستافی سیرین</h2>
+          <p class="text-[10px] text-[#dfaa86]/80 flex items-center gap-1 font-bold mt-0.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400"></span>
             <span id="onlineCountText">١ لە هێڵە</span>
           </p>
         </div>
       </div>
 
-      <!-- Header Action Controls & 3-line Hamburger Menu Button -->
-      <div class="flex items-center gap-1.5 md:gap-2.5 shrink-0">
+      <!-- Header Action Controls & 3-line Hamburger Menu Button (Left side in RTL) -->
+      <div class="flex items-center gap-1 sm:gap-2 shrink-0">
         <!-- Live Lesson ("وانە") Button - Always Accessible -->
-        <button id="liveLessonNavBtn" onclick="openLiveLessonModal()" class="relative px-2.5 py-1.5 md:px-3 md:py-1.5 bg-slate-900 border border-slate-800 hover:border-rose-900/60 text-slate-400 font-black text-xs rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-sm active:scale-95" title="ژووری وانەی ڕاستەوخۆ (وانە)">
-          <span id="liveLessonPulseDot" class="w-2.5 h-2.5 rounded-full bg-rose-950 border border-rose-900/60 shrink-0"></span>
-          <i class="fa-solid fa-microphone-lines text-rose-500/60"></i>
-          <span class="hidden xs:inline">وانە</span>
+        <button id="liveLessonNavBtn" onclick="openLiveLessonModal()" class="relative p-1.5 sm:px-2.5 sm:py-1.5 bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-rose-500/50 text-slate-300 font-black text-xs rounded-xl transition flex items-center gap-1 shrink-0 shadow-sm active:scale-95" title="ژووری وانەی ڕاستەوخۆ (وانە)">
+          <span id="liveLessonPulseDot" class="w-2 h-2 rounded-full bg-rose-950 border border-rose-900/60 shrink-0"></span>
+          <i class="fa-solid fa-microphone-lines text-rose-400 text-xs sm:text-sm"></i>
+          <span class="hidden sm:inline font-bold text-xs">وانە</span>
           <span id="liveLessonActiveBadge" class="hidden px-1.5 py-0.2 bg-rose-600 text-white text-[9px] font-black rounded-md animate-pulse">ڕاستەوخۆ</span>
         </button>
 
-        <!-- Dark / Light Mode Toggle Button -->
-        <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2 md:px-2.5 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs rounded-xl transition flex items-center gap-1 active:scale-95" title="گۆڕینی دۆخی مۆد (ڕووناک / تاریک)">
+        <!-- Dark / Light Mode Toggle Button (Desktop only on navbar, accessible via drawer on mobile) -->
+        <button id="themeToggleBtn" onclick="toggleTheme()" class="hidden md:flex p-2 md:px-2.5 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs rounded-xl transition items-center gap-1 active:scale-95" title="گۆڕینی دۆخی مۆد (ڕووناک / تاریک)">
           <i id="themeToggleIcon" class="fa-solid fa-sun text-amber-400"></i>
           <span class="hidden lg:inline" id="themeToggleText">مۆد</span>
         </button>
 
-        <!-- Push Notifications Toggle Button -->
-        <button type="button" id="pushNotificationBtn" onclick="togglePushNotifications()" class="p-2 md:px-2.5 md:py-1.5 bg-slate-900 border border-slate-800 hover:border-indigo-600/60 text-slate-400 font-bold text-xs rounded-xl transition flex items-center gap-1.5 active:scale-95" title="ئاگادارییەکانی مۆبایل (Push Notifications)">
+        <!-- Push Notifications Toggle Button (Desktop only on navbar, accessible via drawer on mobile) -->
+        <button type="button" id="pushNotificationBtn" onclick="togglePushNotifications()" class="hidden md:flex p-2 md:px-2.5 md:py-1.5 bg-slate-900 border border-slate-800 hover:border-indigo-600/60 text-slate-400 font-bold text-xs rounded-xl transition items-center gap-1.5 active:scale-95" title="ئاگادارییەکانی مۆبایل (Push Notifications)">
           <i id="pushNotificationIcon" class="fa-regular fa-bell text-amber-400 text-sm"></i>
           <span class="hidden lg:inline" id="pushNotificationText">ئاگاداری</span>
         </button>
 
         <!-- Current User Pill -->
-        <div onclick="openMyProfile()" class="flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 px-2.5 py-1 rounded-xl cursor-pointer hover:border-slate-600 transition" title="بینینی پرۆفایلی خۆم">
-          <div class="text-right">
-            <div class="flex items-center gap-1">
-              <span id="headerFullName" class="text-xs font-black max-w-[80px] sm:max-w-[120px] truncate block">ناو</span>
+        <div onclick="openMyProfile()" class="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/80 px-2 py-1 rounded-xl cursor-pointer hover:border-slate-600 transition shrink-1 min-w-0 max-w-[120px] xs:max-w-[140px] sm:max-w-[200px]" title="بینینی پرۆفایلی خۆم">
+          <div class="text-right min-w-0 flex-1">
+            <div class="flex items-center gap-1 min-w-0">
+              <span id="headerFullName" class="text-xs font-black max-w-[65px] xs:max-w-[85px] sm:max-w-[120px] truncate block">ناو</span>
               <span id="headerRoleBadge" class="text-[9px] px-1.5 py-0.2 rounded font-extrabold hidden sm:inline-block">پلە</span>
             </div>
             <div id="headerStarBadge" class="text-[10px] text-amber-400 font-semibold flex items-center gap-0.5">
@@ -324,10 +322,10 @@
           </div>
         </div>
 
-        <!-- 3-Lines Main Menu Hamburger Button (سێ خەت) -->
-        <button id="mainMenuBtn" onclick="toggleMainMenuDrawer()" class="relative p-2 md:px-3 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/40 text-amber-400 hover:text-amber-300 font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow active:scale-95" title="مێنیوی هەموو بەشەکان (سێ خەت)">
-          <i class="fa-solid fa-bars text-base"></i>
-          <span class="hidden sm:inline font-bold text-xs">مێنیو</span>
+        <!-- 3-Lines Main Menu Hamburger Button (سێ خەت) - ALWAYS VISIBLE ON FAR LEFT -->
+        <button id="mainMenuBtn" onclick="toggleMainMenuDrawer()" class="relative p-2 sm:px-2.5 sm:py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-400 hover:text-amber-300 font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-md active:scale-95 shrink-0 z-10" title="مێنیوی هەموو بەشەکان (سێ خەت)">
+          <i class="fa-solid fa-bars text-sm sm:text-base"></i>
+          <span class="hidden md:inline font-bold text-xs">مێنیو</span>
           <span id="mainMenuBadgeDot" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"></span>
         </button>
       </div>
@@ -376,6 +374,26 @@
           <button type="button" onclick="closeMainMenuDrawer()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستنی مێنیو">
             <i class="fa-solid fa-xmark text-sm"></i>
           </button>
+        </div>
+
+        <!-- User Profile Preview in Drawer -->
+        <div onclick="closeMainMenuDrawer(); openMyProfile();" class="mx-3 mt-3 p-3 rounded-2xl bg-slate-950/70 border border-amber-500/20 flex items-center justify-between cursor-pointer hover:border-amber-500/40 transition shadow-inner">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div id="drawerUserAvatar" class="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-base shrink-0 shadow">
+              🧔
+            </div>
+            <div class="min-w-0">
+              <h4 id="drawerUserName" class="font-black text-xs text-white truncate">ناو</h4>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span id="drawerUserRoleBadge" class="text-[9px] px-1.5 py-0.2 rounded font-bold bg-indigo-600/30 text-indigo-300 border border-indigo-500/30">قوتابی</span>
+                <span id="drawerUserStars" class="text-[10px] text-amber-400 font-mono font-bold">⭐ (0/10)</span>
+              </div>
+            </div>
+          </div>
+          <span class="text-[10px] text-amber-400 font-bold flex items-center gap-1 shrink-0">
+            <span>پرۆفایل</span>
+            <i class="fa-solid fa-chevron-left text-[9px]"></i>
+          </span>
         </div>
 
         <!-- Drawer Scrollable Content -->
@@ -446,6 +464,15 @@
                 <span id="drawerNotificationText">ئاگاداری مۆبایل و شاشە</span>
               </span>
               <span id="drawerNotificationStatusBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">ناچالاک</span>
+            </button>
+
+            <!-- Theme Mode in Drawer -->
+            <button onclick="toggleTheme()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-circle-half-stroke text-amber-400 text-sm w-5 text-center"></i>
+                <span>گۆڕینی مۆد (ڕووناک / تاریک)</span>
+              </span>
+              <span class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">مۆد</span>
             </button>
 
             <!-- PWA Install -->
@@ -519,13 +546,14 @@
       <main class="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden relative">
         
         <!-- TOP 3 PODIUM WIDGET (VISIBLE TO ALL STUDENTS) -->
-        <div id="topPodiumWidget" class="shrink-0 bg-slate-900/90 border-b border-slate-800/80 px-4 py-2 z-10">
-          <div class="max-w-4xl mx-auto flex items-center justify-between gap-2 overflow-x-auto">
+        <div id="topPodiumWidget" class="shrink-0 bg-slate-900/90 border-b border-slate-800/80 px-2.5 sm:px-4 py-1.5 sm:py-2 z-10">
+          <div class="max-w-4xl mx-auto flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
             <div class="flex items-center gap-1.5 text-xs font-black text-amber-400 shrink-0">
               <i class="fa-solid fa-crown text-amber-400"></i>
-              <span>پێشەنگەکانی زانست:</span>
+              <span class="hidden xs:inline">پێشەنگەکانی زانست:</span>
+              <span class="xs:hidden">پێشەنگ:</span>
             </div>
-            <div id="podiumItems" class="flex items-center gap-3 shrink-0">
+            <div id="podiumItems" class="flex items-center gap-1.5 sm:gap-3 shrink-0">
               <span class="text-xs text-slate-500">لە بارکردندایە...</span>
             </div>
             <button onclick="openLeaderboardModal()" class="text-[11px] text-indigo-400 hover:underline shrink-0 font-bold">
