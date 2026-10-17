@@ -9,7 +9,7 @@ const multer = require('multer');
 const fs = require('fs');
 let archiver;
 try { archiver = require('archiver'); } catch (e) {}
-const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons } = require('./db');
+const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 4000;
@@ -1895,53 +1895,61 @@ app.post('/api/chat/private/upload-voice', authMiddleware, upload.fields([{ name
 });
 
 // 7. Upload Image in Private Chat
-app.post('/api/chat/private/upload-image', authMiddleware, upload.single('image'), (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'هیچ وێنەیەک بارنەکراوە' });
-    const { recipient_id, caption } = req.body;
-    const recId = parseInt(recipient_id);
-    if (!recId) return res.status(400).json({ error: 'وەرگر دیارینەکراوە' });
-
-    const recipient = users.findById(recId);
-    if (!recipient) return res.status(404).json({ error: 'وەرگر نەدۆزرایەوە' });
-
-    const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher';
-    const recIsStaff = recipient.role === 'super_admin' || recipient.role === 'teacher';
-    if (!isStaff && !recIsStaff) {
-      return res.status(403).json({ error: 'تەنها دەتوانیت نامەی تایبەت بۆ مامۆستا و سوپەر ئەدمین بنێریت' });
-    }
-
-    // Gender Rule: Male student cannot message female teacher
-    const isMaleStudent = !isStaff && (req.user.gender === 'male');
-    if (isMaleStudent && recipient.role === 'teacher' && recipient.gender === 'female') {
-      return res.status(403).json({ error: 'بەپێی ڕێنماییەکان، قوتابی کوڕ ناتوانێت وێنە بۆ مامۆستای ئافرەت بنێرێت' });
-    }
-
-    const imageUrl = `/uploads/${req.file.filename}`;
-    const content = (caption && caption.trim()) ? caption.trim() : '🖼️ وێنە';
-    const msg = privateMessages.create(
-      req.user.id,
-      recId,
-      req.user.full_name,
-      req.user.role,
-      content,
-      'image',
-      imageUrl
-    );
-
-    const notifiedSockets = new Set();
-    for (const [sockId, u] of onlineUsers.entries()) {
-      if (u.id === recId && !notifiedSockets.has(sockId)) {
-        notifiedSockets.add(sockId);
-        io.to(sockId).emit('new_private_message', msg);
+app.post('/api/chat/private/upload-image', authMiddleware, (req, res) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'قەبارەی وێنەکە زۆر گەورەیە، تکایە کەمێکی تر هەوڵبدەرەوە' });
       }
+      return res.status(400).json({ error: err.message || 'هەڵە لە بارکردنی فایل' });
     }
+    try {
+      if (!req.file) return res.status(400).json({ error: 'هیچ وێنەیەک بارنەکراوە' });
+      const { recipient_id, caption } = req.body;
+      const recId = parseInt(recipient_id);
+      if (!recId) return res.status(400).json({ error: 'وەرگر دیارینەکراوە' });
 
-    res.json({ success: true, message: msg });
-  } catch (err) {
-    console.error('Private image upload error:', err);
-    res.status(500).json({ error: 'هەڵە لە ناردنی وێنە' });
-  }
+      const recipient = users.findById(recId);
+      if (!recipient) return res.status(404).json({ error: 'وەرگر نەدۆزرایەوە' });
+
+      const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher';
+      const recIsStaff = recipient.role === 'super_admin' || recipient.role === 'teacher';
+      if (!isStaff && !recIsStaff) {
+        return res.status(403).json({ error: 'تەنها دەتوانیت نامەی تایبەت بۆ مامۆستا و سوپەر ئەدمین بنێریت' });
+      }
+
+      // Gender Rule: Male student cannot message female teacher
+      const isMaleStudent = !isStaff && (req.user.gender === 'male');
+      if (isMaleStudent && recipient.role === 'teacher' && recipient.gender === 'female') {
+        return res.status(403).json({ error: 'بەپێی ڕێنماییەکان، قوتابی کوڕ ناتوانێت وێنە بۆ مامۆستای ئافرەت بنێرێت' });
+      }
+
+      const imageUrl = `/uploads/${req.file.filename}`;
+      const content = (caption && caption.trim()) ? caption.trim() : '🖼️ وێنە';
+      const msg = privateMessages.create(
+        req.user.id,
+        recId,
+        req.user.full_name,
+        req.user.role,
+        content,
+        'image',
+        imageUrl
+      );
+
+      const notifiedSockets = new Set();
+      for (const [sockId, u] of onlineUsers.entries()) {
+        if (u.id === recId && !notifiedSockets.has(sockId)) {
+          notifiedSockets.add(sockId);
+          io.to(sockId).emit('new_private_message', msg);
+        }
+      }
+
+      res.json({ success: true, message: msg });
+    } catch (err) {
+      console.error('Private image upload error:', err);
+      res.status(500).json({ error: 'هەڵە لە ناردنی وێنە' });
+    }
+  });
 });
 
 // Translation Proxy Endpoint (Kurdish/Arabic/English)
@@ -2241,7 +2249,10 @@ app.post('/api/dream/message', async (req, res) => {
     const msg = dreamMessages.create(targetSessionId, senderType, senderName, content.trim(), 'text');
     
     // Broadcast message to dream room and dream admins
-    io.to(`dream_${targetSessionId}`).emit('dream_new_message', msg);
+    const dreamerMsg = (senderType === 'teacher' || senderType === 'super_admin')
+      ? { ...msg, sender_name: getDreamTeacherAlias(senderName) }
+      : msg;
+    io.to(`dream_${targetSessionId}`).emit('dream_new_message', dreamerMsg);
     emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: msg });
 
     if (senderType === 'teacher' || senderType === 'super_admin') {
@@ -2268,7 +2279,7 @@ app.post('/api/dream/message', async (req, res) => {
 
       if (isGreeting) {
         setTimeout(() => {
-          const reply = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', 'عَلَيْكُمُ السَّلَامُ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ', 'text');
+          const reply = dreamMessages.create(targetSessionId, 'super_admin', 'مامۆستا ١', 'عَلَيْكُمُ السَّلَامُ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ', 'text');
           io.to(`dream_${targetSessionId}`).emit('dream_new_message', reply);
           emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: reply });
           emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: reply.content });
@@ -2277,19 +2288,20 @@ app.post('/api/dream/message', async (req, res) => {
 
       if (!dreamMessages.hasAutoQuestions(targetSessionId)) {
         setTimeout(() => {
-          const autoQ = `🌸 بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان
+          const autoQ = `بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان
 
 تکایە بۆ ئەوەی خەونەکەت بە جوانترین شێوە لێکبدرێتەوە، ئەم زانیارییانەمان بۆ بنێرە:
 🎙️ ١. خەونەکەت بە نامەیەکی دەنگی (ڤۆیس) بە تەواوی باس بکە.
 👤 ٢. ناو و تەمەنت بڵێ.
 💍 ٣. ئایا هاوسەرگیریت کردووە یان نا؟
 🕌 ٤. ئاینت چییە؟
+💼 ٥. پیشە و ئیشت چییە؟
 
 📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
-          const qMsg = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', autoQ, 'text');
+          const qMsg = dreamMessages.create(targetSessionId, 'super_admin', 'مامۆستا ١', autoQ, 'text');
           io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
           emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
-          emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🌸 پرسیارەکانی لێکدانەوەی خەون' });
+          emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: 'پرسیارەکانی لێکدانەوەی خەون' });
         }, isGreeting ? 1500 : 600);
       }
     }
@@ -2338,7 +2350,10 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
     const content = durationText ? `پەیامی دەنگی (${durationText})` : 'پەیامی دەنگی';
     const msg = dreamMessages.create(targetSessionId, senderType, senderName, content, 'voice', voiceUrl);
 
-    io.to(`dream_${targetSessionId}`).emit('dream_new_message', msg);
+    const dreamerVoiceMsg = (senderType === 'teacher' || senderType === 'super_admin')
+      ? { ...msg, sender_name: getDreamTeacherAlias(senderName) }
+      : msg;
+    io.to(`dream_${targetSessionId}`).emit('dream_new_message', dreamerVoiceMsg);
     emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: msg });
 
     if (senderType === 'teacher' || senderType === 'super_admin') {
@@ -2361,19 +2376,20 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
     // Automated questionnaire if dreamer sends voice as first interaction
     if (senderType === 'dreamer' && !dreamMessages.hasAutoQuestions(targetSessionId)) {
       setTimeout(() => {
-        const autoQ = `🌸 بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان
+        const autoQ = `بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان
 
 تکایە بۆ ئەوەی خەونەکەت بە جوانترین شێوە لێکبدرێتەوە، ئەم زانیارییانەمان بۆ بنێرە:
 🎙️ ١. خەونەکەت بە نامەیەکی دەنگی (ڤۆیس) بە تەواوی باس بکە.
 👤 ٢. ناو و تەمەنت بڵێ.
 💍 ٣. ئایا هاوسەرگیریت کردووە یان نا؟
 🕌 ٤. ئاینت چییە؟
+💼 ٥. پیشە و ئیشت چییە؟
 
 📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
-        const qMsg = dreamMessages.create(targetSessionId, 'super_admin', 'hemn taha', autoQ, 'text');
+        const qMsg = dreamMessages.create(targetSessionId, 'super_admin', 'مامۆستا ١', autoQ, 'text');
         io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
         emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
-        emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: '🌸 پرسیارەکانی لێکدانەوەی خەون' });
+        emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: 'پرسیارەکانی لێکدانەوەی خەون' });
       }, 800);
     }
 

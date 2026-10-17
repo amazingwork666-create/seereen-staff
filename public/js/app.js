@@ -6452,6 +6452,35 @@ function initDreamSocket(dreamToken) {
   });
 }
 
+const dreamClientAliasMap = new Map();
+let nextDynamicClientTeacherIndex = 3;
+
+function toKurdishNumber(n) {
+  const digits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  return String(n).replace(/\d/g, d => digits[d]);
+}
+
+function getDreamTeacherAlias(senderName) {
+  if (!senderName) return 'مامۆستا ١';
+  const clean = String(senderName).trim();
+  const lower = clean.toLowerCase();
+  if (lower.startsWith('مامۆستا ') && /[٠-٩\d]+$/.test(clean)) {
+    return clean;
+  }
+  if (lower.includes('hemn') || lower.includes('هێمن') || lower.includes('taha') || lower.includes('تەها')) {
+    return 'مامۆستا ١';
+  }
+  if (lower.includes('rasti') || lower.includes('ڕاستی') || lower.includes('راستی')) {
+    return 'مامۆستا ٢';
+  }
+  if (dreamClientAliasMap.has(clean)) {
+    return dreamClientAliasMap.get(clean);
+  }
+  const alias = `مامۆستا ${toKurdishNumber(nextDynamicClientTeacherIndex++)}`;
+  dreamClientAliasMap.set(clean, alias);
+  return alias;
+}
+
 function appendDreamMessage(msg, isAdminView = false) {
   if (!msg) return;
   // If dreamer view and message is secret recording -> DO NOT DISPLAY!
@@ -6559,21 +6588,30 @@ function appendDreamMessage(msg, isAdminView = false) {
   }
 
   let senderBadge = '';
-  if (isSuperAdminSender) {
-    senderBadge = '<span class="badge-super-admin-shield inline-flex items-center text-xs select-none mr-1.5" title="سوپەر ئەدمین">🛡️</span>';
-  } else if (isTeacherSender) {
-    senderBadge = '<span class="badge-teacher px-1.5 py-0.5 rounded text-[10px] inline-flex items-center gap-1 select-none mr-1.5 shadow-sm" title="مامۆستا"><i class="fa-solid fa-graduation-cap text-white text-[9px]"></i> مامۆستا</span>';
-  } else {
-    senderBadge = '<span class="text-[9px] font-bold text-purple-300 mr-1.5">خەون بین</span>';
-  }
-
   let senderNameHtml = '';
-  if (isSuperAdminSender) {
-    senderNameHtml = `<span class="user-name-super-admin font-black">${escapeHtml(msg.sender_name)}</span>`;
-  } else if (isTeacherSender) {
-    senderNameHtml = `<span class="text-amber-300 font-black">${escapeHtml(msg.sender_name)}</span>`;
+
+  if (isAdminView) {
+    // Admin & Teacher View: show real names and badges so staff know who handled what
+    if (isSuperAdminSender) {
+      senderBadge = '<span class="badge-super-admin-shield inline-flex items-center text-xs select-none mr-1.5" title="سوپەر ئەدمین">🛡️</span>';
+      senderNameHtml = `<span class="user-name-super-admin font-black">${escapeHtml(msg.sender_name)}</span>`;
+    } else if (isTeacherSender) {
+      senderBadge = '<span class="badge-teacher px-1.5 py-0.5 rounded text-[10px] inline-flex items-center gap-1 select-none mr-1.5 shadow-sm" title="مامۆستا"><i class="fa-solid fa-graduation-cap text-white text-[9px]"></i> مامۆستا</span>';
+      senderNameHtml = `<span class="text-amber-300 font-black">${escapeHtml(msg.sender_name)}</span>`;
+    } else {
+      senderBadge = '<span class="text-[9px] font-bold text-purple-300 mr-1.5">خەون بین</span>';
+      senderNameHtml = `<span>${escapeHtml(msg.sender_name)}</span>`;
+    }
   } else {
-    senderNameHtml = `<span>${escapeHtml(msg.sender_name)}</span>`;
+    // Dreamer View: Mask teacher identity as مامۆستا ١, مامۆستا ٢, etc.
+    if (isStaffSender) {
+      const alias = getDreamTeacherAlias(msg.sender_name);
+      senderBadge = '<span class="badge-teacher px-1.5 py-0.5 rounded text-[10px] inline-flex items-center gap-1 select-none mr-1.5 shadow-sm" title="مامۆستا"><i class="fa-solid fa-graduation-cap text-white text-[9px]"></i> مامۆستا</span>';
+      senderNameHtml = `<span class="text-amber-300 font-black">${escapeHtml(alias)}</span>`;
+    } else {
+      senderBadge = '<span class="text-[9px] font-bold text-purple-300 mr-1.5">خەون بین</span>';
+      senderNameHtml = `<span>${escapeHtml(msg.sender_name)}</span>`;
+    }
   }
 
   const deleteMsgBtnHtml = (isAdminView && currentUser && currentUser.role === 'super_admin' && msg.id) ? `
@@ -8338,7 +8376,7 @@ async function loadPrivateStaffList() {
       html += `
         <div class="pt-1 pb-1 px-1 text-[11px] font-bold text-rose-400 flex items-center gap-1">
           <i class="fa-solid fa-shield-halved"></i>
-          <span>سوپەر ئەدمین</span>
+          <span>ئەدمین</span>
         </div>
       `;
       html += superAdmins.map(s => renderStaffCardHtml(s)).join('');
@@ -8365,7 +8403,7 @@ function renderStaffCardHtml(s) {
   const isCurrent = activePrivateOtherUser && activePrivateOtherUser.id === s.id;
   const activeBg = isCurrent ? 'bg-sky-600/20 border-sky-500/50' : 'bg-slate-900/80 hover:bg-slate-800/80 border-slate-800';
   const roleBadge = s.role === 'super_admin'
-    ? `<span class="px-2 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold">👑 سوپەر ئەدمین</span>`
+    ? `<span class="px-2 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold">ئەدمین</span>`
     : `<span class="px-2 py-0.5 rounded-lg bg-[#552776] text-white text-[10px] font-bold shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-graduation-cap text-white text-[10px]"></i> مامۆستا</span>`;
   const onlineDot = s.is_online 
     ? `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30" title="لەسەر هێڵە"></span>`
@@ -8427,7 +8465,7 @@ async function loadPrivateConversations() {
 
         const isCurrent = activePrivateOtherUser && activePrivateOtherUser.id === otherId;
         const activeBg = isCurrent ? 'bg-sky-600/20 border-sky-500/50' : 'bg-slate-900/60 hover:bg-slate-800/80 border-slate-800';
-        const roleLabel = otherRole === 'super_admin' ? 'سوپەر ئەدمین' : (otherRole === 'teacher' ? 'مامۆستا' : 'قوتابی');
+        const roleLabel = otherRole === 'super_admin' ? 'ئەدمین' : (otherRole === 'teacher' ? 'مامۆستا' : 'قوتابی');
         const roleColor = otherRole === 'teacher' ? 'text-amber-400' : (otherRole === 'super_admin' ? 'text-rose-400' : 'text-sky-400');
         const lastTime = c.last_message_at ? new Date(c.last_message_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
         const unreadHtml = c.unread_count > 0 
@@ -8502,7 +8540,7 @@ async function openPrivateChatWithUser(targetUserId, targetName, targetRole, tar
   const avatarEl = document.getElementById('privateChatTargetAvatar');
   if (nameEl) nameEl.innerText = targetName;
   if (roleEl) {
-    roleEl.innerText = targetRole === 'super_admin' ? 'سوپەر ئەدمین' : (targetRole === 'teacher' ? 'مامۆستا' : 'قوتابی');
+    roleEl.innerText = targetRole === 'super_admin' ? 'ئەدمین' : (targetRole === 'teacher' ? 'مامۆستا' : 'قوتابی');
   }
   if (avatarEl) {
     avatarEl.innerText = getGenderEmoji(targetGender);
@@ -8727,18 +8765,72 @@ function cancelPrivateVoiceRecording() {
   if (bar) bar.classList.add('hidden');
 }
 
-// Image upload in private chat
+// Image compression helper for private chat and general media
+async function compressImageForUpload(file, maxDimension = 1600, quality = 0.82) {
+  if (!file || !file.type || !file.type.startsWith('image/')) return file;
+  if (file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.naturalWidth || img.width;
+        let height = img.naturalHeight || img.height;
+        if (!width || !height) return resolve(file);
+
+        if (file.size < 400 * 1024 && width <= maxDimension && height <= maxDimension && (file.type === 'image/jpeg' || file.type === 'image/png')) {
+          return resolve(file);
+        }
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (!blob) return resolve(file);
+          const baseName = (file.name || 'image').replace(/\.[^/.]+$/, '');
+          const compressed = new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
+          resolve(compressed);
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+
+// Image upload in private chat with automatic compression
 async function uploadPrivateImage(input) {
   if (!input || !input.files || input.files.length === 0 || !activePrivateOtherUser) return;
-  const file = input.files[0];
+  const rawFile = input.files[0];
   input.value = '';
 
-  const formData = new FormData();
-  formData.append('recipient_id', activePrivateOtherUser.id);
-  formData.append('image', file);
+  showLiveToastNotification('وێنەکە لە ئامادەکردن و بارکردندایە... 🖼️', 'emerald');
 
   try {
-    showLiveToastNotification('وێنەکە لە بارکردندایە... 🖼️', 'emerald');
+    const fileToUpload = await compressImageForUpload(rawFile);
+
+    const formData = new FormData();
+    formData.append('recipient_id', activePrivateOtherUser.id);
+    formData.append('image', fileToUpload);
+
     const res = await fetch('/api/chat/private/upload-image', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` },
@@ -8748,6 +8840,7 @@ async function uploadPrivateImage(input) {
     if (res.ok && data.message) {
       appendPrivateMessageToThread(data.message, true);
       loadPrivateConversations();
+      showLiveToastNotification('وێنەکە بە سەرکەوتوویی نێردرا ✨', 'emerald');
     } else {
       alert(data.error || 'نەتوانرا وێنەکە بنێردرێت');
     }
@@ -8758,25 +8851,63 @@ async function uploadPrivateImage(input) {
 }
 
 function openPrivateImageModal(src) {
-  let modal = document.getElementById('privateImagePreviewModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'privateImagePreviewModal';
-    modal.className = 'fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md cursor-pointer';
-    modal.onclick = () => modal.remove();
-    modal.innerHTML = `
-      <div class="relative max-w-2xl max-h-[90vh] flex flex-col items-center" onclick="event.stopPropagation()">
-        <img id="privatePreviewImg" src="" class="max-w-full max-h-[85vh] rounded-2xl object-contain shadow-2xl border border-slate-700">
-        <button onclick="document.getElementById('privateImagePreviewModal').remove()" class="mt-3 px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition">
-          داخستن ✕
+  if (!src) return;
+  const existing = document.getElementById('privateImagePreviewModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'privateImagePreviewModal';
+  modal.className = 'fixed inset-0 z-[999999] flex flex-col items-center justify-center p-3 sm:p-6 bg-slate-950/95 backdrop-blur-md select-none animate-in fade-in duration-200';
+  modal.onclick = (e) => {
+    if (e.target === modal) modal.remove();
+  };
+
+  modal.innerHTML = `
+    <div class="relative max-w-4xl w-full max-h-[92vh] flex flex-col items-center" onclick="event.stopPropagation()">
+      <!-- Top Action Bar -->
+      <div class="w-full flex items-center justify-between gap-2 mb-2 px-2 text-white">
+        <div class="flex items-center gap-2">
+          <a href="${escapeHtml(src)}" download target="_blank" class="px-3 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-sky-400 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-700/60 shadow-sm" title="داگرتنی وێنە">
+            <i class="fa-solid fa-download"></i>
+            <span>داگرتن</span>
+          </a>
+          <a href="${escapeHtml(src)}" target="_blank" class="px-3 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-700/60 shadow-sm" title="کردنەوە لە پەڕەیەکی نوێ">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            <span class="hidden xs:inline">کردنەوە لە پەڕەی تر</span>
+          </a>
+        </div>
+        <button onclick="document.getElementById('privateImagePreviewModal')?.remove()" class="px-3 py-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm">
+          <span>داخستن</span>
+          <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
-    `;
-    document.body.appendChild(modal);
-  }
-  const img = document.getElementById('privatePreviewImg');
-  if (img) img.src = src;
-  modal.classList.remove('hidden');
+
+      <!-- Image Box with Loading Spinner -->
+      <div class="relative w-full flex items-center justify-center min-h-[220px]">
+        <div id="privatePreviewSpinner" class="absolute inset-0 flex flex-col items-center justify-center text-sky-400 gap-2">
+          <i class="fa-solid fa-circle-notch fa-spin text-2xl"></i>
+          <span class="text-xs text-slate-400 font-medium">وێنەکە لە بارکردندایە...</span>
+        </div>
+        <img id="privatePreviewImg" 
+             src="${escapeHtml(src)}" 
+             alt="وێنەی گەورەکراو" 
+             class="max-w-full max-h-[80vh] rounded-2xl object-contain shadow-2xl border border-slate-700/80 transition opacity-0 duration-200"
+             onload="this.classList.remove('opacity-0'); document.getElementById('privatePreviewSpinner')?.remove();"
+             onerror="const sp = document.getElementById('privatePreviewSpinner'); if(sp) sp.innerHTML = '<div class=\\'text-rose-400 text-xs font-bold\\'>⚠️ نەتوانرا وێنەکە پیشانبدرێت. <a href=\\'${escapeHtml(src)}\\' target=\\'_blank\\' class=\\'underline text-sky-400 ml-1\\'>کردنەوەی ڕاستەوخۆ</a></div>';"
+        >
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      modal.remove();
+      document.removeEventListener('keydown', escHandler);
+    }
+  };
+  document.addEventListener('keydown', escHandler);
 }
 
 let isSendingPrivateMessage = false;

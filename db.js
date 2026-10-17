@@ -1000,6 +1000,40 @@ const dreamSessions = {
   }
 };
 
+const dreamTeacherAliasMap = new Map();
+dreamTeacherAliasMap.set('hemn taha', 'مامۆستا ١');
+dreamTeacherAliasMap.set('hemntjabar', 'مامۆستا ١');
+dreamTeacherAliasMap.set('ڕاستی', 'مامۆستا ٢');
+dreamTeacherAliasMap.set('مامۆستا ڕاستی', 'مامۆستا ٢');
+
+let nextDynamicTeacherIndex = 3;
+
+function toKurdishNumber(n) {
+  const digits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  return String(n).replace(/\d/g, d => digits[d]);
+}
+
+function getDreamTeacherAlias(senderName) {
+  if (!senderName) return 'مامۆستا ١';
+  const clean = senderName.trim();
+  const lower = clean.toLowerCase();
+  if (lower.startsWith('مامۆستا ') && /[٠-٩\d]+$/.test(clean)) {
+    return clean;
+  }
+  if (lower.includes('hemn') || lower.includes('هێمن') || lower.includes('taha') || lower.includes('تەها')) {
+    return 'مامۆستا ١';
+  }
+  if (lower.includes('rasti') || lower.includes('ڕاستی') || lower.includes('راستی')) {
+    return 'مامۆستا ٢';
+  }
+  if (dreamTeacherAliasMap.has(clean)) {
+    return dreamTeacherAliasMap.get(clean);
+  }
+  const alias = `مامۆستا ${toKurdishNumber(nextDynamicTeacherIndex++)}`;
+  dreamTeacherAliasMap.set(clean, alias);
+  return alias;
+}
+
 const dreamMessages = {
   create(sessionId, senderType, senderName, content, type = 'text', attachmentUrl = null, isSecretRecording = 0) {
     const now = Date.now();
@@ -1038,7 +1072,13 @@ const dreamMessages = {
   getBySessionForDreamer(sessionId) {
     // Dreamer NEVER gets secret recordings!
     const stmt = db.prepare('SELECT * FROM dream_messages WHERE session_id = ? AND is_secret_recording = 0 ORDER BY created_at ASC');
-    return stmt.all(sessionId);
+    const msgs = stmt.all(sessionId);
+    return msgs.map(m => {
+      if (m.sender_type === 'super_admin' || m.sender_type === 'teacher') {
+        return { ...m, sender_name: getDreamTeacherAlias(m.sender_name) };
+      }
+      return m;
+    });
   },
   findById(id) {
     try {
@@ -1427,5 +1467,6 @@ module.exports = {
   pushSubscriptions,
   calculateStars,
   liveRecordings,
-  recordedLessons
+  recordedLessons,
+  getDreamTeacherAlias
 };
