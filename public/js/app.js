@@ -142,10 +142,8 @@ function calculateStars(correctCount) {
 // Name color classification based on role and gender
 function getUserNameClass(user) {
   if (!user) return 'user-name-boy';
-  const name = (user.full_name || '').toLowerCase().trim();
   const uname = (user.username || '').toLowerCase().trim();
-  const rawName = (user.full_name || '').trim();
-  const isSuper = user.role === 'super_admin' || uname === 'admin' || uname === 'hemn' || name === 'hemn taha' || rawName === 'هێمن تەها' || rawName.includes('هێمن') || name.includes('hemn');
+  const isSuper = user.role === 'super_admin' || uname === 'admin' || uname === 'hemntjabar';
   if (isSuper) {
     return 'user-name-super-admin';
   }
@@ -168,10 +166,8 @@ function formatUserDisplayName(user) {
   if (!user) return '';
   let prefix = '';
   let suffix = '';
-  const name = (user.full_name || '').toLowerCase().trim();
   const uname = (user.username || '').toLowerCase().trim();
-  const rawName = (user.full_name || '').trim();
-  const isSuper = user.role === 'super_admin' || uname === 'admin' || uname === 'hemn' || name === 'hemn taha' || rawName === 'هێمن تەها' || rawName.includes('هێمن') || name.includes('hemn');
+  const isSuper = user.role === 'super_admin' || uname === 'admin' || uname === 'hemntjabar';
 
   if (user.role === 'guest') {
     prefix = '👁️ ';
@@ -1296,6 +1292,10 @@ function initSocket() {
     handleLivePeerLeft(data);
   });
 
+  socket.on('live_peer_mic_state', (data) => {
+    handleLivePeerMicState(data);
+  });
+
   socket.on('live_audio_chunk', (data) => {
     handleLiveAudioChunk(data);
   });
@@ -1676,7 +1676,7 @@ function appendMessage(msg, scroll = true) {
   }
 
   // 3. REGULAR MESSAGES (TEXT, VOICE, IMAGE)
-  const isMsgSuperAdmin = msg.role === 'super_admin' || (msg.username && msg.username.toLowerCase() === 'hemntjabar') || (msg.full_name && (msg.full_name.toLowerCase().includes('hemn') || msg.full_name.includes('هێمن')));
+  const isMsgSuperAdmin = msg.role === 'super_admin' || (msg.username && (msg.username.toLowerCase() === 'hemntjabar' || msg.username.toLowerCase() === 'admin'));
   const roleBadge = isMsgSuperAdmin ? renderRoleBadge('super_admin') : renderRoleBadge(msg.role);
   const starBadge = (msg.role === 'student' || msg.role === 'new_student') ? renderStarBadge(msg.correct_answers_count || 0) : '';
   const nameColorClass = getUserNameClass(msg);
@@ -7576,7 +7576,7 @@ async function toggleLiveMic() {
       currentUser.role === 'super_admin' || 
       currentUser.role === 'teacher' || 
       currentUser.role === 'admin' ||
-      currentUser.username === 'hemn taha'
+      currentUser.username === 'hemntjabar'
     );
     const hasPermission = isStaff || localMicPermissionGranted || (myParticipant && myParticipant.hasMicPermission);
 
@@ -8181,53 +8181,121 @@ function handleLiveScreenStopped() {
 // 6. LIVE WEBRTC REAL-TIME PEER-TO-PEER ENGINE (AUDIO & SCREEN SHARE)
 // =========================================================================
 
-async function broadcastLiveMediaToPeer(targetSocketId) {
-  if (!targetSocketId || targetSocketId === socket.id) return;
+function createOrGetLivePeerConnection(peerSocketId) {
+  if (!peerSocketId || peerSocketId === socket.id) return null;
 
-  let pc = livePeerConnections.get(targetSocketId);
+  let pc = livePeerConnections.get(peerSocketId);
+  if (pc && pc.connectionState !== 'closed' && pc.connectionState !== 'failed') {
+    return pc;
+  }
+
   if (pc) {
     try { pc.close(); } catch (e) {}
-    livePeerConnections.delete(targetSocketId);
+    livePeerConnections.delete(peerSocketId);
   }
 
   pc = new RTCPeerConnection(rtcLiveIceConfig);
-  livePeerConnections.set(targetSocketId, pc);
+  livePeerConnections.set(peerSocketId, pc);
 
-  // 1. Add screen video and audio tracks if local screen sharing is active
-  if (localLiveScreenStream) {
-    localLiveScreenStream.getTracks().forEach(track => {
-      try { pc.addTrack(track, localLiveScreenStream); } catch (e) {}
-    });
-  }
-
-  // 2. Add microphone audio track if mic is active and unmuted
-  if (localLiveAudioStream && !isLocalMicMuted) {
-    localLiveAudioStream.getAudioTracks().forEach(track => {
-      if (track.enabled) {
-        try { pc.addTrack(track, localLiveAudioStream); } catch (e) {}
+  // 1. Inbound tracks handler (Works for BOTH offerer and answerer!)
+  pc.ontrack = (event) => {
+    const stream = (event.streams && event.streams[0]) || new MediaStream([event.track]);
+    if (event.track.kind === 'video') {
+      const video = document.getElementById('liveScreenVideo');
+      const screenContainer = document.getElementById('liveScreenContainer');
+      const standbyBox = document.getElementById('liveStandbyBox');
+      if (video) {
+        video.srcObject = stream;
+        video.playsInline = true;
+        video.autoplay = true;
+        video.muted = true;
+        video.play().catch(e => console.log('Live screen video play:', e));
       }
-    });
-  }
+      if (screenContainer) screenContainer.classList.remove('hidden');
+      if (standbyBox) standbyBox.classList.add('hidden');
+    } else if (event.track.kind === 'audio') {
+      handleIncomingLiveAudio(event.track, stream, peerSocketId);
+    }
+  };
 
+  // 2. ICE candidates
   pc.onicecandidate = (event) => {
     if (event.candidate) {
       socket.emit('live_signal', {
-        to: targetSocketId,
+        to: peerSocketId,
         type: 'candidate',
         candidate: event.candidate
       });
     }
   };
 
+  // 3. Connection state changes
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
       try { pc.close(); } catch (e) {}
-      livePeerConnections.delete(targetSocketId);
+      livePeerConnections.delete(peerSocketId);
     }
   };
 
+  return pc;
+}
+
+function syncLocalTracksToPC(pc) {
+  if (!pc) return;
+  const senders = pc.getSenders();
+
+  // Screen share tracks
+  if (localLiveScreenStream) {
+    localLiveScreenStream.getTracks().forEach(track => {
+      const existing = senders.find(s => s.track && s.track.kind === track.kind);
+      if (existing) {
+        try { existing.replaceTrack(track); } catch (e) {}
+      } else {
+        try { pc.addTrack(track, localLiveScreenStream); } catch (e) {}
+      }
+    });
+  }
+
+  // Microphone audio tracks
+  if (localLiveAudioStream && !isLocalMicMuted) {
+    localLiveAudioStream.getAudioTracks().forEach(track => {
+      if (track.enabled) {
+        const existing = senders.find(s => s.track && s.track.kind === 'audio');
+        if (existing) {
+          try { existing.replaceTrack(track); } catch (e) {}
+        } else {
+          try { pc.addTrack(track, localLiveAudioStream); } catch (e) {}
+        }
+      }
+    });
+  }
+
+  // Ensure audio transceiver exists so audio can ALWAYS be received both ways
+  const hasAudioSender = pc.getSenders().some(s => s.track && s.track.kind === 'audio');
+  if (!hasAudioSender) {
+    const transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
+    const hasAudioTransceiver = transceivers.some(t => t.receiver && t.receiver.track && t.receiver.track.kind === 'audio');
+    if (!hasAudioTransceiver) {
+      try {
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+      } catch (e) {}
+    }
+  }
+}
+
+async function broadcastLiveMediaToPeer(targetSocketId) {
+  if (!targetSocketId || targetSocketId === socket.id) return;
+
+  const pc = createOrGetLivePeerConnection(targetSocketId);
+  if (!pc) return;
+
+  syncLocalTracksToPC(pc);
+
   try {
-    const offer = await pc.createOffer();
+    const offer = await pc.createOffer({
+      offerToReceiveAudio: true,
+      offerToReceiveVideo: true
+    });
     await pc.setLocalDescription(offer);
     socket.emit('live_signal', {
       to: targetSocketId,
@@ -8267,9 +8335,7 @@ async function handleLiveSignal(data) {
 
   try {
     if (data.type === 'request_stream') {
-      if (localLiveScreenStream || (localLiveAudioStream && !isLocalMicMuted)) {
-        broadcastLiveMediaToPeer(fromSocketId);
-      }
+      broadcastLiveMediaToPeer(fromSocketId);
       return;
     }
 
@@ -8277,41 +8343,11 @@ async function handleLiveSignal(data) {
       let pc = livePeerConnections.get(fromSocketId);
       if (pc) {
         try { pc.close(); } catch (e) {}
+        livePeerConnections.delete(fromSocketId);
       }
 
-      pc = new RTCPeerConnection(rtcLiveIceConfig);
-      livePeerConnections.set(fromSocketId, pc);
-
-      pc.ontrack = (event) => {
-        const stream = (event.streams && event.streams[0]) || new MediaStream([event.track]);
-        
-        if (event.track.kind === 'video') {
-          const video = document.getElementById('liveScreenVideo');
-          const screenContainer = document.getElementById('liveScreenContainer');
-          const standbyBox = document.getElementById('liveStandbyBox');
-          if (video) {
-            video.srcObject = stream;
-            video.playsInline = true;
-            video.autoplay = true;
-            video.muted = true; // Essential: allows autoplay without user interaction block
-            video.play().catch(e => console.log('Live screen video play:', e));
-          }
-          if (screenContainer) screenContainer.classList.remove('hidden');
-          if (standbyBox) standbyBox.classList.add('hidden');
-        } else if (event.track.kind === 'audio') {
-          handleIncomingLiveAudio(event.track, stream, fromSocketId);
-        }
-      };
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          socket.emit('live_signal', {
-            to: fromSocketId,
-            type: 'candidate',
-            candidate: event.candidate
-          });
-        }
-      };
+      pc = createOrGetLivePeerConnection(fromSocketId);
+      syncLocalTracksToPC(pc);
 
       await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
 
@@ -8368,29 +8404,58 @@ async function handleLiveSignal(data) {
 }
 
 function handleIncomingLiveAudio(track, stream, fromSocketId) {
+  if (!track) return;
+  const mediaStream = stream || new MediaStream([track]);
+
+  // 1. Dual output A: Off-screen unmuted HTML5 Audio element
   let audioElem = document.getElementById(`live_audio_${fromSocketId}`);
   if (!audioElem) {
     audioElem = document.createElement('audio');
     audioElem.id = `live_audio_${fromSocketId}`;
     audioElem.autoplay = true;
     audioElem.playsInline = true;
-    audioElem.className = 'hidden';
+    // Offscreen positioning to avoid display:none media pipeline suspension
+    audioElem.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0.01;pointer-events:none;';
     document.body.appendChild(audioElem);
   }
-  audioElem.srcObject = new MediaStream([track]);
-  audioElem.muted = false;
-  audioElem.play().catch(err => {
-    console.log('Live audio autoplay need interaction:', err);
-    const unlockAudio = () => {
-      audioElem.play().catch(() => {});
-      document.removeEventListener('click', unlockAudio);
-      document.removeEventListener('touchstart', unlockAudio);
-    };
-    document.addEventListener('click', unlockAudio, { once: true });
-    document.addEventListener('touchstart', unlockAudio, { once: true });
-  });
 
-  // Apply current audio output volume / mode
+  audioElem.srcObject = mediaStream;
+  audioElem.muted = false;
+
+  const playAudio = () => {
+    audioElem.play().catch(err => {
+      console.log('Live audio element playback waiting for gesture:', err);
+    });
+  };
+
+  playAudio();
+  track.onunmute = () => {
+    playAudio();
+    try {
+      if (liveAudioContext && liveAudioContext.state === 'suspended') {
+        liveAudioContext.resume().catch(() => {});
+      }
+    } catch (e) {}
+  };
+
+  // 2. Dual output B: Web Audio API direct hardware audio destination
+  try {
+    if (!liveAudioContext || liveAudioContext.state === 'closed') {
+      liveAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (liveAudioContext.state === 'suspended') {
+      liveAudioContext.resume().catch(() => {});
+    }
+    const srcNode = liveAudioContext.createMediaStreamSource(mediaStream);
+    const gainNode = liveAudioContext.createGain();
+    gainNode.gain.value = 1.0;
+    srcNode.connect(gainNode);
+    gainNode.connect(liveAudioContext.destination);
+  } catch (e) {
+    console.log('WebAudio live direct routing note:', e);
+  }
+
+  // Apply volume / earphone mode
   applyLiveAudioOutputMode(audioElem);
 }
 
@@ -8407,14 +8472,26 @@ function applyLiveAudioOutputMode(audioElem) {
 
 function handleLivePeerJoined(data) {
   if (!data || !data.socketId) return;
-  if (localLiveScreenStream || (localLiveAudioStream && !isLocalMicMuted)) {
-    broadcastLiveMediaToPeer(data.socketId);
-  }
+  broadcastLiveMediaToPeer(data.socketId);
 }
 
 function handleLivePeerLeft(data) {
   if (!data || !data.socketId) return;
   closeLivePeerConnection(data.socketId);
+}
+
+function handleLivePeerMicState(data) {
+  if (!data || !data.socketId) return;
+  if (!data.isMuted && data.socketId !== socket.id) {
+    // When an attendee un-mutes, immediately ensure connection and request their audio stream
+    const pc = livePeerConnections.get(data.socketId);
+    if (!pc || pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      socket.emit('live_signal', {
+        to: data.socketId,
+        type: 'request_stream'
+      });
+    }
+  }
 }
 
 function handleLiveAudioChunk(data) {
