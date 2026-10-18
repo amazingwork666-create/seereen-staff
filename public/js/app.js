@@ -249,6 +249,49 @@ function renderStarBadge(correctCount, role = 'student') {
   `;
 }
 
+function isMasterSuperAdmin(user) {
+  if (!user) return false;
+  return user.role === 'super_admin' && (user.username === 'hemntjabar' || user.id === 1);
+}
+
+function hasSuperAdminPrivileges(user) {
+  if (!user) return false;
+  if (isMasterSuperAdmin(user) || user.role === 'super_admin') return true;
+  return user.special_badge === 'black';
+}
+
+function canUserManageMembers(user) {
+  if (!user) return false;
+  if (hasSuperAdminPrivileges(user)) return true;
+  return user.special_badge === 'green';
+}
+
+function canUserLockChat(user) {
+  if (!user) return false;
+  if (hasSuperAdminPrivileges(user)) return true;
+  return user.special_badge === 'green';
+}
+
+function canUserManageLive(user) {
+  if (!user) return false;
+  if (hasSuperAdminPrivileges(user)) return true;
+  return user.special_badge === 'green' || user.special_badge === 'red';
+}
+
+function renderSpecialBadgeHtml(badge) {
+  if (!badge) return '';
+  if (badge === 'green') {
+    return `<span class="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> باجی سەوز</span>`;
+  }
+  if (badge === 'black') {
+    return `<span class="px-1.5 py-0.5 rounded-md bg-slate-950 text-slate-100 border border-slate-700 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> باجی ڕەش</span>`;
+  }
+  if (badge === 'red') {
+    return `<span class="px-1.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> باجی سور</span>`;
+  }
+  return '';
+}
+
 // Link detector
 function containsLink(text) {
   if (!text) return false;
@@ -775,8 +818,9 @@ function updateUserUI() {
   const liveQuranStudentNotice = document.getElementById('liveQuranStudentNotice');
   const liveRecordBtn = document.getElementById('liveRecordBtn');
 
-  // Start/End Lesson & Screen share: Super Admin & Teacher ONLY (strictly hidden from students)
-  if (isSuperAdmin || isTeacher) {
+  // Start/End Lesson & Screen share: Super Admin or Special Badge holders (strictly hidden from normal teachers/admins/students)
+  const canLive = canUserManageLive(currentUser);
+  if (canLive) {
     if (liveStartEndBtn) {
       liveStartEndBtn.classList.remove('hidden');
       liveStartEndBtn.classList.add('flex');
@@ -800,8 +844,8 @@ function updateUserUI() {
     }
   }
 
-  // Quran changing controls & Recording button: visible to Super Admin, Teacher, and Admin ONLY
-  if (isAdmin) {
+  // Quran changing controls & Recording button: visible to live managers (Super Admin or badge holders)
+  if (canLive) {
     if (liveQuranAdminControls) liveQuranAdminControls.classList.remove('hidden');
     if (liveQuranStudentNotice) liveQuranStudentNotice.classList.add('hidden');
     if (liveRecordBtn) {
@@ -1508,6 +1552,23 @@ function initSocket() {
       if (profAvatar) {
         profAvatar.innerHTML = `<img src="${escapeHtml(data.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-2xl pointer-events-none select-none no-zoom-avatar" style="width:100%;height:100%;max-width:100%;max-height:100%;object-fit:cover;" draggable="false" oncontextmenu="return false;">`;
       }
+    }
+  });
+
+  socket.on('user_special_badge_updated', (data) => {
+    if (currentUser && currentUser.id === data.user_id) {
+      currentUser.special_badge = data.special_badge;
+      setupUIForRole();
+    }
+    if (Array.isArray(allMembersCache)) {
+      const u = allMembersCache.find(m => Number(m.id) === Number(data.user_id));
+      if (u) {
+        u.special_badge = data.special_badge;
+        renderMembersList();
+      }
+    }
+    if (typeof currentProfileUserId !== 'undefined' && currentProfileUserId === data.user_id) {
+      openUserProfileModal(data.user_id);
     }
   });
 
@@ -2713,7 +2774,7 @@ function updateChatLockUI(data) {
 }
 
 async function unlockChatBySuperAdmin() {
-  if (!token || !currentUser || currentUser.role !== 'super_admin') return;
+  if (!token || !currentUser || !canUserLockChat(currentUser)) return;
   try {
     const res = await fetch('/api/chat/lock', {
       method: 'POST',
@@ -2739,10 +2800,10 @@ function handleSendMessage(e) {
   const content = input.value.trim();
   if (!content) return;
 
-  // Chat lock command check (Super Admin only)
+  // Chat lock command check (Super Admin or Green/Black Badge)
   const isLockCmd = content.includes('@قفڵ') || content.includes('@قفل') || content.includes('@کلیل') || content.includes('@كليل');
-  if (isLockCmd && currentUser && currentUser.role !== 'super_admin') {
-    alert('❌ تەنها سوپەر ئەدمین دەسەڵاتی قفڵکردن یان کردنەوەی چاتی هەیە!');
+  if (isLockCmd && currentUser && !canUserLockChat(currentUser)) {
+    alert('❌ تەنها سوپەر ئەدمین و خاوەن باجی ڕێگەپێدراو دەسەڵاتی قفڵکردن یان کردنەوەی چاتیان هەیە!');
     return;
   }
 
@@ -4397,8 +4458,9 @@ function renderMembersList() {
               ${isMe ? '<span class="text-[9px] text-indigo-400 font-normal shrink-0">(تۆ)</span>' : ''}
               ${isMuted ? '<span class="text-[9px] bg-rose-500/20 text-rose-300 px-1 py-0.2 rounded border border-rose-500/30 font-bold shrink-0">🔇 سڕکراوە</span>' : ''}
             </div>
-            <div class="flex items-center gap-1.5 mt-1">
+            <div class="flex items-center gap-1.5 mt-1 flex-wrap">
               ${roleBadge}
+              ${renderSpecialBadgeHtml(u.special_badge)}
             </div>
           </div>
         </div>
@@ -4532,6 +4594,17 @@ async function openUserProfileModal(userId) {
     usernameEl.innerText = `@${prof.username}`;
     genderEl.innerHTML = `<span class="text-base select-none">${getGenderEmoji(prof.gender)}</span>`;
     roleEl.innerHTML = renderRoleBadge(prof.role, prof.gender);
+
+    const specialBadgeSlot = document.getElementById('profSpecialBadgeSlot');
+    if (specialBadgeSlot) {
+      if (prof.special_badge) {
+        specialBadgeSlot.innerHTML = renderSpecialBadgeHtml(prof.special_badge);
+        specialBadgeSlot.classList.remove('hidden');
+      } else {
+        specialBadgeSlot.innerHTML = '';
+        specialBadgeSlot.classList.add('hidden');
+      }
+    }
 
     const isSuperAdminAccount = prof.role === 'super_admin';
     const regStatsGrid = document.getElementById('profRegularStatsGrid');
@@ -4676,11 +4749,42 @@ async function openUserProfileModal(userId) {
       }
     }
 
-    if (isPrivileged && !isMe) {
+    const canManageThisUser = canUserManageMembers(currentUser);
+    const targetIsMaster = isMasterSuperAdmin(prof);
+
+    // Master Super Admin: Special Badges Panel (باجە تایبەتەکان)
+    const badgeAdminCard = document.getElementById('profSpecialBadgeAdminCard');
+    const activeBadgeTag = document.getElementById('profActiveBadgeTag');
+    const btnGreen = document.getElementById('badgeBtnGreen');
+    const btnBlack = document.getElementById('badgeBtnBlack');
+    const btnRed = document.getElementById('badgeBtnRed');
+
+    if (badgeAdminCard) {
+      if (isMasterSuperAdmin(currentUser) && !isMe && !targetIsMaster) {
+        badgeAdminCard.classList.remove('hidden');
+        const b = prof.special_badge || null;
+        if (activeBadgeTag) {
+          if (b === 'green') activeBadgeTag.innerHTML = '<span class="text-emerald-400 font-black">باجی سەوز چالاکە 🟢</span>';
+          else if (b === 'black') activeBadgeTag.innerHTML = '<span class="text-slate-300 font-black">باجی ڕەش چالاکە ⚫</span>';
+          else if (b === 'red') activeBadgeTag.innerHTML = '<span class="text-rose-400 font-black">باجی سور چالاکە 🔴</span>';
+          else activeBadgeTag.innerHTML = '<span class="text-slate-400 font-bold">بێ باج</span>';
+        }
+        [btnGreen, btnBlack, btnRed].forEach(btn => {
+          if (btn) btn.classList.remove('ring-2', 'ring-indigo-400', 'bg-indigo-950/80');
+        });
+        if (b === 'green' && btnGreen) btnGreen.classList.add('ring-2', 'ring-indigo-400');
+        if (b === 'black' && btnBlack) btnBlack.classList.add('ring-2', 'ring-indigo-400');
+        if (b === 'red' && btnRed) btnRed.classList.add('ring-2', 'ring-indigo-400');
+      } else {
+        badgeAdminCard.classList.add('hidden');
+      }
+    }
+
+    if ((isPrivileged || canManageThisUser) && !isMe && !targetIsMaster) {
       superAdminActions.classList.remove('hidden');
       let roleChangeHtml = '';
       let renameActionHtml = '';
-      if (isSuperAdmin) {
+      if (canManageThisUser) {
         roleChangeHtml = `
           <div class="flex items-center gap-1.5">
             <span class="text-[11px] text-slate-400 font-bold">پلە:</span>
@@ -4694,7 +4798,7 @@ async function openUserProfileModal(userId) {
           </div>
         `;
         renameActionHtml = `
-          <button onclick="promptAdminEditUserName(${prof.id}, '${escapeHtml(prof.full_name)}')" class="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow active:scale-95" title="دەستکاریکردنی ناوی ئەم ئەکاونتە لەلایەن سوپەر ئەدمین">
+          <button onclick="promptAdminEditUserName(${prof.id}, '${escapeHtml(prof.full_name)}')" class="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow active:scale-95" title="دەستکاریکردنی ناوی ئەم ئەکاونتە">
             <i class="fa-solid fa-user-pen"></i> گۆڕینی ناو
           </button>
         `;
@@ -4718,7 +4822,7 @@ async function openUserProfileModal(userId) {
       }
 
       let deleteActionHtml = '';
-      if (isSuperAdmin && prof.role !== 'super_admin') {
+      if (hasSuperAdminPrivileges(currentUser) && prof.role !== 'super_admin' && !targetIsMaster) {
         deleteActionHtml = `
           <button onclick="deleteUserAccount(${prof.id}, '${escapeHtml(prof.full_name)}')" class="px-2.5 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow active:scale-95" title="سڕینەوەی بنبڕی ئەم ئەکاونتە لە سیستەم">
             <i class="fa-solid fa-trash-can"></i> سڕینەوەی ئەکاونت
@@ -4740,6 +4844,77 @@ function closeUserProfileModal() {
   document.getElementById('userProfileModal').classList.add('hidden');
   currentProfileUserId = null;
   currentProfileUser = null;
+}
+
+async function assignSpecialBadge(badge) {
+  if (!currentProfileUserId) return;
+  if (!isMasterSuperAdmin(currentUser)) {
+    alert('تەنها سوپەر ئەدمینی سەرەکی دەسەڵاتی بەخشینی باجی هەیە.');
+    return;
+  }
+
+  const badgeValue = (badge === 'none' || !badge) ? null : badge;
+  const badgeLabels = {
+    'green': 'باجی سەوز 🟢',
+    'black': 'باجی ڕەش ⚫',
+    'red': 'باجی سور 🔴',
+    'none': 'لابردنی باج ❌'
+  };
+  const label = badgeLabels[badge] || 'باج';
+
+  if (!confirm(`ئایا دڵنیایت لە دەستکاریکردنی باجی ئەم ئەندامە بۆ: (${label})؟`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/special-badge', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        user_id: currentProfileUserId,
+        special_badge: badgeValue
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'هەڵەیەک ڕوویدا');
+      return;
+    }
+
+    if (currentProfileUser) {
+      currentProfileUser.special_badge = badgeValue;
+    }
+
+    if (Array.isArray(allMembersCache)) {
+      const idx = allMembersCache.findIndex(u => Number(u.id) === Number(currentProfileUserId));
+      if (idx !== -1) {
+        allMembersCache[idx].special_badge = badgeValue;
+      }
+    }
+
+    if (Array.isArray(allUsersAdminCache)) {
+      const idx = allUsersAdminCache.findIndex(u => Number(u.id) === Number(currentProfileUserId));
+      if (idx !== -1) {
+        allUsersAdminCache[idx].special_badge = badgeValue;
+      }
+    }
+
+    alert(`بە سەرکەوتوویی باجەکە گۆڕدرا: ${label}`);
+    openUserProfileModal(currentProfileUserId);
+    if (typeof renderMembersList === 'function') {
+      renderMembersList();
+    }
+    if (typeof renderAllUsersList === 'function') {
+      renderAllUsersList();
+    }
+  } catch (err) {
+    console.error('Assign special badge error:', err);
+    alert('هەڵەیەک لە پەیوەندی بە سێرڤەر ڕوویدا');
+  }
 }
 
 async function adjustCurrentProfileStars(delta) {
@@ -5589,6 +5764,7 @@ function renderAllUsersList() {
           <div class="flex items-center gap-2 flex-wrap">
             <h4 class="font-bold text-sm ${nameClass} truncate">${escapeHtml(u.full_name)}</h4>
             ${renderRoleBadge(u.role, u.gender)}
+            ${renderSpecialBadgeHtml(u.special_badge)}
               ${isBlocked ? '<span class="px-2 py-0.5 rounded bg-red-600 text-white text-[10px] font-black">بلۆککراوە 🚫</span>' : ''}
               ${isMuted ? '<span class="px-2 py-0.5 rounded bg-amber-600 text-white text-[10px] font-black">سڕکراوە 🔇</span>' : ''}
             </div>
@@ -5604,7 +5780,7 @@ function renderAllUsersList() {
             <i class="fa-solid fa-circle-info"></i> زانیاری
           </button>
 
-          ${isSuperAdmin && !isSuper ? `
+          ${canUserManageMembers(currentUser) && !isMasterSuperAdmin(u) ? `
             <div class="flex items-center gap-1 bg-slate-900 border border-slate-700 px-2 py-1 rounded-xl">
               <span class="text-[10px] text-slate-400 font-bold">پلە:</span>
               <select onchange="changeRole(${u.id}, this.value)" class="bg-transparent text-xs text-white font-bold focus:outline-none cursor-pointer">
@@ -5615,7 +5791,9 @@ function renderAllUsersList() {
                 <option value="admin" class="bg-slate-900 text-emerald-400" ${u.role === 'admin' ? 'selected' : ''}>🛡️ ئەدمین</option>
               </select>
             </div>
+          ` : ''}
 
+          ${hasSuperAdminPrivileges(currentUser) && !isMasterSuperAdmin(u) && u.id !== currentUser.id ? `
             <button onclick="toggleBlockUser(${u.id}, ${isBlocked ? 0 : 1})" class="px-2.5 py-1.5 ${isBlocked ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40' : 'bg-red-600/20 text-red-300 border border-red-500/40'} rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95">
               <i class="fa-solid ${isBlocked ? 'fa-unlock' : 'fa-ban'}"></i>
               <span>${isBlocked ? 'لادانی بلۆک' : 'بلۆک'}</span>
@@ -6990,11 +7168,11 @@ function openDreamAdminModal() {
   const roleIndicator = document.getElementById('dreamAdminRoleIndicator');
   if (roleIndicator) {
     if (currentUser && currentUser.role === 'super_admin') {
-      roleIndicator.innerText = 'سوپەر ئەدمین (دەسەڵاتی تەواو)';
-      roleIndicator.className = 'text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-md border border-amber-500/30';
+      roleIndicator.innerHTML = '<i class="fa-solid fa-crown text-[8px] text-amber-400"></i> سوپەر ئەدمین';
+      roleIndicator.className = 'text-[9px] md:text-[10px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded-md border border-amber-500/30 whitespace-nowrap inline-flex items-center gap-1';
     } else {
-      roleIndicator.innerHTML = '<i class="fa-solid fa-graduation-cap text-white text-[10px]"></i> مامۆستا (وەڵامدانەوەی خەون)';
-      roleIndicator.className = 'text-[10px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded-md border border-purple-500/30 inline-flex items-center gap-1';
+      roleIndicator.innerHTML = '<i class="fa-solid fa-graduation-cap text-[8px] text-purple-300"></i> مامۆستا';
+      roleIndicator.className = 'text-[9px] md:text-[10px] bg-purple-500/20 text-purple-300 font-bold px-1.5 py-0.5 rounded-md border border-purple-500/30 whitespace-nowrap inline-flex items-center gap-1';
     }
   }
 
@@ -8624,9 +8802,11 @@ async function loadPrivateStaffList() {
 function renderStaffCardHtml(s) {
   const isCurrent = activePrivateOtherUser && activePrivateOtherUser.id === s.id;
   const activeBg = isCurrent ? 'bg-sky-600/20 border-sky-500/50' : 'bg-slate-900/80 hover:bg-slate-800/80 border-slate-800';
-  const roleBadge = s.role === 'super_admin' || s.role === 'admin'
-    ? `<span class="px-2 py-0.5 rounded-lg badge-admin text-white text-[10px] font-bold shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-shield-halved text-[9px]"></i> ئەدمین</span>`
-    : `<span class="px-2 py-0.5 rounded-lg badge-teacher text-white text-[10px] font-bold shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-graduation-cap text-white text-[10px]"></i> مامۆستا</span>`;
+  const roleBadge = s.role === 'super_admin'
+    ? `<span class="px-2 py-0.5 rounded-lg bg-amber-400 text-slate-950 border border-amber-300 text-[10px] font-black shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-shield-halved text-[9px] text-slate-950"></i> ئەدمین</span>`
+    : (s.role === 'admin'
+        ? `<span class="px-2 py-0.5 rounded-lg badge-admin text-white text-[10px] font-bold shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-shield-halved text-[9px]"></i> ئەدمین</span>`
+        : `<span class="px-2 py-0.5 rounded-lg badge-teacher text-white text-[10px] font-bold shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-graduation-cap text-white text-[10px]"></i> مامۆستا</span>`);
   const onlineDot = s.is_online 
     ? `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30" title="لەسەر هێڵە"></span>`
     : `<span class="w-2.5 h-2.5 rounded-full bg-slate-600" title="دەرەوەی هێڵە"></span>`;
@@ -9285,7 +9465,7 @@ function getQuranAudioUrl(reciter, surahNum) {
 }
 
 function toggleBroadcastQuran() {
-  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+  const isStaff = canUserManageLive(currentUser);
   if (!isStaff) return;
 
   if (currentLiveLessonState && currentLiveLessonState.quranState && currentLiveLessonState.quranState.isPlaying) {
@@ -9480,7 +9660,7 @@ function openLiveLessonModal() {
   if (modal) modal.classList.remove('hidden');
   if (floatingBar) floatingBar.classList.add('hidden');
 
-  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  const isStaff = canUserManageLive(currentUser);
   const startEndBtn = document.getElementById('liveStartEndBtn');
   if (startEndBtn) {
     if (!isStaff) {
@@ -9521,7 +9701,7 @@ function expandLiveLessonModal() {
 function leaveLiveLessonRoom() {
   stopLivePingReporting();
   if (currentLiveLessonState && currentLiveLessonState.isActive) {
-    const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+    const isStaff = canUserManageLive(currentUser);
     if (isStaff) {
       const choice = confirm('ئایا دەتەوێت لە ژوورەکە دەرچیت؟ (بۆ کۆتاییهێنان بە تەواوی وانەکە دوگمەی کۆتاییهێنان داگرە)');
       if (!choice) return;
@@ -9594,7 +9774,7 @@ function toggleFloatingMute() {
 }
 
 function toggleLiveStartEnd() {
-  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  const isStaff = canUserManageLive(currentUser);
   if (!isStaff) return;
 
   if (currentLiveLessonState && currentLiveLessonState.isActive) {
@@ -9663,16 +9843,11 @@ async function toggleLiveMic() {
       ? currentLiveLessonState.participants.find(p => Number(p.userId) === myUserId)
       : null;
 
-    const isStaff = currentUser && (
-      currentUser.role === 'super_admin' || 
-      currentUser.role === 'teacher' || 
-      currentUser.role === 'admin' ||
-      currentUser.username === 'hemntjabar'
-    );
+    const isStaff = canUserManageLive(currentUser);
     const hasPermission = isStaff || localMicPermissionGranted || (myParticipant && myParticipant.hasMicPermission);
 
     if (!hasPermission) {
-      alert('تەنها مامۆستا و ئەدمین دەتوانن قسە بکەن. تکایە دوگمەی «دەست بەرزکردنەوە ✋» دابگرە تا مامۆستا مۆڵەتی مایکت پێدەدات.');
+      alert('تەنها پێشکەشکار و بەڕێوەبەری وانە دەتوانن قسە بکەن. تکایە دوگمەی «دەست بەرزکردنەوە ✋» دابگرە تا مۆڵەتی مایکت پێدەدرێت.');
       return;
     }
 
@@ -9743,7 +9918,7 @@ function toggleLiveRaiseHand() {
 }
 
 async function toggleLiveScreenShare() {
-  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+  const isStaff = canUserManageLive(currentUser);
   if (!isStaff) return;
 
   const btn = document.getElementById('liveScreenShareBtn');
@@ -10175,7 +10350,7 @@ function kickUserFromLive(targetUserId, targetName) {
 function handleLiveLessonStateUpdate(state) {
   currentLiveLessonState = state;
 
-  const isAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+  const isAdmin = canUserManageLive(currentUser);
 
   const deskDot = document.getElementById('liveLessonPulseDot');
   const mobDot = document.getElementById('mobileLiveLessonPulseDot');
@@ -10206,7 +10381,7 @@ function handleLiveLessonStateUpdate(state) {
     if (presenterText && state.startedBy) {
       presenterText.innerText = `وانەبێژ: ${state.startedBy.name} (${state.startedBy.role === 'teacher' ? 'مامۆستا' : 'سوپەر ئەدمین'})`;
     }
-    const isTeacherOrSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+    const isTeacherOrSuperAdmin = canUserManageLive(currentUser);
     if (startEndBtn) {
       if (isTeacherOrSuperAdmin) {
         startEndBtn.classList.remove('hidden');
@@ -10246,7 +10421,7 @@ function handleLiveLessonStateUpdate(state) {
     if (modalTitle) modalTitle.innerText = 'ژووری وانەی ڕاستەوخۆ';
     if (presenterText) presenterText.innerText = 'چاوەڕوانی دەستپێکردنی وانەیە...';
     
-    const isTeacherOrSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+    const isTeacherOrSuperAdmin = canUserManageLive(currentUser);
     if (startEndBtn) {
       if (isTeacherOrSuperAdmin) {
         startEndBtn.classList.remove('hidden');

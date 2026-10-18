@@ -247,6 +247,7 @@ function initDb() {
   // Migrations for existing database
   try { db.exec("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'male'"); } catch (e) {}
   try { db.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT NULL"); } catch (e) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN special_badge TEXT DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN attachment_type TEXT DEFAULT 'none'"); } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN attachment_url TEXT DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN duration_minutes INTEGER DEFAULT 5"); } catch (e) {}
@@ -408,7 +409,7 @@ const users = {
     return stmt.all();
   },
   getAllUsers() {
-    const stmt = db.prepare("SELECT id, username, full_name, gender, role, status, is_blocked, muted_until, correct_answers_count, avatar_url, created_at FROM users ORDER BY role = 'super_admin' DESC, role = 'admin' DESC, role = 'teacher' DESC, role = 'student' DESC, role = 'new_student' DESC, role = 'guest' DESC, correct_answers_count DESC, created_at DESC");
+    const stmt = db.prepare("SELECT id, username, full_name, gender, role, status, is_blocked, muted_until, correct_answers_count, avatar_url, special_badge, created_at FROM users ORDER BY role = 'super_admin' DESC, role = 'admin' DESC, role = 'teacher' DESC, role = 'student' DESC, role = 'new_student' DESC, role = 'guest' DESC, correct_answers_count DESC, created_at DESC");
     return stmt.all();
   },
   getAll() {
@@ -417,6 +418,11 @@ const users = {
   updateAvatar(id, avatarUrl) {
     const stmt = db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?');
     return stmt.run(avatarUrl, id);
+  },
+  updateSpecialBadge(id, specialBadge) {
+    const val = specialBadge ? String(specialBadge).trim().toLowerCase() : null;
+    const stmt = db.prepare('UPDATE users SET special_badge = ? WHERE id = ?');
+    return stmt.run(val, id);
   },
   updateStatus(id, status) {
     const stmt = db.prepare('UPDATE users SET status = ? WHERE id = ?');
@@ -467,6 +473,7 @@ const users = {
       role: user.role,
       status: user.status,
       avatar_url: user.avatar_url || null,
+      special_badge: user.special_badge || null,
       is_blocked: user.is_blocked,
       muted_until: user.muted_until,
       correct_answers_count: user.correct_answers_count,

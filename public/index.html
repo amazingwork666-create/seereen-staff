@@ -920,9 +920,10 @@
             <input type="file" id="profAvatarFileInput" accept="image/*" class="hidden" onchange="uploadMyAvatar(this)">
           </div>
           <div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               <h3 id="profFullName" class="font-black text-base text-white">ناو</h3>
               <span id="profGenderBadge" class="text-xs"></span>
+              <span id="profSpecialBadgeSlot" class="hidden"></span>
             </div>
             <p id="profUsername" class="text-xs text-slate-400 font-mono">@username</p>
           </div>
@@ -1042,6 +1043,72 @@
       <div id="profSuperAdminActions" class="hidden mb-4 p-3 bg-indigo-950/30 border border-indigo-800/40 rounded-2xl flex items-center justify-between gap-2 flex-wrap">
         <span class="text-xs font-bold text-indigo-300">دەسەڵاتی سوپەر ئەدمین:</span>
         <div class="flex items-center gap-2 flex-wrap" id="profActionButtonsSlot"></div>
+      </div>
+
+      <!-- Master Super Admin: Assign Special Badges Panel -->
+      <div id="profSpecialBadgeAdminCard" class="hidden mb-4 p-3.5 bg-gradient-to-br from-slate-900 to-indigo-950/40 border-2 border-indigo-500/40 rounded-3xl shadow-xl space-y-2.5">
+        <div class="flex items-center justify-between border-b border-indigo-500/20 pb-2">
+          <span class="text-xs font-black text-indigo-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-id-badge text-amber-400"></i>
+            <span>بەخشینی باجی تایبەت (تەنها سوپەر ئەدمین)</span>
+          </span>
+          <span id="profActiveBadgeTag" class="text-[10px] font-bold text-slate-400">بێ باج</span>
+        </div>
+        <p class="text-[10px] text-slate-400 leading-relaxed">
+          وەک سوپەر ئەدمین، دەتوانیت یەکێک لەم باجانە ببەخشیت بەم ئەندامە تا توانای تایبەتی هەبێت:
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+          <!-- Green Badge -->
+          <button type="button" onclick="assignSpecialBadge('green')" id="badgeBtnGreen" class="p-2.5 rounded-2xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-black text-emerald-300 text-xs flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span> باجی سەوز
+              </span>
+              <i class="fa-solid fa-shield-halved text-emerald-400 text-xs"></i>
+            </div>
+            <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
+              • قفڵ و کردنەوەی چات<br>
+              • وەرگرتن و پلەپێدان تا مامۆستا<br>
+              • گۆڕینی ناو (جگە لە سوپەر ئەدمین)<br>
+              • کردنەوە و داخستنی لایڤ
+            </div>
+          </button>
+
+          <!-- Black Badge -->
+          <button type="button" onclick="assignSpecialBadge('black')" id="badgeBtnBlack" class="p-2.5 rounded-2xl bg-slate-950 hover:bg-slate-900 border border-slate-700 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-black text-slate-200 text-xs flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-slate-400"></span> باجی ڕەش
+              </span>
+              <i class="fa-solid fa-crown text-amber-400 text-xs"></i>
+            </div>
+            <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
+              • هەموو تواناکانی سوپەر ئەدمین<br>
+              • دەسەڵاتی تەواو بەسەر گرووپدا<br>
+              • پارێزراوی سوپەر ئەدمینی سەرەکی
+            </div>
+          </button>
+
+          <!-- Red Badge -->
+          <button type="button" onclick="assignSpecialBadge('red')" id="badgeBtnRed" class="p-2.5 rounded-2xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-black text-rose-300 text-xs flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-rose-400"></span> باجی سور
+              </span>
+              <i class="fa-solid fa-tower-broadcast text-rose-400 text-xs"></i>
+            </div>
+            <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
+              • کردنەوە و داخستنەوەی لایڤ<br>
+              • کۆنتڕۆڵی تەواوی ناو وانەی لایڤ<br>
+              • مۆڵەتی مایک و شەیر و قورئان
+            </div>
+          </button>
+        </div>
+        <div class="pt-1 flex justify-end">
+          <button type="button" onclick="assignSpecialBadge('none')" class="px-3 py-1 bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 rounded-xl text-[10px] font-bold transition flex items-center gap-1 shadow-sm">
+            <i class="fa-solid fa-xmark text-xs"></i> لابردنی باج
+          </button>
+        </div>
       </div>
 
       <div class="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -1887,38 +1954,37 @@
     <div class="bg-slate-900 border-0 md:border md:border-purple-500/40 rounded-none md:rounded-3xl w-full max-w-5xl h-full md:h-[92vh] flex flex-col shadow-2xl overflow-hidden relative">
       
       <!-- Header -->
-      <div class="px-4 md:px-5 py-3 md:py-3.5 bg-slate-950 border-b border-purple-500/30 flex items-center justify-between shrink-0">
-        <div class="flex items-center gap-2.5 md:gap-3">
-          <img src="/images/logo.jpg" alt="ستافی سیرین" class="w-9 h-9 md:w-10 md:h-10 rounded-xl object-cover border border-[#dfaa86]/50 shadow">
-          <div class="text-right">
-            <h3 class="font-black text-xs md:text-base text-white flex items-center gap-2">
-              <span>بەڕێوەبردنی خەونەکان</span>
-              <span id="dreamAdminRoleIndicator" class="text-[9px] md:text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-md border border-amber-500/30">
+      <div class="px-3 md:px-5 py-2.5 md:py-3.5 bg-slate-950 border-b border-purple-500/30 flex items-center justify-between gap-2 shrink-0">
+        <div class="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+          <img src="/images/logo.jpg" alt="ستافی سیرین" class="w-8 h-8 md:w-10 md:h-10 rounded-xl object-cover border border-[#dfaa86]/50 shadow shrink-0">
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <h3 class="font-black text-xs md:text-sm text-white whitespace-nowrap">بەڕێوەبردنی خەونەکان</h3>
+              <span id="dreamAdminRoleIndicator" class="text-[9px] md:text-[10px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded-md border border-amber-500/30 whitespace-nowrap inline-flex items-center gap-1">
                 سوپەر ئەدمین
               </span>
-            </h3>
-            <p class="text-[10px] md:text-[11px] text-purple-300">چات، ڤۆیس، پەیوەندی و تۆمارەکان</p>
+            </div>
+            <p class="text-[9px] md:text-[11px] text-purple-300 truncate hidden xs:block">چات، ڤۆیس، پەیوەندی و تۆمارەکان</p>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5 shrink-0">
           <!-- Download All Audio (Super Admin Only) -->
-          <button id="dreamDownloadAllAudioBtn" onclick="downloadAllAudioZip()" class="hidden px-2.5 py-1 rounded-xl text-[10px] font-black transition flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500 hover:text-slate-950" title="داگرتنی تەواوی فایلە دەنگییەکان بە شێوازی ZIP">
+          <button id="dreamDownloadAllAudioBtn" onclick="downloadAllAudioZip()" class="hidden px-2 py-1 rounded-xl text-[10px] font-black transition flex items-center gap-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500 hover:text-slate-950" title="داگرتنی تەواوی فایلە دەنگییەکان بە شێوازی ZIP">
             <i class="fa-solid fa-file-zipper"></i>
-            <span class="hidden sm:inline">داگرتنی دەنگەکان (ZIP)</span>
+            <span class="hidden sm:inline">ZIP</span>
           </button>
 
           <!-- Availability Toggle (Super Admin Only) -->
-          <div id="dreamAvailabilityToggleWrapper" class="flex items-center gap-1.5 bg-slate-900 border border-[#dfaa86]/30 px-2.5 py-1 rounded-xl">
-            <span class="text-[10px] text-slate-300 font-bold hidden sm:inline">دۆخی وەڵامدانەوە:</span>
-            <button id="dreamAvailabilityToggleBtn" onclick="toggleDreamAvailability()" class="px-2.5 py-1 rounded-lg text-[10px] font-black transition flex items-center gap-1 bg-emerald-600/30 text-emerald-300 border border-emerald-500/40">
-              <span id="dreamAvailabilityDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span id="dreamAvailabilityLabel">پەیوەندی کارایە 🟢</span>
+          <div id="dreamAvailabilityToggleWrapper" class="flex items-center">
+            <button id="dreamAvailabilityToggleBtn" onclick="toggleDreamAvailability()" class="px-2 py-1 md:px-2.5 md:py-1 rounded-xl text-[10px] font-black transition flex items-center gap-1 bg-emerald-600/30 text-emerald-300 border border-emerald-500/40">
+              <span id="dreamAvailabilityDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span id="dreamAvailabilityLabel">کارایە 🟢</span>
             </button>
           </div>
 
-          <button onclick="closeDreamAdminModal()" class="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-xl border border-slate-700 transition">
-            <i class="fa-solid fa-xmark"></i>
+          <button onclick="closeDreamAdminModal()" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white bg-slate-800 rounded-xl border border-slate-700 transition shrink-0">
+            <i class="fa-solid fa-xmark text-sm"></i>
           </button>
         </div>
       </div>
@@ -1963,32 +2029,32 @@
           <div id="dreamAdminChatArea" class="hidden flex-1 flex flex-col h-full overflow-hidden">
             
             <!-- Chat Active Header -->
-            <div class="px-3.5 py-2.5 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between shrink-0">
-              <div class="flex items-center gap-2">
-                <button onclick="backToDreamAdminSessions()" class="md:hidden p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-lg text-xs" title="گەڕانەوە بۆ لیستی خەونەکان">
+            <div class="px-2.5 md:px-3.5 py-2 md:py-2.5 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between gap-2 shrink-0">
+              <div class="flex items-center gap-2 min-w-0 flex-1">
+                <button onclick="backToDreamAdminSessions()" class="md:hidden p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-lg text-xs shrink-0" title="گەڕانەوە بۆ لیستی خەونەکان">
                   <i class="fa-solid fa-arrow-right"></i>
                 </button>
-                <span id="dreamAdminChatGender" class="text-lg">🧔</span>
-                <div>
-                  <h4 id="dreamAdminChatName" class="font-black text-xs md:text-sm text-white">ناوی خەون بین</h4>
-                  <span id="dreamAdminChatStatus" class="text-[9px] md:text-[10px] text-slate-400">کاتی دەستپێکردن</span>
+                <span id="dreamAdminChatGender" class="text-base md:text-lg shrink-0">🧔</span>
+                <div class="min-w-0 flex-1">
+                  <h4 id="dreamAdminChatName" class="font-black text-xs md:text-sm text-white truncate">ناوی خەون بین</h4>
+                  <span id="dreamAdminChatStatus" class="text-[9px] md:text-[10px] text-slate-400 block truncate">کاتی دەستپێکردن</span>
                 </div>
               </div>
 
-              <div class="flex items-center gap-1.5">
+              <div class="flex items-center gap-1 md:gap-1.5 shrink-0">
                 <!-- Star / Favorite Button -->
-                <button id="dreamAdminFavBtn" onclick="toggleActiveDreamFavorite()" class="p-2 text-slate-400 hover:text-amber-400 bg-slate-800 rounded-xl border border-slate-700 transition" title="کردن بە دڵخواز ⭐">
-                  <i id="dreamAdminFavIcon" class="fa-regular fa-star text-sm"></i>
+                <button id="dreamAdminFavBtn" onclick="toggleActiveDreamFavorite()" class="p-1.5 md:p-2 text-slate-400 hover:text-amber-400 bg-slate-800 rounded-xl border border-slate-700 transition shrink-0" title="کردن بە دڵخواز ⭐">
+                  <i id="dreamAdminFavIcon" class="fa-regular fa-star text-xs md:text-sm"></i>
                 </button>
 
                 <!-- Delete Session Button -->
-                <button id="dreamAdminDeleteBtn" onclick="deleteActiveDreamSession()" class="p-2 text-slate-400 hover:text-rose-400 bg-slate-800 rounded-xl border border-slate-700 transition" title="سڕینەوەی ئەم چاتە 🗑️">
-                  <i class="fa-solid fa-trash-can text-sm"></i>
+                <button id="dreamAdminDeleteBtn" onclick="deleteActiveDreamSession()" class="p-1.5 md:p-2 text-slate-400 hover:text-rose-400 bg-slate-800 rounded-xl border border-slate-700 transition shrink-0" title="سڕینەوەی ئەم چاتە 🗑️">
+                  <i class="fa-solid fa-trash-can text-xs md:text-sm"></i>
                 </button>
 
                 <!-- Admin Call Button -->
-                <button id="adminStartCallBtn" onclick="startDreamCallFromAdmin()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5 active:scale-95" title="پەیوەندی تەلەفۆنی لەگەڵ ئەم خەون بینە">
-                  <i class="fa-solid fa-phone"></i>
+                <button id="adminStartCallBtn" onclick="startDreamCallFromAdmin()" class="px-2.5 md:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1 active:scale-95 shrink-0" title="پەیوەندی تەلەفۆنی لەگەڵ ئەم خەون بینە">
+                  <i class="fa-solid fa-phone text-[10px]"></i>
                   <span>تەلەفۆن</span>
                 </button>
               </div>

@@ -267,9 +267,70 @@ function authMiddleware(req, res, next) {
   }
 }
 
-// Super Admin Middleware
+// Helper: Master Super Admin check (Hemn Taha)
+function isMasterSuperAdmin(user) {
+  if (!user) return false;
+  return user.role === 'super_admin' && (user.username === 'hemntjabar' || user.id === 1);
+}
+
+// Helper: Has full Super Admin capabilities (Master Super Admin, super_admin, or Black Badge)
+function hasSuperAdminPrivileges(user) {
+  if (!user) return false;
+  if (isMasterSuperAdmin(user) || user.role === 'super_admin') return true;
+  return user.special_badge === 'black';
+}
+
+// Helper: Can manage members and roles up to teacher (Super Admin, Black Badge, or Green Badge)
+function canManageMembers(user) {
+  if (!user) return false;
+  if (hasSuperAdminPrivileges(user)) return true;
+  return user.special_badge === 'green';
+}
+
+// Helper: Can lock/unlock chat
+function canLockChat(user, mode = 'staff_only') {
+  if (!user) return false;
+  if (hasSuperAdminPrivileges(user)) return true;
+  if (mode === 'total_lock') return false; // green badge cannot do total_lock
+  return user.special_badge === 'green';
+}
+
+// Helper: Can manage Live lesson (Start, End, and Mod inside Live)
+// Only Master Super Admin or users with Black, Green, or Red badge!
+// Normal teachers and normal admins CANNOT manage Live!
+function canManageLive(user) {
+  if (!user) return false;
+  if (hasSuperAdminPrivileges(user)) return true;
+  return user.special_badge === 'green' || user.special_badge === 'red';
+}
+
+// Master Super Admin Middleware (Only Hemn Taha can grant/revoke badges)
+function requireMasterSuperAdmin(req, res, next) {
+  if (!isMasterSuperAdmin(req.user)) {
+    return res.status(403).json({ error: 'تەنها سوپەر ئەدمینی سەرەکی دەسەڵاتی بەخشینی باجی هەیە' });
+  }
+  next();
+}
+
+// Super Admin Privileges Middleware (Master Super Admin, role super_admin, or Black Badge)
+function requireSuperAdminPrivileges(req, res, next) {
+  if (!hasSuperAdminPrivileges(req.user)) {
+    return res.status(403).json({ error: 'تەنها سوپەر ئەدمین و باجی ڕەش دەسەڵاتی ئەم کارەیان هەیە' });
+  }
+  next();
+}
+
+// Member Manager Middleware (Super Admin, Black Badge, or Green Badge)
+function requireMemberManager(req, res, next) {
+  if (!canManageMembers(req.user)) {
+    return res.status(403).json({ error: 'دەسەڵاتی بەڕێوەبردنی ئەندامانت نییە' });
+  }
+  next();
+}
+
+// Super Admin Middleware (Legacy check)
 function requireSuperAdmin(req, res, next) {
-  if (req.user.role !== 'super_admin') {
+  if (!hasSuperAdminPrivileges(req.user)) {
     return res.status(403).json({ error: 'تەنها سوپەر ئەدمین دەسەڵاتی ئەم کارەی هەیە' });
   }
   next();
@@ -521,6 +582,7 @@ app.post('/api/auth/login', (req, res) => {
         role: user.role,
         status: user.status,
         avatar_url: user.avatar_url || null,
+        special_badge: user.special_badge || null,
         muted_until: user.muted_until,
         correct_answers_count: user.correct_answers_count,
         starInfo
@@ -586,6 +648,7 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
       role: req.user.role,
       status: req.user.status,
       avatar_url: req.user.avatar_url || null,
+      special_badge: req.user.special_badge || null,
       muted_until: req.user.muted_until,
       correct_answers_count: req.user.correct_answers_count,
       starInfo
@@ -619,15 +682,14 @@ app.post('/api/users/profile/avatar', authMiddleware, upload.single('avatar'), (
 
 // --- SUPER ADMIN MANAGEMENT ROUTES ---
 
-// 4. Get pending users (Super Admin only)
-app.get('/api/admin/pending', authMiddleware, requireSuperAdmin, (req, res) => {
+// 4. Get pending users (Super Admin or Green Badge)
+app.get('/api/admin/pending', authMiddleware, requireMemberManager, (req, res) => {
   const pending = users.getPendingUsers();
   res.json({ pending });
 });
 
-// 5. Approve user (Super Admin only)
-// 5. Approve user (Super Admin only - supports role: student, new_student, guest, admin)
-app.post('/api/admin/approve', authMiddleware, requireSuperAdmin, (req, res) => {
+// 5. Approve user (Super Admin or Green Badge)
+app.post('/api/admin/approve', authMiddleware, requireMemberManager, (req, res) => {
   const { user_id, role = 'student' } = req.body;
   if (!user_id) return res.status(400).json({ error: 'ناسنامەی بەکارهێنەر دیارینەکراوە' });
 
@@ -643,8 +705,8 @@ app.post('/api/admin/approve', authMiddleware, requireSuperAdmin, (req, res) => 
   res.json({ success: true, message: 'بەکارهێنەر پەسەندکرا' });
 });
 
-// 6. Reject user (Super Admin only)
-app.post('/api/admin/reject', authMiddleware, requireSuperAdmin, (req, res) => {
+// 6. Reject user (Super Admin or Green Badge)
+app.post('/api/admin/reject', authMiddleware, requireMemberManager, (req, res) => {
   const { user_id } = req.body;
   if (!user_id) return res.status(400).json({ error: 'ناسنامەی بەکارهێنەر دیارینەکراوە' });
 
@@ -728,11 +790,21 @@ app.post('/api/admin/users/:id/adjust-stars', authMiddleware, requireTeacherOrSu
   res.json({ success: true, total_stars: updatedStars });
 });
 
-// Directly update user's full name (Super Admin only)
-app.post('/api/admin/users/:id/update-name', authMiddleware, requireSuperAdmin, (req, res) => {
+// Directly update user's full name (Super Admin or Green Badge - cannot change Super Admin name)
+app.post('/api/admin/users/:id/update-name', authMiddleware, requireMemberManager, (req, res) => {
   const userId = parseInt(req.params.id);
   const { full_name } = req.body;
   if (!full_name || !full_name.trim()) return res.status(400).json({ error: 'ناوی نوێ بنووسە' });
+
+  const target = users.findById(userId);
+  if (!target) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
+
+  if (isMasterSuperAdmin(target) && !isMasterSuperAdmin(req.user)) {
+    return res.status(403).json({ error: 'دەستکاریکردنی ناوی سوپەر ئەدمینی سەرەکی قەدەغەیە' });
+  }
+  if (target.role === 'super_admin' && !hasSuperAdminPrivileges(req.user)) {
+    return res.status(403).json({ error: 'دەستکاریکردنی ناوی سوپەر ئەدمین قەدەغەیە' });
+  }
 
   const updated = users.updateFullName(userId, full_name.trim());
   if (!updated) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
@@ -781,15 +853,28 @@ app.post('/api/user/request-profile-change', authMiddleware, (req, res) => {
   res.json({ success: true, message: 'داواکارییەکەت بە سەرکەوتوویی نێردرا بۆ سوپەر ئەدمین بۆ پەسەندکردن' });
 });
 
-// Super Admin: Get pending profile change requests
-app.get('/api/admin/profile-change-requests', authMiddleware, requireSuperAdmin, (req, res) => {
+// Super Admin or Green Badge: Get pending profile change requests
+app.get('/api/admin/profile-change-requests', authMiddleware, requireMemberManager, (req, res) => {
   const list = profileChangeRequests.getPending();
   res.json({ requests: list });
 });
 
-// Super Admin: Approve profile change request
-app.post('/api/admin/profile-change-requests/:id/approve', authMiddleware, requireSuperAdmin, (req, res) => {
+// Super Admin or Green Badge: Approve profile change request (cannot modify Super Admin)
+app.post('/api/admin/profile-change-requests/:id/approve', authMiddleware, requireMemberManager, (req, res) => {
   const reqId = parseInt(req.params.id);
+  
+  // Protect super admin profile from being changed by sub-admins
+  try {
+    const pendingList = profileChangeRequests.getPending();
+    const reqItem = pendingList.find(r => r.id === reqId);
+    if (reqItem) {
+      const targetUser = users.findById(reqItem.user_id);
+      if (targetUser && (isMasterSuperAdmin(targetUser) || targetUser.role === 'super_admin') && !isMasterSuperAdmin(req.user)) {
+        return res.status(403).json({ error: 'دەستکاریکردنی هەژماری سوپەر ئەدمین قەدەغەیە' });
+      }
+    }
+  } catch (e) {}
+
   const updatedUser = profileChangeRequests.approve(reqId, req.user.id);
   if (!updatedUser) return res.status(404).json({ error: 'داواکاری نەدۆزرایەوە یان پێشتر دیاریکراوە' });
 
@@ -802,8 +887,8 @@ app.post('/api/admin/profile-change-requests/:id/approve', authMiddleware, requi
   res.json({ success: true, message: 'داواکاری گۆڕانکاری پەسەندکرا', user: updatedUser });
 });
 
-// Super Admin: Reject profile change request
-app.post('/api/admin/profile-change-requests/:id/reject', authMiddleware, requireSuperAdmin, (req, res) => {
+// Super Admin or Green Badge: Reject profile change request
+app.post('/api/admin/profile-change-requests/:id/reject', authMiddleware, requireMemberManager, (req, res) => {
   const reqId = parseInt(req.params.id);
   const ok = profileChangeRequests.reject(reqId, req.user.id);
   if (!ok) return res.status(404).json({ error: 'داواکاری نەدۆزرایەوە' });
@@ -812,8 +897,8 @@ app.post('/api/admin/profile-change-requests/:id/reject', authMiddleware, requir
   res.json({ success: true, message: 'داواکارییەکە ڕەتکرایەوە' });
 });
 
-// 8. Change user role (Super Admin only - Silent role change as requested)
-app.post('/api/admin/role', authMiddleware, requireSuperAdmin, (req, res) => {
+// 8. Change user role (Super Admin, Black Badge, or Green Badge up to teacher)
+app.post('/api/admin/role', authMiddleware, requireMemberManager, (req, res) => {
   const { user_id, role } = req.body;
   const validRoles = ['student', 'new_student', 'guest', 'teacher', 'admin'];
   if (!user_id || !role || !validRoles.includes(role)) {
@@ -822,16 +907,18 @@ app.post('/api/admin/role', authMiddleware, requireSuperAdmin, (req, res) => {
 
   const target = users.findById(user_id);
   if (!target) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
-  if (target.role === 'super_admin') {
-    return res.status(400).json({ error: 'ناتوانیت دەستکاری پلەی سوپەر ئەدمین بکەیت' });
+
+  if (isMasterSuperAdmin(target)) {
+    return res.status(403).json({ error: 'ناتوانیت دەستکاری پلەی سوپەر ئەدمینی سەرەکی بکەیت' });
+  }
+  if (target.role === 'super_admin' && !hasSuperAdminPrivileges(req.user)) {
+    return res.status(403).json({ error: 'ناتوانیت دەستکاری پلەی سوپەر ئەدمین بکەیت' });
   }
 
   const oldRole = target.role;
   users.updateRole(user_id, role);
   users.addRoleHistory(user_id, req.user.id, req.user.full_name, oldRole, role);
   
-  // User requested: "پلە گۆڕین لە چات با نەنوسرێت و کەس ئاگاداری گۆڕانی پلە نەبێت"
-  // Silent role change - No chat announcement message is posted
   io.emit('role_changed', { user_id, new_role: role });
 
   let roleNameKurdish = 'قوتابی';
@@ -843,8 +930,8 @@ app.post('/api/admin/role', authMiddleware, requireSuperAdmin, (req, res) => {
   res.json({ success: true, message: `پلەکەی بە سەرکەوتوویی کرا بە ${roleNameKurdish}` });
 });
 
-// 9. Block / Unblock user (Super Admin only)
-app.post('/api/admin/block', authMiddleware, requireSuperAdmin, (req, res) => {
+// 9. Block / Unblock user (Super Admin or Black Badge only)
+app.post('/api/admin/block', authMiddleware, requireSuperAdminPrivileges, (req, res) => {
   const { user_id, is_blocked } = req.body;
   if (user_id === undefined || is_blocked === undefined) {
     return res.status(400).json({ error: 'زانیارییەکان ناتەواون' });
@@ -852,8 +939,8 @@ app.post('/api/admin/block', authMiddleware, requireSuperAdmin, (req, res) => {
 
   const target = users.findById(user_id);
   if (!target) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
-  if (target.role === 'super_admin') {
-    return res.status(400).json({ error: 'ناتوانیت سوپەر ئەدمین بلۆک بکەیت' });
+  if (isMasterSuperAdmin(target) || target.role === 'super_admin') {
+    return res.status(403).json({ error: 'ناتوانیت سوپەر ئەدمین بلۆک بکەیت' });
   }
 
   users.setBlocked(user_id, is_blocked);
@@ -876,15 +963,15 @@ app.post('/api/admin/block', authMiddleware, requireSuperAdmin, (req, res) => {
   res.json({ success: true, message: is_blocked ? 'بەکارهێنەر بلۆک کرا' : 'بلۆک لادرا' });
 });
 
-// 10. Permanently Delete / Kick User Account (Super Admin only)
-app.delete('/api/admin/users/:id', authMiddleware, requireSuperAdmin, (req, res) => {
+// 10. Permanently Delete / Kick User Account (Super Admin or Black Badge only)
+app.delete('/api/admin/users/:id', authMiddleware, requireSuperAdminPrivileges, (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (!userId) return res.status(400).json({ error: 'ناسنامەی بەکارهێنەر نادروستە' });
 
   const target = users.findById(userId);
   if (!target) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
-  if (target.role === 'super_admin') {
-    return res.status(400).json({ error: 'ناتوانیت سوپەر ئەدمین بسڕیتەوە' });
+  if (isMasterSuperAdmin(target) || target.role === 'super_admin') {
+    return res.status(403).json({ error: 'ناتوانیت سوپەر ئەدمین بسڕیتەوە' });
   }
 
   // Delete from DB (cascades to all user records)
@@ -894,6 +981,58 @@ app.delete('/api/admin/users/:id', authMiddleware, requireSuperAdmin, (req, res)
   io.emit('user_deleted', { user_id: userId, full_name: target.full_name });
 
   res.json({ success: true, message: `ئەکاونتی (${target.full_name}) بە سەرکەوتوویی بە یەکجاری سڕایەوە و دەرکرا` });
+});
+
+// 11. Assign Special Badges (Master Super Admin Hemn Taha ONLY)
+// green = چات قفڵ، وەرگرتن و پلەپێدان تا مامۆستا، گۆڕینی ناو، لایڤ
+// black = دەسەڵاتی تەواوی سوپەر ئەدمین (جگە لە دەستکاری سوپەر ئەدمینی سەرەکی و بەخشینی باج)
+// red = کردنەوە و داخستن و کۆنتڕۆڵی لایڤ بە تەنیا
+app.post('/api/admin/special-badge', authMiddleware, requireMasterSuperAdmin, (req, res) => {
+  const { user_id, special_badge } = req.body;
+  const userId = parseInt(user_id, 10);
+  if (!userId) return res.status(400).json({ error: 'ناسنامەی بەکارهێنەر نادروستە' });
+
+  const target = users.findById(userId);
+  if (!target) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
+
+  if (isMasterSuperAdmin(target)) {
+    return res.status(403).json({ error: 'ناتوانیت باجی سوپەر ئەدمینی سەرەکی دەستکاری بکەیت' });
+  }
+
+  let badgeVal = special_badge ? String(special_badge).trim().toLowerCase() : null;
+  if (badgeVal === 'none' || badgeVal === '') badgeVal = null;
+  if (badgeVal && !['green', 'black', 'red'].includes(badgeVal)) {
+    return res.status(400).json({ error: 'جۆری باج نادروستە (تەنها سەوز، ڕەش، یان سور ڕێگەپێدراوە)' });
+  }
+
+  users.updateSpecialBadge(userId, badgeVal);
+
+  for (const [sId, u] of onlineUsers.entries()) {
+    if (u.id === userId) {
+      u.special_badge = badgeVal;
+    }
+  }
+  io.emit('online_users', Array.from(new Map(Array.from(onlineUsers.values()).map(u => [u.id, u])).values()));
+
+  io.emit('user_special_badge_updated', {
+    user_id: userId,
+    special_badge: badgeVal,
+    full_name: target.full_name
+  });
+
+  const badgeNames = {
+    green: '🟢 باجی سەوز',
+    black: '⚫ باجی ڕەش',
+    red: '🔴 باجی سور'
+  };
+  const badgeLabel = badgeVal ? badgeNames[badgeVal] : 'لابردنی باج';
+
+  res.json({
+    success: true,
+    message: `باجی (${target.full_name}) گۆڕدرا بۆ: ${badgeLabel}`,
+    user_id: userId,
+    special_badge: badgeVal
+  });
 });
 
 // --- ADMIN / TEACHER MEDIA UPLOADS (IMAGES & VIDEOS) ---
@@ -1122,11 +1261,19 @@ app.get('/api/chat/lock-status', authMiddleware, (req, res) => {
   });
 });
 
-app.post('/api/chat/lock', authMiddleware, requireSuperAdmin, (req, res) => {
+app.post('/api/chat/lock', authMiddleware, (req, res) => {
   const { mode } = req.body;
   const validModes = ['none', 'staff_only', 'total_lock'];
   if (!validModes.includes(mode)) {
     return res.status(400).json({ error: 'دۆخی قفڵکردن نادیارە' });
+  }
+
+  if (mode === 'total_lock' && !hasSuperAdminPrivileges(req.user)) {
+    return res.status(403).json({ error: 'تەنها سوپەر ئەدمین یان باجی ڕەش دەسەڵاتی قفڵی عامی هەیە' });
+  }
+
+  if (!canLockChat(req.user, mode)) {
+    return res.status(403).json({ error: 'دەسەڵاتی قفڵکردن یان کردنەوەی چاتت نییە' });
   }
 
   settings.set('chat_lock_mode', mode);
@@ -1137,11 +1284,11 @@ app.post('/api/chat/lock', authMiddleware, requireSuperAdmin, (req, res) => {
 
   let announceText = '';
   if (mode === 'total_lock') {
-    announceText = '🔒 چاتی گشتی بە تەواوەتی داخرا لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام - تەنانەت مامۆستا و ئەدمینەکانیش ناتوانن بنووسن)';
+    announceText = `🔒 چاتی گشتی بە تەواوەتی داخرا لەلایەن (${req.user.full_name})ەوە (@قفڵ.عام)`;
   } else if (mode === 'staff_only') {
-    announceText = '🔒 چات داخرا - تەنها بۆ مامۆستا و ئەدمینەکان کراوەیە (@قفڵ)';
+    announceText = `🔒 چات داخرا لەلایەن (${req.user.full_name})ەوە - تەنها بۆ مامۆستا و ئەدمینەکان کراوەیە (@قفڵ)`;
   } else {
-    announceText = '🔓 چاتی گشتی کرایەوە بۆ هەمووان لەلایەن سوپەر ئەدمینەوە';
+    announceText = `🔓 چاتی گشتی کرایەوە بۆ هەمووان لەلایەن (${req.user.full_name})ەوە`;
   }
 
   const sysMsg = messages.create(req.user.id, 'سیستەم', 'سیستەم', 'system', announceText, 'system');
@@ -2777,6 +2924,7 @@ io.on('connection', (socket) => {
     full_name: user.full_name,
     gender: user.gender || 'male',
     role: user.role,
+    special_badge: user.special_badge || null,
     starInfo: calculateStars(user.correct_answers_count)
   });
 
@@ -2816,28 +2964,35 @@ io.on('connection', (socket) => {
       const content = (data.content || '').trim();
       if (!content) return;
 
-      // --- CHAT LOCK COMMAND HANDLING (SUPER ADMIN ONLY) ---
+      // --- CHAT LOCK COMMAND HANDLING (SUPER ADMIN OR GREEN/BLACK BADGE) ---
       const hasLockAll = content.includes('@قفڵ.عام') || content.includes('@قفل.عام');
       const hasLockStaff = !hasLockAll && (content.includes('@قفڵ') || content.includes('@قفل'));
       const hasUnlock = content.includes('@کلیل') || content.includes('@كليل') || content.includes('@مفتاح') || content.includes('@کراوە') || content.includes('@کردنەوە') || content.includes('@بیکەرەوە') || content.includes('@unlock') || content.includes('@قفڵ.کردنەوە') || content.includes('@قفل.کردنەوە');
 
       if (hasLockAll || hasLockStaff || hasUnlock) {
-        if (freshUser.role !== 'super_admin') {
-          socket.emit('error_message', '❌ تەنها سوپەر ئەدمین دەسەڵاتی قفڵکردن یان کردنەوەی چاتی هەیە!');
-          return;
+        if (hasLockAll) {
+          if (!hasSuperAdminPrivileges(freshUser)) {
+            socket.emit('error_message', '❌ تەنها سوپەر ئەدمین یان باجی ڕەش دەسەڵاتی قفڵی عامی هەیە!');
+            return;
+          }
+        } else {
+          if (!canLockChat(freshUser, 'staff_only')) {
+            socket.emit('error_message', '❌ دەسەڵاتی قفڵکردن یان کردنەوەی چاتت نییە!');
+            return;
+          }
         }
 
         let newMode = 'none';
         let announceText = '';
         if (hasLockAll) {
           newMode = 'total_lock';
-          announceText = '🔒 چاتی گشتی بە تەواوەتی داخرا لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام - تەنانەت مامۆستا و ئەدمینەکانیش ناتوانن بنووسن)';
+          announceText = `🔒 چاتی گشتی بە تەواوەتی داخرا لەلایەن (${freshUser.full_name})ەوە (@قفڵ.عام)`;
         } else if (hasLockStaff) {
           newMode = 'staff_only';
-          announceText = '🔒 چات داخرا - تەنها بۆ مامۆستا و ئەدمینەکان کراوەیە (@قفڵ)';
+          announceText = `🔒 چات داخرا لەلایەن (${freshUser.full_name})ەوە - تەنها بۆ مامۆستا و ئەدمینەکان کراوەیە (@قفڵ)`;
         } else if (hasUnlock) {
           newMode = 'none';
-          announceText = '🔓 چاتی گشتی کرایەوە بۆ هەمووان لەلایەن سوپەر ئەدمینەوە (@کلیل 🗝️)';
+          announceText = `🔓 چاتی گشتی کرایەوە بۆ هەمووان لەلایەن (${freshUser.full_name})ەوە (@کلیل 🗝️)`;
         }
 
         settings.set('chat_lock_mode', newMode);
@@ -2953,10 +3108,15 @@ io.on('connection', (socket) => {
   });
 
   socket.on('live_start', (data) => {
-    if (user.role !== 'super_admin' && user.role !== 'teacher') return;
+    const freshUser = users.findById(user.id);
+    if (!freshUser || !canManageLive(freshUser)) {
+      socket.emit('error_message', '❌ دەسەڵاتی کردنەوەی لایڤت نییە (تەنها سوپەر ئەدمین یان خاوەن باجی تایبەت دەتوانێت)');
+      return;
+    }
+
     liveLessonState.isActive = true;
     liveLessonState.title = (data && data.title) ? data.title.trim() : 'وانەی ڕاستەوخۆ';
-    liveLessonState.startedBy = { id: user.id, name: user.full_name, role: user.role };
+    liveLessonState.startedBy = { id: freshUser.id, name: freshUser.full_name, role: freshUser.role, special_badge: freshUser.special_badge };
     liveLessonState.startedAt = Date.now();
     liveLessonState.bannedUserIds.clear();
     liveLessonState.quranState = { isPlaying: false, reciter: '', surahName: '', audioUrl: '' };
@@ -2964,11 +3124,12 @@ io.on('connection', (socket) => {
 
     liveLessonState.participants.set(socket.id, {
       socketId: socket.id,
-      userId: user.id,
-      username: user.username,
-      fullName: user.full_name,
-      role: user.role,
-      gender: user.gender || 'male',
+      userId: freshUser.id,
+      username: freshUser.username,
+      fullName: freshUser.full_name,
+      role: freshUser.role,
+      special_badge: freshUser.special_badge,
+      gender: freshUser.gender || 'male',
       isMuted: false,
       handRaised: false,
       hasMicPermission: true
@@ -2978,20 +3139,22 @@ io.on('connection', (socket) => {
     broadcastLiveLessonState();
     io.emit('live_lesson_started_alert', {
       title: liveLessonState.title,
-      startedBy: user.full_name
+      startedBy: freshUser.full_name
     });
 
     // Web Push Notification: Live Lesson Started
     sendPushNotificationToAll({
       title: '🔴 وانەی ڕاستەوخۆ دەستیپێکرد!',
-      body: `${user.full_name} وانەیەکی نوێی دەستپێکرد: ${liveLessonState.title}. ئێستا وەرە بەشداربە! 🎙️`,
+      body: `${freshUser.full_name} وانەیەکی نوێی دەستپێکرد: ${liveLessonState.title}. ئێستا وەرە بەشداربە! 🎙️`,
       tag: 'live-lesson-active',
       data: { url: '/?action=live' }
-    }, user.id);
+    }, freshUser.id);
   });
 
   socket.on('live_end', () => {
-    if (user.role !== 'super_admin' && user.role !== 'teacher') return;
+    const freshUser = users.findById(user.id);
+    if (!freshUser || !canManageLive(freshUser)) return;
+
     liveLessonState.isActive = false;
     liveLessonState.startedBy = null;
     liveLessonState.startedAt = null;
@@ -3008,7 +3171,8 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const canSpeakByDefault = (user.role === 'super_admin' || user.role === 'teacher' || user.role === 'admin');
+    const freshUser = users.findById(user.id);
+    const canSpeakByDefault = freshUser && (canManageLive(freshUser) || (liveLessonState.startedBy && liveLessonState.startedBy.id === user.id));
 
     liveLessonState.participants.set(socket.id, {
       socketId: socket.id,
@@ -3016,10 +3180,11 @@ io.on('connection', (socket) => {
       username: user.username,
       fullName: user.full_name,
       role: user.role,
+      special_badge: freshUser ? freshUser.special_badge : null,
       gender: user.gender || 'male',
       isMuted: true,
       handRaised: false,
-      hasMicPermission: canSpeakByDefault
+      hasMicPermission: !!canSpeakByDefault
     });
 
     socket.join('live_lesson_room');
@@ -3087,8 +3252,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('live_grant_mic', (data) => {
-    const isStaff = user.role === 'super_admin' || user.role === 'teacher' || user.role === 'admin';
-    if (!isStaff || !data || !data.targetUserId) return;
+    const freshUser = users.findById(user.id);
+    const canMod = freshUser && (canManageLive(freshUser) || (liveLessonState.startedBy && liveLessonState.startedBy.id === user.id));
+    if (!canMod || !data || !data.targetUserId) return;
     const targetId = parseInt(data.targetUserId);
 
     for (const [sId, p] of liveLessonState.participants.entries()) {
@@ -3102,8 +3268,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('live_revoke_mic', (data) => {
-    const isStaff = user.role === 'super_admin' || user.role === 'teacher' || user.role === 'admin';
-    if (!isStaff || !data || !data.targetUserId) return;
+    const freshUser = users.findById(user.id);
+    const canMod = freshUser && (canManageLive(freshUser) || (liveLessonState.startedBy && liveLessonState.startedBy.id === user.id));
+    if (!canMod || !data || !data.targetUserId) return;
     const targetId = parseInt(data.targetUserId);
 
     for (const [sId, p] of liveLessonState.participants.entries()) {
@@ -3117,8 +3284,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('live_kick', (data) => {
-    const isStaff = user.role === 'super_admin' || user.role === 'teacher' || user.role === 'admin';
-    if (!isStaff || !data || !data.targetUserId) return;
+    const freshUser = users.findById(user.id);
+    const canMod = freshUser && (canManageLive(freshUser) || (liveLessonState.startedBy && liveLessonState.startedBy.id === user.id));
+    if (!canMod || !data || !data.targetUserId) return;
     const targetId = parseInt(data.targetUserId);
 
     liveLessonState.bannedUserIds.add(targetId);
@@ -3135,8 +3303,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('live_quran_play', (data) => {
-    const isStaff = user.role === 'super_admin' || user.role === 'teacher' || user.role === 'admin';
-    if (!isStaff || !data) return;
+    const freshUser = users.findById(user.id);
+    const canMod = freshUser && (canManageLive(freshUser) || (liveLessonState.startedBy && liveLessonState.startedBy.id === user.id));
+    if (!canMod || !data) return;
     liveLessonState.quranState = {
       isPlaying: true,
       reciter: data.reciter || 'قورئانی پیرۆز',
@@ -3148,15 +3317,17 @@ io.on('connection', (socket) => {
   });
 
   socket.on('live_quran_stop', () => {
-    const isStaff = user.role === 'super_admin' || user.role === 'teacher' || user.role === 'admin';
-    if (!isStaff) return;
+    const freshUser = users.findById(user.id);
+    const canMod = freshUser && (canManageLive(freshUser) || (liveLessonState.startedBy && liveLessonState.startedBy.id === user.id));
+    if (!canMod) return;
     liveLessonState.quranState = { isPlaying: false, reciter: '', surahName: '', audioUrl: '' };
     io.to('live_lesson_room').emit('live_quran_stopped');
     broadcastLiveLessonState();
   });
 
   socket.on('live_screen_start', () => {
-    if (user.role !== 'super_admin' && user.role !== 'teacher') return;
+    const freshUser = users.findById(user.id);
+    if (!freshUser || !canManageLive(freshUser)) return;
     liveLessonState.screenSharingBy = {
       id: user.id,
       name: user.full_name,
