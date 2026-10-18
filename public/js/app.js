@@ -880,6 +880,24 @@ function updateUserUI() {
 }
 
 function handleLogout() {
+  try {
+    const lastVisible = (typeof getHighestVisibleMessageId === 'function') ? getHighestVisibleMessageId() : 0;
+    if (currentUser && lastVisible > 0) {
+      setLocalLastReadMessageId(currentUser.id, lastVisible);
+      if (token) {
+        fetch('/api/chat/last-read', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ message_id: lastVisible }),
+          keepalive: true
+        }).catch(() => {});
+      }
+    }
+  } catch (e) {}
+
   localStorage.removeItem('seereen_token');
   token = null;
   currentUser = null;
@@ -1455,7 +1473,11 @@ function initSocket() {
       if (isUserScrolledUp) {
         unreadCount++;
         showUnreadJumpPill();
+      } else {
+        syncLastReadMessageWithServer(msg.id);
       }
+    } else {
+      syncLastReadMessageWithServer(msg.id);
     }
   });
 
@@ -1924,6 +1946,71 @@ function initSocket() {
   });
 }
 
+// --- LAST READ MESSAGE & SCROLL RESTORATION (TELEGRAM-STYLE) ---
+function getLocalLastReadMessageId(userId) {
+  if (!userId) return 0;
+  const val = localStorage.getItem(`seereen_last_read_msg_${userId}`);
+  return val ? parseInt(val, 10) : 0;
+}
+
+function setLocalLastReadMessageId(userId, msgId) {
+  if (!userId || !msgId) return;
+  const current = getLocalLastReadMessageId(userId);
+  if (msgId > current) {
+    localStorage.setItem(`seereen_last_read_msg_${userId}`, msgId);
+  }
+}
+
+let lastSyncMsgId = 0;
+let lastSyncTimeout = null;
+
+function syncLastReadMessageWithServer(msgId) {
+  if (!currentUser || !token || !msgId) return;
+  setLocalLastReadMessageId(currentUser.id, msgId);
+  if (msgId <= lastSyncMsgId) return;
+  lastSyncMsgId = msgId;
+
+  clearTimeout(lastSyncTimeout);
+  lastSyncTimeout = setTimeout(() => {
+    fetch('/api/chat/last-read', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ message_id: msgId })
+    }).catch(() => {});
+  }, 700);
+}
+
+function getHighestVisibleMessageId() {
+  const container = document.getElementById('messagesContainer');
+  if (!container) return 0;
+  const containerRect = container.getBoundingClientRect();
+  const items = container.querySelectorAll('.chat-msg-item[id^="msg-"]');
+  if (!items || items.length === 0) return 0;
+
+  // If scrolled to or near bottom, consider all read
+  const scrollFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+  if (scrollFromBottom <= 50) {
+    const lastEl = items[items.length - 1];
+    const lastId = parseInt(lastEl.id.replace('msg-', ''), 10);
+    if (lastId) return lastId;
+  }
+
+  // Iterate backwards to find highest message visible in container viewport
+  for (let i = items.length - 1; i >= 0; i--) {
+    const el = items[i];
+    const rect = el.getBoundingClientRect();
+    if (rect.top <= containerRect.bottom - 20) {
+      const id = parseInt(el.id.replace('msg-', ''), 10);
+      if (id) return id;
+    }
+  }
+
+  return 0;
+}
+
 // --- MESSAGES LOGIC ---
 async function loadMessages() {
   try {
@@ -1935,8 +2022,65 @@ async function loadMessages() {
     container.innerHTML = '';
 
     if (data.messages && data.messages.length > 0) {
-      data.messages.forEach(msg => appendMessage(msg, false));
-      scrollToBottom();
+      const serverLastRead = data.last_read_message_id || 0;
+      const localLastRead = currentUser ? getLocalLastReadMessageId(currentUser.id) : 0;
+      const userLastReadId = Math.max(serverLastRead, localLastRead);
+
+      const latestMsg = data.messages[data.messages.length - 1];
+      const hasUnread = userLastReadId > 0 && userLastReadId < latestMsg.id;
+      let dividerInserted = false;
+
+      data.messages.forEach(msg => {
+        if (hasUnread && !dividerInserted && msg.id > userLastReadId) {
+          const divider = document.createElement('div');
+          divider.id = 'chatUnreadDivider';
+          divider.className = 'chat-unread-divider my-3.5 flex items-center justify-center gap-3 select-none';
+          divider.innerHTML = `
+            <div class="h-px bg-indigo-500/40 flex-1"></div>
+            <span class="px-3.5 py-1 rounded-full bg-indigo-950/90 border border-indigo-500/40 text-indigo-300 font-black text-xs shadow-md flex items-center gap-1.5 animate-pulse">
+              <i class="fa-solid fa-arrow-down text-[10px] text-amber-400"></i> پەیامە نەبینراوەکان
+            </span>
+            <div class="h-px bg-indigo-500/40 flex-1"></div>
+          `;
+          container.appendChild(divider);
+          dividerInserted = true;
+        }
+        appendMessage(msg, false);
+      });
+
+      if (hasUnread && dividerInserted) {
+        // Restore scroll position right to the divider / where the user left off (Telegram-style)
+        setTimeout(() => {
+          const divider = document.getElementById('chatUnreadDivider');
+          if (divider) {
+            const dividerTop = divider.offsetTop;
+            container.scrollTop = Math.max(0, dividerTop - 60);
+
+            isUserScrolledUp = true;
+            const arrowBtn = document.getElementById('scrollToLatestBtn');
+            if (arrowBtn) {
+              arrowBtn.classList.remove('hidden');
+              arrowBtn.classList.add('flex');
+            }
+            const unreadMessagesCount = data.messages.filter(m => m.id > userLastReadId).length;
+            if (unreadMessagesCount > 0) {
+              const pill = document.getElementById('unreadJumpPill');
+              const countText = document.getElementById('unreadCountText');
+              if (pill && countText) {
+                countText.innerText = `${unreadMessagesCount} پەیامی نوێ`;
+                pill.classList.remove('hidden');
+              }
+            }
+          } else {
+            scrollToBottom();
+          }
+        }, 60);
+      } else {
+        scrollToBottom();
+        if (latestMsg) {
+          syncLastReadMessageWithServer(latestMsg.id);
+        }
+      }
     } else {
       container.innerHTML = `
         <div class="text-center py-12 flex flex-col items-center justify-center empty-welcome-box">
@@ -2573,6 +2717,14 @@ function scrollToBottom() {
     arrowBtn.classList.remove('flex');
   }
   hideUnreadJumpPill();
+  const divider = document.getElementById('chatUnreadDivider');
+  if (divider) divider.remove();
+  isUserScrolledUp = false;
+
+  setTimeout(() => {
+    const highest = getHighestVisibleMessageId();
+    if (highest > 0) syncLastReadMessageWithServer(highest);
+  }, 350);
 }
 
 // --- MOBILE MESSAGE ACTIONS TOGGLE ---
@@ -2634,6 +2786,10 @@ function handleChatScroll() {
       arrowBtn.classList.remove('hidden');
       arrowBtn.classList.add('flex');
     }
+    const visibleId = getHighestVisibleMessageId();
+    if (visibleId > 0) {
+      syncLastReadMessageWithServer(visibleId);
+    }
   } else {
     isUserScrolledUp = false;
     if (arrowBtn) {
@@ -2641,6 +2797,14 @@ function handleChatScroll() {
       arrowBtn.classList.remove('flex');
     }
     hideUnreadJumpPill();
+    const divider = document.getElementById('chatUnreadDivider');
+    if (divider && scrollFromBottom < 40) {
+      divider.remove();
+    }
+    const visibleId = getHighestVisibleMessageId();
+    if (visibleId > 0) {
+      syncLastReadMessageWithServer(visibleId);
+    }
   }
 }
 
@@ -2660,6 +2824,8 @@ function hideUnreadJumpPill() {
 function jumpToNewestMessages() {
   scrollToBottom();
   hideUnreadJumpPill();
+  const divider = document.getElementById('chatUnreadDivider');
+  if (divider) divider.remove();
 }
 
 let currentChatLockMode = 'none';
@@ -12170,6 +12336,38 @@ async function deleteRecordedLesson(id) {
     alert('پەیوەندی ناتەواوە');
   }
 }
+
+// --- AUTO-SAVE CHAT SCROLL / LAST READ ON APP EXIT OR TAB SWITCH ---
+window.addEventListener('beforeunload', () => {
+  try {
+    if (currentUser && token) {
+      const lastVisible = (typeof getHighestVisibleMessageId === 'function') ? getHighestVisibleMessageId() : 0;
+      if (lastVisible > 0) {
+        setLocalLastReadMessageId(currentUser.id, lastVisible);
+        fetch('/api/chat/last-read', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ message_id: lastVisible }),
+          keepalive: true
+        }).catch(() => {});
+      }
+    }
+  } catch (e) {}
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && currentUser && token) {
+    try {
+      const lastVisible = (typeof getHighestVisibleMessageId === 'function') ? getHighestVisibleMessageId() : 0;
+      if (lastVisible > 0) {
+        syncLastReadMessageWithServer(lastVisible);
+      }
+    } catch (e) {}
+  }
+});
 
 
 

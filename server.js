@@ -1831,7 +1831,19 @@ app.get('/api/chat/messages', authMiddleware, (req, res) => {
     starInfo: calculateStars(m.correct_answers_count),
     reactions: reactionsMap[m.id] || []
   }));
-  res.json({ messages: result });
+  res.json({ 
+    messages: result,
+    last_read_message_id: req.user.last_read_message_id || 0
+  });
+});
+
+// Update User Last Read Message ID
+app.post('/api/chat/last-read', authMiddleware, (req, res) => {
+  const messageId = parseInt(req.body.message_id, 10);
+  if (messageId && messageId > 0) {
+    users.updateLastReadMessage(req.user.id, messageId);
+  }
+  res.json({ success: true, last_read_message_id: messageId });
 });
 
 // Message Reactions (🏆, 🤲, 👍, 💯)

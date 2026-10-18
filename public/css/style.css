@@ -1301,6 +1301,55 @@ body.matte-theme .voice-bubble {
   cursor: default !important;
 }
 
+/* Telegram-style Unread Messages Divider */
+.chat-unread-divider {
+  position: relative;
+  width: 100%;
+}
+.chat-unread-divider span {
+  transition: all 0.2s ease;
+}
+body.light-theme .chat-unread-divider span {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+}
+body.light-theme .chat-unread-divider div {
+  background-color: #cbd5e1 !important;
+}
+body.sepia-theme .chat-unread-divider span {
+  background-color: #e4d4ba !important;
+  border-color: #b8864e !important;
+  color: #78350f !important;
+}
+body.sepia-theme .chat-unread-divider div {
+  background-color: rgba(184, 134, 78, 0.4) !important;
+}
+body.emerald-theme .chat-unread-divider span {
+  background-color: #0c2b21 !important;
+  border-color: #059669 !important;
+  color: #6ee7b7 !important;
+}
+body.emerald-theme .chat-unread-divider div {
+  background-color: rgba(16, 185, 129, 0.4) !important;
+}
+body.oled-theme .chat-unread-divider span {
+  background-color: #121212 !important;
+  border-color: #333333 !important;
+  color: #38bdf8 !important;
+}
+body.oled-theme .chat-unread-divider div {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+body.matte-theme .chat-unread-divider span {
+  background-color: #1c1c20 !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: #e4e4e7 !important;
+}
+body.matte-theme .chat-unread-divider div {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+}
+
 /* ================= MOBILE OPTIMIZATIONS ================= */
 .scrollbar-none::-webkit-scrollbar {
   display: none;

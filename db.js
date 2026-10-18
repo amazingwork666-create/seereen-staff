@@ -248,6 +248,7 @@ function initDb() {
   try { db.exec("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'male'"); } catch (e) {}
   try { db.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE users ADD COLUMN special_badge TEXT DEFAULT NULL"); } catch (e) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN last_read_message_id INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN attachment_type TEXT DEFAULT 'none'"); } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN attachment_url TEXT DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN duration_minutes INTEGER DEFAULT 5"); } catch (e) {}
@@ -435,6 +436,16 @@ const users = {
   updatePassword(id, passwordHash) {
     const stmt = db.prepare('UPDATE users SET password_hash = ? WHERE id = ?');
     return stmt.run(passwordHash, id);
+  },
+  updateLastReadMessage(id, messageId) {
+    if (!id || !messageId) return;
+    const stmt = db.prepare('UPDATE users SET last_read_message_id = MAX(COALESCE(last_read_message_id, 0), ?) WHERE id = ?');
+    return stmt.run(messageId, id);
+  },
+  getLastReadMessage(id) {
+    if (!id) return 0;
+    const row = db.prepare('SELECT last_read_message_id FROM users WHERE id = ?').get(id);
+    return row ? (row.last_read_message_id || 0) : 0;
   },
   addRoleHistory(userId, changedById, changedByName, oldRole, newRole) {
     const stmt = db.prepare(`
