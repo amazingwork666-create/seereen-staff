@@ -1057,10 +1057,10 @@ app.post('/api/chat/upload-voice', authMiddleware, requireAdmin, upload.single('
   try {
     const activeLockMode = settings.get('chat_lock_mode', 'none');
     if (activeLockMode === 'total_lock' && req.user.role !== 'super_admin') {
-      return res.status(403).json({ error: '🔒 چات بە تەواوەتی داخراوە لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام)' });
+      return res.status(403).json({ error: '🔒 چات داخراوە' });
     }
     if (activeLockMode === 'staff_only' && !['super_admin', 'admin', 'teacher'].includes(req.user.role)) {
-      return res.status(403).json({ error: '🔒 چات داخراوە، تەنها مامۆستا و دەستەی بەڕێوەبەرایەتی دەتوانن دەنگ بنێرن' });
+      return res.status(403).json({ error: '🔒 چات داخراوە' });
     }
     if (!req.file) return res.status(400).json({ error: 'هیچ دەنگێک نەدۆزرایەوە' });
     const voiceUrl = `/uploads/${req.file.filename}`;
@@ -1283,12 +1283,10 @@ app.post('/api/chat/lock', authMiddleware, (req, res) => {
   settings.set('chat_lock_time', lockTime);
 
   let announceText = '';
-  if (mode === 'total_lock') {
-    announceText = `🔒 چاتی گشتی بە تەواوەتی داخرا لەلایەن (${req.user.full_name})ەوە (@قفڵ.عام)`;
-  } else if (mode === 'staff_only') {
-    announceText = `🔒 چات داخرا لەلایەن (${req.user.full_name})ەوە - تەنها بۆ مامۆستا و ئەدمینەکان کراوەیە (@قفڵ)`;
+  if (mode === 'total_lock' || mode === 'staff_only') {
+    announceText = '🔒 چات داخرا';
   } else {
-    announceText = `🔓 چاتی گشتی کرایەوە بۆ هەمووان لەلایەن (${req.user.full_name})ەوە`;
+    announceText = '🔓 چات کراوەیە';
   }
 
   const sysMsg = messages.create(req.user.id, 'سیستەم', 'سیستەم', 'system', announceText, 'system');
@@ -2998,13 +2996,13 @@ io.on('connection', (socket) => {
         let announceText = '';
         if (hasLockAll) {
           newMode = 'total_lock';
-          announceText = `🔒 چاتی گشتی بە تەواوەتی داخرا لەلایەن (${freshUser.full_name})ەوە (@قفڵ.عام)`;
+          announceText = '🔒 چات داخرا';
         } else if (hasLockStaff) {
           newMode = 'staff_only';
-          announceText = `🔒 چات داخرا لەلایەن (${freshUser.full_name})ەوە - تەنها بۆ مامۆستا و ئەدمینەکان کراوەیە (@قفڵ)`;
+          announceText = '🔒 چات داخرا';
         } else if (hasUnlock) {
           newMode = 'none';
-          announceText = `🔓 چاتی گشتی کرایەوە بۆ هەمووان لەلایەن (${freshUser.full_name})ەوە (@کلیل 🗝️)`;
+          announceText = '🔓 چات کراوەیە';
         }
 
         settings.set('chat_lock_mode', newMode);
@@ -3026,11 +3024,11 @@ io.on('connection', (socket) => {
       // --- CHAT LOCK PERMISSION ENFORCEMENT ---
       const activeLockMode = settings.get('chat_lock_mode', 'none');
       if (activeLockMode === 'total_lock' && freshUser.role !== 'super_admin') {
-        socket.emit('error_message', '🔒 چات بە تەواوەتی داخراوە لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام)، هیچ کەسێک ناتوانێت پەیام بنێرێت.');
+        socket.emit('error_message', '🔒 چات داخراوە.');
         return;
       }
       if (activeLockMode === 'staff_only' && !['super_admin', 'admin', 'teacher'].includes(freshUser.role)) {
-        socket.emit('error_message', '🔒 چات داخراوە لەلایەن سوپەر ئەدمینەوە، تەنها مامۆستا و دەستەی بەڕێوەبەرایەتی دەتوانن پەیام بنێرن.');
+        socket.emit('error_message', '🔒 چات داخراوە.');
         return;
       }
 

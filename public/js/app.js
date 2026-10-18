@@ -2865,8 +2865,8 @@ function updateChatLockUI(data) {
     banner.classList.add('bg-rose-950/90', 'border-rose-500/60', 'text-rose-100');
     if (icon) icon.innerText = '🔒';
     msgEl.innerText = isSuperAdmin
-      ? '🔒 چات بە تەواوەتی داخراوە (@قفڵ.عام) - تەنها تۆ وەک سوپەر ئەدمین دەتوانیت بنووسیت.'
-      : '🔒 چاتی گشتی بە تەواوەتی داخراوە لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام - هیچ کەس ناتوانێت بنووسێت).';
+      ? '🔒 چات داخراوە (تەنها تۆ دەتوانیت بنووسیت).'
+      : '🔒 چات داخراوە.';
 
     if (adminActions) {
       if (isSuperAdmin) {
@@ -2881,13 +2881,13 @@ function updateChatLockUI(data) {
     if (!isSuperAdmin) {
       if (input) {
         input.disabled = true;
-        input.placeholder = '🔒 چات بە تەواوەتی داخراوە لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام)';
+        input.placeholder = '🔒 چات داخراوە';
       }
       if (sendBtn) sendBtn.disabled = true;
     } else {
       if (input) {
         input.disabled = false;
-        input.placeholder = '👑 تۆ سوپەر ئەدمینیت: پەیام بنووسە یان بیکەرەوە...';
+        input.placeholder = 'پەیام بنووسە یان بیکەرەوە...';
       }
       if (sendBtn) sendBtn.disabled = false;
     }
@@ -2896,8 +2896,8 @@ function updateChatLockUI(data) {
     banner.classList.add('bg-amber-950/80', 'border-amber-500/50', 'text-amber-200');
     if (icon) icon.innerText = '🛡️';
     msgEl.innerText = isStaff
-      ? 'ℹ️ چات تەنها بۆ مامۆستا و دەستەی بەڕێوەبەرایەتی کراوەیە (@قفڵ).'
-      : '🔒 چات داخراوە لەلایەن سوپەر ئەدمینەوە، تەنها مامۆستا و دەستەی بەڕێوەبەرایەتی دەتوانن بنووسن.';
+      ? 'ℹ️ چات تەنها بۆ مامۆستا و ئەدمین کراوەیە.'
+      : '🔒 چات داخراوە.';
 
     if (adminActions) {
       if (isSuperAdmin) {
@@ -2912,13 +2912,13 @@ function updateChatLockUI(data) {
     if (!isStaff) {
       if (input) {
         input.disabled = true;
-        input.placeholder = '🔒 چات تەنها بۆ مامۆستا و دەستەی بەڕێوەبەرایەتی کراوەیە (@قفڵ)';
+        input.placeholder = '🔒 چات داخراوە';
       }
       if (sendBtn) sendBtn.disabled = true;
     } else {
       if (input) {
         input.disabled = false;
-        input.placeholder = 'پەیامەکەت بنووسە (تایبەت بە دەستەی بەڕێوەبەرایەتی)...';
+        input.placeholder = 'پەیام بنووسە...';
       }
       if (sendBtn) sendBtn.disabled = false;
     }
@@ -2975,11 +2975,11 @@ function handleSendMessage(e) {
 
   // Active chat lock mode client validation
   if (currentChatLockMode === 'total_lock' && currentUser && currentUser.role !== 'super_admin') {
-    alert('🔒 چات بە تەواوەتی داخراوە لەلایەن سوپەر ئەدمینەوە (@قفڵ.عام)، هیچ کەس ناتوانێت بنووسێت.');
+    alert('🔒 چات داخراوە.');
     return;
   }
   if (currentChatLockMode === 'staff_only' && currentUser && !['super_admin', 'admin', 'teacher'].includes(currentUser.role)) {
-    alert('🔒 چات داخراوە، تەنها مامۆستا و دەستەی بەڕێوەبەرایەتی دەتوانن پەیام بنێرن.');
+    alert('🔒 چات داخراوە.');
     return;
   }
 
