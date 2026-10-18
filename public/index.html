@@ -17,7 +17,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/css/style.css?v=10.0">
+  <link rel="stylesheet" href="/css/style.css?v=10.1">
   <style>
     body.light-theme .msg-text-student,
     body.light-theme [class*="msg-text-student"],
@@ -993,7 +993,7 @@
               </span>
               <div>
                 <span class="block text-xs font-black text-amber-300">بەڕێوەبەری سەرەکی پڕۆژە</span>
-                <span class="text-[10px] text-slate-400 font-medium">سوپەر ئەدمین (Super Admin)</span>
+                <span class="text-[10px] text-amber-400/80 font-medium">سەرپەرشتیاری پڕۆژە</span>
               </div>
             </div>
             <span class="px-2.5 py-1 rounded-xl bg-amber-500 text-slate-950 text-[10px] font-black shadow flex items-center gap-1">
@@ -2035,9 +2035,7 @@
           <div class="min-w-0">
             <div class="flex items-center gap-1.5 flex-wrap">
               <h3 class="font-black text-xs md:text-sm text-white whitespace-nowrap">بەڕێوەبردنی خەونەکان</h3>
-              <span id="dreamAdminRoleIndicator" class="role-text-super-admin text-[11px] font-black whitespace-nowrap inline-flex items-center gap-1 select-none">
-                <i class="fa-solid fa-crown text-[10px]"></i> سوپەر ئەدمین
-              </span>
+              <span id="dreamAdminRoleIndicator" class="hidden"></span>
             </div>
             <p class="text-[9px] md:text-[11px] text-purple-300 truncate hidden xs:block">چات، ڤۆیس، پەیوەندی و تۆمارەکان</p>
           </div>
@@ -2921,6 +2919,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=10.0"></script>
+  <script src="/js/app.js?v=10.1"></script>
 </body>
 </html>
