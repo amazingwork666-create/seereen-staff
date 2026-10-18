@@ -17,13 +17,37 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/css/style.css?v=7.0">
+  <link rel="stylesheet" href="/css/style.css?v=8.0">
   <style>
     body.light-theme .msg-text-student,
     body.light-theme [class*="msg-text-student"],
     body.light-theme .chat-msg-item .msg-text-student,
     body.light-theme .chat-msg-item div.msg-text-student {
       color: #000000 !important;
+      text-shadow: none !important;
+    }
+
+    body.sepia-theme .msg-text-student,
+    body.sepia-theme [class*="msg-text-student"],
+    body.sepia-theme .chat-msg-item .msg-text-student,
+    body.sepia-theme .chat-msg-item div.msg-text-student {
+      color: #24170c !important;
+      text-shadow: none !important;
+    }
+
+    body.emerald-theme .msg-text-student,
+    body.emerald-theme [class*="msg-text-student"],
+    body.emerald-theme .chat-msg-item .msg-text-student,
+    body.emerald-theme .chat-msg-item div.msg-text-student {
+      color: #f0fdf4 !important;
+      text-shadow: none !important;
+    }
+
+    body.oled-theme .msg-text-student,
+    body.oled-theme [class*="msg-text-student"],
+    body.oled-theme .chat-msg-item .msg-text-student,
+    body.oled-theme .chat-msg-item div.msg-text-student {
+      color: #ffffff !important;
       text-shadow: none !important;
     }
 
@@ -328,9 +352,9 @@
           <span id="liveLessonActiveBadge" class="hidden px-1.5 py-0.2 bg-rose-600 text-white text-[9px] font-black rounded-md animate-pulse">ڕاستەوخۆ</span>
         </button>
 
-        <!-- Dark / Light Mode Toggle Button (Desktop only on navbar, accessible via drawer on mobile) -->
-        <button id="themeToggleBtn" onclick="toggleTheme()" class="hidden md:flex p-2 md:px-2.5 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs rounded-xl transition items-center gap-1 active:scale-95" title="گۆڕینی دۆخی مۆد (ڕووناک / تاریک)">
-          <i id="themeToggleIcon" class="fa-solid fa-sun text-amber-400"></i>
+        <!-- Theme Modes Button (5 Modes) -->
+        <button id="themeToggleBtn" onclick="openThemeModal()" class="hidden md:flex p-2 md:px-2.5 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs rounded-xl transition items-center gap-1 active:scale-95" title="مۆدی ڕووکار و ڕەنگەکان (٥ مۆد 🎨)">
+          <i id="themeToggleIcon" class="fa-solid fa-palette text-amber-400"></i>
           <span class="hidden lg:inline" id="themeToggleText">مۆد</span>
         </button>
 
@@ -575,13 +599,13 @@
               <span id="drawerNotificationStatusBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">ناچالاک</span>
             </button>
 
-            <!-- Theme Mode in Drawer -->
-            <button onclick="toggleTheme()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+            <!-- Theme Mode in Drawer (5 Modes) -->
+            <button onclick="closeMainMenuDrawer(); openThemeModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-circle-half-stroke text-amber-400 text-sm w-5 text-center"></i>
-                <span id="drawerThemeText">گۆڕینی مۆد (ڕووناک / تاریک)</span>
+                <i id="drawerThemeIcon" class="fa-solid fa-palette text-amber-400 text-sm w-5 text-center"></i>
+                <span id="drawerThemeText">مۆدی ڕەنگ (٥ مۆد 🎨)</span>
               </span>
-              <span id="drawerThemeBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">مۆد</span>
+              <span id="drawerThemeBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">تاریک</span>
             </button>
 
             <!-- PWA Install -->
@@ -1143,6 +1167,43 @@
 
       </div>
 
+    </div>
+  </div>
+
+  <!-- ================= MODAL: THEME SELECTOR (5 MODES) ================= -->
+  <div id="themeModal" onclick="if(event.target === this) closeThemeModal()" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="w-full max-w-md max-h-[92vh] bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col overflow-hidden animate-scale-up">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0 mb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-base">
+            <i class="fa-solid fa-palette"></i>
+          </span>
+          <div>
+            <h3 class="font-black text-sm text-white">مۆدی ڕووکار و ڕەنگەکان</h3>
+            <p class="text-[10px] text-slate-400">ڕەنگی پەسەندکراو دیاریبکە (٥ مۆدی تایبەت و بەسوود) 🎨</p>
+          </div>
+        </div>
+        <button onclick="closeThemeModal()" class="text-slate-400 hover:text-white p-2 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Theme Cards List -->
+      <div id="themeCardsList" class="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1 pl-0.5" style="-webkit-overflow-scrolling: touch; overscroll-behavior: contain;">
+        <!-- Filled dynamically by renderThemeCards() in app.js -->
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="pt-3 mt-3 border-t border-slate-800 flex items-center justify-between shrink-0">
+        <button type="button" onclick="cycleNextTheme()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95" title="گۆڕینی خێرا بۆ مۆدی دواتر">
+          <i class="fa-solid fa-rotate text-[11px] text-amber-400"></i>
+          <span>مۆدی دواتر</span>
+        </button>
+        <button type="button" onclick="closeThemeModal()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition active:scale-95 shadow">
+          داخستن
+        </button>
+      </div>
     </div>
   </div>
 
@@ -2852,6 +2913,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=7.0"></script>
+  <script src="/js/app.js?v=8.0"></script>
 </body>
 </html>

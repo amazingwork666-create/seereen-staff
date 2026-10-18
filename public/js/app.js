@@ -6200,30 +6200,159 @@ function jumpToQuestionInChat(questionId, questionNumber) {
   }
 }
 
-// ================= THEME TOGGLE (DARK / LIGHT MODE) =================
+// ================= THEME SYSTEM (5 RICH MODES) =================
+const AVAILABLE_THEMES = [
+  {
+    id: 'dark',
+    name: 'تاریکی بنەڕەتی',
+    subtitle: 'شەوانەی کلاسیک 🌙',
+    desc: 'دۆخی شینی تۆخی کلاسیکی پڕۆژەکە؛ هێمن، ڕێکخراو و هاوسەنگ بۆ بەکارهێنانی گشتی.',
+    icon: 'fa-solid fa-moon',
+    iconColor: 'text-indigo-400',
+    swatchClass: 'from-slate-950 via-slate-900 to-indigo-950 border-indigo-500/40 text-indigo-400',
+    badgeText: 'تاریک'
+  },
+  {
+    id: 'light',
+    name: 'دۆخی ڕووناک',
+    subtitle: 'ڕۆژانەی گەش ☀️',
+    desc: 'ڕووکاری سپی و شەفاف؛ گونجاو بۆ کاتی ڕۆژ و ژوور یان شوێنی پڕ لە ڕووناکی و خۆرەتاو.',
+    icon: 'fa-solid fa-sun',
+    iconColor: 'text-amber-500',
+    swatchClass: 'from-amber-50 via-white to-orange-100 border-amber-400/50 text-amber-500',
+    badgeText: 'ڕووناک'
+  },
+  {
+    id: 'sepia',
+    name: 'پاراستنی چاو (سێپیا)',
+    subtitle: 'تایبەت بە خوێندنەوە 📖',
+    desc: 'ڕەنگی کاغەزی گەرم بەبێ تیشکی شینی ماندووکەر؛ باشترینە بۆ خوێندنەوەی دوورودرێژ و قورئان بێ کزبوونی چاو.',
+    icon: 'fa-solid fa-book-open',
+    iconColor: 'text-amber-600',
+    swatchClass: 'from-[#fbf4ea] via-[#f2e5cf] to-[#e4d4ba] border-[#b8864e]/50 text-amber-600',
+    badgeText: 'سێپیا'
+  },
+  {
+    id: 'emerald',
+    name: 'سەوزی دارستان',
+    subtitle: 'ئیسلامی و هێمنی 🌿',
+    desc: 'سەوزی ئارامبەخشی دارستان و ڕووکاری ئیسلامی؛ دەروون ئارام دەکاتەوە و تەرکیز بەرز دەکاتەوە بۆ لەبەرکردن.',
+    icon: 'fa-solid fa-seedling',
+    iconColor: 'text-emerald-400',
+    swatchClass: 'from-[#061913] via-[#0c2b21] to-[#144233] border-emerald-500/50 text-emerald-400',
+    badgeText: 'سەوز'
+  },
+  {
+    id: 'oled',
+    name: 'ڕەشی قووڵ (OLED)',
+    subtitle: 'پاشەکەوتی شەحن 🖤',
+    desc: 'ڕەشی ڕەها (True Pitch Black)؛ لە شاشەی مۆبایل پێکسڵەکان دەکوژێنێتەوە و کەمترین پاتری بەکاردەهێنێت لە شەواندا.',
+    icon: 'fa-solid fa-bolt',
+    iconColor: 'text-sky-300',
+    swatchClass: 'from-black via-[#0a0a0a] to-[#141414] border-slate-700 text-sky-300',
+    badgeText: 'OLED'
+  }
+];
+
 function initTheme() {
   const savedTheme = localStorage.getItem('seereen_theme') || 'dark';
   applyTheme(savedTheme);
 }
 
+function getCurrentTheme() {
+  return localStorage.getItem('seereen_theme') || 'dark';
+}
+
 function applyTheme(theme) {
-  const icon = document.getElementById('themeToggleIcon');
-  const text = document.getElementById('themeToggleText');
-  if (theme === 'light') {
-    document.body.classList.add('light-theme');
-    if (icon) icon.className = 'fa-solid fa-moon text-indigo-400';
-    if (text) text.innerText = 'تاریک';
-  } else {
-    document.body.classList.remove('light-theme');
-    if (icon) icon.className = 'fa-solid fa-sun text-amber-400';
-    if (text) text.innerText = 'ڕووناک';
+  const validThemes = ['dark', 'light', 'sepia', 'emerald', 'oled'];
+  if (!validThemes.includes(theme)) theme = 'dark';
+
+  document.body.classList.remove('light-theme', 'sepia-theme', 'emerald-theme', 'oled-theme');
+  if (theme !== 'dark') {
+    document.body.classList.add(theme + '-theme');
   }
   localStorage.setItem('seereen_theme', theme);
+
+  const themeObj = AVAILABLE_THEMES.find(t => t.id === theme) || AVAILABLE_THEMES[0];
+
+  const icon = document.getElementById('themeToggleIcon');
+  const text = document.getElementById('themeToggleText');
+  if (icon) icon.className = `${themeObj.icon} ${themeObj.iconColor}`;
+  if (text) text.innerText = themeObj.badgeText;
+
+  const drawerIcon = document.getElementById('drawerThemeIcon');
+  const drawerText = document.getElementById('drawerThemeText');
+  const drawerBadge = document.getElementById('drawerThemeBadge');
+  if (drawerIcon) drawerIcon.className = `${themeObj.icon} ${themeObj.iconColor} text-sm w-5 text-center`;
+  if (drawerText) drawerText.innerText = `مۆدی ڕووکار (${themeObj.name})`;
+  if (drawerBadge) drawerBadge.innerText = themeObj.badgeText;
+}
+
+function openThemeModal() {
+  const modal = document.getElementById('themeModal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    renderThemeCards();
+  }
+}
+
+function closeThemeModal() {
+  const modal = document.getElementById('themeModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function selectTheme(themeId) {
+  applyTheme(themeId);
+  renderThemeCards();
+  setTimeout(() => {
+    closeThemeModal();
+  }, 220);
+}
+
+function cycleNextTheme() {
+  const current = getCurrentTheme();
+  const currentIndex = AVAILABLE_THEMES.findIndex(t => t.id === current);
+  const nextIndex = (currentIndex + 1) % AVAILABLE_THEMES.length;
+  selectTheme(AVAILABLE_THEMES[nextIndex].id);
 }
 
 function toggleTheme() {
-  const isLight = document.body.classList.contains('light-theme');
-  applyTheme(isLight ? 'dark' : 'light');
+  openThemeModal();
+}
+
+function renderThemeCards() {
+  const container = document.getElementById('themeCardsList');
+  if (!container) return;
+  const current = getCurrentTheme();
+
+  container.innerHTML = AVAILABLE_THEMES.map(t => {
+    const isActive = t.id === current;
+    const activeBorder = isActive 
+      ? 'border-2 border-amber-500 bg-slate-800/95 shadow-lg' 
+      : 'border border-slate-800 bg-slate-800/50 hover:bg-slate-800 hover:border-slate-700';
+
+    return `
+      <div onclick="selectTheme('${t.id}')" class="p-3 rounded-2xl cursor-pointer transition-all active:scale-[0.98] ${activeBorder} flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border bg-gradient-to-br ${t.swatchClass} shadow-inner text-lg">
+            <i class="${t.icon}"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <h4 class="text-xs font-black text-white truncate">${t.name}</h4>
+              <span class="text-[10px] text-slate-400 font-medium">${t.subtitle}</span>
+            </div>
+            <p class="text-[10px] text-slate-400 leading-snug line-clamp-2 mt-0.5">${t.desc}</p>
+          </div>
+        </div>
+        <div class="shrink-0 flex items-center">
+          ${isActive 
+            ? '<span class="px-2.5 py-1 rounded-xl bg-amber-500 text-slate-950 font-black text-[10px] shadow flex items-center gap-1"><i class="fa-solid fa-check text-[9px]"></i> چالاکە</span>' 
+            : '<span class="px-2.5 py-1 rounded-xl bg-slate-700/60 text-slate-300 hover:text-white font-bold text-[10px]">دیاریکردن</span>'}
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 // ================= LIBRARY (BOOKSHELF) LOGIC =================
