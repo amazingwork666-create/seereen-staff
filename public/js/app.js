@@ -6251,6 +6251,16 @@ const AVAILABLE_THEMES = [
     iconColor: 'text-sky-300',
     swatchClass: 'from-black via-[#0a0a0a] to-[#141414] border-slate-700 text-sky-300',
     badgeText: 'OLED'
+  },
+  {
+    id: 'matte',
+    name: 'ڕەشی مات',
+    subtitle: 'ماتی لوکس و بێ تیشکدانەوە 🖤',
+    desc: 'ڕەنگی خەڵووزی و ماتی مخمەڵی بێ درەوشانەوە؛ دیمەنێکی مۆدێرن و شکۆدار بەبێ ماندووکردنی چاو.',
+    icon: 'fa-solid fa-gem',
+    iconColor: 'text-zinc-400',
+    swatchClass: 'from-[#121214] via-[#18181b] to-[#27272a] border-zinc-700 text-zinc-300',
+    badgeText: 'مات'
   }
 ];
 
@@ -6264,10 +6274,10 @@ function getCurrentTheme() {
 }
 
 function applyTheme(theme) {
-  const validThemes = ['dark', 'light', 'sepia', 'emerald', 'oled'];
+  const validThemes = ['dark', 'light', 'sepia', 'emerald', 'oled', 'matte'];
   if (!validThemes.includes(theme)) theme = 'dark';
 
-  document.body.classList.remove('light-theme', 'sepia-theme', 'emerald-theme', 'oled-theme');
+  document.body.classList.remove('light-theme', 'sepia-theme', 'emerald-theme', 'oled-theme', 'matte-theme');
   if (theme !== 'dark') {
     document.body.classList.add(theme + '-theme');
   }

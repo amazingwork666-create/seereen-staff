@@ -1174,6 +1174,123 @@ body.oled-theme .voice-bubble {
   border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
+/* ================= MATTE BLACK THEME (LUXURY GRAPHITE / NON-REFLECTIVE) ================= */
+body.matte-theme {
+  background: #141416 !important;
+  background-color: #141416 !important;
+  color: #f4f4f5 !important;
+}
+
+body.matte-theme ::-webkit-scrollbar-track {
+  background: #121214;
+}
+body.matte-theme ::-webkit-scrollbar-thumb {
+  background: #2e2e34;
+}
+
+body.matte-theme .bg-slate-950,
+body.matte-theme .bg-slate-950\/95,
+body.matte-theme .bg-slate-950\/90,
+body.matte-theme .bg-slate-950\/85,
+body.matte-theme .bg-slate-950\/80,
+body.matte-theme .bg-slate-950\/70,
+body.matte-theme .bg-slate-950\/60,
+body.matte-theme .bg-slate-950\/50,
+body.matte-theme .bg-slate-950\/40 {
+  background-color: #101012 !important;
+}
+
+body.matte-theme .bg-slate-900,
+body.matte-theme .bg-slate-900\/95,
+body.matte-theme .bg-slate-900\/90,
+body.matte-theme .bg-slate-900\/80 {
+  background-color: #18181b !important;
+}
+
+body.matte-theme .bg-slate-800,
+body.matte-theme .bg-slate-800\/95,
+body.matte-theme .bg-slate-800\/90,
+body.matte-theme .bg-slate-800\/80,
+body.matte-theme .bg-slate-800\/70,
+body.matte-theme .bg-slate-800\/60 {
+  background-color: #212125 !important;
+}
+
+body.matte-theme .border-slate-800,
+body.matte-theme .border-slate-800\/80,
+body.matte-theme .border-slate-800\/60,
+body.matte-theme .border-slate-800\/40,
+body.matte-theme .border-slate-700,
+body.matte-theme .border-slate-700\/80,
+body.matte-theme .border-slate-700\/70,
+body.matte-theme .border-slate-700\/60 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.matte-theme .text-slate-100 { color: #f4f4f5 !important; }
+body.matte-theme .text-slate-200 { color: #e4e4e7 !important; }
+body.matte-theme .text-slate-300 { color: #d4d4d8 !important; }
+body.matte-theme .text-slate-400 { color: #a1a1aa !important; }
+body.matte-theme .text-slate-500 { color: #71717a !important; }
+
+/* Borderless Role Typography in Matte Black Theme */
+body.matte-theme .role-text-super-admin,
+body.matte-theme .badge-super-admin,
+body.matte-theme .user-name-super-admin {
+  color: #f59e0b !important;
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.35) !important;
+}
+
+body.matte-theme .role-text-admin,
+body.matte-theme .badge-admin,
+body.matte-theme .user-name-admin {
+  color: #c084fc !important;
+  text-shadow: 0 0 8px rgba(192, 132, 252, 0.35) !important;
+}
+
+body.matte-theme .role-text-teacher,
+body.matte-theme .badge-teacher,
+body.matte-theme .user-name-teacher {
+  color: #34d399 !important;
+  text-shadow: 0 0 8px rgba(52, 211, 153, 0.35) !important;
+}
+
+body.matte-theme .chat-msg-item .text-slate-100,
+body.matte-theme .chat-msg-item .text-slate-200,
+body.matte-theme .chat-msg-item .text-slate-300,
+body.matte-theme .msg-text-student,
+body.matte-theme [class*="msg-text-student"],
+body.matte-theme .chat-msg-item .msg-text-student,
+body.matte-theme .chat-msg-item div.msg-text-student {
+  color: #f4f4f5 !important;
+}
+
+body.matte-theme .chat-msg-item .bg-slate-800\/90,
+body.matte-theme .chat-msg-item .bg-slate-800,
+body.matte-theme .chat-msg-item .bg-slate-900\/95,
+body.matte-theme .chat-msg-item .bg-slate-900 {
+  background-color: #1c1c20 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f4f4f5 !important;
+}
+
+body.matte-theme input,
+body.matte-theme textarea,
+body.matte-theme select {
+  background-color: #17171a !important;
+  color: #f4f4f5 !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+body.matte-theme input::placeholder,
+body.matte-theme textarea::placeholder {
+  color: #71717a !important;
+}
+
+body.matte-theme .voice-bubble {
+  background-color: #1f1f24 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
 /* Strict Avatar Privacy: No user can click, zoom, drag, or bring forward another user's avatar */
 .no-zoom-avatar {
   pointer-events: none !important;

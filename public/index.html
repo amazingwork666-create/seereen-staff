@@ -17,7 +17,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/css/style.css?v=9.0">
+  <link rel="stylesheet" href="/css/style.css?v=10.0">
   <style>
     body.light-theme .msg-text-student,
     body.light-theme [class*="msg-text-student"],
@@ -48,6 +48,14 @@
     body.oled-theme .chat-msg-item .msg-text-student,
     body.oled-theme .chat-msg-item div.msg-text-student {
       color: #ffffff !important;
+      text-shadow: none !important;
+    }
+
+    body.matte-theme .msg-text-student,
+    body.matte-theme [class*="msg-text-student"],
+    body.matte-theme .chat-msg-item .msg-text-student,
+    body.matte-theme .chat-msg-item div.msg-text-student {
+      color: #f4f4f5 !important;
       text-shadow: none !important;
     }
 
@@ -352,8 +360,8 @@
           <span id="liveLessonActiveBadge" class="hidden px-1.5 py-0.2 bg-rose-600 text-white text-[9px] font-black rounded-md animate-pulse">ڕاستەوخۆ</span>
         </button>
 
-        <!-- Theme Modes Button (5 Modes) -->
-        <button id="themeToggleBtn" onclick="openThemeModal()" class="hidden md:flex p-2 md:px-2.5 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs rounded-xl transition items-center gap-1 active:scale-95" title="مۆدی ڕووکار و ڕەنگەکان (٥ مۆد 🎨)">
+        <!-- Theme Modes Button (6 Modes) -->
+        <button id="themeToggleBtn" onclick="openThemeModal()" class="hidden md:flex p-2 md:px-2.5 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs rounded-xl transition items-center gap-1 active:scale-95" title="مۆدی ڕووکار و ڕەنگەکان (٦ مۆد 🎨)">
           <i id="themeToggleIcon" class="fa-solid fa-palette text-amber-400"></i>
           <span class="hidden lg:inline" id="themeToggleText">مۆد</span>
         </button>
@@ -599,11 +607,11 @@
               <span id="drawerNotificationStatusBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">ناچالاک</span>
             </button>
 
-            <!-- Theme Mode in Drawer (5 Modes) -->
+            <!-- Theme Mode in Drawer (6 Modes) -->
             <button onclick="closeMainMenuDrawer(); openThemeModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
               <span class="flex items-center gap-2.5">
                 <i id="drawerThemeIcon" class="fa-solid fa-palette text-amber-400 text-sm w-5 text-center"></i>
-                <span id="drawerThemeText">مۆدی ڕەنگ (٥ مۆد 🎨)</span>
+                <span id="drawerThemeText">مۆدی ڕەنگ (٦ مۆد 🎨)</span>
               </span>
               <span id="drawerThemeBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">تاریک</span>
             </button>
@@ -1181,7 +1189,7 @@
           </span>
           <div>
             <h3 class="font-black text-sm text-white">مۆدی ڕووکار و ڕەنگەکان</h3>
-            <p class="text-[10px] text-slate-400">ڕەنگی پەسەندکراو دیاریبکە (٥ مۆدی تایبەت و بەسوود) 🎨</p>
+            <p class="text-[10px] text-slate-400">ڕەنگی پەسەندکراو دیاریبکە (٦ مۆدی تایبەت و بەسوود) 🎨</p>
           </div>
         </div>
         <button onclick="closeThemeModal()" class="text-slate-400 hover:text-white p-2 text-lg">
@@ -2913,6 +2921,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=9.0"></script>
+  <script src="/js/app.js?v=10.0"></script>
 </body>
 </html>
