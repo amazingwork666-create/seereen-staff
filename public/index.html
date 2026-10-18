@@ -17,7 +17,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/css/style.css?v=6.0">
+  <link rel="stylesheet" href="/css/style.css?v=7.0">
   <style>
     body.light-theme .msg-text-student,
     body.light-theme [class*="msg-text-student"],
@@ -905,10 +905,11 @@
   </div>
 
   <!-- ================= MODAL: USER DETAILS & HISTORY ================= -->
-  <div id="userProfileModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
-    <div id="userProfileModalDialog" class="w-full max-w-lg max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col overflow-hidden">
+  <div id="userProfileModal" onclick="if(event.target === this) closeUserProfileModal()" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div id="userProfileModalDialog" class="w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col overflow-hidden">
       
-      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+      <!-- Modal Header (Pinned at Top) -->
+      <div class="flex items-center justify-between pb-3 sm:pb-4 border-b border-slate-800 mb-3 shrink-0">
         <div class="flex items-center gap-3">
           <div class="relative shrink-0">
             <div id="profAvatar" class="w-14 h-14 sm:w-16 sm:h-16 shrink-0 aspect-square rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-xl font-bold border border-indigo-500/30 overflow-hidden select-none pointer-events-none no-zoom-avatar" style="width:56px;height:56px;min-width:56px;max-width:56px;max-height:56px;aspect-ratio:1/1;overflow:hidden;user-select:none;-webkit-user-drag:none;pointer-events:none;">
@@ -933,186 +934,189 @@
         </button>
       </div>
 
-      <div id="profRegularStatsGrid" class="grid grid-cols-3 gap-2.5 mb-4">
-        <div class="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700/60">
-          <span class="text-[10px] text-slate-400 block mb-0.5">پلەی ئێستا</span>
-          <span id="profRoleBadge" class="text-xs font-black text-white">قوتابی</span>
-        </div>
-        <div id="profStarsBox" class="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700/60">
-          <span class="text-[10px] text-slate-400 block mb-0.5">ئەستێرەکان</span>
-          <span id="profStars" class="text-xs font-black text-amber-400">⭐ 0/10</span>
-        </div>
-        <div class="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700/60">
-          <span class="text-[10px] text-slate-400 block mb-0.5">پلەپێدانەکان</span>
-          <span id="profPromotionsCount" class="text-xs font-black text-emerald-400 font-mono">0 جار</span>
-        </div>
-      </div>
+      <!-- Scrollable Profile Content (Scrolls smoothly for all users & roles) -->
+      <div id="profScrollableBody" class="flex-1 min-h-0 overflow-y-auto space-y-3.5 pr-1 pl-0.5" style="-webkit-overflow-scrolling: touch; overscroll-behavior: contain;">
 
-      <!-- Exclusive Super Admin Profile Card (بۆ سوپەر ئەدمین) -->
-      <div id="profSuperAdminSpecialCard" class="hidden mb-4 p-4 rounded-3xl bg-gradient-to-br from-amber-500/15 via-purple-950/30 to-slate-900 border-2 border-amber-500/40 shadow-xl space-y-3">
-        <div class="flex items-center justify-between pb-2 border-b border-amber-500/20">
-          <div class="flex items-center gap-2.5">
-            <span class="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-base font-black shadow-inner">
-              <i class="fa-solid fa-crown"></i>
+        <div id="profRegularStatsGrid" class="grid grid-cols-3 gap-2.5">
+          <div class="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700/60">
+            <span class="text-[10px] text-slate-400 block mb-0.5">پلەی ئێستا</span>
+            <span id="profRoleBadge" class="text-xs font-black text-white">قوتابی</span>
+          </div>
+          <div id="profStarsBox" class="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700/60">
+            <span class="text-[10px] text-slate-400 block mb-0.5">ئەستێرەکان</span>
+            <span id="profStars" class="text-xs font-black text-amber-400">⭐ 0/10</span>
+          </div>
+          <div class="bg-slate-800/60 p-2.5 rounded-2xl text-center border border-slate-700/60">
+            <span class="text-[10px] text-slate-400 block mb-0.5">پلەپێدانەکان</span>
+            <span id="profPromotionsCount" class="text-xs font-black text-emerald-400 font-mono">0 جار</span>
+          </div>
+        </div>
+
+        <!-- Exclusive Super Admin Profile Card (بۆ سوپەر ئەدمین) -->
+        <div id="profSuperAdminSpecialCard" class="hidden p-4 rounded-3xl bg-gradient-to-br from-amber-500/15 via-purple-950/30 to-slate-900 border-2 border-amber-500/40 shadow-xl space-y-3">
+          <div class="flex items-center justify-between pb-2 border-b border-amber-500/20">
+            <div class="flex items-center gap-2.5">
+              <span class="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-base font-black shadow-inner">
+                <i class="fa-solid fa-crown"></i>
+              </span>
+              <div>
+                <span class="block text-xs font-black text-amber-300">بەڕێوەبەری سەرەکی پڕۆژە</span>
+                <span class="text-[10px] text-slate-400 font-medium">سوپەر ئەدمین (Super Admin)</span>
+              </div>
+            </div>
+            <span class="px-2.5 py-1 rounded-xl bg-amber-500 text-slate-950 text-[10px] font-black shadow flex items-center gap-1">
+              <i class="fa-solid fa-shield-halved"></i> پارێزراو
             </span>
-            <div>
-              <span class="block text-xs font-black text-amber-300">بەڕێوەبەری سەرەکی پڕۆژە</span>
-              <span class="text-[10px] text-slate-400 font-medium">سوپەر ئەدمین (Super Admin)</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-center text-xs">
+            <div class="bg-slate-900/80 p-2.5 rounded-2xl border border-slate-800">
+              <span class="text-[10px] text-slate-400 block mb-0.5">دەسەڵاتی ئەکاونت</span>
+              <span class="text-xs font-black text-emerald-400 flex items-center justify-center gap-1">
+                <i class="fa-solid fa-bolt"></i> کۆنتڕۆڵی گشتی
+              </span>
+            </div>
+            <div class="bg-slate-900/80 p-2.5 rounded-2xl border border-slate-800">
+              <span class="text-[10px] text-slate-400 block mb-0.5">جۆری هەژمار</span>
+              <span class="text-xs font-black text-amber-300 flex items-center justify-center gap-1">
+                <i class="fa-solid fa-gem"></i> ئەندامی دامەزرێنەر
+              </span>
             </div>
           </div>
-          <span class="px-2.5 py-1 rounded-xl bg-amber-500 text-slate-950 text-[10px] font-black shadow flex items-center gap-1">
-            <i class="fa-solid fa-shield-halved"></i> پارێزراو
+        </div>
+
+        <!-- Private Message Action Button -->
+        <div id="profPrivateChatContainer" class="hidden">
+          <button id="profPrivateChatBtn" type="button" class="w-full py-2.5 px-3 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow active:scale-95">
+            <i class="fa-solid fa-envelope"></i>
+            <span id="profPrivateChatBtnText">ناردنی نامەی تایبەت</span>
+          </button>
+        </div>
+
+        <!-- Star Adjustment Controls (Super Admin & Teacher) -->
+        <div id="profStarsAdjustContainer" class="hidden p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between">
+          <span class="text-xs font-black text-amber-300 flex items-center gap-1">
+            <i class="fa-solid fa-star text-amber-400"></i>
+            <span>دەستکاریکردنی ئەستێرە:</span>
           </span>
-        </div>
-        <div class="grid grid-cols-2 gap-2 text-center text-xs">
-          <div class="bg-slate-900/80 p-2.5 rounded-2xl border border-slate-800">
-            <span class="text-[10px] text-slate-400 block mb-0.5">دەسەڵاتی ئەکاونت</span>
-            <span class="text-xs font-black text-emerald-400 flex items-center justify-center gap-1">
-              <i class="fa-solid fa-bolt"></i> کۆنتڕۆڵی گشتی
-            </span>
-          </div>
-          <div class="bg-slate-900/80 p-2.5 rounded-2xl border border-slate-800">
-            <span class="text-[10px] text-slate-400 block mb-0.5">جۆری هەژمار</span>
-            <span class="text-xs font-black text-amber-300 flex items-center justify-center gap-1">
-              <i class="fa-solid fa-gem"></i> ئەندامی دامەزرێنەر
-            </span>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="adjustCurrentProfileStars(1)" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow transition active:scale-95 flex items-center gap-1" title="زیادکردنی یەک ئەستێرە">
+              <i class="fa-solid fa-plus"></i>
+              <span>١ ئەستێرە ⭐</span>
+            </button>
+            <button type="button" onclick="adjustCurrentProfileStars(-1)" class="px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-black text-xs rounded-xl shadow transition active:scale-95 flex items-center gap-1" title="کەمکردنەوەی یەک ئەستێرە">
+              <i class="fa-solid fa-minus"></i>
+              <span>١ ئەستێرە 🔻</span>
+            </button>
           </div>
         </div>
-      </div>
 
-      <!-- Private Message Action Button -->
-      <div id="profPrivateChatContainer" class="hidden mb-3">
-        <button id="profPrivateChatBtn" type="button" class="w-full py-2.5 px-3 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow active:scale-95">
-          <i class="fa-solid fa-envelope"></i>
-          <span id="profPrivateChatBtnText">ناردنی نامەی تایبەت</span>
-        </button>
-      </div>
-
-      <!-- Star Adjustment Controls (Super Admin & Teacher) -->
-      <div id="profStarsAdjustContainer" class="hidden mb-3 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between">
-        <span class="text-xs font-black text-amber-300 flex items-center gap-1">
-          <i class="fa-solid fa-star text-amber-400"></i>
-          <span>دەستکاریکردنی ئەستێرە:</span>
-        </span>
-        <div class="flex items-center gap-1.5">
-          <button type="button" onclick="adjustCurrentProfileStars(1)" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow transition active:scale-95 flex items-center gap-1" title="زیادکردنی یەک ئەستێرە">
-            <i class="fa-solid fa-plus"></i>
-            <span>١ ئەستێرە ⭐</span>
-          </button>
-          <button type="button" onclick="adjustCurrentProfileStars(-1)" class="px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-black text-xs rounded-xl shadow transition active:scale-95 flex items-center gap-1" title="کەمکردنەوەی یەک ئەستێرە">
-            <i class="fa-solid fa-minus"></i>
-            <span>١ ئەستێرە 🔻</span>
+        <!-- Request Profile Change Button (User Own Profile) -->
+        <div id="profRequestChangeContainer" class="hidden">
+          <button type="button" onclick="openRequestProfileChangeModal()" class="w-full py-2.5 px-3 bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-300 hover:text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow active:scale-95">
+            <i class="fa-solid fa-user-pen"></i>
+            <span>داواکاری گۆڕینی ناو یان پاسوۆرد 📝</span>
           </button>
         </div>
-      </div>
 
-      <!-- Request Profile Change Button (User Own Profile) -->
-      <div id="profRequestChangeContainer" class="hidden mb-3">
-        <button type="button" onclick="openRequestProfileChangeModal()" class="w-full py-2.5 px-3 bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-300 hover:text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow active:scale-95">
-          <i class="fa-solid fa-user-pen"></i>
-          <span>داواکاری گۆڕینی ناو یان پاسوۆرد 📝</span>
-        </button>
-      </div>
-
-      <!-- Push Notification Settings for Own Profile -->
-      <div id="profNotificationContainer" class="hidden mb-3 p-3 bg-slate-800/80 border border-slate-700/80 rounded-2xl">
-        <div class="flex items-center justify-between mb-2">
-          <div class="flex items-center gap-2.5">
-            <span class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-sm">
+        <!-- Push Notification Settings for Own Profile -->
+        <div id="profNotificationContainer" class="hidden p-3 bg-slate-800/80 border border-slate-700/80 rounded-2xl">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2.5">
+              <span class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-sm">
+                <i class="fa-solid fa-bell"></i>
+              </span>
+              <div>
+                <p class="font-black text-white text-xs">ئاگاداری سەر شاشە و مۆبایل 🔔</p>
+                <p class="text-[10px] text-slate-400">کاتی پرسیار و لایڤ تەنانەت لە مۆبایلی داخراودا</p>
+              </div>
+            </div>
+            <span id="profNotificationStatusBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">پشکنین...</span>
+          </div>
+          <div class="flex items-center gap-2 pt-1">
+            <button type="button" onclick="togglePushNotifications()" id="profNotificationToggleBtn" class="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow active:scale-95">
               <i class="fa-solid fa-bell"></i>
-            </span>
-            <div>
-              <p class="font-black text-white text-xs">ئاگاداری سەر شاشە و مۆبایل 🔔</p>
-              <p class="text-[10px] text-slate-400">کاتی پرسیار و لایڤ تەنانەت لە مۆبایلی داخراودا</p>
-            </div>
+              <span id="profNotificationToggleText">چالاککردن</span>
+            </button>
+            <button type="button" onclick="testPushNotification()" id="profNotificationTestBtn" class="py-2 px-3 bg-slate-700/80 hover:bg-slate-700 text-amber-300 hover:text-white font-bold text-xs rounded-xl border border-slate-600 transition flex items-center justify-center gap-1.5 active:scale-95" title="تاقیکردنەوەی ناردنی ئاگاداری دەنگدار بۆ مۆبایلەکەت">
+              <i class="fa-solid fa-paper-plane text-xs"></i>
+              <span>تاقیکردنەوەی دەنگ 🔔</span>
+            </button>
           </div>
-          <span id="profNotificationStatusBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">پشکنین...</span>
         </div>
-        <div class="flex items-center gap-2 pt-1">
-          <button type="button" onclick="togglePushNotifications()" id="profNotificationToggleBtn" class="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow active:scale-95">
-            <i class="fa-solid fa-bell"></i>
-            <span id="profNotificationToggleText">چالاککردن</span>
-          </button>
-          <button type="button" onclick="testPushNotification()" id="profNotificationTestBtn" class="py-2 px-3 bg-slate-700/80 hover:bg-slate-700 text-amber-300 hover:text-white font-bold text-xs rounded-xl border border-slate-600 transition flex items-center justify-center gap-1.5 active:scale-95" title="تاقیکردنەوەی ناردنی ئاگاداری دەنگدار بۆ مۆبایلەکەت">
-            <i class="fa-solid fa-paper-plane text-xs"></i>
-            <span>تاقیکردنەوەی دەنگ 🔔</span>
-          </button>
+
+        <div id="profSuperAdminActions" class="hidden p-3 bg-indigo-950/30 border border-indigo-800/40 rounded-2xl flex items-center justify-between gap-2 flex-wrap">
+          <span class="text-xs font-bold text-indigo-300">دەسەڵاتی سوپەر ئەدمین:</span>
+          <div class="flex items-center gap-2 flex-wrap" id="profActionButtonsSlot"></div>
         </div>
-      </div>
 
-      <div id="profSuperAdminActions" class="hidden mb-4 p-3 bg-indigo-950/30 border border-indigo-800/40 rounded-2xl flex items-center justify-between gap-2 flex-wrap">
-        <span class="text-xs font-bold text-indigo-300">دەسەڵاتی سوپەر ئەدمین:</span>
-        <div class="flex items-center gap-2 flex-wrap" id="profActionButtonsSlot"></div>
-      </div>
+        <!-- Master Super Admin: Assign Special Badges Panel -->
+        <div id="profSpecialBadgeAdminCard" class="hidden p-3.5 bg-gradient-to-br from-slate-900 to-indigo-950/40 border-2 border-indigo-500/40 rounded-3xl shadow-xl space-y-2.5">
+          <div class="flex items-center justify-between border-b border-indigo-500/20 pb-2">
+            <span class="text-xs font-black text-indigo-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-id-badge text-amber-400"></i>
+              <span>بەخشینی باجی تایبەت (تەنها سوپەر ئەدمین)</span>
+            </span>
+            <span id="profActiveBadgeTag" class="text-[10px] font-bold text-slate-400">بێ باج</span>
+          </div>
+          <p class="text-[10px] text-slate-400 leading-relaxed">
+            وەک سوپەر ئەدمین، دەتوانیت یەکێک لەم باجانە ببەخشیت بەم ئەندامە تا توانای تایبەتی هەبێت:
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+            <!-- Green Badge -->
+            <button type="button" onclick="assignSpecialBadge('green')" id="badgeBtnGreen" class="p-2.5 rounded-2xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="font-black text-emerald-300 text-xs flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400"></span> باجی سەوز
+                </span>
+                <i class="fa-solid fa-shield-halved text-emerald-400 text-xs"></i>
+              </div>
+              <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
+                • قفڵ و کردنەوەی چات<br>
+                • وەرگرتن و پلەپێدان تا مامۆستا<br>
+                • گۆڕینی ناو (جگە لە سوپەر ئەدمین)<br>
+                • کردنەوە و داخستنی لایڤ
+              </div>
+            </button>
 
-      <!-- Master Super Admin: Assign Special Badges Panel -->
-      <div id="profSpecialBadgeAdminCard" class="hidden mb-4 p-3.5 bg-gradient-to-br from-slate-900 to-indigo-950/40 border-2 border-indigo-500/40 rounded-3xl shadow-xl space-y-2.5">
-        <div class="flex items-center justify-between border-b border-indigo-500/20 pb-2">
-          <span class="text-xs font-black text-indigo-300 flex items-center gap-1.5">
-            <i class="fa-solid fa-id-badge text-amber-400"></i>
-            <span>بەخشینی باجی تایبەت (تەنها سوپەر ئەدمین)</span>
-          </span>
-          <span id="profActiveBadgeTag" class="text-[10px] font-bold text-slate-400">بێ باج</span>
+            <!-- Black Badge -->
+            <button type="button" onclick="assignSpecialBadge('black')" id="badgeBtnBlack" class="p-2.5 rounded-2xl bg-slate-950 hover:bg-slate-900 border border-slate-700 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="font-black text-slate-200 text-xs flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-slate-400"></span> باجی ڕەش
+                </span>
+                <i class="fa-solid fa-crown text-amber-400 text-xs"></i>
+              </div>
+              <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
+                • هەموو تواناکانی سوپەر ئەدمین<br>
+                • دەسەڵاتی تەواو بەسەر گرووپدا<br>
+                • پارێزراوی سوپەر ئەدمینی سەرەکی
+              </div>
+            </button>
+
+            <!-- Red Badge -->
+            <button type="button" onclick="assignSpecialBadge('red')" id="badgeBtnRed" class="p-2.5 rounded-2xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="font-black text-rose-300 text-xs flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-rose-400"></span> باجی سور
+                </span>
+                <i class="fa-solid fa-tower-broadcast text-rose-400 text-xs"></i>
+              </div>
+              <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
+                • کردنەوە و داخستنەوەی لایڤ<br>
+                • کۆنتڕۆڵی تەواوی ناو وانەی لایڤ<br>
+                • مۆڵەتی مایک و شەیر و قورئان
+              </div>
+            </button>
+          </div>
+          <div class="pt-1 flex justify-end">
+            <button type="button" onclick="assignSpecialBadge('none')" class="px-3 py-1 bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 rounded-xl text-[10px] font-bold transition flex items-center gap-1 shadow-sm">
+              <i class="fa-solid fa-xmark text-xs"></i> لابردنی باج
+            </button>
+          </div>
         </div>
-        <p class="text-[10px] text-slate-400 leading-relaxed">
-          وەک سوپەر ئەدمین، دەتوانیت یەکێک لەم باجانە ببەخشیت بەم ئەندامە تا توانای تایبەتی هەبێت:
-        </p>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-          <!-- Green Badge -->
-          <button type="button" onclick="assignSpecialBadge('green')" id="badgeBtnGreen" class="p-2.5 rounded-2xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="font-black text-emerald-300 text-xs flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-emerald-400"></span> باجی سەوز
-              </span>
-              <i class="fa-solid fa-shield-halved text-emerald-400 text-xs"></i>
-            </div>
-            <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
-              • قفڵ و کردنەوەی چات<br>
-              • وەرگرتن و پلەپێدان تا مامۆستا<br>
-              • گۆڕینی ناو (جگە لە سوپەر ئەدمین)<br>
-              • کردنەوە و داخستنی لایڤ
-            </div>
-          </button>
 
-          <!-- Black Badge -->
-          <button type="button" onclick="assignSpecialBadge('black')" id="badgeBtnBlack" class="p-2.5 rounded-2xl bg-slate-950 hover:bg-slate-900 border border-slate-700 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="font-black text-slate-200 text-xs flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-slate-400"></span> باجی ڕەش
-              </span>
-              <i class="fa-solid fa-crown text-amber-400 text-xs"></i>
-            </div>
-            <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
-              • هەموو تواناکانی سوپەر ئەدمین<br>
-              • دەسەڵاتی تەواو بەسەر گرووپدا<br>
-              • پارێزراوی سوپەر ئەدمینی سەرەکی
-            </div>
-          </button>
-
-          <!-- Red Badge -->
-          <button type="button" onclick="assignSpecialBadge('red')" id="badgeBtnRed" class="p-2.5 rounded-2xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="font-black text-rose-300 text-xs flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-rose-400"></span> باجی سور
-              </span>
-              <i class="fa-solid fa-tower-broadcast text-rose-400 text-xs"></i>
-            </div>
-            <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
-              • کردنەوە و داخستنەوەی لایڤ<br>
-              • کۆنتڕۆڵی تەواوی ناو وانەی لایڤ<br>
-              • مۆڵەتی مایک و شەیر و قورئان
-            </div>
-          </button>
-        </div>
-        <div class="pt-1 flex justify-end">
-          <button type="button" onclick="assignSpecialBadge('none')" class="px-3 py-1 bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 rounded-xl text-[10px] font-bold transition flex items-center gap-1 shadow-sm">
-            <i class="fa-solid fa-xmark text-xs"></i> لابردنی باج
-          </button>
-        </div>
-      </div>
-
-      <div class="flex-1 overflow-y-auto space-y-4 pr-1">
-        <div id="profRoleHistorySection">
+        <!-- Role History Section -->
+        <div id="profRoleHistorySection" class="space-y-2">
           <h4 class="text-xs font-black text-slate-300 mb-2 flex items-center gap-1.5">
             <i class="fa-solid fa-clock-rotate-left text-indigo-400"></i>
             <span>مێژووی پلەپێدان (ڕۆژ و کاتی گۆڕینی پلە)</span>
@@ -1120,21 +1124,23 @@
           <div id="profRoleHistoryList" class="space-y-2 text-xs"></div>
         </div>
 
-        <div id="profSolvedQuestionsSection">
+        <!-- Solved Questions Section -->
+        <div id="profSolvedQuestionsSection" class="space-y-2">
           <h4 class="text-xs font-black text-slate-300 mb-2 flex items-center gap-1.5">
             <i class="fa-solid fa-award text-amber-400"></i>
             <span>پرسیارە زانراوەکان و ژمارەکانیان</span>
           </h4>
           <div id="profSolvedQuestionsList" class="space-y-2 text-xs"></div>
         </div>
-      </div>
 
-      <!-- Profile Logout Button -->
-      <div id="profLogoutContainer" class="pt-3 mt-3 border-t border-slate-800 shrink-0">
-        <button onclick="handleLogout()" class="w-full py-2.5 bg-rose-600/20 hover:bg-rose-600 border border-rose-500/40 text-rose-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 shadow-sm">
-          <i class="fa-solid fa-arrow-right-from-bracket"></i>
-          <span>چوونەدەرەوە لە ئەکاونت</span>
-        </button>
+        <!-- Profile Logout Button (Only for own profile) -->
+        <div id="profLogoutContainer" class="hidden pt-3 mt-3 border-t border-slate-800">
+          <button onclick="handleLogout()" class="w-full py-2.5 bg-rose-600/20 hover:bg-rose-600 border border-rose-500/40 text-rose-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 shadow-sm">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            <span>چوونەدەرەوە لە ئەکاونت</span>
+          </button>
+        </div>
+
       </div>
 
     </div>
@@ -2846,6 +2852,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=6.0"></script>
+  <script src="/js/app.js?v=7.0"></script>
 </body>
 </html>

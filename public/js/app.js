@@ -4551,6 +4551,9 @@ async function openUserProfileModal(userId) {
   if (modal) modal.classList.remove('hidden');
   if (dialog) dialog.classList.remove('hidden');
 
+  const profScroll = document.getElementById('profScrollableBody');
+  if (profScroll) profScroll.scrollTop = 0;
+
   const fullNameEl = document.getElementById('profFullName');
   const usernameEl = document.getElementById('profUsername');
   const genderEl = document.getElementById('profGenderBadge');
@@ -4753,6 +4756,16 @@ async function openUserProfileModal(userId) {
         }
       } else {
         notifContainer.classList.add('hidden');
+      }
+    }
+
+    // Profile Logout Button (Only visible on own profile)
+    const profLogout = document.getElementById('profLogoutContainer');
+    if (profLogout) {
+      if (isMe) {
+        profLogout.classList.remove('hidden');
+      } else {
+        profLogout.classList.add('hidden');
       }
     }
 
