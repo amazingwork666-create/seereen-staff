@@ -17,7 +17,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/css/style.css?v=4.0">
+  <link rel="stylesheet" href="/css/style.css?v=6.0">
   <style>
     body.light-theme .msg-text-student,
     body.light-theme [class*="msg-text-student"],
@@ -187,11 +187,11 @@
           <div class="grid grid-cols-2 gap-2">
             <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 cursor-pointer hover:border-sky-500">
               <input type="radio" name="regGender" value="male" checked class="text-sky-500 focus:ring-0">
-              <span class="text-xs font-bold text-sky-400">🧔 نێر (کوڕ / برا)</span>
+              <span class="text-xs font-bold text-sky-400">🧔 نێر</span>
             </label>
             <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 cursor-pointer hover:border-pink-500">
               <input type="radio" name="regGender" value="female" class="text-pink-500 focus:ring-0">
-              <span class="text-xs font-bold text-pink-400">🧕 مێ (کچ / خوشک)</span>
+              <span class="text-xs font-bold text-pink-400">🧕 مێ</span>
             </label>
           </div>
         </div>
@@ -922,7 +922,7 @@
           <div>
             <div class="flex items-center gap-2 flex-wrap">
               <h3 id="profFullName" class="font-black text-base text-white">ناو</h3>
-              <span id="profGenderBadge" class="text-xs"></span>
+              <span id="profGenderBadge" class="hidden"></span>
               <span id="profSpecialBadgeSlot" class="hidden"></span>
             </div>
             <p id="profUsername" class="text-xs text-slate-400 font-mono">@username</p>
@@ -1191,7 +1191,7 @@
         </button>
       </div>
 
-      <div class="flex-1 overflow-y-auto pr-1">
+      <div class="flex-1 min-h-0 overflow-y-auto pr-1">
         <div id="unansweredStatsList" class="space-y-2.5">
           <!-- Injected dynamically -->
         </div>
@@ -1505,17 +1505,17 @@
   </div>
 
   <!-- ================= MODAL: POST QUESTION WITH TIMER ================= -->
-  <div id="questionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-    <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+  <div id="questionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl relative flex flex-col overflow-hidden">
       
-      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+      <div class="flex items-center justify-between pb-3 sm:pb-4 border-b border-slate-800 mb-3 sm:mb-4 shrink-0">
         <div class="flex items-center gap-2.5">
           <div class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg">
             <i class="fa-solid fa-circle-question"></i>
           </div>
           <div>
-            <h3 class="font-black text-base text-white">دانانی پرسیاری بەتەوقیت</h3>
-            <p class="text-xs text-slate-400">وەڵامەکان بە نهێنی دەمێننەوە تا کات تەواو دەبێت و بەیەکەوە بڵاودەبنەوە</p>
+            <h3 class="font-black text-sm sm:text-base text-white">دانانی پرسیاری بەتەوقیت</h3>
+            <p class="text-[11px] sm:text-xs text-slate-400">وەڵامەکان بە نهێنی دەمێننەوە تا کات تەواو دەبێت و بەیەکەوە بڵاودەبنەوە</p>
           </div>
         </div>
         <button onclick="closePostQuestionModal()" class="text-slate-400 hover:text-white p-2">
@@ -1523,7 +1523,7 @@
         </button>
       </div>
 
-      <form onsubmit="handlePostQuestion(event)" class="space-y-4">
+      <form onsubmit="handlePostQuestion(event)" class="space-y-4 flex-1 min-h-0 overflow-y-auto pr-1 pl-0.5">
         <div>
           <label class="block text-xs font-bold text-slate-300 mb-1.5">دەقی پرسیارەکە</label>
           <textarea id="questionTextInput" required rows="3" placeholder="دەقی پرسیارەکەت بنووسە..." class="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-amber-500 text-white placeholder-slate-400"></textarea>
@@ -1612,11 +1612,11 @@
           <textarea id="questionCorrectAnswerInput" rows="2" placeholder="وەڵامی دروست لێرە بنووسە... (لە ماوەی تەوقیتدا شاراوەیە و لە کۆتایی کات وەک کۆتا وەڵام بە ڕەنگی سەوزی دیار دەردەکەوێت)" class="w-full p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm focus:outline-none focus:border-emerald-500 text-white placeholder-slate-500"></textarea>
         </div>
 
-        <div class="pt-2 flex items-center justify-end gap-2">
+        <div class="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2 shrink-0">
           <button type="button" onclick="closePostQuestionModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-bold text-xs">
             پاشگەزبوونەوە
           </button>
-          <button type="submit" class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs shadow-lg transition flex items-center gap-1.5">
+          <button type="submit" class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs shadow-lg transition flex items-center gap-1.5 active:scale-95">
             <i class="fa-solid fa-bullhorn"></i>
             <span>بڵاوکردنەوەی پرسیار</span>
           </button>
@@ -1687,7 +1687,7 @@
         </div>
       </div>
 
-      <div class="flex-1 overflow-y-auto space-y-3 pr-1" id="questionsArchiveList">
+      <div class="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1" id="questionsArchiveList">
         <div class="text-center py-12 text-slate-500">
           <i class="fa-solid fa-circle-notch fa-spin text-xl text-indigo-500 mb-2"></i>
           <p class="text-xs">بارکردنی پرسیارەکان...</p>
@@ -1839,11 +1839,11 @@
           <div class="grid grid-cols-2 gap-2">
             <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 cursor-pointer hover:border-sky-500">
               <input type="radio" name="dreamerGenderRadio" value="male" checked class="text-sky-500 focus:ring-0">
-              <span class="text-xs font-bold text-sky-400">🧔 نێر (کوڕ / برا)</span>
+              <span class="text-xs font-bold text-sky-400">🧔 نێر</span>
             </label>
             <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-700 bg-slate-800/60 cursor-pointer hover:border-pink-500">
               <input type="radio" name="dreamerGenderRadio" value="female" class="text-pink-500 focus:ring-0">
-              <span class="text-xs font-bold text-pink-400">🧕 مێ (کچ / خوشک)</span>
+              <span class="text-xs font-bold text-pink-400">🧕 مێ</span>
             </label>
           </div>
         </div>
@@ -2732,8 +2732,8 @@
 
   <!-- ================= MODAL: EDIT ACTIVE QUESTION ================= -->
   <div id="editQuestionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md">
-    <div class="bg-slate-900 border border-sky-500/40 rounded-2xl sm:rounded-3xl p-5 w-full max-w-lg shadow-2xl relative space-y-4">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+    <div class="bg-slate-900 border border-sky-500/40 rounded-2xl sm:rounded-3xl p-4 sm:p-5 w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] shadow-2xl relative flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0 mb-3">
         <div class="flex items-center gap-2">
           <div class="w-9 h-9 rounded-xl bg-sky-600/20 text-sky-400 border border-sky-500/30 flex items-center justify-center text-base font-black">
             <i class="fa-solid fa-pen-to-square"></i>
@@ -2748,7 +2748,7 @@
         </button>
       </div>
 
-      <div class="space-y-3">
+      <div class="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1">
         <div>
           <label class="block text-xs font-bold text-slate-300 mb-1">دەقی پرسیار:</label>
           <textarea id="editQuestionTextInput" rows="3" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:border-sky-500 resize-none"></textarea>
@@ -2766,7 +2766,7 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-2 pt-2 border-t border-slate-800">
+      <div class="flex items-center gap-2 pt-3 border-t border-slate-800 shrink-0">
         <button type="button" onclick="submitEditQuestion()" id="saveEditQuestionBtn" class="flex-1 py-2.5 bg-sky-600 hover:bg-sky-500 text-slate-950 font-black text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow active:scale-95">
           <i class="fa-solid fa-check"></i>
           <span>پاشەکەوتکردنی گۆڕانکاری</span>
@@ -2846,6 +2846,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=4.2"></script>
+  <script src="/js/app.js?v=6.0"></script>
 </body>
 </html>

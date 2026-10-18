@@ -3896,9 +3896,13 @@ async function closeCurrentQuestion() {
 let questionTimeMode = 'quick';
 
 function openPostQuestionModal() {
-  document.getElementById('questionModal').classList.remove('hidden');
-  document.getElementById('questionTextInput').focus();
+  const modal = document.getElementById('questionModal');
+  if (modal) modal.classList.remove('hidden');
   switchTimeMode('quick');
+  if (window.innerWidth > 768) {
+    const input = document.getElementById('questionTextInput');
+    if (input) setTimeout(() => input.focus(), 100);
+  }
 }
 
 function closePostQuestionModal() {
@@ -4592,7 +4596,10 @@ async function openUserProfileModal(userId) {
     fullNameEl.innerText = prof.full_name;
     fullNameEl.className = `font-black text-base ${getUserNameClass(prof)}`;
     usernameEl.innerText = `@${prof.username}`;
-    genderEl.innerHTML = `<span class="text-base select-none">${getGenderEmoji(prof.gender)}</span>`;
+    if (genderEl) {
+      genderEl.innerHTML = '';
+      genderEl.classList.add('hidden');
+    }
     roleEl.innerHTML = renderRoleBadge(prof.role, prof.gender);
 
     const specialBadgeSlot = document.getElementById('profSpecialBadgeSlot');
@@ -5617,7 +5624,6 @@ async function loadPendingUsersList() {
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-1.5 flex-wrap">
               <h4 class="font-bold text-sm text-white truncate">${escapeHtml(u.full_name)}</h4>
-              <span class="text-[11px] px-2 py-0.5 rounded-full ${u.gender === 'female' ? 'bg-pink-500/20 text-pink-300 border border-pink-500/30' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'} font-medium">(${u.gender === 'female' ? 'مێ (کچ)' : 'نێر (کوڕ)'})</span>
             </div>
             <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5 flex-wrap">
               <span>ناوی بەکارهێنەر: <b class="font-mono text-slate-300">@${escapeHtml(u.username)}</b></span>
@@ -8123,6 +8129,7 @@ let pwaDeferredPrompt = null;
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then((reg) => {
+      try { reg.update(); } catch (e) {}
       if (typeof initPushNotifications === 'function') {
         initPushNotifications();
       }
