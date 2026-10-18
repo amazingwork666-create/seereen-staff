@@ -220,11 +220,11 @@ function getGenderEmoji(gender) {
 function renderRoleBadge(role, gender) {
   const isGirl = gender === 'female';
   if (role === 'super_admin') {
-    return `<span class="badge-super-admin-shield inline-flex items-center text-xs select-none" title="ئەدمین">🛡️</span>`;
+    return `<span class="role-text-super-admin inline-flex items-center gap-1 font-black text-[11px] select-none" title="سوپەر ئەدمین"><i class="fa-solid fa-crown text-[10px]"></i> سوپەر ئەدمین</span>`;
   } else if (role === 'teacher') {
-    return `<span class="badge-teacher px-2 py-0.5 rounded-md text-[10px] font-black inline-flex items-center gap-1 shadow"><i class="fa-solid fa-graduation-cap text-white text-[10px]"></i> مامۆستا</span>`;
+    return `<span class="role-text-teacher inline-flex items-center gap-1 font-black text-[11px] select-none" title="مامۆستا"><i class="fa-solid fa-graduation-cap text-[10px]"></i> مامۆستا</span>`;
   } else if (role === 'admin') {
-    return `<span class="badge-admin px-2 py-0.5 rounded-md text-[10px] font-black inline-flex items-center gap-1 shadow"><i class="fa-solid fa-shield-halved text-[9px]"></i> ئەدمین</span>`;
+    return `<span class="role-text-admin inline-flex items-center gap-1 font-black text-[11px] select-none" title="ئەدمین"><i class="fa-solid fa-shield-halved text-[9px]"></i> ئەدمین</span>`;
   } else if (role === 'new_student') {
     const badgeClass = isGirl ? 'badge-new-student-girl' : 'badge-new-student';
     return `<span class="${badgeClass} px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 shadow">🔰 قوتابی تازە</span>`;
@@ -633,14 +633,14 @@ function updateUserUI() {
   const isGirl = currentUser.gender === 'female';
   const roleBadgeElem = document.getElementById('headerRoleBadge');
   if (currentUser.role === 'super_admin') {
-    roleBadgeElem.className = 'hidden';
-    roleBadgeElem.innerText = '';
+    roleBadgeElem.className = 'role-text-super-admin text-[10px] font-black hidden sm:inline-flex items-center gap-1';
+    roleBadgeElem.innerHTML = '<i class="fa-solid fa-crown text-[9px]"></i> سوپەر ئەدمین';
   } else if (currentUser.role === 'teacher') {
-    roleBadgeElem.className = 'badge-teacher text-[9px] px-1.5 py-0.2 rounded font-black hidden sm:inline-flex items-center gap-1';
-    roleBadgeElem.innerHTML = '<i class="fa-solid fa-graduation-cap text-white text-[9px]"></i> مامۆستا';
+    roleBadgeElem.className = 'role-text-teacher text-[10px] font-black hidden sm:inline-flex items-center gap-1';
+    roleBadgeElem.innerHTML = '<i class="fa-solid fa-graduation-cap text-[9px]"></i> مامۆستا';
   } else if (currentUser.role === 'admin') {
-    roleBadgeElem.className = 'badge-admin text-[9px] px-1.5 py-0.2 rounded font-black hidden sm:inline-block';
-    roleBadgeElem.innerText = 'ئەدمین 🛡️';
+    roleBadgeElem.className = 'role-text-admin text-[10px] font-black hidden sm:inline-flex items-center gap-1';
+    roleBadgeElem.innerHTML = '<i class="fa-solid fa-shield-halved text-[9px]"></i> ئەدمین';
   } else if (currentUser.role === 'new_student') {
     roleBadgeElem.className = `${isGirl ? 'badge-new-student-girl' : 'badge-new-student'} text-[9px] px-1.5 py-0.2 rounded font-bold hidden sm:inline-block`;
     roleBadgeElem.innerText = 'قوتابی تازە 🔰';
@@ -7028,10 +7028,10 @@ function appendDreamMessage(msg, isAdminView = false) {
   if (isAdminView) {
     // Admin & Teacher View: show real names and badges so staff know who handled what
     if (isSuperAdminSender) {
-      senderBadge = '<span class="badge-super-admin-shield inline-flex items-center text-xs select-none mr-1.5" title="سوپەر ئەدمین">🛡️</span>';
+      senderBadge = '<span class="role-text-super-admin font-black text-[10px] inline-flex items-center gap-1 mr-1.5 select-none" title="سوپەر ئەدمین"><i class="fa-solid fa-crown text-[9px]"></i> سوپەر ئەدمین</span>';
       senderNameHtml = `<span class="user-name-super-admin font-black">${escapeHtml(msg.sender_name)}</span>`;
     } else if (isTeacherSender) {
-      senderBadge = '<span class="badge-teacher px-1.5 py-0.5 rounded text-[10px] inline-flex items-center gap-1 select-none mr-1.5 shadow-sm" title="مامۆستا"><i class="fa-solid fa-graduation-cap text-white text-[9px]"></i> مامۆستا</span>';
+      senderBadge = '<span class="role-text-teacher font-black text-[10px] inline-flex items-center gap-1 mr-1.5 select-none" title="مامۆستا"><i class="fa-solid fa-graduation-cap text-[9px]"></i> مامۆستا</span>';
       senderNameHtml = `<span class="text-amber-300 font-black">${escapeHtml(msg.sender_name)}</span>`;
     } else {
       senderBadge = '<span class="text-[9px] font-bold text-purple-300 mr-1.5">خەون بین</span>';
@@ -7041,7 +7041,7 @@ function appendDreamMessage(msg, isAdminView = false) {
     // Dreamer View: Mask teacher identity as مامۆستا ١, مامۆستا ٢, etc.
     if (isStaffSender) {
       const alias = getDreamTeacherAlias(msg.sender_name);
-      senderBadge = '<span class="badge-teacher px-1.5 py-0.5 rounded text-[10px] inline-flex items-center gap-1 select-none mr-1.5 shadow-sm" title="مامۆستا"><i class="fa-solid fa-graduation-cap text-white text-[9px]"></i> مامۆستا</span>';
+      senderBadge = '<span class="role-text-teacher font-black text-[10px] inline-flex items-center gap-1 mr-1.5 select-none" title="مامۆستا"><i class="fa-solid fa-graduation-cap text-[9px]"></i> مامۆستا</span>';
       senderNameHtml = `<span class="text-amber-300 font-black">${escapeHtml(alias)}</span>`;
     } else {
       senderBadge = '<span class="text-[9px] font-bold text-purple-300 mr-1.5">خەون بین</span>';
@@ -7316,11 +7316,11 @@ function openDreamAdminModal() {
   const roleIndicator = document.getElementById('dreamAdminRoleIndicator');
   if (roleIndicator) {
     if (currentUser && currentUser.role === 'super_admin') {
-      roleIndicator.innerHTML = '<i class="fa-solid fa-crown text-[8px] text-amber-400"></i> سوپەر ئەدمین';
-      roleIndicator.className = 'text-[9px] md:text-[10px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded-md border border-amber-500/30 whitespace-nowrap inline-flex items-center gap-1';
+      roleIndicator.innerHTML = '<i class="fa-solid fa-crown text-[10px]"></i> سوپەر ئەدمین';
+      roleIndicator.className = 'role-text-super-admin text-[11px] font-black whitespace-nowrap inline-flex items-center gap-1';
     } else {
-      roleIndicator.innerHTML = '<i class="fa-solid fa-graduation-cap text-[8px] text-purple-300"></i> مامۆستا';
-      roleIndicator.className = 'text-[9px] md:text-[10px] bg-purple-500/20 text-purple-300 font-bold px-1.5 py-0.5 rounded-md border border-purple-500/30 whitespace-nowrap inline-flex items-center gap-1';
+      roleIndicator.innerHTML = '<i class="fa-solid fa-graduation-cap text-[10px]"></i> مامۆستا';
+      roleIndicator.className = 'role-text-teacher text-[11px] font-black whitespace-nowrap inline-flex items-center gap-1';
     }
   }
 
@@ -8952,10 +8952,10 @@ function renderStaffCardHtml(s) {
   const isCurrent = activePrivateOtherUser && activePrivateOtherUser.id === s.id;
   const activeBg = isCurrent ? 'bg-sky-600/20 border-sky-500/50' : 'bg-slate-900/80 hover:bg-slate-800/80 border-slate-800';
   const roleBadge = s.role === 'super_admin'
-    ? `<span class="px-2 py-0.5 rounded-lg bg-amber-400 text-slate-950 border border-amber-300 text-[10px] font-black shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-shield-halved text-[9px] text-slate-950"></i> ئەدمین</span>`
+    ? `<span class="role-text-super-admin text-xs font-black inline-flex items-center gap-1 select-none"><i class="fa-solid fa-crown text-[10px]"></i> سوپەر ئەدمین</span>`
     : (s.role === 'admin'
-        ? `<span class="px-2 py-0.5 rounded-lg badge-admin text-white text-[10px] font-bold shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-shield-halved text-[9px]"></i> ئەدمین</span>`
-        : `<span class="px-2 py-0.5 rounded-lg badge-teacher text-white text-[10px] font-bold shadow-sm inline-flex items-center gap-1"><i class="fa-solid fa-graduation-cap text-white text-[10px]"></i> مامۆستا</span>`);
+        ? `<span class="role-text-admin text-xs font-black inline-flex items-center gap-1 select-none"><i class="fa-solid fa-shield-halved text-[10px]"></i> ئەدمین</span>`
+        : `<span class="role-text-teacher text-xs font-black inline-flex items-center gap-1 select-none"><i class="fa-solid fa-graduation-cap text-[10px]"></i> مامۆستا</span>`);
   const onlineDot = s.is_online 
     ? `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30" title="لەسەر هێڵە"></span>`
     : `<span class="w-2.5 h-2.5 rounded-full bg-slate-600" title="دەرەوەی هێڵە"></span>`;
