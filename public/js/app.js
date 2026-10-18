@@ -29,6 +29,53 @@ function isUserCurrentlyMuted(userId) {
 let unreadCount = 0;
 let isUserScrolledUp = false;
 
+// Reply state
+let activeReplyTo = null; // { id, full_name, content }
+
+function setReplyToMessage(msgId, senderName, content) {
+  activeReplyTo = { id: msgId, full_name: senderName, content: content };
+  const bar = document.getElementById('chatReplyPreviewBar');
+  const nameElem = document.getElementById('replyPreviewSenderName');
+  const snippetElem = document.getElementById('replyPreviewSnippet');
+  if (bar && nameElem && snippetElem) {
+    nameElem.innerText = `وەڵامدانەوە بۆ: ${senderName}`;
+    snippetElem.innerText = content || 'فایل / پەیامی دەنگی';
+    bar.classList.remove('hidden');
+    bar.classList.add('flex');
+  }
+  const input = document.getElementById('messageInput');
+  if (input) input.focus();
+}
+
+function cancelReplyToMessage() {
+  activeReplyTo = null;
+  const bar = document.getElementById('chatReplyPreviewBar');
+  if (bar) {
+    bar.classList.add('hidden');
+    bar.classList.remove('flex');
+  }
+}
+
+function scrollToRepliedMessage(msgId) {
+  const target = document.getElementById(`msg-${msgId}`);
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('ring-2', 'ring-amber-400', 'bg-amber-500/10');
+    setTimeout(() => {
+      target.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-500/10');
+    }, 2000);
+  } else {
+    showLiveToastNotification('پەیامی وەڵامدراوە لە مێژووی پێشووتریدایە', 'amber');
+  }
+}
+
+function formatAudioDuration(secs) {
+  if (!secs || isNaN(secs)) return '00:00';
+  const mins = Math.floor(secs / 60);
+  const remSecs = Math.floor(secs % 60);
+  return `${pad(mins)}:${pad(remSecs)}`;
+}
+
 // Voice recording state
 let mediaRecorder = null;
 let audioChunks = [];
@@ -2596,7 +2643,39 @@ function appendMessage(msg, scroll = true) {
   const nameColorClass = getUserNameClass(msg);
 
   let attachmentHtml = '';
-  if (msg.attachment_type === 'image' && msg.attachment_url) {
+  const isDoc = msg.attachment_type === 'document' || (msg.attachment_url && (
+    msg.attachment_url.toLowerCase().endsWith('.pdf') || 
+    msg.attachment_url.toLowerCase().endsWith('.doc') || 
+    msg.attachment_url.toLowerCase().endsWith('.docx') || 
+    msg.attachment_url.toLowerCase().endsWith('.ppt') || 
+    msg.attachment_url.toLowerCase().endsWith('.pptx') || 
+    msg.attachment_url.toLowerCase().endsWith('.xls') || 
+    msg.attachment_url.toLowerCase().endsWith('.xlsx') || 
+    msg.attachment_url.toLowerCase().endsWith('.txt')
+  ));
+
+  if (isDoc && msg.attachment_url) {
+    const isPdf = msg.attachment_url.toLowerCase().endsWith('.pdf');
+    const rawFileName = msg.attachment_url.split('/').pop() || 'document';
+    const cleanFileName = rawFileName.replace(/^[0-9]+-[0-9]+-/, '');
+    attachmentHtml = `
+      <div class="mt-2 p-3 rounded-2xl bg-slate-900/95 border border-slate-700/80 hover:border-slate-600 transition flex items-center justify-between gap-3 max-w-sm shadow-md">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0 ${isPdf ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-teal-500/20 text-teal-300 border border-teal-500/30'}">
+            <i class="fa-solid ${isPdf ? 'fa-file-pdf' : 'fa-file-lines'}"></i>
+          </div>
+          <div class="min-w-0 flex flex-col">
+            <span class="text-xs font-black text-slate-100 truncate" title="${escapeHtml(cleanFileName)}">${escapeHtml(cleanFileName)}</span>
+            <span class="text-[10px] text-slate-400 font-mono">${isPdf ? 'فایلی فەرمی PDF' : 'دۆکیومێنت'}</span>
+          </div>
+        </div>
+        <a href="${msg.attachment_url}" target="_blank" download="${escapeHtml(cleanFileName)}" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shrink-0 flex items-center gap-1.5 transition active:scale-95 shadow" title="داگرتنی فایل">
+          <i class="fa-solid fa-arrow-down-to-bracket text-xs"></i>
+          <span>داگرتن</span>
+        </a>
+      </div>
+    `;
+  } else if (msg.attachment_type === 'image' && msg.attachment_url) {
     attachmentHtml = `
       <div class="mt-2 rounded-xl overflow-hidden border border-slate-700 max-w-sm cursor-pointer hover:opacity-95 transition" onclick="openImageZoom('${msg.attachment_url}')">
         <img src="${msg.attachment_url}" class="w-full h-auto max-h-72 object-cover" loading="lazy">
@@ -2610,34 +2689,75 @@ function appendMessage(msg, scroll = true) {
     `;
   } else if (msg.attachment_type === 'voice' && msg.attachment_url) {
     const downloadBtnHtml = (currentUser && currentUser.role === 'super_admin') ? `
-      <a href="${msg.attachment_url}" download="voice_${msg.id || Date.now()}" class="px-2 py-1 bg-slate-800/90 hover:bg-slate-700 text-amber-300 text-[10px] font-bold rounded-lg border border-slate-700 flex items-center gap-1 shrink-0 shadow-sm transition" title="داگرتنی ئەم دەنگە">
+      <a href="${msg.attachment_url}" download="voice_${msg.id || Date.now()}.webm" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 text-amber-300 text-xs rounded-lg border border-slate-700 flex items-center justify-center shrink-0 shadow-sm transition" title="داگرتنی ئەم دەنگە">
         <i class="fa-solid fa-download"></i>
       </a>
     ` : '';
+    
+    // Telegram-style interactive waveform player
     attachmentHtml = `
-      <div class="mt-2 voice-bubble flex items-center gap-2">
-        <button onclick="toggleAudioPlay('${msg.attachment_url}', this)" class="w-9 h-9 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center text-xs shrink-0 shadow">
+      <div class="mt-2 voice-waveform-card flex items-center gap-2.5 p-2 rounded-2xl bg-slate-900/90 border border-slate-700/60 max-w-xs sm:max-w-sm select-none" id="waveform-card-${msg.id}">
+        <button id="wave-play-btn-${msg.id}" onclick="toggleWaveformAudio(${msg.id}, '${msg.attachment_url}', this)" class="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center text-sm shrink-0 shadow-md transition active:scale-95" title="لێدان / ڕاگرتن">
           <i class="fa-solid fa-play"></i>
         </button>
-        <div class="flex-1">
-          <div class="text-[11px] font-bold text-slate-200">دەنگی ئەدمین</div>
-          <div class="w-full bg-slate-700 h-1 rounded-full mt-1 overflow-hidden">
-            <div class="bg-indigo-500 h-full w-0 audio-progress"></div>
+        <div class="flex-1 flex flex-col justify-center gap-1 min-w-0">
+          <div class="waveform-bars-track flex items-center gap-[3px] h-6 cursor-pointer py-1" onclick="seekWaveformAudio(${msg.id}, event)" title="بۆ پێشەوە و دواوە ڕابکێشە">
+            ${generateWaveformBarsHtml(msg.id)}
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono px-0.5">
+            <span id="wave-time-${msg.id}">00:00</span>
+            <span id="wave-duration-${msg.id}">--:--</span>
           </div>
         </div>
-        ${downloadBtnHtml}
-        <audio src="${msg.attachment_url}" preload="none" onended="onAudioEnded(this)"></audio>
+        <div class="flex items-center gap-1 shrink-0">
+          <button id="wave-speed-${msg.id}" onclick="cycleAudioSpeed(${msg.id}, event)" class="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] font-bold text-indigo-300 hover:text-white transition" title="خێرایی دەنگ">
+            1x
+          </button>
+          ${downloadBtnHtml}
+        </div>
+        <audio id="wave-audio-${msg.id}" src="${msg.attachment_url}" preload="metadata" ontimeupdate="updateWaveformAudioProgress(${msg.id})" onloadedmetadata="initWaveformAudioDuration(${msg.id})" onended="onWaveformAudioEnded(${msg.id})"></audio>
+      </div>
+    `;
+  }
+
+  // Quoted Reply Preview Inside Bubble
+  let replyQuoteHtml = '';
+  if (msg.reply_to_id) {
+    const rName = msg.reply_to_name || 'پەیام';
+    let rContent = msg.reply_to_content || '';
+    if (!rContent) {
+      if (msg.reply_to_attachment_type === 'voice') rContent = '🎤 پەیامی دەنگی';
+      else if (msg.reply_to_attachment_type === 'image') rContent = '🖼️ وێنە';
+      else if (msg.reply_to_attachment_type === 'video') rContent = '🎬 ڤیدیۆ';
+      else if (msg.reply_to_attachment_type === 'document') rContent = '📄 دۆکیومێنت';
+      else rContent = 'پەیامی سەرەکی';
+    }
+    replyQuoteHtml = `
+      <div onclick="scrollToRepliedMessage(${msg.reply_to_id})" class="cursor-pointer mb-2 p-2 rounded-xl bg-black/25 hover:bg-black/40 border-r-4 border-indigo-400 text-right transition flex flex-col gap-0.5 text-xs select-none group/quote shadow-inner">
+        <div class="font-black text-indigo-300 text-[11px] flex items-center gap-1.5">
+          <i class="fa-solid fa-reply fa-flip-horizontal text-[10px]"></i>
+          <span>${escapeHtml(rName)}</span>
+        </div>
+        <div class="text-slate-300 text-[11px] truncate max-w-xs md:max-w-md font-medium opacity-90 group-hover/quote:text-white">
+          ${escapeHtml(rContent)}
+        </div>
       </div>
     `;
   }
 
   msgElem.className = `chat-msg-item flex flex-col ${isMe ? 'items-end' : 'items-start'} group`;
 
+  const replyActionBtn = `
+    <button onclick="setReplyToMessage(${msg.id}, '${escapeHtml(msg.full_name).replace(/'/g, "\\'")}', '${escapeHtml((msg.content || '').substring(0, 80)).replace(/'/g, "\\'")}', '${msg.attachment_type || ''}')" class="text-indigo-400 hover:text-indigo-300 text-xs px-1.5 py-0.5 rounded hover:bg-slate-700 flex items-center gap-1 font-bold" title="وەڵامدانەوە (Reply)">
+      <i class="fa-solid fa-reply fa-flip-horizontal"></i>
+      <span class="text-[10px]">وەڵام</span>
+    </button>
+  `;
+
   let messageActionsHtml = '';
-  let hasActions = false;
+  let hasActions = true;
 
   if (isAdmin && !isMe) {
-    hasActions = true;
     const isTargetMuted = isUserCurrentlyMuted(msg.user_id);
     const muteBtnHtml = (msg.role === 'student' || msg.role === 'new_student') ? `
       <button onclick="toggleUserMuteFromMsg(${msg.user_id}, '${escapeHtml(msg.full_name)}', event)" 
@@ -2651,6 +2771,7 @@ function appendMessage(msg, scroll = true) {
 
     messageActionsHtml = `
       <div id="msg-actions-${msg.id}" class="msg-actions-bar hidden md:flex md:opacity-0 md:group-hover:opacity-100 transition duration-150 items-center gap-1 mt-1 bg-slate-800/95 border border-slate-700/80 px-2 py-0.5 rounded-xl shadow-lg z-10">
+        ${replyActionBtn}
         ${isSuperAdmin && (msg.role === 'student' || msg.role === 'new_student') ? `
           <button onclick="quickAwardStar(${msg.user_id}, '${escapeHtml(msg.full_name)}')" class="text-amber-400 hover:text-amber-300 text-xs px-1.5 py-0.5 rounded hover:bg-slate-700" title="وەڵامی دروستە ⭐ (ئەدمین)">
             <i class="fa-solid fa-star"></i> ئەستێرە
@@ -2664,13 +2785,19 @@ function appendMessage(msg, scroll = true) {
       </div>
     `;
   } else if (isMe || isAdmin) {
-    hasActions = true;
     messageActionsHtml = `
       <div id="msg-actions-${msg.id}" class="msg-actions-bar hidden md:flex md:opacity-0 md:group-hover:opacity-100 transition duration-150 items-center gap-1 mt-1 bg-slate-800/95 border border-slate-700/80 px-2 py-0.5 rounded-xl shadow-lg z-10">
+        ${replyActionBtn}
         <button onclick="deleteMessage(${msg.id})" class="text-rose-400 hover:text-rose-300 text-xs px-1.5 py-0.5 rounded hover:bg-rose-950/60 flex items-center gap-1 font-bold" title="سڕینەوەی پەیام">
           <i class="fa-solid fa-trash-can"></i>
           <span class="text-[10px]">سڕینەوە</span>
         </button>
+      </div>
+    `;
+  } else {
+    messageActionsHtml = `
+      <div id="msg-actions-${msg.id}" class="msg-actions-bar hidden md:flex md:opacity-0 md:group-hover:opacity-100 transition duration-150 items-center gap-1 mt-1 bg-slate-800/95 border border-slate-700/80 px-2 py-0.5 rounded-xl shadow-lg z-10">
+        ${replyActionBtn}
       </div>
     `;
   }
@@ -2729,11 +2856,9 @@ function appendMessage(msg, scroll = true) {
         <i class="fa-regular fa-face-smile"></i>
       </button>
       ${translateBtnHtml}
-      ${hasActions ? `
-        <button type="button" onclick="toggleMsgActions(${msg.id}, event)" class="md:hidden text-slate-400 hover:text-white px-1.5 py-0.5 rounded text-[11px] hover:bg-slate-800 transition msg-actions-trigger" title="کردارەکان">
-          <i class="fa-solid fa-ellipsis"></i>
-        </button>
-      ` : ''}
+      <button type="button" onclick="toggleMsgActions(${msg.id}, event)" class="md:hidden text-slate-400 hover:text-white px-1.5 py-0.5 rounded text-[11px] hover:bg-slate-800 transition msg-actions-trigger" title="کردارەکان">
+        <i class="fa-solid fa-ellipsis"></i>
+      </button>
     </div>
 
     <!-- Quick Reaction Picker Popover (Hidden by default) -->
@@ -2744,7 +2869,8 @@ function appendMessage(msg, scroll = true) {
       <button type="button" onclick="sendReaction(${msg.id}, '💯', event)" class="p-1.5 hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="سەد لەسەد">💯</button>
     </div>
 
-    <div id="msg-bubble-${msg.id}" onclick="handleMessageBubbleClick(${msg.id}, event)" class="max-w-lg md:max-w-xl rounded-2xl px-3.5 py-2 text-xs md:text-sm leading-relaxed shadow break-words ${bubbleBg} cursor-pointer md:cursor-default">
+    <div id="msg-bubble-${msg.id}" onclick="handleMessageBubbleClick(${msg.id}, event)" class="max-w-lg md:max-w-xl rounded-2xl px-3.5 py-2 text-xs md:text-sm leading-relaxed shadow break-words ${bubbleBg} cursor-pointer md:cursor-default transition-transform duration-150">
+      ${replyQuoteHtml}
       ${msg.content ? `<div id="msg-content-${msg.id}" class="${msgTextClass}">${escapeHtml(msg.content)}</div>` : ''}
       ${attachmentHtml}
     </div>
@@ -2758,6 +2884,7 @@ function appendMessage(msg, scroll = true) {
   `;
 
   container.appendChild(msgElem);
+  attachSwipeToReply(msgElem, msg);
   if (scroll && !isUserScrolledUp) scrollToBottom();
 }
 
@@ -3056,10 +3183,174 @@ function handleSendMessage(e) {
   }
 
   if (socket) {
-    socket.emit('send_message', { content });
+    const payload = { content };
+    if (activeReplyTo && activeReplyTo.id) {
+      payload.reply_to_id = activeReplyTo.id;
+    }
+    socket.emit('send_message', payload);
     input.value = '';
+    cancelReplyToMessage();
     scrollToBottom();
   }
+}
+
+// --- SWIPE TO REPLY (TELEGRAM STYLE) ---
+function attachSwipeToReply(elem, msg) {
+  if (!elem || !msg) return;
+  const bubble = elem.querySelector(`#msg-bubble-${msg.id}`);
+  if (!bubble) return;
+
+  let startX = 0;
+  let startY = 0;
+  let currentX = 0;
+  let isSwiping = false;
+
+  bubble.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    currentX = startX;
+    isSwiping = false;
+    bubble.style.transition = 'none';
+  }, { passive: true });
+
+  bubble.addEventListener('touchmove', (e) => {
+    if (e.touches.length !== 1) return;
+    currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const diffX = currentX - startX;
+    const diffY = Math.abs(currentY - startY);
+
+    if (!isSwiping && diffY > 18) return;
+
+    // Swiping left (diffX < 0)
+    if (diffX < -15) {
+      isSwiping = true;
+      const pull = Math.max(-80, diffX);
+      bubble.style.transform = `translateX(${pull}px)`;
+    }
+  }, { passive: true });
+
+  bubble.addEventListener('touchend', () => {
+    bubble.style.transition = 'transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+    bubble.style.transform = '';
+    const diffX = currentX - startX;
+    if (isSwiping && diffX < -45) {
+      if (navigator.vibrate) {
+        try { navigator.vibrate(25); } catch(e){}
+      }
+      setReplyToMessage(msg.id, msg.full_name, msg.content, msg.attachment_type);
+    }
+    isSwiping = false;
+  }, { passive: true });
+}
+
+// --- INTERACTIVE WAVEFORM AUDIO PLAYER (TELEGRAM STYLE) ---
+const WAVEFORM_HEIGHT_PATTERN = [35, 65, 45, 95, 75, 40, 100, 85, 50, 75, 95, 60, 40, 85, 100, 65, 85, 45, 75, 95, 55, 35, 75, 95, 60, 40, 65, 35];
+
+function generateWaveformBarsHtml(msgId) {
+  return WAVEFORM_HEIGHT_PATTERN.map((h) => `
+    <div class="wave-bar-${msgId} w-[3px] rounded-full bg-slate-600 transition-colors duration-100" style="height: ${h}%;"></div>
+  `).join('');
+}
+
+function toggleWaveformAudio(msgId, url, btn) {
+  const audio = document.getElementById(`wave-audio-${msgId}`);
+  if (!audio) return;
+
+  if (audio.paused) {
+    // Pause all other audios
+    document.querySelectorAll('audio').forEach(a => {
+      if (a !== audio && !a.paused) {
+        a.pause();
+        const otherId = a.id ? a.id.replace('wave-audio-', '') : null;
+        if (otherId) {
+          const otherBtn = document.getElementById(`wave-play-btn-${otherId}`);
+          if (otherBtn) otherBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+        }
+      }
+    });
+
+    audio.play().then(() => {
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+    }).catch(err => {
+      console.error('Audio play error:', err);
+    });
+  } else {
+    audio.pause();
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-play"></i>';
+  }
+}
+
+function updateWaveformAudioProgress(msgId) {
+  const audio = document.getElementById(`wave-audio-${msgId}`);
+  if (!audio || !audio.duration) return;
+
+  const cur = audio.currentTime;
+  const dur = audio.duration;
+  const timeElem = document.getElementById(`wave-time-${msgId}`);
+  if (timeElem) timeElem.innerText = formatAudioDuration(cur);
+
+  const pct = cur / dur;
+  const bars = document.querySelectorAll(`.wave-bar-${msgId}`);
+  const activeCount = Math.floor(pct * bars.length);
+
+  bars.forEach((bar, idx) => {
+    if (idx <= activeCount) {
+      bar.classList.remove('bg-slate-600');
+      bar.classList.add('bg-amber-400');
+    } else {
+      bar.classList.remove('bg-amber-400');
+      bar.classList.add('bg-slate-600');
+    }
+  });
+}
+
+function initWaveformAudioDuration(msgId) {
+  const audio = document.getElementById(`wave-audio-${msgId}`);
+  if (!audio || !audio.duration) return;
+  const durElem = document.getElementById(`wave-duration-${msgId}`);
+  if (durElem) durElem.innerText = formatAudioDuration(audio.duration);
+}
+
+function seekWaveformAudio(msgId, event) {
+  const audio = document.getElementById(`wave-audio-${msgId}`);
+  if (!audio || !audio.duration) return;
+
+  const track = event.currentTarget;
+  const rect = track.getBoundingClientRect();
+  const clickX = event.clientX - rect.left;
+  const pct = Math.max(0, Math.min(1, clickX / rect.width));
+  audio.currentTime = pct * audio.duration;
+  updateWaveformAudioProgress(msgId);
+}
+
+function cycleAudioSpeed(msgId, event) {
+  if (event) event.stopPropagation();
+  const audio = document.getElementById(`wave-audio-${msgId}`);
+  const speedBtn = document.getElementById(`wave-speed-${msgId}`);
+  if (!audio || !speedBtn) return;
+
+  const currentRate = audio.playbackRate || 1.0;
+  let nextRate = 1.0;
+  if (currentRate === 1.0) nextRate = 1.5;
+  else if (currentRate === 1.5) nextRate = 2.0;
+  else nextRate = 1.0;
+
+  audio.playbackRate = nextRate;
+  speedBtn.innerText = `${nextRate}x`;
+}
+
+function onWaveformAudioEnded(msgId) {
+  const btn = document.getElementById(`wave-play-btn-${msgId}`);
+  if (btn) btn.innerHTML = '<i class="fa-solid fa-play"></i>';
+  const bars = document.querySelectorAll(`.wave-bar-${msgId}`);
+  bars.forEach(bar => {
+    bar.classList.remove('bg-amber-400');
+    bar.classList.add('bg-slate-600');
+  });
+  const timeElem = document.getElementById(`wave-time-${msgId}`);
+  if (timeElem) timeElem.innerText = '00:00';
 }
 
 // --- VOICE AUDIO PLAYER HELPER ---
@@ -3102,6 +3393,14 @@ function onAudioEnded(audio) {
 }
 
 // --- VOICE RECORDING (ADMIN ONLY) ---
+// --- VOICE RECORDING (TELEGRAM STYLE WITH LIVE WAVEFORM & PREVIEW) ---
+let recordingAudioContext = null;
+let recordingAnalyser = null;
+let recordingAnimationId = null;
+let recordedVoiceBlob = null;
+let recordedVoiceUrl = null;
+let voicePreviewAudio = null;
+
 async function startVoiceRecording() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -3112,8 +3411,28 @@ async function startVoiceRecording() {
       if (e.data.size > 0) audioChunks.push(e.data);
     };
 
+    // Live Web Audio analyser for waveform visualization
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        recordingAudioContext = new AudioCtx();
+        const source = recordingAudioContext.createMediaStreamSource(stream);
+        recordingAnalyser = recordingAudioContext.createAnalyser();
+        recordingAnalyser.fftSize = 64;
+        source.connect(recordingAnalyser);
+        drawLiveRecordingWaveform();
+      }
+    } catch (e) {
+      console.warn('AudioContext not available for waveform:', e);
+    }
+
     mediaRecorder.start();
     recordingSeconds = 0;
+    
+    // UI setup
+    document.getElementById('voiceRecordingLiveSection')?.classList.remove('hidden');
+    document.getElementById('voiceRecordingPreviewSection')?.classList.add('hidden');
+    document.getElementById('voiceReviewStopBtn')?.classList.remove('hidden');
     document.getElementById('recordingTimer').innerText = '00:00';
     document.getElementById('recordingBar').classList.remove('hidden');
 
@@ -3128,23 +3447,147 @@ async function startVoiceRecording() {
   }
 }
 
+function drawLiveRecordingWaveform() {
+  const canvas = document.getElementById('voiceWaveformCanvas');
+  if (!canvas || !recordingAnalyser) return;
+  const ctx = canvas.getContext('2d');
+  const bufferLength = recordingAnalyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+
+  function draw() {
+    if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+    recordingAnimationId = requestAnimationFrame(draw);
+    recordingAnalyser.getByteFrequencyData(dataArray);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const barWidth = 3;
+    const gap = 2;
+    const barCount = Math.floor(canvas.width / (barWidth + gap));
+
+    for (let i = 0; i < barCount; i++) {
+      const val = dataArray[i % bufferLength] || 10;
+      const percent = Math.min(1, Math.max(0.15, val / 255));
+      const barHeight = percent * (canvas.height - 4);
+      const x = i * (barWidth + gap);
+      const y = (canvas.height - barHeight) / 2;
+
+      ctx.fillStyle = '#f43f5e'; // Vibrant rose
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(x, y, barWidth, barHeight, 2);
+      } else {
+        ctx.rect(x, y, barWidth, barHeight);
+      }
+      ctx.fill();
+    }
+  }
+  draw();
+}
+
+function pauseAndReviewVoiceRecording() {
+  if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+  
+  mediaRecorder.onstop = () => {
+    recordedVoiceBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    recordedVoiceUrl = URL.createObjectURL(recordedVoiceBlob);
+    
+    // Switch to preview UI
+    document.getElementById('voiceRecordingLiveSection')?.classList.add('hidden');
+    document.getElementById('voiceRecordingPreviewSection')?.classList.remove('hidden');
+    document.getElementById('voiceReviewStopBtn')?.classList.add('hidden');
+    
+    const previewTimer = document.getElementById('voicePreviewTimer');
+    if (previewTimer) {
+      previewTimer.innerText = document.getElementById('recordingTimer').innerText;
+    }
+    
+    if (voicePreviewAudio) {
+      voicePreviewAudio.pause();
+      voicePreviewAudio = null;
+    }
+    voicePreviewAudio = new Audio(recordedVoiceUrl);
+    voicePreviewAudio.ontimeupdate = () => {
+      const cur = voicePreviewAudio.currentTime;
+      const dur = voicePreviewAudio.duration || 1;
+      const pct = (cur / dur) * 100;
+      const bar = document.getElementById('voicePreviewProgressBar');
+      if (bar) bar.style.width = pct + '%';
+      if (previewTimer) previewTimer.innerText = formatAudioDuration(cur);
+    };
+    voicePreviewAudio.onended = () => {
+      const btn = document.getElementById('voicePreviewPlayBtn');
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-play"></i>';
+      const bar = document.getElementById('voicePreviewProgressBar');
+      if (bar) bar.style.width = '0%';
+    };
+  };
+
+  mediaRecorder.stop();
+  mediaRecorder.stream.getTracks().forEach(t => t.stop());
+  clearInterval(recordingInterval);
+  if (recordingAnimationId) cancelAnimationFrame(recordingAnimationId);
+  if (recordingAudioContext) {
+    try { recordingAudioContext.close(); } catch(e){}
+    recordingAudioContext = null;
+  }
+}
+
+function toggleVoicePreviewPlay() {
+  if (!voicePreviewAudio) return;
+  const btn = document.getElementById('voicePreviewPlayBtn');
+  if (voicePreviewAudio.paused) {
+    voicePreviewAudio.play();
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+  } else {
+    voicePreviewAudio.pause();
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-play"></i>';
+  }
+}
+
+function seekVoicePreview(event) {
+  if (!voicePreviewAudio || !voicePreviewAudio.duration) return;
+  const track = event.currentTarget;
+  const rect = track.getBoundingClientRect();
+  const clickX = event.clientX - rect.left;
+  const pct = Math.max(0, Math.min(1, clickX / rect.width));
+  voicePreviewAudio.currentTime = pct * voicePreviewAudio.duration;
+}
+
 function cancelVoiceRecording() {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
     mediaRecorder.stream.getTracks().forEach(t => t.stop());
   }
   clearInterval(recordingInterval);
-  document.getElementById('recordingBar').classList.add('hidden');
+  if (recordingAnimationId) cancelAnimationFrame(recordingAnimationId);
+  if (recordingAudioContext) {
+    try { recordingAudioContext.close(); } catch(e){}
+    recordingAudioContext = null;
+  }
+  if (voicePreviewAudio) {
+    voicePreviewAudio.pause();
+    voicePreviewAudio = null;
+  }
+  if (recordedVoiceUrl) {
+    URL.revokeObjectURL(recordedVoiceUrl);
+    recordedVoiceUrl = null;
+  }
+  recordedVoiceBlob = null;
+  audioChunks = [];
+  document.getElementById('recordingBar')?.classList.add('hidden');
+  document.getElementById('voiceReviewStopBtn')?.classList.remove('hidden');
 }
 
-function stopAndSendVoiceRecording() {
-  if (!mediaRecorder) return;
-  
-  mediaRecorder.onstop = async () => {
-    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+async function stopAndSendVoiceRecording() {
+  const durationText = document.getElementById('recordingTimer')?.innerText || '00:00';
+
+  const sendBlob = async (blob) => {
     const formData = new FormData();
-    formData.append('voice', audioBlob, 'voice.webm');
-    formData.append('duration', document.getElementById('recordingTimer').innerText);
+    formData.append('voice', blob, 'voice.webm');
+    formData.append('duration', durationText);
+    if (activeReplyTo && activeReplyTo.id) {
+      formData.append('reply_to_id', activeReplyTo.id);
+    }
 
     try {
       await fetch('/api/chat/upload-voice', {
@@ -3152,18 +3595,38 @@ function stopAndSendVoiceRecording() {
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
+      cancelReplyToMessage();
     } catch (e) {
       alert('هەڵە لە ناردنی دەنگ');
     }
   };
 
+  // If already stopped in preview mode
+  if (recordedVoiceBlob) {
+    await sendBlob(recordedVoiceBlob);
+    cancelVoiceRecording();
+    return;
+  }
+
+  // If still actively recording
+  if (!mediaRecorder) return;
+  mediaRecorder.onstop = async () => {
+    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+    await sendBlob(blob);
+    cancelVoiceRecording();
+  };
+
   mediaRecorder.stop();
   mediaRecorder.stream.getTracks().forEach(t => t.stop());
   clearInterval(recordingInterval);
-  document.getElementById('recordingBar').classList.add('hidden');
+  if (recordingAnimationId) cancelAnimationFrame(recordingAnimationId);
+  if (recordingAudioContext) {
+    try { recordingAudioContext.close(); } catch(e){}
+    recordingAudioContext = null;
+  }
 }
 
-// --- IMAGE UPLOAD (ADMIN ONLY) ---
+// --- IMAGE, VIDEO & DOCUMENT UPLOAD (ADMIN ONLY) ---
 function triggerImagePicker() {
   document.getElementById('imageFileInput').click();
 }
@@ -3175,10 +3638,38 @@ function handleImagePicked(e) {
 
   const previewImg = document.getElementById('imagePreviewImg');
   const previewVid = document.getElementById('videoPreviewVid');
+  const docPreviewBox = document.getElementById('docPreviewBox');
+  const docPreviewName = document.getElementById('docPreviewName');
+
+  const mime = file.type || '';
+  const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+  const isVideo = mime.startsWith('video/');
+  const isPdf = mime === 'application/pdf' || ext === '.pdf';
+  const isDoc = isPdf || ['.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.txt'].includes(ext);
+
+  if (isDoc) {
+    if (previewImg) previewImg.classList.add('hidden');
+    if (previewVid) previewVid.classList.add('hidden');
+    if (docPreviewBox) {
+      docPreviewBox.innerHTML = isPdf ? '<i class="fa-solid fa-file-pdf"></i>' : '<i class="fa-solid fa-file-lines"></i>';
+      docPreviewBox.className = `w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0 ${isPdf ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-teal-500/20 text-teal-300 border border-teal-500/30'}`;
+      docPreviewBox.classList.remove('hidden');
+    }
+    if (docPreviewName) {
+      docPreviewName.innerText = file.name;
+      docPreviewName.classList.remove('hidden');
+    }
+    document.getElementById('imagePreviewBar').classList.remove('hidden');
+    return;
+  }
+
+  // Hide doc preview if it was image/video
+  if (docPreviewBox) docPreviewBox.classList.add('hidden');
+  if (docPreviewName) docPreviewName.classList.add('hidden');
 
   const reader = new FileReader();
   reader.onload = (evt) => {
-    if (file.type.startsWith('video/')) {
+    if (isVideo) {
       if (previewImg) previewImg.classList.add('hidden');
       if (previewVid) {
         previewVid.src = evt.target.result;
@@ -3210,6 +3701,10 @@ function cancelImageUpload() {
   }
   const previewImg = document.getElementById('imagePreviewImg');
   if (previewImg) previewImg.classList.remove('hidden');
+  const docPreviewBox = document.getElementById('docPreviewBox');
+  if (docPreviewBox) docPreviewBox.classList.add('hidden');
+  const docPreviewName = document.getElementById('docPreviewName');
+  if (docPreviewName) docPreviewName.classList.add('hidden');
   document.getElementById('imagePreviewBar').classList.add('hidden');
 }
 
@@ -3220,8 +3715,9 @@ async function sendPendingImage() {
   const formData = new FormData();
   formData.append('image', pendingImageFile);
   formData.append('caption', caption);
-
-  const isVideo = pendingImageFile.type.startsWith('video/');
+  if (activeReplyTo && activeReplyTo.id) {
+    formData.append('reply_to_id', activeReplyTo.id);
+  }
 
   try {
     const res = await fetch('/api/chat/upload-image', {
@@ -3229,14 +3725,15 @@ async function sendPendingImage() {
       headers: { 'Authorization': `Bearer ${token}` },
       body: formData
     });
-    if (res.ok) {
-      cancelImageUpload();
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'هەڵە لە بارکردنی فایل');
     } else {
-      const data = await res.json();
-      alert(data.error || (isVideo ? 'هەڵە لە ناردنی ڤیدیۆ' : 'هەڵە لە ناردنی وێنە'));
+      cancelImageUpload();
+      cancelReplyToMessage();
     }
-  } catch (e) {
-    alert('هەڵە لە پەیوەندی');
+  } catch (err) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
   }
 }
 
@@ -8570,31 +9067,67 @@ function toggleChatSearch() {
       setTimeout(() => input.focus(), 100);
     }
     if (counter) counter.innerText = '';
+    const dropdown = document.getElementById('chatSearchResultsDropdown');
+    if (dropdown) {
+      dropdown.classList.add('hidden');
+      dropdown.innerHTML = '';
+    }
   } else {
     bar.classList.add('hidden');
     if (input) input.value = '';
+    const dropdown = document.getElementById('chatSearchResultsDropdown');
+    if (dropdown) {
+      dropdown.classList.add('hidden');
+      dropdown.innerHTML = '';
+    }
     filterChatMessages('');
   }
 }
 
+// --- KURDISH / ARABIC TEXT NORMALIZATION HELPER ---
+function normalizeKurdishText(str) {
+  if (!str) return '';
+  return String(str)
+    .toLowerCase()
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // zero-width spaces
+    .replace(/[يى]/g, 'ی')
+    .replace(/[ك]/g, 'ک')
+    .replace(/[ة]/g, 'ە')
+    .replace(/[ھ]/g, 'ه')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/[ؤ]/g, 'و')
+    .replace(/[ئ]/g, 'ی')
+    .replace(/[\u064B-\u065F]/g, '') // harakat (fatha, damma, etc.)
+    .trim();
+}
+
+let _chatSearchServerTimeout = null;
+
 function filterChatMessages(query) {
   const container = document.getElementById('messagesContainer');
   const counter = document.getElementById('chatSearchResultsCount');
+  const dropdown = document.getElementById('chatSearchResultsDropdown');
   if (!container) return;
 
-  const q = (query || '').trim().toLowerCase();
+  const rawQ = (query || '').trim();
+  const normQ = normalizeKurdishText(rawQ);
   const items = container.querySelectorAll('.chat-msg-item');
 
-  if (!q) {
+  if (!normQ) {
     items.forEach(el => el.classList.remove('hidden'));
     if (counter) counter.innerText = '';
+    if (dropdown) {
+      dropdown.classList.add('hidden');
+      dropdown.innerHTML = '';
+    }
     return;
   }
 
   let matchCount = 0;
   items.forEach(el => {
-    const text = (el.innerText || '').toLowerCase();
-    if (text.includes(q)) {
+    const rawText = el.innerText || '';
+    const normText = normalizeKurdishText(rawText);
+    if (normText.includes(normQ) || rawText.toLowerCase().includes(rawQ.toLowerCase())) {
       el.classList.remove('hidden');
       matchCount++;
     } else {
@@ -8603,7 +9136,98 @@ function filterChatMessages(query) {
   });
 
   if (counter) {
-    counter.innerText = matchCount > 0 ? `${matchCount} پەیام دۆزرایەوە` : 'هیچ نەدۆزرایەوە';
+    counter.innerText = matchCount > 0 
+      ? `${matchCount} پەیام دۆزرایەوە لەم بەشەدا` 
+      : 'لە پەیامە نوێیەکاندا نەدۆزرایەوە (گەڕانی گشتی لە خوارەوە...)';
+  }
+
+  // Trigger server search across entire database history
+  if (rawQ.length >= 2) {
+    clearTimeout(_chatSearchServerTimeout);
+    _chatSearchServerTimeout = setTimeout(() => {
+      executeServerChatSearch(rawQ);
+    }, 350);
+  }
+}
+
+async function executeServerChatSearch(query) {
+  const dropdown = document.getElementById('chatSearchResultsDropdown');
+  if (!dropdown) return;
+
+  const q = (query || '').trim();
+  if (!q) {
+    dropdown.classList.add('hidden');
+    dropdown.innerHTML = '';
+    return;
+  }
+
+  dropdown.classList.remove('hidden');
+  dropdown.innerHTML = '<div class="p-3 text-center text-slate-400 text-xs">لە گەڕاندایە لە هەموو مێژووی چات... 🔍</div>';
+
+  try {
+    const res = await fetch(`/api/chat/search?q=${encodeURIComponent(q)}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.results) {
+      dropdown.innerHTML = '<div class="p-3 text-center text-rose-400 text-xs">هەڵەیەک ڕوویدا لە گەڕاندا</div>';
+      return;
+    }
+
+    if (data.results.length === 0) {
+      dropdown.innerHTML = '<div class="p-3 text-center text-slate-500 text-xs">هیچ پەیامێک یان کەسێک بەم ناوە نەدۆزرایەوە</div>';
+      return;
+    }
+
+    dropdown.innerHTML = `
+      <div class="p-2 border-b border-slate-700/80 flex items-center justify-between text-[11px] text-slate-400 font-bold bg-slate-900/95 sticky top-0">
+        <span>ئەنجامەکانی گشتی لە داتابەیس (${data.results.length} پەیام):</span>
+        <button type="button" onclick="document.getElementById('chatSearchResultsDropdown').classList.add('hidden')" class="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-slate-800">✕</button>
+      </div>
+      <div class="max-h-72 overflow-y-auto divide-y divide-slate-800">
+        ${data.results.map(item => {
+          const dateStr = new Date(item.created_at).toLocaleDateString('ku-IQ') + ' ' + new Date(item.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
+          let snippet = item.content || '';
+          if (!snippet) {
+            if (item.attachment_type === 'voice') snippet = '🎤 پەیامی دەنگی';
+            else if (item.attachment_type === 'image') snippet = '🖼️ وێنە';
+            else if (item.attachment_type === 'video') snippet = '🎬 ڤیدیۆ';
+            else if (item.attachment_type === 'document') snippet = '📄 دۆکیومێنت';
+          }
+          return `
+            <div onclick="jumpToSearchResultMessage(${item.id})" class="p-2.5 hover:bg-slate-800/80 cursor-pointer transition flex flex-col gap-1 text-right">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-amber-300 hover:underline">${escapeHtml(item.full_name)}</span>
+                <span class="text-[10px] text-slate-500 font-mono">${dateStr}</span>
+              </div>
+              <p class="text-xs text-slate-200 line-clamp-2 leading-relaxed font-medium">
+                ${escapeHtml(snippet)}
+              </p>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  } catch (e) {
+    dropdown.innerHTML = '<div class="p-3 text-center text-rose-400 text-xs">پەیوەندی ناتەواوە</div>';
+  }
+}
+
+function jumpToSearchResultMessage(msgId) {
+  const dropdown = document.getElementById('chatSearchResultsDropdown');
+  if (dropdown) dropdown.classList.add('hidden');
+
+  const elem = document.getElementById(`msg-${msgId}`);
+  if (elem) {
+    elem.classList.remove('hidden');
+    elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const bubble = elem.querySelector(`#msg-bubble-${msgId}`) || elem;
+    bubble.classList.add('ring-4', 'ring-amber-400', 'animate-pulse');
+    setTimeout(() => {
+      bubble.classList.remove('ring-4', 'ring-amber-400', 'animate-pulse');
+    }, 2500);
+  } else {
+    showLiveToastNotification(`پەیامەکە کۆنە (ID: ${msgId})`, 'indigo');
   }
 }
 
@@ -12004,6 +12628,73 @@ function closeLiveRecordingsModal() {
   if (modal) modal.classList.add('hidden');
 }
 
+// --- RESUME LISTENING ENGINE FOR LESSONS & LIVE RECORDINGS ---
+function initResumeLessonAudio(audioElem, storageKey) {
+  if (!audioElem || !storageKey) return;
+  const savedSecs = parseFloat(localStorage.getItem(storageKey) || '0');
+
+  const applySavedTime = () => {
+    if (savedSecs > 3 && (!audioElem.duration || savedSecs < audioElem.duration - 4)) {
+      try {
+        audioElem.currentTime = savedSecs;
+      } catch (e) {}
+    }
+  };
+
+  if (audioElem.readyState >= 1) {
+    applySavedTime();
+  } else {
+    audioElem.addEventListener('loadedmetadata', applySavedTime, { once: true });
+  }
+
+  audioElem.addEventListener('play', () => {
+    const curSaved = parseFloat(localStorage.getItem(storageKey) || '0');
+    if (curSaved > 3 && audioElem.currentTime < 1) {
+      try {
+        audioElem.currentTime = curSaved;
+      } catch (e) {}
+    }
+  });
+
+  let lastSaved = 0;
+  audioElem.addEventListener('timeupdate', () => {
+    const cur = audioElem.currentTime;
+    if (Math.abs(cur - lastSaved) >= 1.5) {
+      lastSaved = cur;
+      localStorage.setItem(storageKey, cur.toString());
+      const badge = document.getElementById(`resume-badge-${audioElem.id}`);
+      if (badge && cur > 3) {
+        badge.classList.remove('hidden');
+        const bText = badge.querySelector('b');
+        if (bText) bText.innerText = formatAudioDuration(cur);
+      }
+    }
+  });
+
+  audioElem.addEventListener('pause', () => {
+    if (audioElem.currentTime > 3) {
+      localStorage.setItem(storageKey, audioElem.currentTime.toString());
+    }
+  });
+
+  audioElem.addEventListener('ended', () => {
+    localStorage.removeItem(storageKey);
+    const badge = document.getElementById(`resume-badge-${audioElem.id}`);
+    if (badge) badge.classList.add('hidden');
+  });
+}
+
+function resetLessonAudioToStart(audioId, storageKey) {
+  const audio = document.getElementById(audioId);
+  if (audio) {
+    audio.currentTime = 0;
+    localStorage.removeItem(storageKey);
+    const badge = document.getElementById(`resume-badge-${audioId}`);
+    if (badge) badge.classList.add('hidden');
+    showLiveToastNotification('وانەکە گەڕێندرایەوە بۆ سەرەتا ↺', 'indigo');
+  }
+}
+
 async function loadLiveRecordings() {
   const container = document.getElementById('liveRecordingsListContainer');
   const countBadge = document.getElementById('liveRecordingsCountBadge');
@@ -12048,6 +12739,21 @@ async function loadLiveRecordings() {
         </button>
       ` : '';
 
+      const storageKey = `seereen_liverec_pos_${rec.id}`;
+      const savedPos = parseFloat(localStorage.getItem(storageKey) || '0');
+      const hasSavedPos = savedPos > 3;
+      const resumeBadgeHtml = `
+        <div id="resume-badge-liverec-audio-${rec.id}" class="${hasSavedPos ? '' : 'hidden '}flex items-center justify-between text-[11px] px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
+          <div class="flex items-center gap-1.5">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            <span>شوێنی وەستان: <b>${formatAudioDuration(savedPos)}</b> ⏱️</span>
+          </div>
+          <button type="button" onclick="resetLessonAudioToStart('liverec-audio-${rec.id}', '${storageKey}')" class="text-[10px] text-slate-400 hover:text-white underline hover:no-underline" title="دەستپێکردنەوە لە سەرەتاوە">
+            لە سەرەتاوە ↺
+          </button>
+        </div>
+      `;
+
       return `
         <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2 shadow-sm">
           <div class="flex items-center justify-between">
@@ -12068,8 +12774,10 @@ async function loadLiveRecordings() {
             <span class="font-mono text-[10px] text-slate-500">${createdTime}</span>
           </div>
 
+          ${resumeBadgeHtml}
+
           <div class="pt-1 flex items-center gap-2">
-            <audio controls src="${escapeHtml(rec.audio_url)}" class="flex-1 h-9 rounded-xl"></audio>
+            <audio id="liverec-audio-${rec.id}" controls src="${escapeHtml(rec.audio_url)}" class="flex-1 h-9 rounded-xl"></audio>
             <a href="${escapeHtml(rec.audio_url)}" download="${escapeHtml(rec.title)}.webm" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow transition active:scale-95 shrink-0" title="داگرتنی فایل">
               <i class="fa-solid fa-download text-[11px]"></i>
               <span>داگرتن</span>
@@ -12078,6 +12786,12 @@ async function loadLiveRecordings() {
         </div>
       `;
     }).join('');
+
+    // Attach resume listeners
+    data.recordings.forEach(rec => {
+      const audio = document.getElementById(`liverec-audio-${rec.id}`);
+      if (audio) initResumeLessonAudio(audio, `seereen_liverec_pos_${rec.id}`);
+    });
   } catch (err) {
     console.error('Error loading live recordings:', err);
     container.innerHTML = '<div class="p-6 text-center text-rose-400 text-xs">هەڵەیەک ڕوویدا</div>';
@@ -12339,6 +13053,21 @@ async function loadRecordedLessons() {
         </button>
       ` : '';
 
+      const storageKey = `seereen_lesson_pos_${lesson.id}`;
+      const savedPos = parseFloat(localStorage.getItem(storageKey) || '0');
+      const hasSavedPos = savedPos > 3;
+      const resumeBadgeHtml = `
+        <div id="resume-badge-lesson-audio-${lesson.id}" class="${hasSavedPos ? '' : 'hidden '}flex items-center justify-between text-[11px] px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
+          <div class="flex items-center gap-1.5">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            <span>شوێنی وەستان: <b>${formatAudioDuration(savedPos)}</b> ⏱️</span>
+          </div>
+          <button type="button" onclick="resetLessonAudioToStart('lesson-audio-${lesson.id}', '${storageKey}')" class="text-[10px] text-slate-400 hover:text-white underline hover:no-underline" title="دەستپێکردنەوە لە سەرەتاوە">
+            لە سەرەتاوە ↺
+          </button>
+        </div>
+      `;
+
       return `
         <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2.5 shadow-sm">
           <div class="flex items-center justify-between">
@@ -12364,13 +13093,21 @@ async function loadRecordedLessons() {
             <span class="font-mono text-[10px] text-slate-500">${createdTime}</span>
           </div>
 
+          ${resumeBadgeHtml}
+
           <!-- Audio Player Protected from Download (داونلۆد بە تەواوی قەدەغەیە) -->
           <div class="pt-1">
-            <audio controls controlsList="nodownload" oncontextmenu="return false;" src="${escapeHtml(lesson.audio_url)}" class="w-full h-9 rounded-xl"></audio>
+            <audio id="lesson-audio-${lesson.id}" controls controlsList="nodownload" oncontextmenu="return false;" src="${escapeHtml(lesson.audio_url)}" class="w-full h-9 rounded-xl"></audio>
           </div>
         </div>
       `;
     }).join('');
+
+    // Attach resume listeners
+    data.lessons.forEach(lesson => {
+      const audio = document.getElementById(`lesson-audio-${lesson.id}`);
+      if (audio) initResumeLessonAudio(audio, `seereen_lesson_pos_${lesson.id}`);
+    });
   } catch (err) {
     console.error('Error loading recorded lessons:', err);
     container.innerHTML = '<div class="p-6 text-center text-rose-400 text-xs">هەڵەیەک ڕوویدا</div>';

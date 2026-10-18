@@ -656,18 +656,26 @@ const messages = {
   },
   findById(id) {
     const stmt = db.prepare(`
-      SELECT m.*, u.gender, u.correct_answers_count 
+      SELECT m.*, u.gender, u.correct_answers_count,
+        orig.full_name as reply_to_name,
+        orig.content as reply_to_content,
+        orig.attachment_type as reply_to_attachment_type
       FROM messages m
       LEFT JOIN users u ON m.user_id = u.id
+      LEFT JOIN messages orig ON m.reply_to_id = orig.id
       WHERE m.id = ?
     `);
     return stmt.get(id);
   },
   getRecent(limit = 120) {
     const stmt = db.prepare(`
-      SELECT m.*, u.gender, u.correct_answers_count 
+      SELECT m.*, u.gender, u.correct_answers_count,
+        orig.full_name as reply_to_name,
+        orig.content as reply_to_content,
+        orig.attachment_type as reply_to_attachment_type
       FROM messages m
       LEFT JOIN users u ON m.user_id = u.id
+      LEFT JOIN messages orig ON m.reply_to_id = orig.id
       ORDER BY m.id DESC
       LIMIT ?
     `);

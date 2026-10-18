@@ -1035,17 +1035,43 @@ app.post('/api/admin/special-badge', authMiddleware, requireMasterSuperAdmin, (r
   });
 });
 
-// --- ADMIN / TEACHER MEDIA UPLOADS (IMAGES & VIDEOS) ---
+// --- ADMIN / TEACHER MEDIA UPLOADS (IMAGES, VIDEOS, PDF & DOCUMENTS) ---
 app.post('/api/chat/upload-image', authMiddleware, requireAdmin, upload.single('image'), (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'هیچ وێنە یان ڤیدیۆیەک دیاری نەکراوە' });
+    if (!req.file) return res.status(400).json({ error: 'هیچ فایلێک دیاری نەکراوە' });
     const caption = req.body.caption || '';
     const fileUrl = `/uploads/${req.file.filename}`;
-    const isVideo = req.file.mimetype.startsWith('video/');
-    const attachmentType = isVideo ? 'video' : 'image';
-    const defaultCaption = isVideo ? 'ڤیدیۆ 🎬' : 'وێنە 🖼️';
-    const msg = messages.create(req.user.id, req.user.username, req.user.full_name, req.user.role, caption || defaultCaption, 'text', null, null, attachmentType, fileUrl);
-    const broadcastMsg = { ...msg, gender: req.user.gender || 'male', starInfo: calculateStars(req.user.correct_answers_count) };
+    const mime = req.file.mimetype || '';
+    const origName = req.file.originalname || '';
+    const ext = path.extname(origName).toLowerCase();
+
+    const isVideo = mime.startsWith('video/');
+    const isPdf = mime === 'application/pdf' || ext === '.pdf';
+    const isDoc = isPdf || ['.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.txt'].includes(ext);
+
+    let attachmentType = 'image';
+    let defaultCaption = 'وێنە 🖼️';
+
+    if (isVideo) {
+      attachmentType = 'video';
+      defaultCaption = 'ڤیدیۆ 🎬';
+    } else if (isPdf) {
+      attachmentType = 'document';
+      defaultCaption = origName || 'فایلی PDF 📄';
+    } else if (isDoc) {
+      attachmentType = 'document';
+      defaultCaption = origName || 'فایلی دۆکیومێنت 📁';
+    }
+
+    const replyToId = req.body.reply_to_id ? parseInt(req.body.reply_to_id, 10) : null;
+    const msg = messages.create(req.user.id, req.user.username, req.user.full_name, req.user.role, caption || defaultCaption, 'text', null, replyToId, attachmentType, fileUrl);
+    const broadcastMsg = { 
+      ...msg, 
+      gender: req.user.gender || 'male', 
+      starInfo: calculateStars(req.user.correct_answers_count),
+      file_name: origName,
+      file_size: req.file.size
+    };
     io.emit('new_message', broadcastMsg);
     res.json({ success: true, message: broadcastMsg });
   } catch (err) {
@@ -1835,6 +1861,41 @@ app.get('/api/chat/messages', authMiddleware, (req, res) => {
   });
 });
 
+// Chat Global Search (Words, Variations, Senders)
+app.get('/api/chat/search', authMiddleware, (req, res) => {
+  try {
+    const rawQ = (req.query.q || '').trim();
+    if (!rawQ || rawQ.length < 2) return res.json({ results: [] });
+
+    // Normalize query for Kurdish / Arabic variations
+    const cleanQ = rawQ.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+    const wildcard = `%${cleanQ}%`;
+
+    const stmt = db.prepare(`
+      SELECT m.*, u.gender, u.correct_answers_count,
+        orig.full_name as reply_to_name,
+        orig.content as reply_to_content
+      FROM messages m
+      LEFT JOIN users u ON m.user_id = u.id
+      LEFT JOIN messages orig ON m.reply_to_id = orig.id
+      WHERE m.content LIKE ? 
+         OR m.full_name LIKE ? 
+         OR m.username LIKE ?
+         OR REPLACE(REPLACE(REPLACE(m.content, 'ي', 'ی'), 'ك', 'ک'), 'ھ', 'ه') LIKE ?
+         OR REPLACE(REPLACE(REPLACE(m.full_name, 'ي', 'ی'), 'ك', 'ک'), 'ھ', 'ه') LIKE ?
+         OR REPLACE(REPLACE(REPLACE(m.content, 'ە', 'ه'), 'ێ', 'ی'), 'ۆ', 'و') LIKE ?
+      ORDER BY m.id DESC
+      LIMIT 80
+    `);
+
+    const results = stmt.all(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+    res.json({ results: results.reverse() });
+  } catch (err) {
+    console.error('Chat search error:', err);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
 // Update User Last Read Message ID
 app.post('/api/chat/last-read', authMiddleware, (req, res) => {
   const messageId = parseInt(req.body.message_id, 10);
@@ -2436,7 +2497,7 @@ app.post('/api/dream/message', async (req, res) => {
 
       targetSessionId = parseInt(sessionId);
       senderType = user.role;
-      senderName = user.role === 'teacher' ? (user.full_name || 'مامۆستا') : (user.full_name || 'هێمن طه');
+      senderName = (user.full_name && user.full_name.trim()) ? user.full_name.trim() : (user.username || 'مامۆستا');
     } else {
       return res.status(401).json({ error: 'ڕێگاپێدراو نییە' });
     }
@@ -2477,7 +2538,7 @@ app.post('/api/dream/message', async (req, res) => {
 
       if (isGreeting) {
         setTimeout(() => {
-          const reply = dreamMessages.create(targetSessionId, 'super_admin', 'مامۆستا ١', 'عَلَيْكُمُ السَّلَامُ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ', 'text');
+          const reply = dreamMessages.create(targetSessionId, 'system', 'سیستەمی سیرین', 'عَلَيْكُمُ السَّلَامُ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ', 'text');
           io.to(`dream_${targetSessionId}`).emit('dream_new_message', reply);
           emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: reply });
           emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: reply.content });
@@ -2496,7 +2557,7 @@ app.post('/api/dream/message', async (req, res) => {
 💼 ٥. پیشە و ئیشت چییە؟
 
 📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
-          const qMsg = dreamMessages.create(targetSessionId, 'super_admin', 'مامۆستا ١', autoQ, 'text');
+          const qMsg = dreamMessages.create(targetSessionId, 'system', 'سیستەمی سیرین', autoQ, 'text');
           io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
           emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
           emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: 'پرسیارەکانی لێکدانەوەی خەون' });
@@ -2539,7 +2600,7 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
       }
       targetSessionId = sessionId;
       senderType = user.role;
-      senderName = user.role === 'teacher' ? (user.full_name || 'مامۆستا') : (user.full_name || 'هێمن طه');
+      senderName = (user.full_name && user.full_name.trim()) ? user.full_name.trim() : (user.username || 'مامۆستا');
     } else {
       return res.status(401).json({ error: 'ڕێگاپێدراو نییە' });
     }
@@ -2584,7 +2645,7 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
 💼 ٥. پیشە و ئیشت چییە؟
 
 📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
-        const qMsg = dreamMessages.create(targetSessionId, 'super_admin', 'مامۆستا ١', autoQ, 'text');
+        const qMsg = dreamMessages.create(targetSessionId, 'system', 'سیستەمی سیرین', autoQ, 'text');
         io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
         emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
         emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: 'پرسیارەکانی لێکدانەوەی خەون' });

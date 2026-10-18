@@ -17,7 +17,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/css/style.css?v=12.0">
+  <link rel="stylesheet" href="/css/style.css?v=13.0">
   <style>
     body.light-theme .msg-text-student,
     body.light-theme [class*="msg-text-student"],
@@ -721,13 +721,15 @@
               <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-[#dfaa86]">
                 <i class="fa-solid fa-magnifying-glass text-xs"></i>
               </span>
-              <input type="text" id="chatSearchInput" oninput="filterChatMessages(this.value)" placeholder="گەڕان بەپێی دەق، بابەت یان ناوی نێرەر..." class="w-full pr-8 pl-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-[#dfaa86]">
+              <input type="text" id="chatSearchInput" oninput="filterChatMessages(this.value)" onkeydown="if(event.key==='Enter') executeServerChatSearch(this.value)" placeholder="گەڕان بۆ پەیام، ناو، یان وشەیەک (Enter)..." class="w-full pr-8 pl-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-[#dfaa86]">
             </div>
             <span id="chatSearchResultsCount" class="text-[11px] text-[#dfaa86] font-bold shrink-0"></span>
             <button onclick="toggleChatSearch()" class="p-1.5 text-slate-400 hover:text-white rounded-lg text-xs" title="داخستن">
               <i class="fa-solid fa-xmark text-sm"></i>
             </button>
           </div>
+          <!-- Server Search Results Dropdown -->
+          <div id="chatSearchResultsDropdown" class="hidden max-w-4xl mx-auto mt-2 max-h-56 overflow-y-auto space-y-1.5 rounded-xl bg-slate-950/95 border border-slate-800 p-2 text-xs divide-y divide-slate-800/60 shadow-2xl"></div>
         </div>
 
         <!-- ================= COMPACT PINNED ACTIVE QUESTIONS BAR (TODAY'S QUESTIONS) ================= -->
@@ -793,34 +795,67 @@
           </div>
         </div>
 
-        <!-- VOICE RECORDING OVERLAY -->
-        <div id="recordingBar" class="hidden shrink-0 p-3 bg-red-950/90 border-t border-red-800/80 flex items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white text-sm recording-pulse">
-              <i class="fa-solid fa-microphone"></i>
+        <!-- VOICE RECORDING OVERLAY (TELEGRAM STYLE LIVE WAVEFORM & PREVIEW) -->
+        <div id="recordingBar" class="hidden shrink-0 p-2.5 sm:p-3 bg-slate-950/95 border-t border-rose-500/40 shadow-2xl z-20">
+          <div class="max-w-4xl mx-auto flex items-center justify-between gap-3 flex-wrap">
+            
+            <!-- Live Recording Section -->
+            <div id="voiceRecordingLiveSection" class="flex items-center gap-2.5 min-w-0 flex-1">
+              <div class="w-8 h-8 rounded-full bg-rose-600/90 text-white flex items-center justify-center text-xs shrink-0 animate-pulse shadow-md shadow-rose-600/30">
+                <i class="fa-solid fa-microphone"></i>
+              </div>
+              <div class="flex items-center gap-2">
+                <span id="recordingTimer" class="font-mono text-xs sm:text-sm font-black text-rose-300">00:00</span>
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
+              </div>
+              <canvas id="voiceWaveformCanvas" width="130" height="26" class="hidden sm:block rounded-lg bg-slate-900 border border-slate-800 shrink-0"></canvas>
             </div>
-            <div>
-              <span class="text-xs font-bold text-white">دەنگ تۆمار دەکرێت...</span>
-              <span id="recordingTimer" class="font-mono text-xs text-red-300 mr-2 font-bold">00:00</span>
+
+            <!-- Preview Mode Section (Audio player before sending) -->
+            <div id="voiceRecordingPreviewSection" class="hidden items-center gap-2 min-w-0 flex-1">
+              <button type="button" id="voicePreviewPlayBtn" onclick="toggleVoicePreviewPlay()" class="w-8 h-8 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center text-xs shrink-0 shadow">
+                <i class="fa-solid fa-play"></i>
+              </button>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] text-slate-400 font-bold">گوێگرتن پێش ناردن:</div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1 relative cursor-pointer" onclick="seekVoicePreview(event)">
+                  <div id="voicePreviewProgressBar" class="h-full bg-indigo-500 rounded-full w-0 transition-all"></div>
+                </div>
+              </div>
+              <span id="voicePreviewTimer" class="font-mono text-[11px] text-slate-300 font-bold shrink-0">00:00</span>
             </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <button onclick="cancelVoiceRecording()" class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs font-bold">
-              پاشگەزبوونەوە
-            </button>
-            <button onclick="stopAndSendVoiceRecording()" class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 shadow">
-              <i class="fa-solid fa-paper-plane"></i>
-              <span>ناردنی دەنگ</span>
-            </button>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" onclick="cancelVoiceRecording()" class="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 hover:text-white text-xs font-bold transition flex items-center gap-1" title="سڕینەوە">
+                <i class="fa-solid fa-trash-can"></i>
+                <span class="hidden sm:inline">سڕینەوە</span>
+              </button>
+              <button type="button" id="voiceReviewStopBtn" onclick="pauseAndReviewVoiceRecording()" class="px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center gap-1 shadow-sm" title="وەستاندن و پێداچوونەوە">
+                <i class="fa-solid fa-circle-stop text-amber-400"></i>
+                <span>پێداچوونەوە</span>
+              </button>
+              <button type="button" onclick="stopAndSendVoiceRecording()" class="px-3 sm:px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition flex items-center gap-1.5 shadow-md active:scale-95">
+                <i class="fa-solid fa-paper-plane text-xs"></i>
+                <span>ناردن</span>
+              </button>
+            </div>
+
           </div>
         </div>
 
-        <!-- IMAGE/VIDEO PREVIEW OVERLAY -->
+        <!-- IMAGE/VIDEO/DOC PREVIEW OVERLAY -->
         <div id="imagePreviewBar" class="hidden shrink-0 p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 flex-1 min-w-0">
             <img id="imagePreviewImg" class="w-12 h-12 rounded-xl object-cover border border-slate-700">
             <video id="videoPreviewVid" class="w-16 h-12 rounded-xl object-cover border border-slate-700 hidden" muted playsinline></video>
-            <input type="text" id="imageCaptionInput" placeholder="تێبینی لەگەڵ فایلەکە (ئارەزوومەندانە)..." class="flex-1 px-3 py-1.5 bg-slate-800 rounded-xl text-xs text-white border border-slate-700">
+            <div id="docPreviewBox" class="hidden w-12 h-12 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center text-xl shrink-0">
+              <i class="fa-solid fa-file-pdf"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <span id="docPreviewName" class="hidden text-xs text-white font-bold truncate block mb-1"></span>
+              <input type="text" id="imageCaptionInput" placeholder="تێبینی لەگەڵ فایلەکە (ئارەزوومەندانە)..." class="w-full px-3 py-1.5 bg-slate-800 rounded-xl text-xs text-white border border-slate-700">
+            </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
             <button onclick="cancelImageUpload()" class="p-2 text-slate-400 hover:text-white text-xs">
@@ -848,15 +883,29 @@
           </div>
         </div>
 
+        <!-- TELEGRAM STYLE REPLY PREVIEW BAR -->
+        <div id="chatReplyPreviewBar" class="hidden shrink-0 px-3.5 py-2 bg-slate-900 border-t border-indigo-500/40 flex items-center justify-between gap-3 shadow-lg">
+          <div class="flex items-center gap-2.5 min-w-0 flex-1 border-r-2 border-indigo-400 pr-2.5">
+            <i class="fa-solid fa-reply text-indigo-400 text-xs shrink-0"></i>
+            <div class="min-w-0 flex-1 text-right">
+              <div class="text-[11px] font-black text-indigo-300 truncate" id="replyPreviewSenderName">وەڵامدانەوە</div>
+              <div class="text-[10px] text-slate-300 truncate font-medium" id="replyPreviewSnippet">پەیام...</div>
+            </div>
+          </div>
+          <button type="button" onclick="cancelReplyToMessage()" class="w-6 h-6 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-[10px] transition shrink-0">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
         <!-- CHAT INPUT BAR -->
         <div id="chatInputBar" class="shrink-0 p-2.5 md:p-3 bg-slate-900 border-t border-slate-800">
           <form onsubmit="handleSendMessage(event)" class="flex items-center gap-2 max-w-5xl mx-auto">
             
             <div id="adminMediaTools" class="hidden items-center gap-1 shrink-0">
-              <button type="button" onclick="triggerImagePicker()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 flex items-center justify-center transition border border-slate-700/60" title="ناردنی وێنە و ڤیدیۆ (تایبەت بە ئەدمین و مامۆستا)">
-                <i class="fa-solid fa-photo-film text-sm"></i>
+              <button type="button" onclick="triggerImagePicker()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 flex items-center justify-center transition border border-slate-700/60" title="ناردنی وێنە، ڤیدیۆ و فایلی PDF/دۆکیومێنت (تایبەت بە ئەدمین و مامۆستا)">
+                <i class="fa-solid fa-paperclip text-sm"></i>
               </button>
-              <input type="file" id="imageFileInput" accept="image/*,video/*" class="hidden" onchange="handleImagePicked(event)">
+              <input type="file" id="imageFileInput" accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt" class="hidden" onchange="handleImagePicked(event)">
 
               <button type="button" onclick="startVoiceRecording()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 flex items-center justify-center transition border border-slate-700/60" title="ناردنی دەنگ (تایبەت بە ئەدمین و مامۆستا)">
                 <i class="fa-solid fa-microphone text-sm"></i>
@@ -2919,6 +2968,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=12.0"></script>
+  <script src="/js/app.js?v=13.0"></script>
 </body>
 </html>
