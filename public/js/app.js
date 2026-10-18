@@ -881,7 +881,9 @@ function updateUserUI() {
 
 function handleLogout() {
   try {
-    const lastVisible = (typeof getHighestVisibleMessageId === 'function') ? getHighestVisibleMessageId() : 0;
+    const lastVisible = (typeof getVisibleMessageIdForRestore === 'function') 
+      ? getVisibleMessageIdForRestore() 
+      : ((typeof getHighestVisibleMessageId === 'function') ? getHighestVisibleMessageId() : 0);
     if (currentUser && lastVisible > 0) {
       setLocalLastReadMessageId(currentUser.id, lastVisible);
       if (token) {
@@ -1947,6 +1949,8 @@ function initSocket() {
 }
 
 // --- LAST READ MESSAGE & SCROLL RESTORATION (TELEGRAM-STYLE) ---
+let isRestoringChatPosition = false;
+
 function getLocalLastReadMessageId(userId) {
   if (!userId) return 0;
   const val = localStorage.getItem(`seereen_last_read_msg_${userId}`);
@@ -1955,22 +1959,32 @@ function getLocalLastReadMessageId(userId) {
 
 function setLocalLastReadMessageId(userId, msgId) {
   if (!userId || !msgId) return;
-  const current = getLocalLastReadMessageId(userId);
-  if (msgId > current) {
-    localStorage.setItem(`seereen_last_read_msg_${userId}`, msgId);
-  }
+  localStorage.setItem(`seereen_last_read_msg_${userId}`, String(msgId));
 }
 
 let lastSyncMsgId = 0;
 let lastSyncTimeout = null;
 
-function syncLastReadMessageWithServer(msgId) {
+function syncLastReadMessageWithServer(msgId, immediate = false) {
   if (!currentUser || !token || !msgId) return;
   setLocalLastReadMessageId(currentUser.id, msgId);
-  if (msgId <= lastSyncMsgId) return;
+  if (msgId === lastSyncMsgId && !immediate) return;
   lastSyncMsgId = msgId;
 
   clearTimeout(lastSyncTimeout);
+  if (immediate) {
+    fetch('/api/chat/last-read', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ message_id: msgId }),
+      keepalive: true
+    }).catch(() => {});
+    return;
+  }
+
   lastSyncTimeout = setTimeout(() => {
     fetch('/api/chat/last-read', {
       method: 'POST',
@@ -1980,7 +1994,34 @@ function syncLastReadMessageWithServer(msgId) {
       },
       body: JSON.stringify({ message_id: msgId })
     }).catch(() => {});
-  }, 700);
+  }, 500);
+}
+
+function getVisibleMessageIdForRestore() {
+  const container = document.getElementById('messagesContainer');
+  if (!container) return 0;
+  const items = container.querySelectorAll('.chat-msg-item[id^="msg-"]');
+  if (!items || items.length === 0) return 0;
+
+  // If scrolled to or near bottom (within 40px), consider all read -> return latest message id
+  const scrollFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+  if (scrollFromBottom <= 40) {
+    const lastEl = items[items.length - 1];
+    return parseInt(lastEl.id.replace('msg-', ''), 10) || 0;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  // Find first message visible near top of container viewport
+  for (let i = 0; i < items.length; i++) {
+    const el = items[i];
+    const rect = el.getBoundingClientRect();
+    if (rect.bottom >= containerRect.top + 25) {
+      const id = parseInt(el.id.replace('msg-', ''), 10);
+      if (id) return id;
+    }
+  }
+
+  return getHighestVisibleMessageId();
 }
 
 function getHighestVisibleMessageId() {
@@ -1992,7 +2033,7 @@ function getHighestVisibleMessageId() {
 
   // If scrolled to or near bottom, consider all read
   const scrollFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-  if (scrollFromBottom <= 50) {
+  if (scrollFromBottom <= 40) {
     const lastEl = items[items.length - 1];
     const lastId = parseInt(lastEl.id.replace('msg-', ''), 10);
     if (lastId) return lastId;
@@ -2013,6 +2054,7 @@ function getHighestVisibleMessageId() {
 
 // --- MESSAGES LOGIC ---
 async function loadMessages() {
+  isRestoringChatPosition = true;
   try {
     const res = await fetch('/api/chat/messages', {
       headers: { 'Authorization': `Bearer ${token}` }
@@ -2024,7 +2066,7 @@ async function loadMessages() {
     if (data.messages && data.messages.length > 0) {
       const serverLastRead = data.last_read_message_id || 0;
       const localLastRead = currentUser ? getLocalLastReadMessageId(currentUser.id) : 0;
-      const userLastReadId = Math.max(serverLastRead, localLastRead);
+      const userLastReadId = serverLastRead || localLastRead || 0;
 
       const latestMsg = data.messages[data.messages.length - 1];
       const hasUnread = userLastReadId > 0 && userLastReadId < latestMsg.id;
@@ -2048,40 +2090,52 @@ async function loadMessages() {
         appendMessage(msg, false);
       });
 
-      if (hasUnread && dividerInserted) {
-        // Restore scroll position right to the divider / where the user left off (Telegram-style)
-        setTimeout(() => {
-          const divider = document.getElementById('chatUnreadDivider');
-          if (divider) {
-            const dividerTop = divider.offsetTop;
-            container.scrollTop = Math.max(0, dividerTop - 60);
-
-            isUserScrolledUp = true;
-            const arrowBtn = document.getElementById('scrollToLatestBtn');
-            if (arrowBtn) {
-              arrowBtn.classList.remove('hidden');
-              arrowBtn.classList.add('flex');
-            }
-            const unreadMessagesCount = data.messages.filter(m => m.id > userLastReadId).length;
-            if (unreadMessagesCount > 0) {
-              const pill = document.getElementById('unreadJumpPill');
-              const countText = document.getElementById('unreadCountText');
-              if (pill && countText) {
-                countText.innerText = `${unreadMessagesCount} پەیامی نوێ`;
-                pill.classList.remove('hidden');
-              }
-            }
-          } else {
-            scrollToBottom();
+      if (hasUnread) {
+        // Freeze at last read / unread divider (Telegram-style)
+        isUserScrolledUp = true;
+        const arrowBtn = document.getElementById('scrollToLatestBtn');
+        if (arrowBtn) {
+          arrowBtn.classList.remove('hidden');
+          arrowBtn.classList.add('flex');
+        }
+        const unreadMessagesCount = data.messages.filter(m => m.id > userLastReadId).length;
+        if (unreadMessagesCount > 0) {
+          unreadCount = unreadMessagesCount;
+          const pill = document.getElementById('unreadJumpPill');
+          const countText = document.getElementById('unreadCountText');
+          if (pill && countText) {
+            countText.innerText = `${unreadMessagesCount} پەیامی نوێ`;
+            pill.classList.remove('hidden');
           }
-        }, 60);
+        }
+
+        const scrollToTarget = () => {
+          const targetEl = document.getElementById('chatUnreadDivider') || document.getElementById('msg-' + userLastReadId);
+          if (targetEl && container) {
+            targetEl.scrollIntoView({ behavior: 'instant', block: 'start' });
+            container.scrollTop = Math.max(0, container.scrollTop - 40);
+          }
+        };
+
+        // Scroll immediately
+        scrollToTarget();
+
+        // Re-confirm after rendering stabilization
+        setTimeout(() => {
+          scrollToTarget();
+          isRestoringChatPosition = false;
+        }, 150);
       } else {
         scrollToBottom();
         if (latestMsg) {
           syncLastReadMessageWithServer(latestMsg.id);
         }
+        setTimeout(() => {
+          isRestoringChatPosition = false;
+        }, 200);
       }
     } else {
+      isRestoringChatPosition = false;
       container.innerHTML = `
         <div class="text-center py-12 flex flex-col items-center justify-center empty-welcome-box">
           <div class="relative mb-3">
@@ -2093,7 +2147,8 @@ async function loadMessages() {
       `;
     }
   } catch (err) {
-    console.error('Error loading messages:', err);
+    isRestoringChatPosition = false;
+    console.error('Failed to load messages:', err);
   }
 }
 
@@ -2775,22 +2830,23 @@ document.addEventListener('click', (e) => {
 
 // Scroll detection & Unread jump
 function handleChatScroll() {
+  if (isRestoringChatPosition) return;
   const container = document.getElementById('messagesContainer');
   if (!container) return;
   const scrollFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
   const arrowBtn = document.getElementById('scrollToLatestBtn');
 
-  if (scrollFromBottom > 180) {
+  if (scrollFromBottom > 120) {
     isUserScrolledUp = true;
     if (arrowBtn) {
       arrowBtn.classList.remove('hidden');
       arrowBtn.classList.add('flex');
     }
-    const visibleId = getHighestVisibleMessageId();
+    const visibleId = getVisibleMessageIdForRestore();
     if (visibleId > 0) {
       syncLastReadMessageWithServer(visibleId);
     }
-  } else {
+  } else if (scrollFromBottom <= 40) {
     isUserScrolledUp = false;
     if (arrowBtn) {
       arrowBtn.classList.add('hidden');
@@ -2798,10 +2854,10 @@ function handleChatScroll() {
     }
     hideUnreadJumpPill();
     const divider = document.getElementById('chatUnreadDivider');
-    if (divider && scrollFromBottom < 40) {
+    if (divider) {
       divider.remove();
     }
-    const visibleId = getHighestVisibleMessageId();
+    const visibleId = getVisibleMessageIdForRestore();
     if (visibleId > 0) {
       syncLastReadMessageWithServer(visibleId);
     }
@@ -12341,7 +12397,9 @@ async function deleteRecordedLesson(id) {
 window.addEventListener('beforeunload', () => {
   try {
     if (currentUser && token) {
-      const lastVisible = (typeof getHighestVisibleMessageId === 'function') ? getHighestVisibleMessageId() : 0;
+      const lastVisible = (typeof getVisibleMessageIdForRestore === 'function') 
+        ? getVisibleMessageIdForRestore() 
+        : ((typeof getHighestVisibleMessageId === 'function') ? getHighestVisibleMessageId() : 0);
       if (lastVisible > 0) {
         setLocalLastReadMessageId(currentUser.id, lastVisible);
         fetch('/api/chat/last-read', {
@@ -12361,9 +12419,11 @@ window.addEventListener('beforeunload', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && currentUser && token) {
     try {
-      const lastVisible = (typeof getHighestVisibleMessageId === 'function') ? getHighestVisibleMessageId() : 0;
+      const lastVisible = (typeof getVisibleMessageIdForRestore === 'function') 
+        ? getVisibleMessageIdForRestore() 
+        : ((typeof getHighestVisibleMessageId === 'function') ? getHighestVisibleMessageId() : 0);
       if (lastVisible > 0) {
-        syncLastReadMessageWithServer(lastVisible);
+        syncLastReadMessageWithServer(lastVisible, true);
       }
     } catch (e) {}
   }

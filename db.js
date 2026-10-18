@@ -439,7 +439,7 @@ const users = {
   },
   updateLastReadMessage(id, messageId) {
     if (!id || !messageId) return;
-    const stmt = db.prepare('UPDATE users SET last_read_message_id = MAX(COALESCE(last_read_message_id, 0), ?) WHERE id = ?');
+    const stmt = db.prepare('UPDATE users SET last_read_message_id = ? WHERE id = ?');
     return stmt.run(messageId, id);
   },
   getLastReadMessage(id) {
