@@ -1232,6 +1232,15 @@ const messageReactions = {
       });
     }
     return map;
+  },
+  getUsersForReaction(messageId, emoji) {
+    return db.prepare(`
+      SELECT u.id, u.full_name, u.username, u.role, u.gender, u.avatar_url, mr.created_at
+      FROM message_reactions mr
+      JOIN users u ON mr.user_id = u.id
+      WHERE mr.message_id = ? AND mr.emoji = ?
+      ORDER BY mr.created_at ASC
+    `).all(messageId, emoji);
   }
 };
 

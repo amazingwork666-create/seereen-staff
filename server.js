@@ -1701,6 +1701,18 @@ app.post('/api/chat/messages/:id/react', authMiddleware, (req, res) => {
   res.json({ success: true, reactions: updatedReactions });
 });
 
+// Get Users Who Reacted to a Message (تەنها بۆ سوپەر ئەدمین و مامۆستا)
+app.get('/api/chat/messages/:id/reactions/:emoji/users', authMiddleware, (req, res) => {
+  const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher';
+  if (!isStaff) {
+    return res.status(403).json({ error: 'تەنها سوپەر ئەدمین و مامۆستا دەتوانن کاردانەوەکان ببینن' });
+  }
+  const msgId = parseInt(req.params.id);
+  const emoji = req.params.emoji;
+  const users = messageReactions.getUsersForReaction(msgId, emoji);
+  res.json({ success: true, users });
+});
+
 // --- PRIVATE MESSAGING (تەنها بۆ مامۆستا و سوپەر ئەدمین) ---
 
 // 1. Get Private Conversations List

@@ -4388,8 +4388,8 @@ function renderMembersList() {
     card.innerHTML = `
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer" onclick="openUserProfileModal(${u.id})">
-          <div class="w-9 h-9 rounded-xl bg-slate-700/80 flex items-center justify-center text-sm font-black text-slate-300 shrink-0 shadow-inner border border-slate-600/40">
-            ${getGenderEmoji(u.gender)}
+          <div class="w-9 h-9 rounded-xl bg-slate-700/80 flex items-center justify-center text-sm font-black text-slate-300 shrink-0 shadow-inner border border-slate-600/40 overflow-hidden">
+            ${u.avatar_url ? `<img src="${escapeHtml(u.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-xl pointer-events-none select-none" draggable="false">` : getGenderEmoji(u.gender)}
           </div>
           <div class="min-w-0 flex-1">
             <div class="text-xs font-black flex items-center gap-1.5 flex-wrap">
@@ -4530,8 +4530,33 @@ async function openUserProfileModal(userId) {
     fullNameEl.innerText = prof.full_name;
     fullNameEl.className = `font-black text-base ${getUserNameClass(prof)}`;
     usernameEl.innerText = `@${prof.username}`;
-    genderEl.innerHTML = prof.gender === 'female' ? '<span class="text-pink-400 font-bold">🧕 مێ (خوشک)</span>' : '<span class="text-sky-400 font-bold">🧔 نێر (برا)</span>';
+    genderEl.innerHTML = `<span class="text-base select-none">${getGenderEmoji(prof.gender)}</span>`;
     roleEl.innerHTML = renderRoleBadge(prof.role, prof.gender);
+
+    const isSuperAdminAccount = prof.role === 'super_admin';
+    const regStatsGrid = document.getElementById('profRegularStatsGrid');
+    const saCard = document.getElementById('profSuperAdminSpecialCard');
+    const roleHistorySec = document.getElementById('profRoleHistorySection');
+    const solvedSec = document.getElementById('profSolvedQuestionsSection');
+
+    if (isSuperAdminAccount) {
+      if (regStatsGrid) regStatsGrid.classList.add('hidden');
+      if (saCard) saCard.classList.remove('hidden');
+      if (roleHistorySec) roleHistorySec.classList.add('hidden');
+      if (solvedSec) solvedSec.classList.add('hidden');
+    } else {
+      if (regStatsGrid) regStatsGrid.classList.remove('hidden');
+      if (saCard) saCard.classList.add('hidden');
+      if (roleHistorySec) roleHistorySec.classList.remove('hidden');
+      if (solvedSec) {
+        if (prof.role === 'student' || prof.role === 'new_student') {
+          solvedSec.classList.remove('hidden');
+        } else {
+          solvedSec.classList.add('hidden');
+        }
+      }
+    }
+
     const isProfStudent = prof.role === 'student' || prof.role === 'new_student';
     if (isProfStudent) {
       starsEl.innerHTML = prof.starInfo ? `${prof.starInfo.starIcons} ${prof.starInfo.points}` : '⭐ 0/10';
@@ -4628,10 +4653,10 @@ async function openUserProfileModal(userId) {
       }
     }
 
-    // Request Profile Change Button (Only shown on user's OWN profile)
+    // Request Profile Change Button (Only shown on user's OWN profile, but NOT for Super Admin)
     const reqChangeContainer = document.getElementById('profRequestChangeContainer');
     if (reqChangeContainer) {
-      if (isMe) {
+      if (isMe && !isSuperAdminAccount) {
         reqChangeContainer.classList.remove('hidden');
       } else {
         reqChangeContainer.classList.add('hidden');
@@ -5557,8 +5582,8 @@ function renderAllUsersList() {
 
     card.innerHTML = `
       <div class="flex items-center gap-3 min-w-0">
-        <div class="w-10 h-10 rounded-xl ${isSuper ? 'bg-amber-500/20 text-amber-400' : isAdmin ? 'bg-emerald-500/20 text-emerald-400' : 'bg-indigo-500/20 text-indigo-400'} flex items-center justify-center font-bold text-sm shrink-0">
-          <i class="fa-solid ${isSuper ? 'fa-user-shield' : isAdmin ? 'fa-shield' : 'fa-graduation-cap'}"></i>
+        <div class="w-10 h-10 rounded-xl ${isSuper ? 'bg-amber-500/20 text-amber-400' : isAdmin ? 'bg-emerald-500/20 text-emerald-400' : 'bg-indigo-500/20 text-indigo-400'} flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden">
+          ${u.avatar_url ? `<img src="${escapeHtml(u.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-xl pointer-events-none select-none" draggable="false">` : `<i class="fa-solid ${isSuper ? 'fa-user-shield' : isAdmin ? 'fa-shield' : 'fa-graduation-cap'}"></i>`}
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2 flex-wrap">
@@ -5739,7 +5764,7 @@ async function loadLeaderboard() {
       const rank = idx + 1;
       let rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-800 text-slate-400 font-mono font-bold flex items-center justify-center text-xs">${rank}</span>`;
       if (rank === 1) {
-        rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-500 text-slate-950 font-black flex items-center justify-center text-xs shadow-md shadow-amber-500/40"><i class="fa-solid fa-crown text-[10px]"></i></span>`;
+        rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-500 text-slate-950 font-black flex items-center justify-center text-xs shadow-md shadow-amber-500/40"><i class="fa-solid fa-trophy text-[10px]"></i></span>`;
       } else if (rank === 2) {
         rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-300 text-slate-950 font-black flex items-center justify-center text-xs"><i class="fa-solid fa-medal text-[10px]"></i></span>`;
       } else if (rank === 3) {
@@ -8135,22 +8160,135 @@ async function toggleDreamAvailability() {
 
 function renderMessageReactionsHtml(reactions, messageId) {
   if (!reactions || !Array.isArray(reactions) || reactions.length === 0) return '';
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
   return reactions.map(r => {
     const activeClass = r.userReacted
       ? 'bg-sky-500/25 text-sky-300 border-sky-400/60 shadow-sm scale-105'
       : 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:border-slate-500';
+    
+    // Super Admin & Teacher can tap to see who gave reaction; Students toggle reaction
+    const clickHandler = isStaff
+      ? `showReactionUsersModal(${messageId}, '${r.emoji}', event)`
+      : `sendReaction(${messageId}, '${r.emoji}', event)`;
+    
+    const clickTitle = isStaff
+      ? `پەنجە بنێ بۆ بینینی ئەوانەی کاردانەوەی ${r.emoji}یان داناوە`
+      : r.emoji;
+
     return `
       <button 
         type="button"
-        onclick="sendReaction(${messageId}, '${r.emoji}', event)" 
-        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border transition shadow-sm active:scale-95 ${activeClass}"
-        title="${r.emoji}"
+        onclick="${clickHandler}" 
+        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border transition shadow-sm active:scale-95 cursor-pointer ${activeClass}"
+        title="${clickTitle}"
       >
         <span>${r.emoji}</span>
         <span class="text-[10px] font-mono font-black">${r.count}</span>
       </button>
     `;
   }).join('');
+}
+
+let currentReactionModalMsgId = null;
+let currentReactionModalEmoji = null;
+
+async function showReactionUsersModal(messageId, emoji, event) {
+  if (event) event.stopPropagation();
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  if (!isStaff) return;
+
+  currentReactionModalMsgId = messageId;
+  currentReactionModalEmoji = emoji;
+
+  const modal = document.getElementById('reactionUsersModal');
+  const emojiIcon = document.getElementById('reactionModalEmoji');
+  const title = document.getElementById('reactionModalTitle');
+  const subtitle = document.getElementById('reactionModalSubtitle');
+  const list = document.getElementById('reactionUsersList');
+  const toggleBtn = document.getElementById('reactionToggleSelfBtn');
+  const toggleIcon = document.getElementById('reactionToggleSelfIcon');
+  const toggleText = document.getElementById('reactionToggleSelfText');
+
+  if (!modal || !list) return;
+
+  if (emojiIcon) emojiIcon.innerText = emoji;
+  if (title) title.innerText = `کاردانەوەی ${emoji}`;
+  if (subtitle) subtitle.innerText = 'لە بارکردندایە...';
+  list.innerHTML = `
+    <div class="text-center py-6 text-slate-400 text-xs">
+      <i class="fa-solid fa-circle-notch fa-spin text-base text-indigo-400 mb-1"></i>
+      <p>بارکردنی ئەندامان...</p>
+    </div>
+  `;
+
+  if (toggleIcon) toggleIcon.innerText = emoji;
+  if (toggleBtn) {
+    toggleBtn.onclick = async (e) => {
+      await sendReaction(messageId, emoji, e);
+      showReactionUsersModal(messageId, emoji, null);
+    };
+  }
+
+  modal.classList.remove('hidden');
+
+  try {
+    const res = await fetch(`/api/chat/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/users`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.users) {
+      list.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">${escapeHtml(data.error || 'کێشە لە هێنانی زانیاری ڕوویدا')}</p>`;
+      return;
+    }
+
+    if (subtitle) subtitle.innerText = `${data.users.length} کەس ئەم کاردانەوەیەیان داناوە`;
+
+    if (data.users.length === 0) {
+      list.innerHTML = `<p class="text-xs text-slate-500 text-center py-6">هیچ کەسێک ئەم کاردانەوەیەی نەداوە</p>`;
+      return;
+    }
+
+    const hasMe = currentUser && data.users.some(u => u.id === currentUser.id);
+    if (toggleText) {
+      toggleText.innerText = hasMe ? 'لابردنی کاردانەوەکەم' : 'تۆش ئەم کاردانەوەیە بدە';
+    }
+
+    list.innerHTML = '';
+    data.users.forEach(u => {
+      const isMe = currentUser && u.id === currentUser.id;
+      const nameClass = getUserNameClass(u);
+      const roleBadge = renderRoleBadge(u.role, u.gender);
+      const timeStr = u.created_at ? new Date(u.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
+
+      const row = document.createElement('div');
+      row.className = 'p-2 rounded-2xl bg-slate-800/60 border border-slate-700/50 flex items-center justify-between gap-2.5';
+      row.innerHTML = `
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-8 h-8 rounded-xl bg-slate-700 flex items-center justify-center text-xs font-black text-slate-300 shrink-0 border border-slate-600/40 overflow-hidden">
+            ${u.avatar_url ? `<img src="${escapeHtml(u.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-xl pointer-events-none select-none" draggable="false">` : getGenderEmoji(u.gender)}
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-xs font-black ${nameClass} truncate">${escapeHtml(u.full_name)}</span>
+              ${isMe ? '<span class="text-[9px] text-indigo-400">(تۆ)</span>' : ''}
+            </div>
+            <div class="mt-0.5">${roleBadge}</div>
+          </div>
+        </div>
+        ${timeStr ? `<span class="text-[10px] text-slate-500 font-mono shrink-0">${timeStr}</span>` : ''}
+      `;
+      list.appendChild(row);
+    });
+  } catch (err) {
+    list.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">کێشە لە هێنانەوەی کاردانەوەکان هەیە</p>`;
+  }
+}
+
+function closeReactionUsersModal() {
+  const modal = document.getElementById('reactionUsersModal');
+  if (modal) modal.classList.add('hidden');
+  currentReactionModalMsgId = null;
+  currentReactionModalEmoji = null;
 }
 
 function toggleReactionPicker(messageId, event) {
@@ -10682,13 +10820,37 @@ const translatedMsgsCache = new Map();
 
 const APP_TRANSLATIONS = {
   ar: {
+    drawerProfileText: 'الملف الشخصي',
     drawerLangTitle: 'اللغة',
     drawerFontTitle: 'حجم الخط',
-    drawerRecordedLessonsBtn: 'الدروس المسجلة',
+    drawerGeneralHeader: 'الخدمات الرئيسية',
     drawerRecordedLessonsText: 'الدروس المسجلة',
+    drawerRecordedLessonsBadge: 'استماع',
+    drawerLibraryText: 'مكتبة ستاف',
+    drawerQuestionsText: 'بنك الأسئلة والأجوبة',
+    drawerLeaderboardText: 'الترتيب والنقاط',
+    drawerPrivateChatText: 'محادثة خاصة مع المعلم',
+    drawerDreamSubmitText: 'إرسال حلم للتفسير',
+    drawerDreamSubmitBadge: '١ إلى ١',
+    drawerSearchText: 'البحث في الرسائل',
+    drawerMembersText: 'قائمة الأعضاء',
+    drawerNotificationText: 'إشعارات الهاتف والشاشة',
+    drawerThemeText: 'تغيير المظهر (فاتح / داكن)',
+    drawerThemeBadge: 'المظهر',
+    drawerPwaText: 'تثبيت التطبيق (PWA)',
+    drawerStaffHeader: 'أدوات الإدارة والمعلم',
+    drawerLiveRecordingsText: 'تسجيلات الدروس (مباشر)',
+    drawerLiveRecordingsBadge: 'تحميل',
+    drawerPostQuestionText: 'نشر سؤال جديد',
+    drawerPostQuestionBadge: 'جديد',
+    drawerUnansweredText: 'قائمة غير المجاب عليها',
+    drawerDreamAdminText: 'تفسير الأحلام',
+    drawerAdminPanelText: 'إدارة الأعضاء والنظام',
+    drawerLogoutText: 'تسجيل الخروج من الحساب',
+    topPodiumBtnText: 'المتصدرون',
+    drawerRecordedLessonsBtn: 'الدروس المسجلة',
     drawerPrivateChatBtn: 'رسالة خاصة',
     drawerLiveRecordingsBtn: 'تسجيلات البث المباشر (الإدارة)',
-    drawerLiveRecordingsText: 'تسجيلات البث المباشر (الإدارة)',
     drawerProfileBtn: 'ملفي الشخصي',
     drawerLogoutBtn: 'تسجيل الخروج',
     drawerDreamBtn: 'تفسير الأحلام',
@@ -10703,13 +10865,37 @@ const APP_TRANSLATIONS = {
     privateTabConvText: 'المحادثات'
   },
   en: {
+    drawerProfileText: 'Profile',
     drawerLangTitle: 'Language',
     drawerFontTitle: 'Font Size',
-    drawerRecordedLessonsBtn: 'Recorded Lessons',
+    drawerGeneralHeader: 'Main Services',
     drawerRecordedLessonsText: 'Recorded Lessons',
+    drawerRecordedLessonsBadge: 'Listen',
+    drawerLibraryText: 'Staff Library',
+    drawerQuestionsText: 'Questions & Answers Bank',
+    drawerLeaderboardText: 'Leaderboard & Points',
+    drawerPrivateChatText: 'Private Chat with Teacher',
+    drawerDreamSubmitText: 'Submit Dream for Interpretation',
+    drawerDreamSubmitBadge: '1-on-1',
+    drawerSearchText: 'Search Messages',
+    drawerMembersText: 'Members List',
+    drawerNotificationText: 'Phone & Screen Alerts',
+    drawerThemeText: 'Toggle Theme (Light / Dark)',
+    drawerThemeBadge: 'Theme',
+    drawerPwaText: 'Install Application (PWA)',
+    drawerStaffHeader: 'Staff & Admin Tools',
+    drawerLiveRecordingsText: 'Live Lessons Archive',
+    drawerLiveRecordingsBadge: 'Download',
+    drawerPostQuestionText: 'Post New Question',
+    drawerPostQuestionBadge: 'New',
+    drawerUnansweredText: 'Unanswered Questions',
+    drawerDreamAdminText: 'Dream Interpretations',
+    drawerAdminPanelText: 'System & User Admin',
+    drawerLogoutText: 'Sign Out of Account',
+    topPodiumBtnText: 'Top Leaders',
+    drawerRecordedLessonsBtn: 'Recorded Lessons',
     drawerPrivateChatBtn: 'Private Messages',
     drawerLiveRecordingsBtn: 'Live Recordings Archive',
-    drawerLiveRecordingsText: 'Live Recordings Archive',
     drawerProfileBtn: 'My Profile',
     drawerLogoutBtn: 'Sign Out',
     drawerDreamBtn: 'Dream Interpretation',
@@ -10816,13 +11002,37 @@ function applyAppLanguage(lang) {
   if (lang === 'ku') {
     // Restore default Kurdish text
     const kuDefaults = {
+      drawerProfileText: 'پرۆفایل',
       drawerLangTitle: 'زمان / Language',
       drawerFontTitle: 'قەبارەی فۆنت',
-      drawerRecordedLessonsBtn: 'وانە تۆمارکراوەکان',
+      drawerGeneralHeader: 'خزمەتگوزارییە سەرەکییەکان',
       drawerRecordedLessonsText: 'وانە تۆمارکراوەکان',
+      drawerRecordedLessonsBadge: 'گوێگرتن',
+      drawerLibraryText: 'کتێبخانەی ستاف',
+      drawerQuestionsText: 'بانکی پرسیار و وەڵامەکان',
+      drawerLeaderboardText: 'ڕیزبەندی و خاڵەکان',
+      drawerPrivateChatText: 'نامەی تایبەت لەگەڵ مامۆستا',
+      drawerDreamSubmitText: 'ناردنی خەون بۆ لێکدانەوە',
+      drawerDreamSubmitBadge: '١ بە ١',
+      drawerSearchText: 'گەڕان لەناو پەیامەکان',
+      drawerMembersText: 'لیستی ئەندامان',
+      drawerNotificationText: 'ئاگاداری مۆبایل و شاشە',
+      drawerThemeText: 'گۆڕینی مۆد (ڕووناک / تاریک)',
+      drawerThemeBadge: 'مۆد',
+      drawerPwaText: 'داگرتنی ئەپڵیکەیشن (PWA)',
+      drawerStaffHeader: 'ئامرازەکانی ستاف و ئەدمین',
+      drawerLiveRecordingsText: 'تۆماری وانەکان (لایڤ)',
+      drawerLiveRecordingsBadge: 'داگرتن',
+      drawerPostQuestionText: 'دانانی پرسیاری نوێ',
+      drawerPostQuestionBadge: 'نوێ',
+      drawerUnansweredText: 'لیستی وەڵامنەدراوەکان',
+      drawerDreamAdminText: 'لێکدانەوەی خەونەکان',
+      drawerAdminPanelText: 'بەڕێوەبردنی ئەندامان و سیستم',
+      drawerLogoutText: 'چوونە دەرەوە لە ئەکاونت',
+      topPodiumBtnText: 'پێشەنگەکان',
+      drawerRecordedLessonsBtn: 'وانە تۆمارکراوەکان',
       drawerPrivateChatBtn: 'نامەی تایبەت',
       drawerLiveRecordingsBtn: 'تۆماری وانەکان (لایڤ)',
-      drawerLiveRecordingsText: 'تۆماری وانەکان (لایڤ)',
       drawerProfileBtn: 'پرۆفایلەکەم',
       drawerLogoutBtn: 'چوونەدەرەوە',
       drawerDreamBtn: 'لێکدانەوەی خەون',
@@ -10843,6 +11053,7 @@ function applyAppLanguage(lang) {
         span.innerText = val;
       }
     }
+    if (typeof setAppFontSize === 'function') setAppFontSize(currentAppFontSize);
     return;
   }
 
@@ -10856,6 +11067,8 @@ function applyAppLanguage(lang) {
       span.innerText = val;
     }
   }
+
+  if (typeof setAppFontSize === 'function') setAppFontSize(currentAppFontSize);
 }
 
 async function translateGroupMessage(msgId, btnElem) {
@@ -11099,8 +11312,36 @@ async function translateQuestionContent(questionId, btnElem) {
 }
 
 // =========================================================================
-// 7. FONT SIZE CONTROLLER (بەشی گەورەکردنی فۆنت لە سێ خەتەکە)
+// 7. FONT SIZE & LANGUAGE COLLAPSIBLE PICKERS (سێ خەتەکە)
 // =========================================================================
+function toggleDrawerLangPicker() {
+  const opts = document.getElementById('drawerLangPickerOptions');
+  const chevron = document.getElementById('drawerLangChevron');
+  if (!opts) return;
+  const isHidden = opts.classList.contains('hidden');
+  if (isHidden) {
+    opts.classList.remove('hidden');
+    if (chevron) chevron.classList.add('rotate-180');
+  } else {
+    opts.classList.add('hidden');
+    if (chevron) chevron.classList.remove('rotate-180');
+  }
+}
+
+function toggleDrawerFontPicker() {
+  const opts = document.getElementById('drawerFontPickerOptions');
+  const chevron = document.getElementById('drawerFontChevron');
+  if (!opts) return;
+  const isHidden = opts.classList.contains('hidden');
+  if (isHidden) {
+    opts.classList.remove('hidden');
+    if (chevron) chevron.classList.add('rotate-180');
+  } else {
+    opts.classList.add('hidden');
+    if (chevron) chevron.classList.remove('rotate-180');
+  }
+}
+
 let currentAppFontSize = localStorage.getItem('seereen_font_size') || 'normal';
 
 function initAppFontSize() {
@@ -11113,28 +11354,44 @@ function setAppFontSize(size) {
   document.documentElement.setAttribute('data-font-size', size);
 
   // Update button highlights in Drawer
-  const sizes = ['small', 'normal', 'large', 'xl'];
-  const labels = {
+  const sizes = ['small', 'normal', 'large', 'xl', 'xxl'];
+  const labelsKu = {
     small: 'بچووک',
     normal: 'ئاسایی',
     large: 'گەورە',
-    xl: 'زۆر گەورە'
+    xl: 'گەورەتر',
+    xxl: 'زۆر گەورە'
+  };
+  const labelsAr = {
+    small: 'صغير',
+    normal: 'عادي',
+    large: 'كبير',
+    xl: 'أكبر',
+    xxl: 'كبير جداً'
+  };
+  const labelsEn = {
+    small: 'Small',
+    normal: 'Normal',
+    large: 'Large',
+    xl: 'X-Large',
+    xxl: 'Huge'
   };
 
   sizes.forEach(s => {
     const btn = document.getElementById(`fontBtn_${s}`);
     if (btn) {
       if (s === size) {
-        btn.className = 'py-1.5 rounded-xl bg-sky-600 text-slate-950 font-black transition active:scale-95 shadow';
+        btn.className = 'py-1.5 rounded-xl bg-sky-600 text-slate-950 font-black transition active:scale-95 shadow text-center';
       } else {
-        btn.className = 'py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95';
+        btn.className = 'py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95 text-center';
       }
     }
   });
 
   const badge = document.getElementById('drawerCurrentFontBadge');
   if (badge) {
-    badge.innerText = labels[size] || 'ئاسایی';
+    const dict = (currentAppLanguage === 'ar') ? labelsAr : ((currentAppLanguage === 'en') ? labelsEn : labelsKu);
+    badge.innerText = dict[size] || 'ئاسایی';
   }
 }
 
