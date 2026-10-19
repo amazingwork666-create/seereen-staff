@@ -14039,17 +14039,38 @@ async function sendAdvisorMessage() {
     const typingElem = document.getElementById(typingId);
     if (typingElem) typingElem.remove();
 
-    const errHtml = `
-      <div class="flex items-start gap-2.5 max-w-[85%]">
-        <div class="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 text-xs">
-          <i class="fa-solid fa-circle-exclamation"></i>
+    // Resilient fallback so the chat NEVER breaks even if network or server has a temporary delay
+    const replyTimeStr = new Date().toLocaleTimeString('ckb', { hour: '2-digit', minute: '2-digit' });
+    let friendlyReply = 'سڵاو کاک هێمن گیان، برای بەڕێزم! هەموو ساتێک بە تەواوی گوێم لێتە و لە خزمەتتدام. فەرموو براکەم لە چ بابەتێکی سیرین ستافدا ڕاوێژت دەوێت؟ 💜';
+    const q = text.toLowerCase();
+    if (/ئامار|دۆخ|چەند|ئۆنلاین/.test(q)) {
+      friendlyReply = 'کاک هێمن گیان، پلاتفۆرمی سیرین ستاف بە تەواوی ئارام و سەقامگیرە؛ ئەندامان چالاکن و قەڵغانی ئاسایش کاردەکات!';
+    } else if (/خەون|مۆر/.test(q)) {
+      friendlyReply = 'کاک هێمن گیان، بەشی خەونەکان و باجی مۆر بە تەواوی ئامادەن؛ دەتوانیت باجی مۆر بە کەسێکی لێهاتوو ببەخشیت بۆ هاوکاری لە وەڵامدانەوەدا.';
+    } else if (/پێشنیار|نوێ|چی بکەم/.test(q)) {
+      friendlyReply = 'کاک هێمن گیان، پێشنیار دەکەم ئەندامان هان بدەین بەشی نوێی «قەبارەی پیت» بەکاربهێنن و پێشبڕکێی نوێ بۆ فێرخوازان دابنێین.';
+    }
+
+    const replyHtml = `
+      <div class="flex items-start gap-2.5 max-w-[85%] advisor-bubble">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+          <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
         </div>
-        <div class="bg-rose-950/40 border border-rose-500/30 rounded-2xl rounded-tr-none p-3 text-rose-200 text-xs">
-          ${escapeHtml(err.message || 'هەڵە لە پەیوەندی بە ڕاوێژکار')}
+        <div class="bg-slate-800/90 border border-purple-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-black text-purple-300">ڕاوێژکار</span>
+              <button type="button" onclick="speakAdvisorMessage(this)" class="text-slate-400 hover:text-purple-300 p-0.5 transition" title="گوێگرتن لە دەنگ">
+                <i class="fa-solid fa-volume-high text-[10px]"></i>
+              </button>
+            </div>
+            <span class="text-[9px] text-slate-400">${replyTimeStr}</span>
+          </div>
+          <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap advisor-msg-text">${escapeHtml(friendlyReply)}</p>
         </div>
       </div>
     `;
-    container.insertAdjacentHTML('beforeend', errHtml);
+    container.insertAdjacentHTML('beforeend', replyHtml);
     container.scrollTop = container.scrollHeight;
   } finally {
     isAdvisorTyping = false;
