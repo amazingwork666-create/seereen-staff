@@ -503,6 +503,21 @@ function canManageDreams(user) {
   return user.special_badge === 'purple';
 }
 
+// Helper: Can moderate chat (Master Super Admin, super_admin, admin, teacher, OR Blue/Green/Black Badge)
+function canModerateChat(user) {
+  if (!user) return false;
+  if (isMasterSuperAdmin(user) || user.role === 'super_admin' || user.role === 'admin' || user.role === 'teacher') return true;
+  return user.special_badge === 'blue' || user.special_badge === 'green' || user.special_badge === 'black';
+}
+
+// Middleware: Chat Moderator (Super Admin, Admin, Teacher, or Blue/Green/Black Badge)
+function requireChatModerator(req, res, next) {
+  if (!canModerateChat(req.user)) {
+    return res.status(403).json({ error: 'دەسەڵاتی چاودێری و پاراستنی چاتت نییە' });
+  }
+  next();
+}
+
 // Middleware: Dream Manager (Super Admin, Teacher, or Purple Badge)
 function requireDreamManager(req, res, next) {
   if (!canManageDreams(req.user)) {
@@ -1346,11 +1361,11 @@ const advisorTools = [
       },
       {
         name: 'get_badge_holders',
-        description: 'وەرگرتنی لیستی هەموو ئەو بەکارهێنەرانەی باجی تایبەتیان هەیە (purple بۆ خەون، green بۆ بەڕێوەبەر، black بۆ سوپەر ئەدمین، red بۆ لایڤ)',
+        description: 'وەرگرتنی لیستی هەموو ئەو بەکارهێنەرانەی باجی تایبەتیان هەیە (blue بۆ پاسەوانی چات، white بۆ ڕاوێژکار، purple بۆ خەون، green بۆ بەڕێوەبەر، black بۆ سوپەر ئەدمین، red بۆ لایڤ)',
         parameters: {
           type: 'OBJECT',
           properties: {
-            badge_color: { type: 'STRING', description: 'purple, green, black, red, or all' }
+            badge_color: { type: 'STRING', description: 'blue, white, purple, green, black, red, or all' }
           }
         }
       },
@@ -1396,12 +1411,12 @@ const advisorTools = [
       },
       {
         name: 'assign_badge',
-        description: 'بەخشین یان لێسەندنەوەی باج بە فەرمانی کاک هێمن (white: ڕاوێژکار، purple: خەون، green: بەڕێوەبەر، black: سوپەر ئەدمین، red: لایڤ، none: لێسەندنەوە). تێبینی: بە هیچ جۆرێک دەستکاری کاک هێمن ناکات.',
+        description: 'بەخشین یان لێسەندنەوەی باج بە فەرمانی کاک هێمن (blue: پاسەوانی چات، white: ڕاوێژکار، purple: خەون، green: بەڕێوەبەر، black: سوپەر ئەدمین، red: لایڤ، none: لێسەندنەوە). تێبینی: بە هیچ جۆرێک دەستکاری کاک هێمن ناکات.',
         parameters: {
           type: 'OBJECT',
           properties: {
             username_or_id: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی بەکارهێنەرەکە' },
-            badge_color: { type: 'STRING', description: 'white, purple, green, black, red, or none' }
+            badge_color: { type: 'STRING', description: 'blue, white, purple, green, black, red, or none' }
           },
           required: ['username_or_id', 'badge_color']
         }
@@ -1819,10 +1834,10 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
           return { error: '⚠️ بە هیچ شێوەیەک دەستکاری هەژماری کاک هێمن (Super Admin) ناکرێت، ئەم هەژمارە تەواو پارێزراوە!' };
         }
 
-        const validBadges = ['purple', 'green', 'black', 'red', 'white', 'none'];
+        const validBadges = ['purple', 'green', 'black', 'red', 'white', 'blue', 'none'];
         const badgeInput = (args.badge_color || '').toLowerCase();
         if (!validBadges.includes(badgeInput)) {
-          return { error: 'ڕەنگی باج نادروستە. تەنها white, purple, green, black, red, none دەستدەدات.' };
+          return { error: 'ڕەنگی باج نادروستە. تەنها blue, white, purple, green, black, red, none دەستدەدات.' };
         }
         const badgeVal = badgeInput === 'none' ? null : badgeInput;
         users.updateSpecialBadge(target.id, badgeVal);
@@ -2312,7 +2327,7 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
 وەک هاوڕێیەکی زیندوو، دڵسۆز، گوێڕایەڵ و بەتوانا قسەی لەگەڵدا بکە ("کاک هێمن گیان"، "براکەم").
 تۆ دەسەڵاتت هەیە:
 - ڕۆڵ و پلەی هەر ئەندامێک بگۆڕیت (مامۆستا teacher، ئەدمین admin، خوێندکار student، میوان guest) بە change_user_role.
-- باجەکان ببەخشیت و بسڕیتەوە (سپی white بۆ ڕاوێژکار، مۆر، سەوز، ڕەش، سور) بە assign_badge.
+- باجەکان ببەخشیت و بسڕیتەوە (شین blue بۆ پاسەوانی چات، سپی white بۆ ڕاوێژکار، مۆر purple، سەوز green، ڕەش black، سور red) بە assign_badge.
 - ئەندامان پەسەند بکەیت، بسڕیتەوە، بلۆک بکەیت (block_user)، یان لە چات میوتیان بکەیت (mute_user).
 - ناوی تەواوی بەکارهێنەران بگۆڕیت (change_user_name) و وشەی نهێنییان ڕیسێت بکەیت (reset_user_password).
 - چاتی گشتی قفڵ بکەیت، بکەیتەوە، نامە بسڕیتەوە (delete_chat_message)، یان هەمووی پاک بکەیتەوە (clear_chat).
@@ -2499,8 +2514,10 @@ ${JSON.stringify(liveContext, null, 2)}
 ٢. لە بەشی چات: دەتوانیت فەرمانم پێبکەیت پرسیارێکی نوێ دابنێم و میقاتی بکەم بۆ کاتێکی دیاریکراو.
 ٣. لە بەشی ڕێکخستن: مینیوی یەکگرتووی ڕێکخستن هەموو بەشەکانی کۆکردووەتەوە.
 هەر فەرمانێکت هەیە پێم بڵێ با دەستبەجێ جێبەجێی بکەم!`;
-      } else if (/باج|پلە|سەوز|ڕەش|سور|مامۆستا|ئەدمین/.test(q)) {
+      } else if (/باج|پلە|سەوز|ڕەش|سور|شین|سپی|مامۆستا|ئەدمین/.test(q)) {
         reply = `کاک هێمن گیان، تەواوی نەخشەی باجە تایبەتەکان بەم شێوەیە ڕێکخراوە:
+🔵 باجی شین: پاسەوانی چات (سڕینەوەی پەیامی نەشیاو، بێدەنگکردن / سڕکردنی سەرپێچیکار لە چات).
+⚪ باجی سپی: دەسەڵاتی بەکارهێنانی ڕاوێژکاری زیرەک و هێمای ڕاوێژکار لە پرۆفایل.
 🟢 باجی سەوز: بەڕێوەبردنی ئەندامان، قفڵ و کردنەوەی چات، گۆڕینی ناوی بەکارهێنەران، بەڕێوەبردنی لایڤ.
 ⚫ باجی ڕەش: هەموو تواناکانی سوپەر ئەدمین لە ناو گرووپدا (پارێزراوە لە دەستکاری ئەوانی تر جگە لە تۆ).
 🔴 باجی سور: مۆڵەتی تایبەت بۆ کۆنتڕۆڵی تەواوی مایکی وانەی لایڤ.
@@ -2833,8 +2850,8 @@ app.post('/api/admin/special-badge', authMiddleware, requireMasterSuperAdmin, (r
 
   let badgeVal = special_badge ? String(special_badge).trim().toLowerCase() : null;
   if (badgeVal === 'none' || badgeVal === '') badgeVal = null;
-  if (badgeVal && !['green', 'black', 'red', 'purple', 'white'].includes(badgeVal)) {
-    return res.status(400).json({ error: 'جۆری باج نادروستە (تەنها سەوز، ڕەش، سور، مۆر، یان سپی ڕێگەپێدراوە)' });
+  if (badgeVal && !['green', 'black', 'red', 'purple', 'white', 'blue'].includes(badgeVal)) {
+    return res.status(400).json({ error: 'جۆری باج نادروستە (تەنها سەوز، ڕەش، سور، مۆر، سپی، یان شین ڕێگەپێدراوە)' });
   }
 
   users.updateSpecialBadge(userId, badgeVal);
@@ -2857,7 +2874,8 @@ app.post('/api/admin/special-badge', authMiddleware, requireMasterSuperAdmin, (r
     black: '⚫ باجی ڕەش',
     red: '🔴 باجی سور',
     purple: '🟣 باجی مۆر',
-    white: '⚪ باجی سپی (ڕاوێژکار)'
+    white: '⚪ باجی سپی (ڕاوێژکار)',
+    blue: '🔵 باجی شین (پاسەوانی چات)'
   };
   const badgeLabel = badgeVal ? badgeNames[badgeVal] : 'لابردنی باج';
 
@@ -2934,14 +2952,14 @@ app.post('/api/chat/upload-voice', authMiddleware, requireAdmin, upload.single('
   }
 });
 
-// Mute / Unmute
-app.post('/api/admin/mute', authMiddleware, requireAdmin, (req, res) => {
+// Mute / Unmute (Admins, Teachers, or Chat Moderators with Blue/Green/Black badges)
+app.post('/api/admin/mute', authMiddleware, requireChatModerator, (req, res) => {
   const { user_id, hours = 24 } = req.body;
   if (!user_id) return res.status(400).json({ error: 'ناسنامەی بەکارهێنەر دیارینەکراوە' });
   const target = users.findById(user_id);
   if (!target) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
-  if (target.role === 'super_admin' || target.role === 'admin') {
-    return res.status(403).json({ error: 'تەنها خوێندکار دەتوانرێت سڕ بکرێت' });
+  if (target.role === 'super_admin' || target.role === 'admin' || isMasterSuperAdmin(target) || target.special_badge === 'black') {
+    return res.status(403).json({ error: 'تەنها خوێندکار یان ئەندامی ئاسایی دەتوانرێت سڕ بکرێت' });
   }
 
   const mutedUntil = Date.now() + (hours * 60 * 60 * 1000);
@@ -2953,7 +2971,7 @@ app.post('/api/admin/mute', authMiddleware, requireAdmin, (req, res) => {
   res.json({ success: true, message: `خوێندکار سڕکرا`, muted_until: mutedUntil });
 });
 
-app.post('/api/admin/unmute', authMiddleware, requireAdmin, (req, res) => {
+app.post('/api/admin/unmute', authMiddleware, requireChatModerator, (req, res) => {
   const { user_id } = req.body;
   if (!user_id) return res.status(400).json({ error: 'ناسنامەی بەکارهێنەر دیارینەکراوە' });
   users.setMute(user_id, 0);
@@ -3676,11 +3694,11 @@ app.delete('/api/chat/messages/:id', authMiddleware, (req, res) => {
     return res.status(404).json({ error: 'نامەکە نەدۆزرایەوە' });
   }
 
-  const isPrivileged = req.user.role === 'admin' || req.user.role === 'super_admin' || req.user.role === 'teacher';
+  const isPrivileged = canModerateChat(req.user);
   const isOwner = msg.user_id === req.user.id;
 
   if (!isPrivileged && !isOwner) {
-    return res.status(403).json({ error: 'تەنها ئەدمین، مامۆستا یان خاوەنی پەیامەکە دەتوانێت نامەکە بسڕێتەوە' });
+    return res.status(403).json({ error: 'تەنها ئەدمین، مامۆستا، پاسەوانی چات یان خاوەنی پەیامەکە دەتوانێت نامەکە بسڕێتەوە' });
   }
 
   // Delete attachment file from public/uploads if exists

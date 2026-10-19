@@ -1176,7 +1176,7 @@
           <p class="text-[10px] text-slate-400 leading-relaxed">
             وەک سوپەر ئەدمین، دەتوانیت یەکێک لەم باجانە ببەخشیت بەم ئەندامە تا توانای تایبەتی هەبێت:
           </p>
-          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-xs">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
             <!-- White Badge (ڕاوێژکاری زیرەک) -->
             <button type="button" onclick="assignSpecialBadge('white')" id="badgeBtnWhite" class="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700/80 border border-slate-300/50 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
               <div class="flex items-center justify-between mb-1.5">
@@ -1189,6 +1189,21 @@
                 • مۆڵەتی ڕاوێژکاری زیرەک<br>
                 • ڕاوێژ و شیکاری پلاتفۆرم<br>
                 • هێمای ڕاوێژکار لە پرۆفایل
+              </div>
+            </button>
+
+            <!-- Blue Badge (پاسەوانی چات) -->
+            <button type="button" onclick="assignSpecialBadge('blue')" id="badgeBtnBlue" class="p-2.5 rounded-2xl bg-sky-950/40 hover:bg-sky-900/60 border border-sky-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="font-black text-sky-300 text-xs flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-sky-400"></span> باجی شین
+                </span>
+                <i class="fa-solid fa-shield text-sky-400 text-xs"></i>
+              </div>
+              <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
+                • سڕینەوەی پەیامی نەشیاو<br>
+                • میوتکردنی سەرپێچیکار<br>
+                • چاودێری و پاراستنی چات
               </div>
             </button>
 
@@ -3485,6 +3500,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=20.0"></script>
+  <script src="/js/app.js?v=20.2"></script>
 </body>
 </html>
