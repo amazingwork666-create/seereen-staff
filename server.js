@@ -519,6 +519,14 @@ function requireMasterSuperAdmin(req, res, next) {
   next();
 }
 
+// AI Advisor Access Middleware (Master Super Admin, role super_admin, or White Badge)
+function requireAiAdvisorAccess(req, res, next) {
+  if (!isMasterSuperAdmin(req.user) && req.user?.role !== 'super_admin' && req.user?.special_badge !== 'white') {
+    return res.status(403).json({ error: 'تەنها سوپەر ئەدمین یان هەڵگری باجی سپی مۆڵەتی بەکارهێنانی ڕاوێژکاری زیرەکیان هەیە' });
+  }
+  next();
+}
+
 // Super Admin Privileges Middleware (Master Super Admin, role super_admin, or Black Badge)
 function requireSuperAdminPrivileges(req, res, next) {
   if (!hasSuperAdminPrivileges(req.user)) {
@@ -1051,7 +1059,7 @@ app.post('/api/admin/security/log-incident', authMiddleware, (req, res) => {
 // --- AI ADVISOR & COMPANION FOR MASTER SUPER ADMIN (ڕاوێژکاری زیرەکی هێمن) ---
 
 // 1. Get Live Overview & Proactive Scanner Suggestions
-app.get('/api/advisor/overview', authMiddleware, requireMasterSuperAdmin, async (req, res) => {
+app.get('/api/advisor/overview', authMiddleware, requireAiAdvisorAccess, async (req, res) => {
   try {
     // 1. Members telemetry
     const totalUsersRow = db.prepare('SELECT COUNT(*) as c FROM users').get();
@@ -1388,12 +1396,12 @@ const advisorTools = [
       },
       {
         name: 'assign_badge',
-        description: 'بەخشین یان لێسەندنەوەی باج بە فەرمانی کاک هێمن (purple: خەون، green: بەڕێوەبەر، black: سوپەر ئەدمین، red: لایڤ، none: لێسەندنەوە). تێبینی: بە هیچ جۆرێک دەستکاری کاک هێمن ناکات.',
+        description: 'بەخشین یان لێسەندنەوەی باج بە فەرمانی کاک هێمن (white: ڕاوێژکار، purple: خەون، green: بەڕێوەبەر، black: سوپەر ئەدمین، red: لایڤ، none: لێسەندنەوە). تێبینی: بە هیچ جۆرێک دەستکاری کاک هێمن ناکات.',
         parameters: {
           type: 'OBJECT',
           properties: {
             username_or_id: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی بەکارهێنەرەکە' },
-            badge_color: { type: 'STRING', description: 'purple, green, black, red, or none' }
+            badge_color: { type: 'STRING', description: 'white, purple, green, black, red, or none' }
           },
           required: ['username_or_id', 'badge_color']
         }
@@ -1811,10 +1819,10 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
           return { error: '⚠️ بە هیچ شێوەیەک دەستکاری هەژماری کاک هێمن (Super Admin) ناکرێت، ئەم هەژمارە تەواو پارێزراوە!' };
         }
 
-        const validBadges = ['purple', 'green', 'black', 'red', 'none'];
+        const validBadges = ['purple', 'green', 'black', 'red', 'white', 'none'];
         const badgeInput = (args.badge_color || '').toLowerCase();
         if (!validBadges.includes(badgeInput)) {
-          return { error: 'ڕەنگی باج نادروستە. تەنها purple, green, black, red, none دەستدەدات.' };
+          return { error: 'ڕەنگی باج نادروستە. تەنها white, purple, green, black, red, none دەستدەدات.' };
         }
         const badgeVal = badgeInput === 'none' ? null : badgeInput;
         users.updateSpecialBadge(target.id, badgeVal);
@@ -2221,7 +2229,7 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
 }
 
 // 2. Chat with Advisor (Conversational Companion & Strategic AI)
-app.post('/api/advisor/chat', authMiddleware, requireMasterSuperAdmin, async (req, res) => {
+app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req, res) => {
   try {
     const { message } = req.body;
     if (!message || !message.trim()) {
@@ -2304,7 +2312,7 @@ app.post('/api/advisor/chat', authMiddleware, requireMasterSuperAdmin, async (re
 وەک هاوڕێیەکی زیندوو، دڵسۆز، گوێڕایەڵ و بەتوانا قسەی لەگەڵدا بکە ("کاک هێمن گیان"، "براکەم").
 تۆ دەسەڵاتت هەیە:
 - ڕۆڵ و پلەی هەر ئەندامێک بگۆڕیت (مامۆستا teacher، ئەدمین admin، خوێندکار student، میوان guest) بە change_user_role.
-- باجەکان ببەخشیت و بسڕیتەوە (مۆر، سەوز، ڕەش، سور) بە assign_badge.
+- باجەکان ببەخشیت و بسڕیتەوە (سپی white بۆ ڕاوێژکار، مۆر، سەوز، ڕەش، سور) بە assign_badge.
 - ئەندامان پەسەند بکەیت، بسڕیتەوە، بلۆک بکەیت (block_user)، یان لە چات میوتیان بکەیت (mute_user).
 - ناوی تەواوی بەکارهێنەران بگۆڕیت (change_user_name) و وشەی نهێنییان ڕیسێت بکەیت (reset_user_password).
 - چاتی گشتی قفڵ بکەیت، بکەیتەوە، نامە بسڕیتەوە (delete_chat_message)، یان هەمووی پاک بکەیتەوە (clear_chat).
@@ -2524,7 +2532,7 @@ ${JSON.stringify(liveContext, null, 2)}
 });
 
 // 3. Get Chat History
-app.get('/api/advisor/chat-history', authMiddleware, requireMasterSuperAdmin, (req, res) => {
+app.get('/api/advisor/chat-history', authMiddleware, requireAiAdvisorAccess, (req, res) => {
   try {
     const history = advisorDb.getRecentChats(50) || [];
     res.json({ history });
@@ -2534,7 +2542,7 @@ app.get('/api/advisor/chat-history', authMiddleware, requireMasterSuperAdmin, (r
 });
 
 // 4. Clear Chat History
-app.post('/api/advisor/clear-history', authMiddleware, requireMasterSuperAdmin, (req, res) => {
+app.post('/api/advisor/clear-history', authMiddleware, requireAiAdvisorAccess, (req, res) => {
   try {
     advisorDb.clearHistory();
     res.json({ success: true, message: 'مێژووی گفتوگۆکانی ڕاوێژکار بە سەرکەوتوویی سڕایەوە' });
@@ -2544,7 +2552,7 @@ app.post('/api/advisor/clear-history', authMiddleware, requireMasterSuperAdmin, 
 });
 
 // 5. Save Gemini API Key (Optional)
-app.post('/api/advisor/gemini-key', authMiddleware, requireMasterSuperAdmin, (req, res) => {
+app.post('/api/advisor/gemini-key', authMiddleware, requireAiAdvisorAccess, (req, res) => {
   try {
     const { apiKey } = req.body;
     const cleanKey = (apiKey || '').trim();
@@ -2556,7 +2564,7 @@ app.post('/api/advisor/gemini-key', authMiddleware, requireMasterSuperAdmin, (re
 });
 
 // 6. Get Gemini Key Status
-app.get('/api/advisor/gemini-status', authMiddleware, requireMasterSuperAdmin, (req, res) => {
+app.get('/api/advisor/gemini-status', authMiddleware, requireAiAdvisorAccess, (req, res) => {
   try {
     const hasCustomKey = Boolean(settings.get('advisor_gemini_api_key'));
     const hasEnvKey = Boolean(process.env.GEMINI_API_KEY);
@@ -2825,8 +2833,8 @@ app.post('/api/admin/special-badge', authMiddleware, requireMasterSuperAdmin, (r
 
   let badgeVal = special_badge ? String(special_badge).trim().toLowerCase() : null;
   if (badgeVal === 'none' || badgeVal === '') badgeVal = null;
-  if (badgeVal && !['green', 'black', 'red', 'purple'].includes(badgeVal)) {
-    return res.status(400).json({ error: 'جۆری باج نادروستە (تەنها سەوز، ڕەش، سور، یان مۆر ڕێگەپێدراوە)' });
+  if (badgeVal && !['green', 'black', 'red', 'purple', 'white'].includes(badgeVal)) {
+    return res.status(400).json({ error: 'جۆری باج نادروستە (تەنها سەوز، ڕەش، سور، مۆر، یان سپی ڕێگەپێدراوە)' });
   }
 
   users.updateSpecialBadge(userId, badgeVal);
@@ -2848,7 +2856,8 @@ app.post('/api/admin/special-badge', authMiddleware, requireMasterSuperAdmin, (r
     green: '🟢 باجی سەوز',
     black: '⚫ باجی ڕەش',
     red: '🔴 باجی سور',
-    purple: '🟣 باجی مۆر'
+    purple: '🟣 باجی مۆر',
+    white: '⚪ باجی سپی (ڕاوێژکار)'
   };
   const badgeLabel = badgeVal ? badgeNames[badgeVal] : 'لابردنی باج';
 

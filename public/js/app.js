@@ -347,6 +347,9 @@ function renderSpecialBadgeHtml(badge) {
   if (badge === 'purple') {
     return `<span class="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span> باجی مۆر (خەون)</span>`;
   }
+  if (badge === 'white') {
+    return `<span class="px-1.5 py-0.5 rounded-md bg-white/20 text-white border border-white/50 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]"></span> باجی سپی (ڕاوێژکار)</span>`;
+  }
   return '';
 }
 
@@ -791,20 +794,6 @@ function updateUserUI() {
     if (adminPanelBtn) adminPanelBtn.classList.add('hidden');
     if (drawerAdminPanelBtn) drawerAdminPanelBtn.classList.add('hidden');
     if (drawerAiSecurityBtn) drawerAiSecurityBtn.classList.add('hidden');
-  }
-
-  // Master Super Admin (Hemn) - AI Advisor button
-  const drawerAdvisorBtn = document.getElementById('drawerAdvisorBtn');
-  if (isMasterSuperAdmin(currentUser)) {
-    if (drawerAdvisorBtn) {
-      drawerAdvisorBtn.classList.remove('hidden');
-      drawerAdvisorBtn.classList.add('flex');
-    }
-  } else {
-    if (drawerAdvisorBtn) {
-      drawerAdvisorBtn.classList.add('hidden');
-      drawerAdvisorBtn.classList.remove('flex');
-    }
   }
 
   const dreamAdminNavBtn = document.getElementById('dreamAdminNavBtn');
@@ -5594,6 +5583,19 @@ async function openUserProfileModal(userId) {
       }
     }
 
+    const profAdvisorBtn = document.getElementById('profAdvisorBtn');
+    if (profAdvisorBtn) {
+      // Allowed if it's my profile AND (I am master super admin OR I have white badge)
+      const hasAdvisorAccess = isMe && (isMasterSuperAdmin(currentUser) || (currentUser && currentUser.special_badge === 'white'));
+      if (hasAdvisorAccess) {
+        profAdvisorBtn.classList.remove('hidden');
+        profAdvisorBtn.classList.add('inline-flex');
+      } else {
+        profAdvisorBtn.classList.add('hidden');
+        profAdvisorBtn.classList.remove('inline-flex');
+      }
+    }
+
     const isSuperAdminAccount = prof.role === 'super_admin';
     const regStatsGrid = document.getElementById('profRegularStatsGrid');
     const saCard = document.getElementById('profSuperAdminSpecialCard');
@@ -5753,6 +5755,7 @@ async function openUserProfileModal(userId) {
     // Master Super Admin: Special Badges Panel (باجە تایبەتەکان)
     const badgeAdminCard = document.getElementById('profSpecialBadgeAdminCard');
     const activeBadgeTag = document.getElementById('profActiveBadgeTag');
+    const btnWhite = document.getElementById('badgeBtnWhite');
     const btnGreen = document.getElementById('badgeBtnGreen');
     const btnBlack = document.getElementById('badgeBtnBlack');
     const btnRed = document.getElementById('badgeBtnRed');
@@ -5763,15 +5766,17 @@ async function openUserProfileModal(userId) {
         badgeAdminCard.classList.remove('hidden');
         const b = prof.special_badge || null;
         if (activeBadgeTag) {
-          if (b === 'green') activeBadgeTag.innerHTML = '<span class="text-emerald-400 font-black">باجی سەوز چالاکە 🟢</span>';
+          if (b === 'white') activeBadgeTag.innerHTML = '<span class="text-white font-black">باجی سپی چالاکە ⚪ (ڕاوێژکار)</span>';
+          else if (b === 'green') activeBadgeTag.innerHTML = '<span class="text-emerald-400 font-black">باجی سەوز چالاکە 🟢</span>';
           else if (b === 'black') activeBadgeTag.innerHTML = '<span class="text-slate-300 font-black">باجی ڕەش چالاکە ⚫</span>';
           else if (b === 'red') activeBadgeTag.innerHTML = '<span class="text-rose-400 font-black">باجی سور چالاکە 🔴</span>';
           else if (b === 'purple') activeBadgeTag.innerHTML = '<span class="text-purple-400 font-black">باجی مۆر چالاکە 🟣 (لێکدانەوەی خەون)</span>';
           else activeBadgeTag.innerHTML = '<span class="text-slate-400 font-bold">بێ باج</span>';
         }
-        [btnGreen, btnBlack, btnRed, btnPurple].forEach(btn => {
+        [btnWhite, btnGreen, btnBlack, btnRed, btnPurple].forEach(btn => {
           if (btn) btn.classList.remove('ring-2', 'ring-indigo-400', 'bg-indigo-950/80');
         });
+        if (b === 'white' && btnWhite) btnWhite.classList.add('ring-2', 'ring-indigo-400');
         if (b === 'green' && btnGreen) btnGreen.classList.add('ring-2', 'ring-indigo-400');
         if (b === 'black' && btnBlack) btnBlack.classList.add('ring-2', 'ring-indigo-400');
         if (b === 'red' && btnRed) btnRed.classList.add('ring-2', 'ring-indigo-400');
@@ -6876,30 +6881,28 @@ async function loadStudentOfTheMonth() {
       const st = student;
       const stars = st.month_stars || st.correct_answers_count || 0;
       container.innerHTML = `
-        <div class="p-3.5 md:p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-[#dfaa86]/20 border border-amber-500/40 relative overflow-hidden shadow-xl mb-3">
-          <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 flex items-center justify-center text-xl font-black shadow-lg shadow-amber-500/30">
+        <div class="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-[#dfaa86]/20 border border-amber-500/40 relative overflow-hidden shadow-xl mb-3">
+          <div class="flex items-center justify-between gap-2.5">
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 flex items-center justify-center text-lg sm:text-xl font-black shadow-lg shadow-amber-500/30 shrink-0">
                 🏆
               </div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <span class="text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md border border-amber-500/30">
-                    خوێندکاری مانگ 🏆 Student of the Month
-                  </span>
-                </div>
-                <h3 class="text-sm md:text-base font-black text-white mt-1 cursor-pointer hover:underline" onclick="openUserProfileModal(${st.id})">
+              <div class="min-w-0 flex-1">
+                <span class="text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md border border-amber-500/30 inline-block">
+                  خوێندکاری مانگ 🏆
+                </span>
+                <h3 class="text-xs sm:text-sm font-black text-white mt-0.5 cursor-pointer hover:underline truncate" onclick="openUserProfileModal(${st.id})">
                   ${escapeHtml(st.full_name)}
                 </h3>
-                <p class="text-[11px] text-slate-400 font-mono">@${escapeHtml(st.username)}</p>
+                <p class="text-[10px] text-slate-400 font-mono truncate">@${escapeHtml(st.username)}</p>
               </div>
             </div>
             <div class="text-left shrink-0">
-              <div class="text-base md:text-lg font-black text-amber-400 font-mono flex items-center gap-1 justify-end">
+              <div class="text-sm sm:text-base font-black text-amber-400 font-mono flex items-center gap-1 justify-end">
                 <span>${stars}</span>
-                <i class="fa-solid fa-star text-amber-400 text-sm"></i>
+                <i class="fa-solid fa-star text-amber-400 text-xs sm:text-sm"></i>
               </div>
-              <div class="text-[10px] text-slate-400 font-bold">ئەستێرەی مانگ ⭐</div>
+              <div class="text-[9px] text-slate-400 font-bold">ئەستێرەی مانگ ⭐</div>
             </div>
           </div>
         </div>
@@ -6952,20 +6955,20 @@ async function loadLeaderboard() {
 
       const nameClass = getUserNameClass(st);
       const item = document.createElement('div');
-      item.className = 'p-3 rounded-2xl bg-slate-800/70 border border-slate-700/60 flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-800 transition';
+      item.className = 'p-2.5 sm:p-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-between gap-2.5 cursor-pointer hover:bg-slate-800 transition active:scale-[0.99]';
       item.onclick = () => openUserProfileModal(st.id);
 
       item.innerHTML = `
-        <div class="flex items-center gap-3">
-          ${rankBadge}
-          <div>
-            <h4 class="font-bold text-sm ${nameClass}">${escapeHtml(st.full_name)}</h4>
-            <p class="text-[11px] text-slate-400 font-mono">@${escapeHtml(st.username)}</p>
+        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+          <div class="shrink-0">${rankBadge}</div>
+          <div class="min-w-0 flex-1">
+            <h4 class="font-bold text-xs sm:text-sm ${nameClass} truncate">${escapeHtml(st.full_name)}</h4>
+            <p class="text-[10px] sm:text-[11px] text-slate-400 font-mono truncate">@${escapeHtml(st.username)}</p>
           </div>
         </div>
-        <div class="text-left">
+        <div class="text-left shrink-0 flex flex-col items-end">
           ${renderStarBadge(st.correct_answers_count)}
-          <div class="text-[10px] text-slate-400 mt-0.5 font-mono text-left">کۆی وەڵامەکان: ${st.correct_answers_count}</div>
+          <span class="text-[9px] sm:text-[10px] text-slate-400 mt-0.5 font-mono">${st.correct_answers_count} وەڵام</span>
         </div>
       `;
       container.appendChild(item);
@@ -7276,7 +7279,7 @@ function applyTheme(theme) {
   const drawerText = document.getElementById('drawerThemeText');
   const drawerBadge = document.getElementById('drawerThemeBadge');
   if (drawerIcon) drawerIcon.className = `${themeObj.icon} ${themeObj.iconColor} text-sm w-5 text-center`;
-  if (drawerText) drawerText.innerText = (currentAppLanguage === 'ar') ? `تغيير مظهر الشاشة (${themeObj.name})` : ((currentAppLanguage === 'en') ? `Change Screen Theme (${themeObj.name})` : `گۆڕینی مۆدی شاشە (${themeObj.name})`);
+  if (drawerText) drawerText.innerText = (currentAppLanguage === 'ar') ? `تغيير مظهر الشاشة (${themeObj.name})` : ((currentAppLanguage === 'en') ? `Change Screen Theme (${themeObj.name})` : `گۆڕینی شێوەی ڕوونما (${themeObj.name})`);
   if (drawerBadge) drawerBadge.innerText = themeObj.badgeText;
 }
 
@@ -12431,12 +12434,12 @@ function applyAppLanguage(lang) {
       drawerDreamSubmitBadge: '١ بە ١',
       drawerSearchText: 'گەڕان لەناو پەیامەکان',
       drawerMembersText: 'لیستی ئەندامان',
-      drawerNotificationText: 'ئاگاداری مۆبایل و شاشە',
-      drawerThemeText: 'گۆڕینی مۆدی شاشە',
+      drawerNotificationText: 'ئاگاداری مۆبایل و ڕوونما',
+      drawerThemeText: 'گۆڕینی شێوەی ڕوونما',
       drawerThemeBadge: 'مۆد',
       drawerPwaText: 'داگرتنی ئەپڵیکەیشن (PWA)',
       drawerStaffHeader: 'ئامرازەکانی ستاف و ئەدمین',
-      drawerLiveRecordingsText: 'تۆماری وانەکان (لایڤ)',
+      drawerLiveRecordingsText: 'تۆماری وانەکان (ڕاستەوخۆ)',
       drawerLiveRecordingsBadge: 'داگرتن',
       drawerPostQuestionText: 'دانانی پرسیاری نوێ',
       drawerPostQuestionBadge: 'نوێ',
@@ -12447,7 +12450,7 @@ function applyAppLanguage(lang) {
       topPodiumBtnText: 'پێشەنگەکان',
       drawerRecordedLessonsBtn: 'وانە تۆمارکراوەکان',
       drawerPrivateChatBtn: 'نامەی تایبەت',
-      drawerLiveRecordingsBtn: 'تۆماری وانەکان (لایڤ)',
+      drawerLiveRecordingsBtn: 'تۆماری وانەکان (ڕاستەوخۆ)',
       drawerProfileBtn: 'پرۆفایلەکەم',
       drawerLogoutBtn: 'چوونەدەرەوە',
       drawerDreamBtn: 'لێکدانەوەی خەون',
@@ -13639,12 +13642,17 @@ let advisorTelemetryCache = null;
 let isAdvisorTyping = false;
 
 function openAiAdvisorModal() {
-  if (!isMasterSuperAdmin(currentUser)) {
-    alert('ئەم بەشە تەنها بۆ کاک هێمن (Hemn Taha) پارێزراوە.');
+  const hasAccess = isMasterSuperAdmin(currentUser) || (currentUser && currentUser.special_badge === 'white');
+  if (!hasAccess) {
+    alert('ئەم بەشە تەنها بۆ کاک هێمن یان هەڵگرانی باجی سپی ڕێگەپێدراوە.');
     return;
   }
   const modal = document.getElementById('aiAdvisorModal');
   if (!modal) return;
+  const titleEl = document.getElementById('advisorModalTitle');
+  if (titleEl) {
+    titleEl.innerText = isMasterSuperAdmin(currentUser) ? 'ڕاوێژکاری زیرەکی هێمن' : 'ڕاوێژکاری زیرەکی سیرین';
+  }
   modal.classList.remove('hidden');
   switchAdvisorTab('scanner');
   loadAdvisorOverview();

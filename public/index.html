@@ -17,7 +17,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/css/style.css?v=13.0">
+  <link rel="stylesheet" href="/css/style.css?v=13.1">
   <style>
     body.light-theme .msg-text-student,
     body.light-theme [class*="msg-text-student"],
@@ -568,11 +568,11 @@
               <!-- Settings Sub-List (All 4 Items Inside) -->
               <div id="drawerSettingsList" class="p-2 space-y-2 border-t border-slate-800/80 bg-slate-900/40">
 
-                <!-- 1. ئاگاداری مۆبایل و شاشە -->
+                <!-- 1. ئاگاداری مۆبایل و ڕوونما -->
                 <button type="button" id="drawerNotificationBtn" onclick="togglePushNotifications()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition active:scale-98">
                   <span class="flex items-center gap-2.5">
                     <i id="drawerNotificationIcon" class="fa-solid fa-bell text-amber-400 text-sm w-5 text-center"></i>
-                    <span id="drawerNotificationText">ئاگاداری مۆبایل و شاشە</span>
+                    <span id="drawerNotificationText">ئاگاداری مۆبایل و ڕوونما</span>
                   </span>
                   <span id="drawerNotificationStatusBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">ناچالاک</span>
                 </button>
@@ -633,11 +633,11 @@
                   </div>
                 </div>
 
-                <!-- 4. گۆڕینی مۆدی شاشە -->
+                <!-- 4. گۆڕینی شێوەی ڕوونما -->
                 <button type="button" onclick="closeMainMenuDrawer(); openThemeModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-purple-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition active:scale-98">
                   <span class="flex items-center gap-2.5">
                     <i id="drawerThemeIcon" class="fa-solid fa-palette text-purple-400 text-sm w-5 text-center"></i>
-                    <span id="drawerThemeText">گۆڕینی مۆدی شاشە</span>
+                    <span id="drawerThemeText">گۆڕینی شێوەی ڕوونما</span>
                   </span>
                   <span id="drawerThemeBadge" class="text-[10px] bg-slate-700 text-purple-300 font-bold px-2 py-0.5 rounded-md border border-purple-500/30">تاریک</span>
                 </button>
@@ -654,7 +654,7 @@
             <button id="drawerLiveRecordingsBtn" onclick="closeMainMenuDrawer(); openLiveRecordingsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30 text-rose-200 hover:text-white transition">
               <span class="flex items-center gap-2.5">
                 <i class="fa-solid fa-microphone-lines text-rose-400 text-sm w-5 text-center"></i>
-                <span id="drawerLiveRecordingsText">تۆماری وانەکان (لایڤ)</span>
+                <span id="drawerLiveRecordingsText">تۆماری وانەکان (ڕاستەوخۆ)</span>
               </span>
               <span id="drawerLiveRecordingsBadge" class="text-[9px] bg-rose-500 text-white font-black px-1.5 py-0.5 rounded">داگرتن</span>
             </button>
@@ -702,18 +702,6 @@
                 <span class="font-bold">ژووری ئۆپەراسیۆنی پاراستن (AI Guard)</span>
               </span>
               <span id="drawerAiSecurityBadge" class="px-2 py-0.5 bg-rose-500/80 text-white text-[10px] font-black rounded-full animate-pulse">چاودێری</span>
-            </button>
-
-            <!-- AI Advisor & Companion (ڕاوێژکار - تەنها کاک هێمن) -->
-            <button id="drawerAdvisorBtn" onclick="closeMainMenuDrawer(); openAiAdvisorModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-purple-950/70 via-indigo-950/60 to-violet-950/70 hover:from-purple-900/80 hover:to-indigo-900/80 border border-purple-500/50 text-purple-200 hover:text-white transition shadow-lg group">
-              <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-wand-magic-sparkles text-amber-300 text-sm w-5 text-center transition group-hover:scale-110"></i>
-                <span class="font-black text-sm">ڕاوێژکار (AI Advisor)</span>
-              </span>
-              <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-sm flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-300 animate-ping"></span>
-                <span>تایبەت بە هێمن</span>
-              </span>
             </button>
           </div>
 
@@ -1047,6 +1035,11 @@
               <h3 id="profFullName" class="font-black text-base text-white">ناو</h3>
               <span id="profGenderBadge" class="hidden"></span>
               <span id="profSpecialBadgeSlot" class="hidden"></span>
+              <!-- Animated AI Advisor Morphing Badge Button -->
+              <button id="profAdvisorBtn" type="button" onclick="closeUserProfileModal(); openAiAdvisorModal();" class="hidden advisor-morph-badge cursor-pointer" title="ڕاوێژکاری زیرەکی سیرین (AI)">
+                <i class="fa-solid fa-wand-magic-sparkles advisor-morph-icon"></i>
+                <span class="advisor-morph-text">ڕاوێژکار</span>
+              </button>
             </div>
             <p id="profUsername" class="text-xs text-slate-400 font-mono">@username</p>
           </div>
@@ -1183,7 +1176,22 @@
           <p class="text-[10px] text-slate-400 leading-relaxed">
             وەک سوپەر ئەدمین، دەتوانیت یەکێک لەم باجانە ببەخشیت بەم ئەندامە تا توانای تایبەتی هەبێت:
           </p>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-xs">
+            <!-- White Badge (ڕاوێژکاری زیرەک) -->
+            <button type="button" onclick="assignSpecialBadge('white')" id="badgeBtnWhite" class="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700/80 border border-slate-300/50 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="font-black text-white text-xs flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]"></span> باجی سپی
+                </span>
+                <i class="fa-solid fa-wand-magic-sparkles text-amber-300 text-xs"></i>
+              </div>
+              <div class="text-[9px] text-slate-300 group-hover:text-white space-y-0.5 leading-snug">
+                • مۆڵەتی ڕاوێژکاری زیرەک<br>
+                • ڕاوێژ و شیکاری پلاتفۆرم<br>
+                • هێمای ڕاوێژکار لە پرۆفایل
+              </div>
+            </button>
+
             <!-- Green Badge -->
             <button type="button" onclick="assignSpecialBadge('green')" id="badgeBtnGreen" class="p-2.5 rounded-2xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
               <div class="flex items-center justify-between mb-1.5">
@@ -1622,7 +1630,7 @@
       </div>
 
       <!-- PROFILE CHANGES CONTENT -->
-      <div id="adminContentProfileChanges" class="hidden flex-1 overflow-y-auto p-5">
+      <div id="adminContentProfileChanges" class="hidden flex-1 overflow-y-auto p-3.5 sm:p-5">
         <div id="profileChangesEmptyMessage" class="hidden text-center py-12 text-slate-500">
           <i class="fa-solid fa-check-circle text-3xl text-emerald-500 mb-2"></i>
           <p class="text-sm font-bold">هیچ داواکارییەکی گۆڕینی ناو یان وشەی نهێنی نییە</p>
@@ -1631,7 +1639,7 @@
       </div>
 
       <!-- PASSWORD RESETS CONTENT -->
-      <div id="adminContentPasswordResets" class="hidden flex-1 overflow-y-auto p-5">
+      <div id="adminContentPasswordResets" class="hidden flex-1 overflow-y-auto p-3.5 sm:p-5">
         <div id="passwordResetsEmptyMessage" class="hidden text-center py-12 text-slate-500">
           <i class="fa-solid fa-key text-3xl text-amber-500/60 mb-2"></i>
           <p class="text-sm font-bold">هیچ داواکارییەکی نوێکردنەوەی وشەی نهێنی نییە</p>
@@ -1639,7 +1647,7 @@
         <div id="passwordResetsList" class="space-y-3"></div>
       </div>
 
-      <div id="adminContentUsers" class="hidden flex-1 overflow-y-auto p-5">
+      <div id="adminContentUsers" class="hidden flex-1 overflow-y-auto p-3.5 sm:p-5">
         <div class="mb-4">
           <div class="relative max-w-md">
             <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-3 text-xs text-slate-400"></i>
@@ -1650,7 +1658,7 @@
       </div>
 
       <!-- BACKUPS CONTENT -->
-      <div id="adminContentBackups" class="hidden flex-1 overflow-y-auto p-5 space-y-4">
+      <div id="adminContentBackups" class="hidden flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4">
         <div class="p-4 bg-slate-950/60 border border-[#dfaa86]/30 rounded-2xl flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h4 class="font-black text-sm text-white flex items-center gap-2">
@@ -1812,29 +1820,33 @@
   </div>
 
   <!-- ================= MODAL: LEADERBOARD ================= -->
-  <div id="leaderboardModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-    <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl">
-      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+  <div id="leaderboardModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="w-full max-w-lg max-h-[92dvh] bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between pb-3 sm:pb-4 border-b border-slate-800 mb-3 shrink-0">
         <div class="flex items-center gap-2.5">
-          <div class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg">
+          <div class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg shrink-0">
             <i class="fa-solid fa-trophy"></i>
           </div>
           <div>
-            <h3 class="font-black text-base text-white">ڕیزبەندی ئەوکەسانەی زۆرترین وەڵامی ڕاستیان زانیوە</h3>
-            <p class="text-xs text-slate-400">پلەی یەکەم 🥇، دووەم 🥈، و سێهەم 🥉 بەپێی ئەستێرەکان</p>
+            <h3 class="font-black text-sm sm:text-base text-white">ڕیزبەندی ئەوکەسانەی زۆرترین وەڵامی ڕاستیان زانیوە</h3>
+            <p class="text-[11px] sm:text-xs text-slate-400">پلەی یەکەم 🥇، دووەم 🥈، و سێهەم 🥉 بەپێی ئەستێرەکان</p>
           </div>
         </div>
         <button onclick="closeLeaderboardModal()" class="text-slate-400 hover:text-white p-2">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
-      <!-- SPOTLIGHT: STUDENT OF THE MONTH -->
-      <div id="studentOfMonthSpotlight" class="mb-4"></div>
 
-      <div class="text-xs font-bold text-slate-400 mb-2 flex items-center justify-between">
-        <span>ڕیزبەندی گشتی بەشداربووان:</span>
+      <!-- Scrollable content wrapper -->
+      <div class="flex-1 overflow-y-auto space-y-3 pr-1 pl-0.5">
+        <!-- SPOTLIGHT: STUDENT OF THE MONTH -->
+        <div id="studentOfMonthSpotlight"></div>
+
+        <div class="text-xs font-bold text-slate-400 flex items-center justify-between pt-1">
+          <span>ڕیزبەندی گشتی بەشداربووان:</span>
+        </div>
+        <div id="leaderboardList" class="space-y-2"></div>
       </div>
-      <div id="leaderboardList" class="space-y-2.5 max-h-80 overflow-y-auto"></div>
     </div>
   </div>
 
@@ -1883,102 +1895,108 @@
   </div>
 
   <!-- ================= MODAL: LIBRARY (PDF & FILES BOOKSHELF) ================= -->
-  <div id="libraryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
-    <div class="w-full max-w-4xl max-h-[92vh] bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-6 shadow-2xl flex flex-col overflow-hidden">
+  <div id="libraryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="w-full max-w-4xl max-h-[92dvh] bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 md:p-6 shadow-2xl flex flex-col overflow-hidden">
       
       <!-- Modal Header -->
-      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4 shrink-0">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-teal-600/20 text-teal-400 flex items-center justify-center text-lg border border-teal-500/30 shadow">
+      <div class="flex items-center justify-between pb-3 sm:pb-4 border-b border-slate-800 mb-3 sm:mb-4 shrink-0">
+        <div class="flex items-center gap-2.5 sm:gap-3">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-teal-600/20 text-teal-400 flex items-center justify-center text-base sm:text-lg border border-teal-500/30 shadow shrink-0">
             <i class="fa-solid fa-book-open"></i>
           </div>
           <div>
-            <h3 class="font-black text-base md:text-lg text-white">کتێبخانەی ستافی سیرین 📖</h3>
-            <p class="text-xs text-slate-400">سەرچاوە زانستییەکان، کتێبی PDF و پەڕاوە بەسوودەکان بۆ قوتابیان</p>
+            <h3 class="font-black text-sm sm:text-base md:text-lg text-white">کتێبخانەی ستافی سیرین 📖</h3>
+            <p class="text-[10px] sm:text-xs text-slate-400">سەرچاوە زانستییەکان، کتێبی PDF و پەڕاوە بەسوودەکان بۆ قوتابیان</p>
           </div>
         </div>
-        <button onclick="closeLibraryModal()" class="text-slate-400 hover:text-white p-2 text-lg">
+        <button onclick="closeLibraryModal()" class="text-slate-400 hover:text-white p-2 text-base sm:text-lg">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
 
-      <!-- Admin / Teacher Upload Accordion/Section -->
-      <div id="libraryUploadSection" class="hidden mb-4 p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 shrink-0">
-        <div class="flex items-center justify-between cursor-pointer mb-3" onclick="toggleLibraryUploadForm()">
-          <div class="flex items-center gap-2 text-xs md:text-sm font-black text-teal-300">
-            <i class="fa-solid fa-cloud-arrow-up text-base"></i>
-            <span>دانانی کتێب یان فایلی نوێ (سوپەر ئەدمین، ئەدمین و مامۆستا)</span>
+      <!-- Scrollable Body (Whole content scrolls smoothly on mobile) -->
+      <div class="flex-1 overflow-y-auto space-y-3.5 pr-1 pl-0.5" style="-webkit-overflow-scrolling: touch;">
+        <!-- Admin / Teacher Upload Accordion/Section -->
+        <div id="libraryUploadSection" class="hidden p-3.5 sm:p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80">
+          <div class="flex items-center justify-between cursor-pointer mb-3" onclick="toggleLibraryUploadForm()">
+            <div class="flex items-center gap-2 text-xs md:text-sm font-black text-teal-300">
+              <i class="fa-solid fa-cloud-arrow-up text-base"></i>
+              <span>دانانی کتێب یان فایلی نوێ (سوپەر ئەدمین، ئەدمین و مامۆستا)</span>
+            </div>
+            <i id="uploadAccordionIcon" class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform duration-200"></i>
           </div>
-          <i id="uploadAccordionIcon" class="fa-solid fa-chevron-down text-xs text-slate-400 transition-transform duration-200"></i>
+
+          <form id="libraryUploadForm" onsubmit="handleUploadLibraryBook(event)" class="hidden space-y-3 pt-2 border-t border-slate-700/60">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">ناوی کتێب / سەرچاوە *</label>
+                <input type="text" id="libBookTitle" required placeholder="ناوی سەرچاوەکە بنووسە..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">ناوی نووسەر / وەرگێڕ (ئارەزوومەندانە)</label>
+                <input type="text" id="libBookAuthor" placeholder="ناوی نووسەر بنووسە..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">پۆلێن / بەش</label>
+                <select id="libBookCategory" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-teal-500">
+                  <option value="زانستی">🔬 زانستی</option>
+                  <option value="ئایینی">🕌 ئایینی</option>
+                  <option value="پەروەردەیی">🎓 پەروەردەیی</option>
+                  <option value="مێژوویی">📜 مێژوویی</option>
+                  <option value="ئەدەبی">✍️ ئەدەبی</option>
+                  <option value="گشتی" selected>📚 گشتی</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">فایلی کتێب (PDF یان هەر جۆرە فایلێکی تر) *</label>
+                <input type="file" id="libBookFile" required accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.txt,image/*" class="w-full text-xs text-slate-300 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-teal-600 file:text-white hover:file:bg-teal-500 cursor-pointer">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">پوختە یان ڕوونکردنەوەی کورت (ئارەزوومەندانە)</label>
+              <textarea id="libBookDescription" rows="2" placeholder="پوختەی ئەم سەرچاوەیە یان چەند ڕێنماییەک..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"></textarea>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-1">
+              <button type="submit" id="libUploadSubmitBtn" class="px-5 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <span>بارکردن بۆ کتێبخانە</span>
+              </button>
+            </div>
+          </form>
         </div>
 
-        <form id="libraryUploadForm" onsubmit="handleUploadLibraryBook(event)" class="hidden space-y-3 pt-2 border-t border-slate-700/60">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-300 mb-1">ناوی کتێب / سەرچاوە *</label>
-              <input type="text" id="libBookTitle" required placeholder="ناوی سەرچاوەکە بنووسە..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500">
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-300 mb-1">ناوی نووسەر / وەرگێڕ (ئارەزوومەندانە)</label>
-              <input type="text" id="libBookAuthor" placeholder="ناوی نووسەر بنووسە..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500">
-            </div>
+        <!-- Search & Filters -->
+        <div class="flex items-center gap-2">
+          <div class="relative flex-1">
+            <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+              <i class="fa-solid fa-magnifying-glass text-xs"></i>
+            </span>
+            <input 
+              type="text" 
+              id="librarySearchInput" 
+              oninput="filterLibraryBooks()" 
+              placeholder="گەڕان بەپێی ناوی کتێب، نووسەر، یان پۆلێن..." 
+              class="w-full pr-9 pl-3 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-teal-500"
+            >
           </div>
+        </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-300 mb-1">پۆلێن / بەش</label>
-              <select id="libBookCategory" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-teal-500">
-                <option value="زانستی">🔬 زانستی</option>
-                <option value="ئایینی">🕌 ئایینی</option>
-                <option value="پەروەردەیی">🎓 پەروەردەیی</option>
-                <option value="مێژوویی">📜 مێژوویی</option>
-                <option value="ئەدەبی">✍️ ئەدەبی</option>
-                <option value="گشتی" selected>📚 گشتی</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-300 mb-1">فایلی کتێب (PDF یان هەر جۆرە فایلێکی تر) *</label>
-              <input type="file" id="libBookFile" required accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.txt,image/*" class="w-full text-xs text-slate-300 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-teal-600 file:text-white hover:file:bg-teal-500 cursor-pointer">
-            </div>
+        <!-- Books Grid / List -->
+        <div class="space-y-3" id="libraryBooksList">
+          <div class="text-center py-12 text-slate-500">
+            <i class="fa-solid fa-circle-notch fa-spin text-xl text-teal-500 mb-2"></i>
+            <p class="text-xs">بارکردنی کتێبخانە...</p>
           </div>
-
-          <div>
-            <label class="block text-xs font-bold text-slate-300 mb-1">پوختە یان ڕوونکردنەوەی کورت (ئارەزوومەندانە)</label>
-            <textarea id="libBookDescription" rows="2" placeholder="پوختەی ئەم سەرچاوەیە یان چەند ڕێنماییەک..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"></textarea>
-          </div>
-
-          <div class="flex justify-end gap-2 pt-1">
-            <button type="submit" id="libUploadSubmitBtn" class="px-5 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5">
-              <i class="fa-solid fa-cloud-arrow-up"></i>
-              <span>بارکردن بۆ کتێبخانە</span>
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <!-- Search & Filters -->
-      <div class="mb-4 flex items-center gap-2 shrink-0">
-        <div class="relative flex-1">
-          <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
-            <i class="fa-solid fa-magnifying-glass text-xs"></i>
-          </span>
-          <input 
-            type="text" 
-            id="librarySearchInput" 
-            oninput="filterLibraryBooks()" 
-            placeholder="گەڕان بەپێی ناوی کتێب، نووسەر، یان پۆلێن..." 
-            class="w-full pr-9 pl-3 py-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-teal-500"
-          >
         </div>
       </div>
 
-      <!-- Books Grid / List -->
-      <div class="flex-1 overflow-y-auto space-y-3 pr-1" id="libraryBooksList">
-        <div class="text-center py-12 text-slate-500">
-          <i class="fa-solid fa-circle-notch fa-spin text-xl text-teal-500 mb-2"></i>
-          <p class="text-xs">بارکردنی کتێبخانە...</p>
-        </div>
-      </div>
+    </div>
+  </div>
 
     </div>
   </div>
@@ -3023,123 +3041,123 @@
 
   <!-- ================= MODAL: AI SECURITY COMMAND CENTER (SUPER ADMIN) ================= -->
   <div id="aiSecurityModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md">
-    <div class="w-full max-w-4xl h-[94vh] sm:max-h-[90vh] bg-slate-900 border border-rose-500/40 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+    <div class="w-full max-w-4xl h-[92dvh] sm:max-h-[90vh] bg-slate-900 border border-rose-500/40 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
       
       <!-- Modal Header -->
-      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-rose-950/70 via-slate-900 to-indigo-950/70 border-b border-rose-500/30 flex items-center justify-between">
-        <div class="flex items-center gap-2.5 sm:gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-rose-600/20 text-rose-400 border border-rose-500/40 flex items-center justify-center text-lg shrink-0 shadow-lg shadow-rose-900/30">
+      <div class="p-3 sm:p-4 bg-gradient-to-r from-rose-950/70 via-slate-900 to-indigo-950/70 border-b border-rose-500/30 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-rose-600/20 text-rose-400 border border-rose-500/40 flex items-center justify-center text-base sm:text-lg shrink-0 shadow-lg shadow-rose-900/30">
             <i class="fa-solid fa-shield-cat"></i>
           </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h3 class="font-black text-sm sm:text-base text-white">ژووری ئۆپەراسیۆنی پاراستنی زیرەک</h3>
-              <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <h3 class="font-black text-xs sm:text-base text-white truncate">ژووری ئۆپەراسیۆنی پاراستن</h3>
+              <span class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span>AI Guard v2.0</span>
               </span>
             </div>
-            <p class="text-[11px] text-slate-300">چاودێری و تێکشکاندنی هەڕەشەکان، دژە-فێڵ، پاراستنی بینایی و قەڵغانی نائاسایی</p>
+            <p class="text-[10px] sm:text-[11px] text-slate-300 hidden sm:block truncate">چاودێری و تێکشکاندنی هەڕەشەکان، دژە-فێڵ و قەڵغانی نائاسایی</p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
-          <button onclick="loadAiSecurityStats()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs border border-slate-700 transition" title="تازەکردنەوە">
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <button onclick="loadAiSecurityStats()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs border border-slate-700 transition" title="تازەکردنەوە">
             <i class="fa-solid fa-arrows-rotate"></i>
           </button>
-          <button onclick="closeAiSecurityModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-sm border border-slate-700 transition">
+          <button onclick="closeAiSecurityModal()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-xs sm:text-sm border border-slate-700 transition">
             <i class="fa-solid fa-xmark"></i>
           </button>
         </div>
       </div>
 
       <!-- Scrollable Body -->
-      <div class="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4">
+      <div class="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3.5">
         
         <!-- Emergency Red Alert Lockdown Box -->
-        <div class="p-4 rounded-2xl bg-gradient-to-r from-rose-950/60 to-purple-950/50 border-2 border-rose-500/50 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div class="space-y-1 text-center sm:text-right">
+        <div class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-rose-950/60 to-purple-950/50 border-2 border-rose-500/50 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+          <div class="space-y-1 text-center sm:text-right w-full sm:w-auto">
             <div class="flex items-center justify-center sm:justify-start gap-2">
-              <span class="w-3 h-3 rounded-full bg-rose-500 animate-ping"></span>
-              <h4 class="font-black text-sm sm:text-base text-white flex items-center gap-1.5">
-                <span>قەڵغانی پۆڵایین (Red Alert Lockdown)</span>
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+              <h4 class="font-black text-xs sm:text-base text-white flex items-center gap-1.5">
+                <span>قەڵغانی پۆڵایین (Red Alert)</span>
               </h4>
-              <span id="aiSecurityLockdownStatusBadge" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">سیستم ئاساییە</span>
+              <span id="aiSecurityLockdownStatusBadge" class="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">سیستم ئاساییە</span>
             </div>
-            <p class="text-xs text-slate-300 max-w-xl leading-relaxed">
-              لە کاتی هێرش یان شڵەژان بە یەک کلیک ئەم قەڵغانە چالاک بکە؛ چاتەکە دەستبەجێ قفڵ دەبێت و تەنها سوپەر ئەدمین و مامۆستایان دەتوانن بنووسن بۆ کۆنترۆڵکردنی دۆخەکە.
+            <p class="text-[11px] sm:text-xs text-slate-300 max-w-xl leading-relaxed">
+              لە کاتی هێرش یان شڵەژان بە یەک کلیک چاتەکە دەستبەجێ قفڵ دەبێت و تەنها سوپەر ئەدمین و مامۆستایان دەتوانن بنووسن.
             </p>
           </div>
-          <button id="aiSecurityRedAlertBtn" onclick="toggleRedAlertLockdown()" class="px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-2 shadow-lg active:scale-95 shrink-0 bg-rose-600 hover:bg-rose-500 text-white border border-rose-400">
-            <i class="fa-solid fa-bullhorn"></i>
+          <button id="aiSecurityRedAlertBtn" onclick="toggleRedAlertLockdown()" class="w-full sm:w-auto px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg active:scale-95 shrink-0 bg-rose-600 hover:bg-rose-500 text-white border border-rose-400">
+            <i class="fa-solid fa-bullhorn text-xs"></i>
             <span id="aiSecurityRedAlertBtnText">چالاککردنی قەڵغانی پۆڵایین</span>
           </button>
         </div>
 
         <!-- 6 Security Metric Cards -->
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3.5">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
           <!-- Card 1: Safety Rating -->
-          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-emerald-500/30 flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg shrink-0 border border-emerald-500/30">
+          <div class="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-950/70 border border-emerald-500/30 flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm sm:text-lg shrink-0 border border-emerald-500/30">
               <i class="fa-solid fa-heart-pulse"></i>
             </div>
-            <div>
-              <p class="text-[10px] text-slate-400 font-bold">ئاستی سەلامەتی و پاراستن</p>
-              <h5 id="aiSecRatingVal" class="text-base sm:text-lg font-black text-emerald-400">99.8%</h5>
+            <div class="min-w-0 flex-1">
+              <p class="text-[9px] sm:text-[10px] text-slate-400 font-bold truncate">ئاستی سەلامەتی</p>
+              <h5 id="aiSecRatingVal" class="text-xs sm:text-base font-black text-emerald-400 truncate">99.8%</h5>
             </div>
           </div>
 
           <!-- Card 2: Smart NLP Guard -->
-          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-purple-500/30 flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-lg shrink-0 border border-purple-500/30">
+          <div class="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-950/70 border border-purple-500/30 flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-sm sm:text-lg shrink-0 border border-purple-500/30">
               <i class="fa-solid fa-spell-check"></i>
             </div>
-            <div>
-              <p class="text-[10px] text-slate-400 font-bold">فلتەری دەقی فێڵاوی (NLP)</p>
-              <h5 id="aiSecBadWordVal" class="text-base sm:text-lg font-black text-purple-300">0 ڕەتکراوە</h5>
+            <div class="min-w-0 flex-1">
+              <p class="text-[9px] sm:text-[10px] text-slate-400 font-bold truncate">فلتەری دەق (NLP)</p>
+              <h5 id="aiSecBadWordVal" class="text-xs sm:text-base font-black text-purple-300 truncate">0 ڕەتکراوە</h5>
             </div>
           </div>
 
           <!-- Card 3: NSFW Visual Shield -->
-          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-pink-500/30 flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center text-lg shrink-0 border border-pink-500/30">
+          <div class="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-950/70 border border-pink-500/30 flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center text-sm sm:text-lg shrink-0 border border-pink-500/30">
               <i class="fa-solid fa-eye-slash"></i>
             </div>
-            <div>
-              <p class="text-[10px] text-slate-400 font-bold">پاسەوانی بینایی وێنە (NSFW)</p>
-              <h5 id="aiSecNsfwVal" class="text-base sm:text-lg font-black text-pink-300">0 ڕەتکراوە</h5>
+            <div class="min-w-0 flex-1">
+              <p class="text-[9px] sm:text-[10px] text-slate-400 font-bold truncate">پاسەوانی بینایی</p>
+              <h5 id="aiSecNsfwVal" class="text-xs sm:text-base font-black text-pink-300 truncate">0 ڕەتکراوە</h5>
             </div>
           </div>
 
           <!-- Card 4: Anti-Flood & Raid -->
-          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-amber-500/30 flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg shrink-0 border border-amber-500/30">
+          <div class="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-950/70 border border-amber-500/30 flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm sm:text-lg shrink-0 border border-amber-500/30">
               <i class="fa-solid fa-bolt"></i>
             </div>
-            <div>
-              <p class="text-[10px] text-slate-400 font-bold">دژە-لافاو و هێرش (Flood)</p>
-              <h5 id="aiSecFloodVal" class="text-base sm:text-lg font-black text-amber-300">0 بێدەنگکراو</h5>
+            <div class="min-w-0 flex-1">
+              <p class="text-[9px] sm:text-[10px] text-slate-400 font-bold truncate">دژە-لافاو (Flood)</p>
+              <h5 id="aiSecFloodVal" class="text-xs sm:text-base font-black text-amber-300 truncate">0 بێدەنگ</h5>
             </div>
           </div>
 
           <!-- Card 5: Malicious Links -->
-          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-cyan-500/30 flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-lg shrink-0 border border-cyan-500/30">
+          <div class="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-950/70 border border-cyan-500/30 flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-sm sm:text-lg shrink-0 border border-cyan-500/30">
               <i class="fa-solid fa-link-slash"></i>
             </div>
-            <div>
-              <p class="text-[10px] text-slate-400 font-bold">پشکنەری لینکی زیانبەخش</p>
-              <h5 id="aiSecLinksVal" class="text-base sm:text-lg font-black text-cyan-300">0 تێکشکێنراو</h5>
+            <div class="min-w-0 flex-1">
+              <p class="text-[9px] sm:text-[10px] text-slate-400 font-bold truncate">پشکنەری لینک</p>
+              <h5 id="aiSecLinksVal" class="text-xs sm:text-base font-black text-cyan-300 truncate">0 تێکشکێنراو</h5>
             </div>
           </div>
 
           <!-- Card 6: Star Fraud & Harassment -->
-          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-indigo-500/30 flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg shrink-0 border border-indigo-500/30">
+          <div class="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-950/70 border border-indigo-500/30 flex items-center gap-2 sm:gap-3 min-w-0">
+            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-sm sm:text-lg shrink-0 border border-indigo-500/30">
               <i class="fa-solid fa-user-secret"></i>
             </div>
-            <div>
-              <p class="text-[10px] text-slate-400 font-bold">فێڵی ئەستێرە و هەراسانکاری</p>
-              <h5 id="aiSecFraudVal" class="text-base sm:text-lg font-black text-indigo-300">0 تۆمار</h5>
+            <div class="min-w-0 flex-1">
+              <p class="text-[9px] sm:text-[10px] text-slate-400 font-bold truncate">فێڵی ئەستێرە</p>
+              <h5 id="aiSecFraudVal" class="text-xs sm:text-base font-black text-indigo-300 truncate">0 تۆمار</h5>
             </div>
           </div>
         </div>
@@ -3180,55 +3198,54 @@
     </div>
   </div>
 
-  <!-- ================= MODAL: AI ADVISOR & COMPANION (تایبەت بە کاک هێمن) ================= -->
+  <!-- ================= MODAL: AI ADVISOR & COMPANION ================= -->
   <div id="aiAdvisorModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md">
-    <div class="w-full max-w-4xl h-[94vh] sm:max-h-[90vh] bg-slate-900 border border-purple-500/40 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative">
+    <div class="w-full max-w-4xl h-[92dvh] sm:max-h-[90vh] bg-slate-900 border border-purple-500/40 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative">
       
       <!-- Modal Header -->
-      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-purple-950/80 via-slate-900 to-indigo-950/80 border-b border-purple-500/30 flex items-center justify-between">
-        <div class="flex items-center gap-2.5 sm:gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white flex items-center justify-center text-lg shrink-0 shadow-lg shadow-purple-900/50">
+      <div class="p-3 sm:p-4 bg-gradient-to-r from-purple-950/80 via-slate-900 to-indigo-950/80 border-b border-purple-500/30 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 shadow-lg shadow-purple-900/50">
             <i class="fa-solid fa-wand-magic-sparkles animate-pulse"></i>
           </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h3 class="font-black text-sm sm:text-base text-white">ڕاوێژکاری زیرەکی هێمن</h3>
-              <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 shadow-sm">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <h3 id="advisorModalTitle" class="font-black text-xs sm:text-base text-white truncate">ڕاوێژکاری زیرەکی هێمن</h3>
+              <span class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 shadow-sm">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span>AI Companion v2.0</span>
               </span>
-              <span class="hidden sm:inline-block px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">هاوڕێی دڵسۆز</span>
             </div>
-            <p class="text-[11px] text-slate-300">چاودێری بەردەوامی سەرجەم بەشەکانی سایت، ئامارە زیندووەکان و پێشنیاری زیرەکانە</p>
+            <p class="text-[10px] sm:text-[11px] text-slate-300 hidden sm:block truncate">چاودێری بەردەوامی سەرجەم بەشەکانی سایت، ئامارە زیندووەکان و پێشنیاری زیرەکانە</p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <!-- Refresh / Scan Platform Now Button -->
-          <button onclick="loadAdvisorOverview()" id="advisorRefreshBtn" class="px-2.5 py-1.5 rounded-xl bg-purple-950/50 hover:bg-purple-900/70 text-purple-300 hover:text-white flex items-center gap-1.5 text-xs border border-purple-500/30 transition shadow-sm" title="پشکنینی نوێی سایت">
-            <i class="fa-solid fa-arrows-rotate"></i>
-            <span class="hidden sm:inline font-bold">پشکنینی سایت</span>
+          <button onclick="loadAdvisorOverview()" id="advisorRefreshBtn" class="px-2 sm:px-2.5 py-1.5 rounded-xl bg-purple-950/50 hover:bg-purple-900/70 text-purple-300 hover:text-white flex items-center gap-1.5 text-xs border border-purple-500/30 transition shadow-sm" title="پشکنینی نوێی سایت">
+            <i class="fa-solid fa-arrows-rotate text-xs"></i>
+            <span class="hidden sm:inline font-bold">پشکنین</span>
           </button>
           <!-- Settings Button (Gemini Key & Clear Chat) -->
-          <button onclick="toggleAdvisorSettings()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs border border-slate-700 transition" title="ڕێکخستنی کلیل و چات">
+          <button onclick="toggleAdvisorSettings()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs border border-slate-700 transition" title="ڕێکخستنی کلیل و چات">
             <i class="fa-solid fa-gear"></i>
           </button>
           <!-- Close Button -->
-          <button onclick="closeAiAdvisorModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-sm border border-slate-700 transition">
+          <button onclick="closeAiAdvisorModal()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-xs sm:text-sm border border-slate-700 transition">
             <i class="fa-solid fa-xmark"></i>
           </button>
         </div>
       </div>
 
       <!-- Navigation Tabs -->
-      <div class="flex border-b border-slate-800 bg-slate-950/60 px-4 shrink-0 gap-2">
-        <button id="advisorTabBtnScanner" onclick="switchAdvisorTab('scanner')" class="py-2.5 px-3 text-xs sm:text-sm font-black border-b-2 border-purple-400 text-purple-300 flex items-center gap-2 transition">
-          <i class="fa-solid fa-gauge-high"></i>
-          <span>پشکنینی گشتی و پێشنیارەکان</span>
+      <div class="flex border-b border-slate-800 bg-slate-950/60 px-2 sm:px-4 shrink-0 gap-1 sm:gap-2">
+        <button id="advisorTabBtnScanner" onclick="switchAdvisorTab('scanner')" class="py-2 px-2.5 sm:px-3 text-xs sm:text-sm font-black border-b-2 border-purple-400 text-purple-300 flex items-center gap-1.5 sm:gap-2 transition">
+          <i class="fa-solid fa-gauge-high text-xs"></i>
+          <span>پشکنینی گشتی</span>
           <span id="advisorSuggestionsCountBadge" class="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-500 text-white font-bold">0</span>
         </button>
-        <button id="advisorTabBtnChat" onclick="switchAdvisorTab('chat')" class="py-2.5 px-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-purple-300 flex items-center gap-2 transition">
-          <i class="fa-solid fa-comments"></i>
-          <span>گفتوگۆ لەگەڵ ڕاوێژکار (هاوڕێی زیندوو)</span>
+        <button id="advisorTabBtnChat" onclick="switchAdvisorTab('chat')" class="py-2 px-2.5 sm:px-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-purple-300 flex items-center gap-1.5 sm:gap-2 transition">
+          <i class="fa-solid fa-comments text-xs"></i>
+          <span>گفتوگۆ لەگەڵ ڕاوێژکار</span>
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
         </button>
       </div>
@@ -3419,9 +3436,9 @@
               <p class="text-[10px] text-slate-400 leading-relaxed">
                 ئەگەر کلیلی تایبەتی Gemini ی خۆت دابنێیت، ڕاوێژکار بە بەهێزترین مۆدێلی ژیری دەستکرد وەڵامت دەداتەوە. ئەگەر بەتاڵی بکەیت، سیستەمی خۆماڵی کوردی پلاتفۆرمەکە بەکاردێت.
               </p>
-              <div class="flex gap-2">
-                <input type="password" id="advisorGeminiKeyInput" placeholder="AIzaSy..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono">
-                <button onclick="saveAdvisorGeminiKey()" class="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition">
+              <div class="flex items-center gap-2">
+                <input type="password" id="advisorGeminiKeyInput" placeholder="AIzaSy..." class="min-w-0 flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono">
+                <button onclick="saveAdvisorGeminiKey()" class="shrink-0 px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow">
                   پاشەکەوت
                 </button>
               </div>
@@ -3447,12 +3464,12 @@
       </div>
 
       <!-- Footer -->
-      <div class="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs shrink-0">
-        <span class="text-slate-400 text-[11px] flex items-center gap-1.5">
+      <div class="p-2.5 sm:p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs shrink-0">
+        <span class="text-slate-400 text-[10px] sm:text-[11px] flex items-center gap-1.5">
           <i class="fa-solid fa-lock text-purple-400 text-xs"></i>
-          <span>تەنها بۆ کاک هێمن (Hemn Taha) پارێزراوە - هیچ ئەندام و مامۆستایەک نایبینێت</span>
+          <span>تەنها بۆ کاک هێمن و هەڵگرانی باجی سپی 🔒</span>
         </span>
-        <button onclick="closeAiAdvisorModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700 transition">
+        <button onclick="closeAiAdvisorModal()" class="px-3.5 py-1.5 sm:px-4 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700 transition">
           داخستن
         </button>
       </div>
@@ -3468,6 +3485,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=19.1"></script>
+  <script src="/js/app.js?v=20.0"></script>
 </body>
 </html>

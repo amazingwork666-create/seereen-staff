@@ -1543,6 +1543,93 @@ html[data-font-size="xxl"] {
   100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 
+/* AI Advisor Morphing Badge Button */
+.advisor-morph-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  line-height: 1;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+  vertical-align: middle;
+  border: 1.5px solid #e11d48;
+  animation: advisorMorphPulse 7s ease-in-out infinite;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  outline: none;
+}
+
+.advisor-morph-badge:hover {
+  animation-play-state: paused;
+  transform: scale(1.06);
+}
+
+.advisor-morph-icon {
+  font-size: 11px;
+  line-height: 1;
+  transition: transform 0.3s ease;
+}
+
+.advisor-morph-text {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
+  overflow: hidden;
+  display: inline-block;
+  white-space: nowrap;
+  animation: advisorTextMorph 7s ease-in-out infinite;
+}
+
+@keyframes advisorMorphPulse {
+  0%, 38% {
+    padding: 0 7px;
+    background: rgba(225, 29, 72, 0.12);
+    border-color: rgba(244, 63, 94, 0.7);
+    color: #ff385c;
+    box-shadow: 0 0 6px rgba(225, 29, 72, 0.25);
+    border-radius: 9999px;
+  }
+  44%, 78% {
+    padding: 0 9px;
+    background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+    border-color: #fda4af;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(225, 29, 72, 0.55), 0 2px 4px rgba(0, 0, 0, 0.4);
+    border-radius: 8px;
+  }
+  84%, 100% {
+    padding: 0 7px;
+    background: rgba(225, 29, 72, 0.12);
+    border-color: rgba(244, 63, 94, 0.7);
+    color: #ff385c;
+    box-shadow: 0 0 6px rgba(225, 29, 72, 0.25);
+    border-radius: 9999px;
+  }
+}
+
+@keyframes advisorTextMorph {
+  0%, 38% {
+    max-width: 0;
+    opacity: 0;
+    margin-right: 0;
+    transform: translateX(4px);
+  }
+  44%, 78% {
+    max-width: 65px;
+    opacity: 1;
+    margin-right: 5px;
+    transform: translateX(0);
+  }
+  84%, 100% {
+    max-width: 0;
+    opacity: 0;
+    margin-right: 0;
+    transform: translateX(4px);
+  }
+}
+
 
 
 
