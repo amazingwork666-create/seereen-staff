@@ -1399,6 +1399,43 @@ const advisorTools = [
         }
       },
       {
+        name: 'change_user_role',
+        description: 'گۆڕینی ڕۆڵ یان پلەی بەکارهێنەرێک (مامۆستا teacher، ئەدمین admin، خوێندکار student، میوان guest) بە فەرمانی کاک هێمن. تێبینی: ناتوانێت دەستکاری کاک هێمن بکات.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            username_or_id: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی بەکارهێنەرەکە' },
+            new_role: { type: 'STRING', description: "'teacher', 'admin', 'student', or 'guest' (مامۆستا، ئەدمین، خوێندکار، میوان)" },
+            reason: { type: 'STRING', description: 'هۆکاری گۆڕینی پلە' }
+          },
+          required: ['username_or_id', 'new_role']
+        }
+      },
+      {
+        name: 'change_user_name',
+        description: 'گۆڕینی ناوی تەواوی (full_name) بەکارهێنەرێک لە ناو داتابەیس بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            username_or_id: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی بەکارهێنەرەکە' },
+            new_name: { type: 'STRING', description: 'ناوی نوێی بەکارهێنەر' }
+          },
+          required: ['username_or_id', 'new_name']
+        }
+      },
+      {
+        name: 'reset_user_password',
+        description: 'گۆڕین یان دانانی وشەی نهێنی نوێ بۆ بەکارهێنەرێک بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            username_or_id: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی بەکارهێنەرەکە' },
+            new_password: { type: 'STRING', description: 'وشەی نهێنی نوێ' }
+          },
+          required: ['username_or_id', 'new_password']
+        }
+      },
+      {
         name: 'approve_member',
         description: 'پەسەندکردن و وەرگرتنی ئەندامێکی چاوەڕوانکراو (Pending Member) بۆ ناو گروپ بە فەرمانی کاک هێمن',
         parameters: {
@@ -1690,6 +1727,100 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
           message: badgeVal 
             ? `باجی ${badgeVal} بە سەرکەوتوویی درا بە ${target.full_name} (@${target.username}) بە فەرمانی کاک هێمن.`
             : `باجی تایبەتی ${target.full_name} لێسەندرایەوە بە فەرمانی کاک هێمن.`
+        };
+      }
+
+      case 'change_user_role': {
+        const target = findTargetUser(args.username_or_id);
+        if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە` };
+
+        // Strict Safety Check: Kak Hemn is completely immutable
+        if (isMasterSuperAdmin(target) || target.role === 'super_admin' || target.id === reqUser.id) {
+          return { error: '⚠️ بە هیچ شێوەیەک دەستکاری ڕۆڵ یان هەژماری کاک هێمن (Super Admin) ناکرێت!' };
+        }
+
+        const roleRaw = String(args.new_role || '').toLowerCase().trim();
+        const roleMap = {
+          'مامۆستا': 'teacher',
+          'teacher': 'teacher',
+          'ئەدمین': 'admin',
+          'admin': 'admin',
+          'خوێندکار': 'student',
+          'قوتابی': 'student',
+          'student': 'student',
+          'میوان': 'guest',
+          'guest': 'guest'
+        };
+
+        const targetRole = roleMap[roleRaw] || roleRaw;
+        const validRoles = ['teacher', 'admin', 'student', 'guest'];
+        if (!validRoles.includes(targetRole)) {
+          return { error: `ڕۆڵی «${args.new_role}» نادروستە. تەنها teacher, admin, student, guest دەستدەدات.` };
+        }
+
+        const oldRole = target.role;
+        users.updateRole(target.id, targetRole);
+        try {
+          users.addRoleHistory(target.id, reqUser.id, reqUser.full_name, oldRole, targetRole);
+        } catch (e) {}
+
+        if (ioInstance) {
+          ioInstance.emit('user_role_updated', { id: target.id, role: targetRole });
+          ioInstance.emit('user_updated', { id: target.id, role: targetRole });
+        }
+
+        const roleNamesKu = {
+          teacher: 'مامۆستا 👨‍🏫',
+          admin: 'ئەدمین (بەڕێوەبەر) 🛡️',
+          student: 'خوێندکار 🎓',
+          guest: 'میوان 👁️'
+        };
+
+        return {
+          success: true,
+          message: `ڕۆڵ و پلەی ${target.full_name} (@${target.username}) بە سەرکەوتوویی لە «${oldRole}»ەوە گۆڕدرا بۆ «${roleNamesKu[targetRole] || targetRole}» بە فەرمانی کاک هێمن.`
+        };
+      }
+
+      case 'change_user_name': {
+        const target = findTargetUser(args.username_or_id);
+        if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە` };
+
+        if (isMasterSuperAdmin(target) || target.role === 'super_admin' || target.id === reqUser.id) {
+          return { error: '⚠️ ناوی کاک هێمن تەواو پارێزراوە و لە ڕێگەی بۆتەوە دەستکاری ناکرێت.' };
+        }
+
+        const newName = String(args.new_name || '').trim();
+        if (!newName) return { error: 'تکایە ناوە نوێیەکە دیاری بکە.' };
+
+        users.updateFullName(target.id, newName);
+        if (ioInstance) {
+          ioInstance.emit('user_updated', { id: target.id, full_name: newName });
+        }
+
+        return {
+          success: true,
+          message: `ناوی تەواوی بەکارهێنەر @${target.username} بە سەرکەوتوویی گۆڕدرا بۆ «${newName}» بە فەرمانی کاک هێمن.`
+        };
+      }
+
+      case 'reset_user_password': {
+        const target = findTargetUser(args.username_or_id);
+        if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە` };
+
+        if (isMasterSuperAdmin(target) || target.role === 'super_admin' || target.id === reqUser.id) {
+          return { error: '⚠️ وشەی نهێنی کاک هێمن پارێزراوە و لە ڕێگەی بۆتەوە دەستکاری ناکرێت.' };
+        }
+
+        const newPass = String(args.new_password || '').trim();
+        if (!newPass || newPass.length < 4) return { error: 'تکایە وشەی نهێنی نوێ بە لایەنی کەم ٤ پیت بێت.' };
+
+        const hash = await bcrypt.hash(newPass, 10);
+        users.updatePassword(target.id, hash);
+
+        return {
+          success: true,
+          message: `وشەی نهێنی @${target.username} بە سەرکەوتوویی بۆ «${newPass}» ڕیسێتکرا بە فەرمانی کاک هێمن.`
         };
       }
 
