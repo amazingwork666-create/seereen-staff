@@ -3385,10 +3385,7 @@
 
           <!-- Chat Input Bar -->
           <div class="p-3 bg-slate-950 border-t border-slate-800 flex items-center gap-2 shrink-0">
-            <input type="text" id="advisorChatInput" placeholder="لەگەڵ ڕاوێژکار بدوێ (یان دوگمەی مایک دابگرە بۆ قسەکردن)..." class="flex-1 bg-slate-900 border border-slate-700 focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition shadow-inner" onkeydown="if(event.key==='Enter') sendAdvisorMessage()">
-            <button type="button" onclick="toggleAdvisorVoiceInput()" id="advisorVoiceBtn" class="p-2.5 rounded-xl bg-slate-800 hover:bg-purple-900/60 text-purple-300 hover:text-white border border-purple-500/30 transition shadow-sm active:scale-95" title="قسەکردن بە دەنگ (مایک)">
-              <i class="fa-solid fa-microphone text-xs"></i>
-            </button>
+            <input type="text" id="advisorChatInput" placeholder="پەیامەکەت بۆ ڕاوێژکار بنووسە..." class="flex-1 bg-slate-900 border border-slate-700 focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition shadow-inner" onkeydown="if(event.key==='Enter') sendAdvisorMessage()">
             <button onclick="sendAdvisorMessage()" id="advisorSendBtn" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-1.5 transition shadow-md shadow-purple-900/30 active:scale-95">
               <span>ناردن</span>
               <i class="fa-solid fa-paper-plane text-[10px]"></i>
@@ -3471,6 +3468,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=18.0"></script>
+  <script src="/js/app.js?v=19.0"></script>
 </body>
 </html>

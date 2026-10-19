@@ -1361,30 +1361,43 @@ ${JSON.stringify(liveContext, null, 2)}
           });
         }
 
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiKey}`;
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 7000);
+        const CANDIDATE_MODELS = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+        for (const model of CANDIDATE_MODELS) {
+          if (reply) break;
+          try {
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 8000);
 
-        const geminiRes = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            system_instruction: { parts: [{ text: systemInstruction }] },
-            contents
-          }),
-          signal: controller.signal
-        });
-        clearTimeout(timeout);
+            const geminiRes = await fetch(geminiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemInstruction }] },
+                contents
+              }),
+              signal: controller.signal
+            });
+            clearTimeout(timeout);
 
-        if (geminiRes.ok) {
-          const geminiData = await geminiRes.json();
-          const candidateText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (candidateText && candidateText.trim()) {
-            reply = candidateText.trim();
+            if (geminiRes.ok) {
+              const geminiData = await geminiRes.json();
+              const candidateText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (candidateText && candidateText.trim()) {
+                reply = candidateText.trim();
+                console.log(`[Gemini AI] Generated dynamic reply with model: ${model}`);
+                break;
+              }
+            } else {
+              const errBody = await geminiRes.json().catch(() => ({}));
+              console.warn(`[Gemini AI] Model ${model} returned status ${geminiRes.status}:`, errBody.error?.message || 'error');
+            }
+          } catch (modelErr) {
+            console.warn(`[Gemini AI] Model ${model} error:`, modelErr.message);
           }
         }
       } catch (geminiErr) {
-        console.log('Gemini API call skipped or errored, using built-in Kurdish Advisor engine:', geminiErr.message);
+        console.log('Gemini API call skipped or errored:', geminiErr.message);
       }
     }
 
