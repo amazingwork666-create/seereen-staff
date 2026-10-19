@@ -325,6 +325,12 @@ function canUserManageLive(user) {
   return user.special_badge === 'green' || user.special_badge === 'red';
 }
 
+function canUserManageDreams(user) {
+  if (!user) return false;
+  if (isMasterSuperAdmin(user) || user.role === 'super_admin' || user.role === 'teacher') return true;
+  return user.special_badge === 'purple';
+}
+
 function renderSpecialBadgeHtml(badge) {
   if (!badge) return '';
   if (badge === 'green') {
@@ -335,6 +341,9 @@ function renderSpecialBadgeHtml(badge) {
   }
   if (badge === 'red') {
     return `<span class="px-1.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> باجی سور</span>`;
+  }
+  if (badge === 'purple') {
+    return `<span class="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span> باجی مۆر (خەون)</span>`;
   }
   return '';
 }
@@ -763,8 +772,9 @@ function updateUserUI() {
   const drawerMembersBtn = document.getElementById('drawerMembersBtn');
   const drawerLibraryBtn = document.getElementById('drawerLibraryBtn');
 
+  const canDream = canUserManageDreams(currentUser);
   if (drawerStaffSection) {
-    if (isAdmin) {
+    if (isAdmin || canDream) {
       drawerStaffSection.classList.remove('hidden');
     } else {
       drawerStaffSection.classList.add('hidden');
@@ -781,14 +791,34 @@ function updateUserUI() {
     if (drawerAiSecurityBtn) drawerAiSecurityBtn.classList.add('hidden');
   }
 
+  // Master Super Admin (Hemn) - AI Advisor button
+  const drawerAdvisorBtn = document.getElementById('drawerAdvisorBtn');
+  if (isMasterSuperAdmin(currentUser)) {
+    if (drawerAdvisorBtn) {
+      drawerAdvisorBtn.classList.remove('hidden');
+      drawerAdvisorBtn.classList.add('flex');
+    }
+  } else {
+    if (drawerAdvisorBtn) {
+      drawerAdvisorBtn.classList.add('hidden');
+      drawerAdvisorBtn.classList.remove('flex');
+    }
+  }
+
   const dreamAdminNavBtn = document.getElementById('dreamAdminNavBtn');
-  if (isSuperAdmin || isTeacher) {
+  if (canDream) {
     if (dreamAdminNavBtn) dreamAdminNavBtn.classList.remove('hidden');
-    if (drawerDreamAdminBtn) drawerDreamAdminBtn.classList.remove('hidden');
+    if (drawerDreamAdminBtn) {
+      drawerDreamAdminBtn.classList.remove('hidden');
+      drawerDreamAdminBtn.classList.add('flex');
+    }
     loadDreamSessionsCount();
   } else {
     if (dreamAdminNavBtn) dreamAdminNavBtn.classList.add('hidden');
-    if (drawerDreamAdminBtn) drawerDreamAdminBtn.classList.add('hidden');
+    if (drawerDreamAdminBtn) {
+      drawerDreamAdminBtn.classList.add('hidden');
+      drawerDreamAdminBtn.classList.remove('flex');
+    }
   }
 
   if (isAdmin) {
@@ -5724,6 +5754,7 @@ async function openUserProfileModal(userId) {
     const btnGreen = document.getElementById('badgeBtnGreen');
     const btnBlack = document.getElementById('badgeBtnBlack');
     const btnRed = document.getElementById('badgeBtnRed');
+    const btnPurple = document.getElementById('badgeBtnPurple');
 
     if (badgeAdminCard) {
       if (isMasterSuperAdmin(currentUser) && !isMe && !targetIsMaster) {
@@ -5733,14 +5764,16 @@ async function openUserProfileModal(userId) {
           if (b === 'green') activeBadgeTag.innerHTML = '<span class="text-emerald-400 font-black">باجی سەوز چالاکە 🟢</span>';
           else if (b === 'black') activeBadgeTag.innerHTML = '<span class="text-slate-300 font-black">باجی ڕەش چالاکە ⚫</span>';
           else if (b === 'red') activeBadgeTag.innerHTML = '<span class="text-rose-400 font-black">باجی سور چالاکە 🔴</span>';
+          else if (b === 'purple') activeBadgeTag.innerHTML = '<span class="text-purple-400 font-black">باجی مۆر چالاکە 🟣 (لێکدانەوەی خەون)</span>';
           else activeBadgeTag.innerHTML = '<span class="text-slate-400 font-bold">بێ باج</span>';
         }
-        [btnGreen, btnBlack, btnRed].forEach(btn => {
+        [btnGreen, btnBlack, btnRed, btnPurple].forEach(btn => {
           if (btn) btn.classList.remove('ring-2', 'ring-indigo-400', 'bg-indigo-950/80');
         });
         if (b === 'green' && btnGreen) btnGreen.classList.add('ring-2', 'ring-indigo-400');
         if (b === 'black' && btnBlack) btnBlack.classList.add('ring-2', 'ring-indigo-400');
         if (b === 'red' && btnRed) btnRed.classList.add('ring-2', 'ring-indigo-400');
+        if (b === 'purple' && btnPurple) btnPurple.classList.add('ring-2', 'ring-indigo-400');
       } else {
         badgeAdminCard.classList.add('hidden');
       }
@@ -5824,6 +5857,7 @@ async function assignSpecialBadge(badge) {
     'green': 'باجی سەوز 🟢',
     'black': 'باجی ڕەش ⚫',
     'red': 'باجی سور 🔴',
+    'purple': 'باجی مۆر 🟣 (مۆڵەتی خەون)',
     'none': 'لابردنی باج ❌'
   };
   const label = badgeLabels[badge] || 'باج';
@@ -13593,6 +13627,521 @@ function showSecurityIncidentToast(incident) {
   setTimeout(() => {
     try { toast.remove(); } catch (e) {}
   }, 6000);
+}
+
+// =========================================================================
+// AI ADVISOR & COMPANION FOR MASTER SUPER ADMIN (ڕاوێژکاری زیرەکی هێمن)
+// =========================================================================
+
+let advisorTelemetryCache = null;
+let isAdvisorTyping = false;
+
+function openAiAdvisorModal() {
+  if (!isMasterSuperAdmin(currentUser)) {
+    alert('ئەم بەشە تەنها بۆ کاک هێمن (Hemn Taha) پارێزراوە.');
+    return;
+  }
+  const modal = document.getElementById('aiAdvisorModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  switchAdvisorTab('scanner');
+  loadAdvisorOverview();
+  loadAdvisorChatHistory();
+  checkAdvisorGeminiStatus();
+}
+
+function closeAiAdvisorModal() {
+  const modal = document.getElementById('aiAdvisorModal');
+  if (modal) modal.classList.add('hidden');
+  const overlay = document.getElementById('advisorSettingsOverlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+function switchAdvisorTab(tab) {
+  const scannerTab = document.getElementById('advisorTabScanner');
+  const chatTab = document.getElementById('advisorTabChat');
+  const btnScanner = document.getElementById('advisorTabBtnScanner');
+  const btnChat = document.getElementById('advisorTabBtnChat');
+
+  if (tab === 'scanner') {
+    if (scannerTab) scannerTab.classList.remove('hidden');
+    if (chatTab) chatTab.classList.add('hidden');
+    if (btnScanner) {
+      btnScanner.className = 'py-2.5 px-3 text-xs sm:text-sm font-black border-b-2 border-purple-400 text-purple-300 flex items-center gap-2 transition';
+    }
+    if (btnChat) {
+      btnChat.className = 'py-2.5 px-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-purple-300 flex items-center gap-2 transition';
+    }
+  } else if (tab === 'chat') {
+    if (scannerTab) scannerTab.classList.add('hidden');
+    if (chatTab) chatTab.classList.remove('hidden');
+    if (btnScanner) {
+      btnScanner.className = 'py-2.5 px-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-purple-300 flex items-center gap-2 transition';
+    }
+    if (btnChat) {
+      btnChat.className = 'py-2.5 px-3 text-xs sm:text-sm font-black border-b-2 border-purple-400 text-purple-300 flex items-center gap-2 transition';
+    }
+    const container = document.getElementById('advisorChatMessages');
+    if (container) container.scrollTop = container.scrollHeight;
+    const input = document.getElementById('advisorChatInput');
+    if (input) setTimeout(() => input.focus(), 100);
+  }
+}
+
+async function loadAdvisorOverview() {
+  const refreshBtn = document.getElementById('advisorRefreshBtn');
+  if (refreshBtn) {
+    const icon = refreshBtn.querySelector('i');
+    if (icon) icon.classList.add('fa-spin');
+  }
+
+  try {
+    const res = await fetch('/api/advisor/overview', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error('Failed to fetch advisor overview');
+    const data = await res.json();
+    if (!data.success || !data.data) return;
+
+    advisorTelemetryCache = data.data.telemetry;
+    const t = data.data.telemetry;
+
+    // Update Live Cards
+    const elOnline = document.getElementById('advStatOnline');
+    if (elOnline) elOnline.innerText = t.onlineCount || 0;
+
+    const elTotalUsers = document.getElementById('advStatTotalUsers');
+    if (elTotalUsers) elTotalUsers.innerText = t.totalUsers || 0;
+
+    const elPending = document.getElementById('advStatPendingWrap');
+    if (elPending) {
+      elPending.innerText = t.pendingUsers > 0 ? `${t.pendingUsers} چاوەڕوان` : 'بێ چاوەڕوان';
+      elPending.className = t.pendingUsers > 0 ? 'text-amber-400 font-bold' : 'text-slate-400 font-normal';
+    }
+
+    const elPurpleBadge = document.getElementById('advStatPurpleBadgeCount');
+    if (elPurpleBadge) {
+      const pCount = t.purpleBadgeHolders?.length || 0;
+      elPurpleBadge.innerText = `${pCount} باجی مۆر`;
+    }
+
+    const elUnansweredDreams = document.getElementById('advStatUnansweredDreams');
+    if (elUnansweredDreams) elUnansweredDreams.innerText = t.unansweredDreams || 0;
+
+    const elTotalDreams = document.getElementById('advStatTotalDreams');
+    if (elTotalDreams) elTotalDreams.innerText = t.totalDreams || 0;
+
+    const elFavDreams = document.getElementById('advStatFavDreams');
+    if (elFavDreams) elFavDreams.innerText = t.favoriteDreams || 0;
+
+    const elLiveBadge = document.getElementById('advStatLiveBadge');
+    if (elLiveBadge) {
+      elLiveBadge.innerText = t.isLive ? 'چالاک 🔴' : 'ناچالاک';
+      elLiveBadge.className = t.isLive
+        ? 'text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse font-bold'
+        : 'text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400';
+    }
+
+    const elLiveViewers = document.getElementById('advStatLiveViewers');
+    if (elLiveViewers) elLiveViewers.innerText = t.liveViewers || 0;
+
+    const elLiveHost = document.getElementById('advStatLiveHost');
+    if (elLiveHost) {
+      elLiveHost.innerText = t.isLive ? `وانەبێژ: ${t.liveStartedBy || 'مامۆستا'}` : 'دەستپێنەکراوە';
+    }
+
+    const elSafety = document.getElementById('advStatSafetyRating');
+    if (elSafety) elSafety.innerText = t.secStats?.safetyRating || '100%';
+
+    const elBlocked = document.getElementById('advStatBlockedThreats');
+    if (elBlocked) elBlocked.innerText = t.secStats?.totalBlocked || 0;
+
+    const elChatLock = document.getElementById('advStatChatLockMode');
+    if (elChatLock) {
+      elChatLock.innerText = t.chatLockMode === 'unlocked' ? 'کراوە' : 'داخراو';
+      elChatLock.className = t.chatLockMode === 'unlocked' ? 'text-emerald-400' : 'text-rose-400 font-bold';
+    }
+
+    const elRedAlert = document.getElementById('advStatRedAlertTag');
+    if (elRedAlert) {
+      elRedAlert.innerText = t.isRedAlert ? 'Red Alert ⚠️' : 'پارێزراو';
+      elRedAlert.className = t.isRedAlert ? 'text-rose-400 font-bold animate-pulse' : 'text-emerald-400';
+    }
+
+    // Render suggestions
+    const badgeCount = document.getElementById('advisorSuggestionsCountBadge');
+    if (badgeCount) badgeCount.innerText = (data.data.suggestions || []).length;
+
+    renderAdvisorSuggestions(data.data.suggestions || []);
+
+    const scanTime = document.getElementById('advLastScanTime');
+    if (scanTime) {
+      const now = new Date();
+      scanTime.innerText = `دواین پشکنین: ${now.toLocaleTimeString('ckb', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+  } catch (err) {
+    console.error('Advisor overview error:', err);
+  } finally {
+    if (refreshBtn) {
+      const icon = refreshBtn.querySelector('i');
+      if (icon) setTimeout(() => icon.classList.remove('fa-spin'), 600);
+    }
+  }
+}
+
+function renderAdvisorSuggestions(suggestions) {
+  const container = document.getElementById('advisorSuggestionsList');
+  if (!container) return;
+
+  if (!suggestions || suggestions.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-6 text-slate-500 text-xs">
+        <i class="fa-solid fa-circle-check text-emerald-400 text-2xl mb-1.5"></i>
+        <p class="font-bold text-slate-300">هەموو بەشەکانی پلاتفۆرم بە تەواوی ڕێکوپێکن و هیچ کێشەیەک نییە ✅</p>
+      </div>
+    `;
+    return;
+  }
+
+  const priorityStyles = {
+    high: {
+      border: 'border-rose-500/40',
+      bg: 'bg-rose-950/20',
+      tagBg: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+      tagText: 'پڕبایەخ ⚠️'
+    },
+    medium: {
+      border: 'border-amber-500/30',
+      bg: 'bg-amber-950/15',
+      tagBg: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+      tagText: 'مامناوەند ⚡'
+    },
+    low: {
+      border: 'border-emerald-500/30',
+      bg: 'bg-emerald-950/15',
+      tagBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      tagText: 'ئاسایی / هەواڵی باش 💡'
+    }
+  };
+
+  container.innerHTML = suggestions.map(s => {
+    const style = priorityStyles[s.priority] || priorityStyles.low;
+    let actionBtnHtml = '';
+    if (s.action && s.actionText) {
+      actionBtnHtml = `
+        <button onclick="handleAdvisorAction('${s.action}')" class="px-3 py-1.5 bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shrink-0 shadow-sm">
+          <span>${escapeHtml(s.actionText)}</span>
+          <i class="fa-solid fa-arrow-left text-[10px]"></i>
+        </button>
+      `;
+    }
+
+    return `
+      <div class="p-3 sm:p-3.5 rounded-2xl ${style.bg} border ${style.border} flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:border-purple-400/50 transition">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center justify-center shrink-0 mt-0.5">
+            <i class="fa-solid ${s.icon || 'fa-lightbulb'} text-xs"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2 mb-1 flex-wrap">
+              <span class="text-xs font-black text-white">${escapeHtml(s.title)}</span>
+              <span class="text-[9px] px-2 py-0.5 rounded-md border font-black ${style.tagBg}">${style.tagText}</span>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-bold">${escapeHtml(s.category)}</span>
+            </div>
+            <p class="text-[11px] text-slate-300 leading-relaxed">${escapeHtml(s.text)}</p>
+          </div>
+        </div>
+        <div class="flex justify-end shrink-0">
+          ${actionBtnHtml}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function handleAdvisorAction(action) {
+  closeAiAdvisorModal();
+  if (action === 'dream_admin') {
+    if (typeof openDreamAdminModal === 'function') openDreamAdminModal();
+  } else if (action === 'admin_members') {
+    if (typeof openAdminModal === 'function') openAdminModal();
+  } else if (action === 'live_lesson') {
+    if (typeof openLiveModal === 'function') openLiveModal();
+  } else if (action === 'post_question') {
+    if (typeof openPostQuestionModal === 'function') openPostQuestionModal();
+  } else if (action === 'ai_security') {
+    if (typeof openAiSecurityModal === 'function') openAiSecurityModal();
+  }
+}
+
+async function loadAdvisorChatHistory() {
+  const container = document.getElementById('advisorChatMessages');
+  if (!container) return;
+
+  try {
+    const res = await fetch('/api/advisor/chat-history', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const history = data.history || [];
+
+    if (history.length > 0) {
+      container.innerHTML = history.map(item => {
+        const isUser = item.sender === 'user';
+        const timeStr = item.created_at ? new Date(item.created_at).toLocaleTimeString('ckb', { hour: '2-digit', minute: '2-digit' }) : '';
+        if (isUser) {
+          return `
+            <div class="flex items-start gap-2.5 max-w-[85%] mr-auto justify-end">
+              <div class="bg-gradient-to-r from-purple-700 to-indigo-700 text-white rounded-2xl rounded-tl-none p-3 shadow-md">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <span class="text-xs font-black text-purple-200">کاک هێمن</span>
+                  <span class="text-[9px] text-purple-300/80">${timeStr}</span>
+                </div>
+                <p class="text-xs leading-relaxed whitespace-pre-wrap">${escapeHtml(item.message)}</p>
+              </div>
+              <div class="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 text-xs font-bold shadow-md">
+                هـ
+              </div>
+            </div>
+          `;
+        } else {
+          return `
+            <div class="flex items-start gap-2.5 max-w-[85%]">
+              <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
+              </div>
+              <div class="bg-slate-800/90 border border-purple-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <span class="text-xs font-black text-purple-300">ڕاوێژکار</span>
+                  <span class="text-[9px] text-slate-400">${timeStr}</span>
+                </div>
+                <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">${escapeHtml(item.message)}</p>
+              </div>
+            </div>
+          `;
+        }
+      }).join('');
+      container.scrollTop = container.scrollHeight;
+    }
+  } catch (err) {
+    console.error('Advisor chat history error:', err);
+  }
+}
+
+async function sendAdvisorMessage() {
+  if (isAdvisorTyping) return;
+  const input = document.getElementById('advisorChatInput');
+  const sendBtn = document.getElementById('advisorSendBtn');
+  if (!input) return;
+
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  const container = document.getElementById('advisorChatMessages');
+
+  // Append user message immediately
+  const nowStr = new Date().toLocaleTimeString('ckb', { hour: '2-digit', minute: '2-digit' });
+  const userHtml = `
+    <div class="flex items-start gap-2.5 max-w-[85%] mr-auto justify-end">
+      <div class="bg-gradient-to-r from-purple-700 to-indigo-700 text-white rounded-2xl rounded-tl-none p-3 shadow-md">
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <span class="text-xs font-black text-purple-200">کاک هێمن</span>
+          <span class="text-[9px] text-purple-300/80">${nowStr}</span>
+        </div>
+        <p class="text-xs leading-relaxed whitespace-pre-wrap">${escapeHtml(text)}</p>
+      </div>
+      <div class="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 text-xs font-bold shadow-md">
+        هـ
+      </div>
+    </div>
+  `;
+  container.insertAdjacentHTML('beforeend', userHtml);
+
+  // Append typing indicator
+  const typingId = 'advisorTypingIndicator_' + Date.now();
+  const typingHtml = `
+    <div id="${typingId}" class="flex items-start gap-2.5 max-w-[85%]">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+        <i class="fa-solid fa-wand-magic-sparkles text-xs animate-pulse"></i>
+      </div>
+      <div class="bg-slate-800/90 border border-purple-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-black text-purple-300">ڕاوێژکار</span>
+          <span class="text-[10px] text-slate-400 italic">سەرقاڵی پشکنین و داڕشتنی وەڵامە...</span>
+          <span class="flex gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0.2s"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce" style="animation-delay: 0.4s"></span>
+          </span>
+        </div>
+      </div>
+    </div>
+  `;
+  container.insertAdjacentHTML('beforeend', typingHtml);
+  container.scrollTop = container.scrollHeight;
+
+  isAdvisorTyping = true;
+  if (sendBtn) sendBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/advisor/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ message: text })
+    });
+
+    const typingElem = document.getElementById(typingId);
+    if (typingElem) typingElem.remove();
+
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'هەڵەیەک ڕوویدا');
+    }
+
+    const data = await res.json();
+    const reply = data.reply || 'ببوورە کاک هێمن گیان، کێشەیەک ڕوویدا لە وەڵامدانەوە.';
+
+    const replyTimeStr = new Date().toLocaleTimeString('ckb', { hour: '2-digit', minute: '2-digit' });
+    const replyHtml = `
+      <div class="flex items-start gap-2.5 max-w-[85%]">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+          <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
+        </div>
+        <div class="bg-slate-800/90 border border-purple-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <span class="text-xs font-black text-purple-300">ڕاوێژکار</span>
+            <span class="text-[9px] text-slate-400">${replyTimeStr}</span>
+          </div>
+          <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">${escapeHtml(reply)}</p>
+        </div>
+      </div>
+    `;
+    container.insertAdjacentHTML('beforeend', replyHtml);
+    container.scrollTop = container.scrollHeight;
+  } catch (err) {
+    const typingElem = document.getElementById(typingId);
+    if (typingElem) typingElem.remove();
+
+    const errHtml = `
+      <div class="flex items-start gap-2.5 max-w-[85%]">
+        <div class="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 text-xs">
+          <i class="fa-solid fa-circle-exclamation"></i>
+        </div>
+        <div class="bg-rose-950/40 border border-rose-500/30 rounded-2xl rounded-tr-none p-3 text-rose-200 text-xs">
+          ${escapeHtml(err.message || 'هەڵە لە پەیوەندی بە ڕاوێژکار')}
+        </div>
+      </div>
+    `;
+    container.insertAdjacentHTML('beforeend', errHtml);
+    container.scrollTop = container.scrollHeight;
+  } finally {
+    isAdvisorTyping = false;
+    if (sendBtn) sendBtn.disabled = false;
+    setTimeout(() => {
+      const inp = document.getElementById('advisorChatInput');
+      if (inp) inp.focus();
+    }, 50);
+  }
+}
+
+function quickAskAdvisor(promptText) {
+  switchAdvisorTab('chat');
+  const input = document.getElementById('advisorChatInput');
+  if (input) {
+    input.value = promptText;
+    sendAdvisorMessage();
+  }
+}
+
+function toggleAdvisorSettings() {
+  const overlay = document.getElementById('advisorSettingsOverlay');
+  if (overlay) overlay.classList.toggle('hidden');
+}
+
+async function checkAdvisorGeminiStatus() {
+  try {
+    const res = await fetch('/api/advisor/gemini-status', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const badge = document.getElementById('advisorGeminiStatusBadge');
+    if (badge) {
+      if (data.hasKey) {
+        badge.innerText = data.isCustom ? 'Gemini تایبەت چالاکە 🤖' : 'Gemini سێرڤەر چالاکە 🤖';
+        badge.className = 'text-[9px] px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold';
+      } else {
+        badge.innerText = 'سیستەمی کوردی چالاکە 🧠';
+        badge.className = 'text-[9px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 font-bold';
+      }
+    }
+  } catch (e) {}
+}
+
+async function saveAdvisorGeminiKey() {
+  const input = document.getElementById('advisorGeminiKeyInput');
+  if (!input) return;
+  const key = input.value.trim();
+
+  try {
+    const res = await fetch('/api/advisor/gemini-key', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ apiKey: key })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە تۆمارکردن');
+    alert(data.message || 'سەرکەوتوو بوو');
+    input.value = '';
+    checkAdvisorGeminiStatus();
+  } catch (e) {
+    alert(e.message || 'هەڵەیەک ڕوویدا');
+  }
+}
+
+async function clearAdvisorChatHistory() {
+  if (!confirm('ئایا دڵنیایت لە سڕینەوەی تەواوی مێژووی گفتوگۆکانت لەگەڵ ڕاوێژکار؟')) return;
+
+  try {
+    const res = await fetch('/api/advisor/clear-history', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە سڕینەوە');
+
+    const container = document.getElementById('advisorChatMessages');
+    if (container) {
+      container.innerHTML = `
+        <div class="flex items-start gap-2.5 max-w-[85%]">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+            <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
+          </div>
+          <div class="bg-slate-800/90 border border-purple-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="text-xs font-black text-purple-300">ڕاوێژکاری تایبەت</span>
+              <span class="text-[9px] text-slate-400">ئێستا</span>
+            </div>
+            <p class="text-xs text-slate-200 leading-relaxed">
+              سڵاو کاک هێمن گیان! مێژووی گفتوگۆکان پاککرایەوە. هەموو کات لە خزمەتتدام بۆ هەر پرسیار و ڕاوێژێک لەبارەی پلاتفۆرمی سیرین ستاف. 💜
+            </p>
+          </div>
+        </div>
+      `;
+    }
+    alert('مێژووی گفتوگۆکان سڕایەوە');
+    toggleAdvisorSettings();
+  } catch (e) {
+    alert(e.message || 'هەڵەیەک ڕوویدا');
+  }
 }
 
 

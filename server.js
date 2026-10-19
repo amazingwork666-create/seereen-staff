@@ -9,7 +9,7 @@ const multer = require('multer');
 const fs = require('fs');
 let archiver;
 try { archiver = require('archiver'); } catch (e) {}
-const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity } = require('./db');
+const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 4000;
@@ -477,6 +477,21 @@ function canManageLive(user) {
   if (!user) return false;
   if (hasSuperAdminPrivileges(user)) return true;
   return user.special_badge === 'green' || user.special_badge === 'red';
+}
+
+// Helper: Can manage dreams (Master Super Admin, role super_admin, role teacher, OR special_badge === 'purple')
+function canManageDreams(user) {
+  if (!user) return false;
+  if (isMasterSuperAdmin(user) || user.role === 'super_admin' || user.role === 'teacher') return true;
+  return user.special_badge === 'purple';
+}
+
+// Middleware: Dream Manager (Super Admin, Teacher, or Purple Badge)
+function requireDreamManager(req, res, next) {
+  if (!canManageDreams(req.user)) {
+    return res.status(403).json({ error: 'تەنها مامۆستا، سوپەر ئەدمین یان هەڵگری باجی مۆر مۆڵەتی لێکدانەوەی خەونیان هەیە' });
+  }
+  next();
 }
 
 // Master Super Admin Middleware (Only Hemn Taha can grant/revoke badges)
@@ -1016,6 +1031,404 @@ app.post('/api/admin/security/log-incident', authMiddleware, (req, res) => {
   }
 });
 
+// --- AI ADVISOR & COMPANION FOR MASTER SUPER ADMIN (ڕاوێژکاری زیرەکی هێمن) ---
+
+// 1. Get Live Overview & Proactive Scanner Suggestions
+app.get('/api/advisor/overview', authMiddleware, requireMasterSuperAdmin, async (req, res) => {
+  try {
+    // 1. Members telemetry
+    const totalUsersRow = db.prepare('SELECT COUNT(*) as c FROM users').get();
+    const totalUsers = totalUsersRow ? totalUsersRow.c : 0;
+    const pendingRow = db.prepare("SELECT COUNT(*) as c FROM users WHERE status = 'pending'").get();
+    const pendingUsers = pendingRow ? pendingRow.c : 0;
+    const onlineCount = onlineUsers ? new Set(Array.from(onlineUsers.values()).map(u => u.id)).size : 0;
+    const roleRows = db.prepare('SELECT role, COUNT(*) as c FROM users GROUP BY role').all();
+    const roleCounts = {};
+    for (const r of roleRows) roleCounts[r.role] = r.c;
+    const badgeRows = db.prepare("SELECT special_badge, COUNT(*) as c FROM users WHERE special_badge IS NOT NULL GROUP BY special_badge").all();
+    const badgeCounts = {};
+    for (const b of badgeRows) badgeCounts[b.special_badge] = b.c;
+    const purpleBadgeHolders = db.prepare("SELECT id, full_name, username FROM users WHERE special_badge = 'purple'").all();
+
+    // 2. Dreams telemetry
+    const allDreamSessions = dreamSessions.getAll() || [];
+    const totalDreams = allDreamSessions.length;
+    const unansweredDreams = allDreamSessions.filter(s => !s.answered_at).length;
+    const favoriteDreams = allDreamSessions.filter(s => s.is_favorite).length;
+
+    // 3. Questions telemetry
+    const allQuestions = questions.getAll() || [];
+    const totalQuestions = allQuestions.length;
+    const activeQuestions = allQuestions.filter(q => q.is_active === 1).length;
+    const unansweredQuestions = allQuestions.filter(q => !q.winner_id && q.is_active === 0).length;
+
+    // 4. Chat & Messages telemetry
+    const totalMsgRow = db.prepare('SELECT COUNT(*) as c FROM messages').get();
+    const totalMessages = totalMsgRow ? totalMsgRow.c : 0;
+    const last24h = Date.now() - (24 * 60 * 60 * 1000);
+    const todayMsgRow = db.prepare('SELECT COUNT(*) as c FROM messages WHERE created_at > ?').get(last24h);
+    const todayMessages = todayMsgRow ? todayMsgRow.c : 0;
+    const chatLockMode = settings.get('chat_lock_mode', 'unlocked');
+    const isRedAlert = settings.get('red_alert_active', '0') === '1';
+
+    // 5. Live Lesson
+    const isLive = Boolean(liveLessonState && liveLessonState.isActive);
+    const liveStartedBy = isLive ? (liveLessonState.startedBy ? liveLessonState.startedBy.name : 'مامۆستا') : null;
+    const liveViewers = isLive ? (liveLessonState.participants ? liveLessonState.participants.size : 0) : 0;
+
+    // 6. Security
+    const secStats = aiSecurity.getStats();
+
+    // 7. Dynamic Proactive Suggestions Generator (دەستپێشخەری و پێشنیارەکانی ڕاوێژکار)
+    const suggestions = [];
+
+    if (unansweredDreams > 0) {
+      suggestions.push({
+        id: 'unanswered_dreams',
+        category: 'خەونەکان',
+        priority: 'high',
+        icon: 'fa-moon',
+        color: 'purple',
+        title: `${unansweredDreams} خەونی نوێ چاوەڕوانی لێکدانەوەن`,
+        text: `کاک هێمن گیان، ئێستا ${unansweredDreams} خەون تۆمارکراون کە وەڵام نەدراونەتەوە. دەتوانیت وەڵامیان بدەیتەوە، یان ئەگەر سەرقاڵیت بەخشینی (باجی مۆر 🟣) بە یەکێک لە مامۆستایان یان ئەندامە لێهاتووەکان یارمەتیدەر دەبێت تا وەڵامیان بداتەوە.`,
+        action: 'dream_admin',
+        actionText: 'کردنەوەی بەشی خەونەکان'
+      });
+    } else {
+      suggestions.push({
+        id: 'dreams_clear',
+        category: 'خەونەکان',
+        priority: 'low',
+        icon: 'fa-circle-check',
+        color: 'emerald',
+        title: 'بەشی خەونەکان پاک و ڕێکخراوە',
+        text: 'دەستت خۆش بێت کاک هێمن گیان، هیچ خەونێکی بێ وەڵام نییە و بەڕێوەبەران هەموویان وەڵام داوەتەوە.',
+        action: 'dream_admin',
+        actionText: 'بینینی خەونەکان'
+      });
+    }
+
+    if (pendingUsers > 0) {
+      suggestions.push({
+        id: 'pending_members',
+        category: 'ئەندامان',
+        priority: 'high',
+        icon: 'fa-user-clock',
+        color: 'amber',
+        title: `${pendingUsers} داواکاری ئەندامێتی لە چاوەڕوانیدان`,
+        text: `${pendingUsers} بەکارهێنەری نوێ چاوەڕوانی ڕەزامەندیین بۆ چوونە ناو چات. پێشنیار دەکەم سەیری بەشی ئەندامان بکەیت.`,
+        action: 'admin_members',
+        actionText: 'پەسەندکردنی ئەندامان'
+      });
+    }
+
+    if (purpleBadgeHolders.length === 0) {
+      suggestions.push({
+        id: 'purple_badge_tip',
+        category: 'دەسەڵاتی خەون',
+        priority: 'medium',
+        icon: 'fa-id-badge',
+        color: 'purple',
+        title: 'بەخشینی باجی مۆر (مۆڵەتی لێکدانەوەی خەون)',
+        text: 'پلاتفۆرمەکە باجی مۆری بۆ زیادکراوە بەڵام هێشتا بە کەست نەبەخشیوە. دەتوانیت لە پرۆفایلی ئەندامان ئەم باجە ببەخشیت تا بە تەنیا مۆڵەتی لێکدانەوەی خەونیان هەبێت بەبێ دەسەڵاتی تری ستاف.',
+        action: 'admin_members',
+        actionText: 'لیستی ئەندامان'
+      });
+    }
+
+    if (!isLive && onlineCount >= 3) {
+      suggestions.push({
+        id: 'live_opportunity',
+        category: 'وانەی لایڤ',
+        priority: 'medium',
+        icon: 'fa-tower-broadcast',
+        color: 'rose',
+        title: `${onlineCount} ئەندام ئێستا ئۆنلاینن`,
+        text: `ژمارەیەکی باش (${onlineCount} ئەندام) ئێستا لە ناو پلاتفۆرمەکە چالاکن. دەتوانیت وانەیەکی لایڤی کورت یان خوێندنەوەی قورئان دەستپێبکەیت.`,
+        action: 'live_lesson',
+        actionText: 'دەستپێکردنی لایڤ'
+      });
+    }
+
+    if (activeQuestions === 0) {
+      suggestions.push({
+        id: 'new_question_prompt',
+        category: 'پرسیار و پێشبڕکێ',
+        priority: 'medium',
+        icon: 'fa-circle-question',
+        color: 'indigo',
+        title: 'دانانی پرسیاری نوێی خەڵاتی ئەستێرە',
+        text: 'لە ئێستادا هیچ پرسیارێکی ڕۆژ چالاک نییە. دانانی پرسیارێک تین و ورەیەکی زۆر بە فێرخوازان دەبەخشێت بۆ پێشبڕکێی ئەستێرەکان.',
+        action: 'post_question',
+        actionText: 'دانانی پرسیار'
+      });
+    }
+
+    suggestions.push({
+      id: 'security_health_tip',
+      category: 'ئاسایش و پاراستن',
+      priority: 'low',
+      icon: 'fa-shield-halved',
+      color: 'emerald',
+      title: `قەڵغانی پاراستنی زیرەک (${secStats.safetyRating} سەلامەت)`,
+      text: `سیستەمی فلتەری دەقی فێڵاوی کوردی و دژە-ڕەید چالاکن. تا ئێستا ${secStats.totalBlocked} هەوڵی نایاسایی تێکشکێنراون و دۆخی چات پارێزراوە.`,
+      action: 'ai_security',
+      actionText: 'ژووری ئۆپەراسیۆن'
+    });
+
+    suggestions.push({
+      id: 'advisor_platform_tip',
+      category: 'پەرەپێدانی تەکنیکی',
+      priority: 'low',
+      icon: 'fa-wand-magic-sparkles',
+      color: 'purple',
+      title: 'فلتەری ژاوەژاو و کۆنتڕۆڵی ڕێکخستنەکان',
+      text: 'فلتەری نوێی ژاوەژاوی دەنگ (AI Voice Noise Cancellation) و مینیوی یەکگرتووی ڕێکخستن بە سەرکەوتوویی کاردەکەن. بۆ هەر پێشنیار یان گۆڕانکارییەک، فەرموو لە چاتی ڕاوێژکار پێم بڵێ.',
+      action: null,
+      actionText: null
+    });
+
+    res.json({
+      success: true,
+      data: {
+        telemetry: {
+          totalUsers,
+          pendingUsers,
+          onlineCount,
+          roleCounts,
+          badgeCounts,
+          purpleBadgeHolders,
+          totalDreams,
+          unansweredDreams,
+          favoriteDreams,
+          totalQuestions,
+          activeQuestions,
+          unansweredQuestions,
+          totalMessages,
+          todayMessages,
+          chatLockMode,
+          isRedAlert,
+          isLive,
+          liveStartedBy,
+          liveViewers,
+          secStats
+        },
+        suggestions
+      }
+    });
+  } catch (err) {
+    console.error('Advisor overview error:', err);
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی ئامارەکانی ڕاوێژکار' });
+  }
+});
+
+// 2. Chat with Advisor (Conversational Companion & Strategic AI)
+app.post('/api/advisor/chat', authMiddleware, requireMasterSuperAdmin, async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'تکایە پەیامەکەت بنووسە' });
+    }
+
+    const userMessage = message.trim();
+    advisorDb.saveChat(req.user.id, 'user', userMessage);
+
+    // Collect telemetry context for the AI
+    const totalUsers = db.prepare('SELECT COUNT(*) as c FROM users').get()?.c || 0;
+    const pendingUsers = db.prepare("SELECT COUNT(*) as c FROM users WHERE status = 'pending'").get()?.c || 0;
+    const onlineCount = onlineUsers ? new Set(Array.from(onlineUsers.values()).map(u => u.id)).size : 0;
+    const allDreams = dreamSessions.getAll() || [];
+    const unansweredDreams = allDreams.filter(s => !s.answered_at).length;
+    const totalQuestions = questions.getAll()?.length || 0;
+    const secStats = aiSecurity.getStats();
+    const isLive = Boolean(liveLessonState && liveLessonState.isActive);
+
+    const liveContext = {
+      user_name: 'Hemn Taha (هێمن طه)',
+      total_members: totalUsers,
+      online_now: onlineCount,
+      pending_approvals: pendingUsers,
+      total_dreams: allDreams.length,
+      unanswered_dreams: unansweredDreams,
+      total_questions: totalQuestions,
+      is_live_active: isLive,
+      blocked_security_threats: secStats.totalBlocked,
+      safety_score: secStats.safetyRating,
+      badges: {
+        green: 'Green (Members, Chat lock, Live, Rename)',
+        black: 'Black (Full Super Admin powers except Master)',
+        red: 'Red (Live lesson manager)',
+        purple: 'Purple (Exclusive Dream Interpretation)'
+      }
+    };
+
+    let reply = null;
+
+    // Check for configured Gemini API key
+    const geminiKey = settings.get('advisor_gemini_api_key') || process.env.GEMINI_API_KEY;
+    if (geminiKey) {
+      try {
+        const systemInstruction = `تۆ «ڕاوێژکار»ی، هاوڕێی نزیک، دڵسۆز و ڕاوێژکاری زیرەکی تایبەتی کاک هێمن (Hemn Taha) یت لە پلاتفۆرمی سیرین ستاف (Seereen Staff).
+کاک هێمن سوپەر ئەدمینی سەرەکی و دامەزرێنەری ئەم سیستەمەیە.
+وەک هاوڕێیەکی زیندوو، زانا، دڵسۆز و وریا قسەی لەگەڵدا بکە ("کاک هێمن گیان"، "براکەم").
+تۆ ئاگاداری هەموو وردەکارییەکی تەکنیکی و کارگێڕی سایتی:
+ئامارە زیندووەکانی ئێستا:
+${JSON.stringify(liveContext, null, 2)}
+تایبەتمەندییە نوێیەکان:
+- ٤ باجی تایبەت: سەوز (ئەندامان و قفڵ)، ڕەش (سوپەر ئەدمین)، سور (لایڤ)، مۆر (تەنها مۆڵەتی لێکدانەوەی خەون).
+- قەڵغانی زیرەکی ئاسایش (دەقی فێڵاوی کوردی، دژە-ڕەید و لافاو، لینکی زیانبەخش، ژووری ئۆپەراسیۆن و دوگمەی فریاگوزاری Red Alert).
+- بەشی لێکدانەوەی خەون (دانیشتنەکان، پەیوەندی و پەردە).
+- وانەی لایڤی دەنگی و قورئانخوێن بە تەکنەلۆژیای WebRTC.
+- فلتەری ژاوەژاوی دەنگ (AI Voice Noise Cancellation).
+- یەکخستنی هەموو ڕێکخستنەکان لە یەک مینیودا.
+هەمیشە بە زمانی کوردی سۆرانی ڕوون، قووڵ، دۆستانە و یارمەتیدەر وەڵام بدەرەوە و پێشنیاری گەشەپێدانی بەسوودی پێشکەش بکە.`;
+
+        const recentChats = advisorDb.getRecentChats(10) || [];
+        const contents = [];
+        for (const chat of recentChats) {
+          contents.push({
+            role: chat.sender === 'user' ? 'user' : 'model',
+            parts: [{ text: chat.message }]
+          });
+        }
+        if (!contents.length || contents[contents.length - 1].parts[0].text !== userMessage) {
+          contents.push({
+            role: 'user',
+            parts: [{ text: userMessage }]
+          });
+        }
+
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+
+        const geminiRes = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            contents
+          }),
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+
+        if (geminiRes.ok) {
+          const geminiData = await geminiRes.json();
+          const candidateText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (candidateText && candidateText.trim()) {
+            reply = candidateText.trim();
+          }
+        }
+      } catch (geminiErr) {
+        console.log('Gemini API call skipped or errored, using built-in Kurdish Advisor engine:', geminiErr.message);
+      }
+    }
+
+    // Fallback to Built-in Intelligent Kurdish Advisor Engine
+    if (!reply) {
+      const q = userMessage.toLowerCase();
+
+      if (/سڵاو|چۆنی|باشی|هەواڵ|سلاو|چۆنیت|دەنگوباس/.test(q)) {
+        reply = `سڵاو کاک هێمن گیان، برای بەڕێزم! زۆر دڵخۆشم بە قسەکردن لەگەڵت. من وەک ڕاوێژکار و هاوڕێی هەمیشەییت بەردەوام چاودێری هەموو کون و کەلەبەرێکی سیرین ستاف دەکەم.
+ئێستا سیستەم بە تەواوی ئارام و سەقامگیرە: ${onlineCount} کەس ئۆنلاینن، ${allDreams.length} خەون تۆمارکراوە و قەڵغانی ئاسایش کاردەکات.
+فەرموو براکەم، لە چ بابەتێکی سایتەکەدا پێویستت بە ڕاوێژ یان پێشنیاری نوێ هەیە؟`;
+      } else if (/ئامار|دۆخ|چەند کەس|ئۆنلاین|ئەندام|خەڵک|حاڵەت/.test(q)) {
+        reply = `کاک هێمن گیان، ئەمەش پشکنینی ڕاستەوخۆی ئێستای پلاتفۆرمەکەیە بۆ تۆ:
+
+👥 کۆی ئەندامان: ${totalUsers} کەس
+🟢 چالاک و ئۆنلاین: ${onlineCount} کەس لە ئێستادا
+⏳ داواکاری چاوەڕوانکراو: ${pendingUsers} داواکاری ئەندامێتی
+🌙 بەشی خەونەکان: ${allDreams.length} خەون (${unansweredDreams} چاوەڕوانی وەڵامن)
+❓ پرسیارەکان: ${totalQuestions} پرسیاری گشتی
+🛡️ قەڵغانی ئاسایش: ${secStats.safetyRating} سەلامەت (${secStats.totalBlocked} هەوڵی نایاسایی تێکشکێنراون)
+🎙️ وانەی لایڤ: ${isLive ? 'چالاکە' : 'ناچالاکە'}
+
+هەموو جوڵە و ئامارەکان لەژێر چاودێریدان و سیستمەکە بە تەواوی خێرا کار دەکات.`;
+      } else if (/خەون|مۆر|باجی مۆر|خەونەکان|لێکدانەوە/.test(q)) {
+        reply = `کاک هێمن گیان، لەبارەی بەشی خەونەکانەوە:
+ئێستا ${allDreams.length} خەون تۆمارکراوە کە ${unansweredDreams} دانەیان چاوەڕوانی وەڵامدانەوەن.
+💡 دەستخۆشیت لێدەکەم بۆ بڕیاری زیادکردنی (باجی مۆر 🟣)! بەم باجە نوێیە دەتوانیت لە پرۆفایلی هەر کەسێک کە شارەزایە لە لێکدانەوەی خەوندا باجی مۆری پێببەخشیت؛ ئەو کات دەتوانێت بچێتە ناو پەردەی خەونەکان و وەڵامی فێرخوازان بداتەوە بە دەنگ و دەق، بێ ئەوەی دەسەڵاتی دەستکاریکردنی بەشەکانی تری هەبێت. ئەگەر خەونەکان کەڵەکە بوون، پێشنیار دەکەم ئەندامێکی باوەڕپێکراو بکەیتە خاوەن باجی مۆر.`;
+      } else if (/ئەمنییەت|ئاسایش|هێرش|ڕەید|فلتەر|بلۆک|سزا|هاک|لینکی/.test(q)) {
+        reply = `کاک هێمن گیان، ژووری ئۆپەراسیۆنی پاراستنی زیرەک (AI Guard) لە بەرزترین ئاستی ئامادەباشیدایە:
+١. فلتەری دەقە فێڵاوییەکان ڕێگری لە گۆڕینی پیت و شێواندنی وشە نەشیاوەکان دەکات.
+٢. دژە-ڕەید و لافاو هەر ئەکاونتێک پەیامی لەسەریەک بنێرێت لە چرکەیەکدا دەیبەستێت.
+٣. پشکنەری لینکەکان ڕێگە نادات هیچ بەستەرێکی نەناسراو و زیانبەخش بچێتە چات.
+تا ئێستا ${secStats.totalBlocked} هەوڵ بلۆککراوە و ڕێژەی سەلامەتی ${secStats.safetyRating} یە. لە هەر حاڵەتێکی کتوپڕیشدا دوگمەی (Red Alert) بە یەک کلیک چاتەکە تەنها بۆ مامۆستایان کراوە دەهێڵێتەوە.`;
+      } else if (/پێشنیار|بیرۆکە|نوێکردنەوە|گۆڕانکاری|پەرەپێدان|چی بکەم|چی زیاد بکەم/.test(q)) {
+        reply = `کاک هێمن گیان، برا بەڕێزەکەم، من وەک ڕاوێژکاری تایبەتت چەندین پێشنیاری بەهێزم بۆت ئامادەکردووە:
+
+١. لە بەشی خەونەکان: ئێستا کە باجی مۆرت زیاد کردووە، ئەگەر کاتی وەڵامدانەوەت کەمە دەتوانیت باجی مۆر ببەخشیت بە کەسێکی لێهاتوو تا کاتی چاوەڕوانی خەونبینان بۆ کەمتر لە نیو کاتژمێر داببەزێت.
+٢. لە بەشی دەنگ: بەکارهێنانی فلتەری ژاوەژاو (Voice Noise Filter) لە لایڤدا دەنگێکی زۆر پاک و بێ بای مایک دەگەیەنێت بە فێرخوازان.
+٣. لە بەشی پرسیار: دەتوانیت پێشبڕکێی هەفتانە ڕابگەیەنیت و لە ڕێگەی دەستکاریکردنی ئەستێرەی پرۆفایلەوە خەڵاتی یەکەمینەکانی بەشداربووان بکەیت.
+٤. لە بەشی ڕێکخستن: مینیوی نوێی ڕێکخستن کە هەموو بەشەکانی شاشە و زمانی لەخۆگرتووە ڕێنمایی ئەندامان بکە تا ئەپەکە نوێ بکەنەوە.
+هەر بیرۆکەیەکی ترت لە مێشکدایە پێم بڵێ با پلانێکی وردی بۆ دابنێین!`;
+      } else if (/باج|پلە|سەوز|ڕەش|سور|مامۆستا|ئەدمین/.test(q)) {
+        reply = `کاک هێمن گیان، تەواوی نەخشەی باجە تایبەتەکان بەم شێوەیە ڕێکخراوە:
+🟢 باجی سەوز: بەڕێوەبردنی ئەندامان، قفڵ و کردنەوەی چات، گۆڕینی ناوی بەکارهێنەران، بەڕێوەبردنی لایڤ.
+⚫ باجی ڕەش: هەموو تواناکانی سوپەر ئەدمین لە ناو گرووپدا (پارێزراوە لە دەستکاری ئەوانی تر جگە لە تۆ).
+🔴 باجی سور: مۆڵەتی تایبەت بۆ کردنەوە، داخستن و کۆنتڕۆڵی تەواوی مایکی وانەی لایڤ.
+🟣 باجی مۆر: بە تایبەت تەنها بۆ مۆڵەتی لێکدانەوەی خەون و وەڵامدانەوەی خەونی فێرخوازان.
+تەنها جەنابت وەک سوپەر ئەدمینی سەرەکی دەتوانیت ئەم باجانە ببەخشیت یان لایانببەیت.`;
+      } else {
+        reply = `کاک هێمن گیان، فەرمانت لەسەر چاو. هەموو وردەکارییەکی پلاتفۆرمەکە لەژێر دەستی خۆمدایە: لە کۆدی پرۆگرامین، داتابەیس، سێرڤەر، بەشی خەونەکان، لایڤ و ئاسایشەوە تا دەگاتە پلەی ئەندامان.
+دەربارەی پرسیارەکەت ("${userMessage.length > 50 ? userMessage.substring(0, 50) + '...' : userMessage}"):
+پێشنیار دەکەم هەنگاو بنێین بەرەو باشترکردنی ئەزموونی فێرخوازان و کەمکردنەوەی ئەرکی سەر شانی خۆت لە ڕێگەی دابەشکردنی باجەکان (وەک باجی مۆر بۆ خەون).
+ئەگەر دەتەوێت ئاماری نوێ ببینیت یان بیرۆکەیەکی تەکنیکی تاقی بکەینەوە، تەنها ئاماژەم پێبکە براکەم!`;
+      }
+    }
+
+    advisorDb.saveChat(req.user.id, 'advisor', reply);
+    res.json({ success: true, reply });
+  } catch (err) {
+    console.error('Advisor chat error:', err);
+    res.status(500).json({ error: 'هەڵە لە گفتوگۆ لەگەڵ ڕاوێژکار' });
+  }
+});
+
+// 3. Get Chat History
+app.get('/api/advisor/chat-history', authMiddleware, requireMasterSuperAdmin, (req, res) => {
+  try {
+    const history = advisorDb.getRecentChats(50) || [];
+    res.json({ history });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی مێژووی چات' });
+  }
+});
+
+// 4. Clear Chat History
+app.post('/api/advisor/clear-history', authMiddleware, requireMasterSuperAdmin, (req, res) => {
+  try {
+    advisorDb.clearHistory();
+    res.json({ success: true, message: 'مێژووی گفتوگۆکانی ڕاوێژکار بە سەرکەوتوویی سڕایەوە' });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە سڕینەوەی مێژووی چات' });
+  }
+});
+
+// 5. Save Gemini API Key (Optional)
+app.post('/api/advisor/gemini-key', authMiddleware, requireMasterSuperAdmin, (req, res) => {
+  try {
+    const { apiKey } = req.body;
+    const cleanKey = (apiKey || '').trim();
+    settings.set('advisor_gemini_api_key', cleanKey);
+    res.json({ success: true, hasKey: Boolean(cleanKey), message: cleanKey ? 'کلیلی Gemini بە سەرکەوتوویی تۆمارکرا' : 'کلیلی Gemini لابردرا (سیستەمی خۆماڵی کوردی بەکاردێت)' });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە تۆمارکردنی کلیلی زیرەکی دەستکرد' });
+  }
+});
+
+// 6. Get Gemini Key Status
+app.get('/api/advisor/gemini-status', authMiddleware, requireMasterSuperAdmin, (req, res) => {
+  try {
+    const hasCustomKey = Boolean(settings.get('advisor_gemini_api_key'));
+    const hasEnvKey = Boolean(process.env.GEMINI_API_KEY);
+    res.json({ hasKey: hasCustomKey || hasEnvKey, isCustom: hasCustomKey });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی دۆخی کلیل' });
+  }
+});
+
 // 7. Get all users / members list (Super Admin, Teacher, and Admin ONLY)
 app.get('/api/admin/users', authMiddleware, (req, res) => {
   const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher' || req.user.role === 'admin';
@@ -1275,8 +1688,8 @@ app.post('/api/admin/special-badge', authMiddleware, requireMasterSuperAdmin, (r
 
   let badgeVal = special_badge ? String(special_badge).trim().toLowerCase() : null;
   if (badgeVal === 'none' || badgeVal === '') badgeVal = null;
-  if (badgeVal && !['green', 'black', 'red'].includes(badgeVal)) {
-    return res.status(400).json({ error: 'جۆری باج نادروستە (تەنها سەوز، ڕەش، یان سور ڕێگەپێدراوە)' });
+  if (badgeVal && !['green', 'black', 'red', 'purple'].includes(badgeVal)) {
+    return res.status(400).json({ error: 'جۆری باج نادروستە (تەنها سەوز، ڕەش، سور، یان مۆر ڕێگەپێدراوە)' });
   }
 
   users.updateSpecialBadge(userId, badgeVal);
@@ -1297,7 +1710,8 @@ app.post('/api/admin/special-badge', authMiddleware, requireMasterSuperAdmin, (r
   const badgeNames = {
     green: '🟢 باجی سەوز',
     black: '⚫ باجی ڕەش',
-    red: '🔴 باجی سور'
+    red: '🔴 باجی سور',
+    purple: '🟣 باجی مۆر'
   };
   const badgeLabel = badgeVal ? badgeNames[badgeVal] : 'لابردنی باج';
 
@@ -2674,7 +3088,7 @@ function emitToDreamAdmins(event, payload) {
   try {
     if (io && io.sockets && io.sockets.sockets) {
       for (const [id, s] of io.sockets.sockets) {
-        if (s.user && (s.user.role === 'super_admin' || s.user.role === 'teacher')) {
+        if (s.user && canManageDreams(s.user)) {
           if (s.rooms && !s.rooms.has('dream_admins')) {
             s.join('dream_admins');
           }
@@ -2702,9 +3116,9 @@ app.post('/api/dream/start', (req, res) => {
       } catch (e) {}
     }
 
-    // STRICT: Staff (Super Admin, Admin, Teacher) cannot submit dreams!
-    if (authedUser && (authedUser.role === 'super_admin' || authedUser.role === 'admin' || authedUser.role === 'teacher')) {
-      return res.status(403).json({ error: 'مامۆستا و ئەدمین ناتوانن خەون بنێرن بۆ لێکدانەوە' });
+    // STRICT: Staff & Dream Interpreters (Super Admin, Admin, Teacher, or Purple Badge) cannot submit dreams!
+    if (authedUser && (canManageDreams(authedUser) || authedUser.role === 'admin')) {
+      return res.status(403).json({ error: 'مامۆستا و بەڕێوەبەرانی خەون ناتوانن خەون بنێرن بۆ لێکدانەوە' });
     }
 
     let session = null;
@@ -2809,9 +3223,9 @@ app.post('/api/dream/message', async (req, res) => {
       const user = users.findById(decoded.id);
       if (!user) return res.status(401).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
 
-      // STRICT PERMISSION: SUPER ADMIN & TEACHER CAN REPLY TO DREAMERS!
-      if (user.role !== 'super_admin' && user.role !== 'teacher') {
-        return res.status(403).json({ error: 'تەنها مامۆستا و سوپەر ئەدمین بۆیان هەیە وەڵامی خەون بین بدەنەوە' });
+      // STRICT PERMISSION: SUPER ADMIN, TEACHER, OR PURPLE BADGE CAN REPLY TO DREAMERS!
+      if (!canManageDreams(user)) {
+        return res.status(403).json({ error: 'تەنها مامۆستا، سوپەر ئەدمین یان هەڵگری باجی مۆر بۆیان هەیە وەڵامی خەون بین بدەنەوە' });
       }
 
       targetSessionId = parseInt(sessionId);
@@ -2842,14 +3256,15 @@ app.post('/api/dream/message', async (req, res) => {
     const msg = dreamMessages.create(targetSessionId, senderType, senderName, content.trim(), 'text');
     
     // Broadcast message to dream room and dream admins
-    const dreamerMsg = (senderType === 'teacher' || senderType === 'super_admin')
+    const isStaffReply = (senderType === 'teacher' || senderType === 'super_admin' || (user && user.special_badge === 'purple'));
+    const dreamerMsg = isStaffReply
       ? { ...msg, sender_name: getDreamTeacherAlias(senderName) }
       : msg;
     io.to(`dream_${targetSessionId}`).emit('dream_new_message', dreamerMsg);
     emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: msg });
 
-    if (senderType === 'teacher' || senderType === 'super_admin') {
-      dreamSessions.markAnswered(targetSessionId, senderName, senderType);
+    if (isStaffReply) {
+      dreamSessions.markAnswered(targetSessionId, senderName, senderType || 'dream_interpreter');
       emitToDreamAdmins('dream_session_answered', {
         sessionId: targetSessionId,
         answered_by_name: senderName,
@@ -2929,8 +3344,8 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
       const token = authHeader.split(' ')[1];
       const decoded = jwt.verify(token, JWT_SECRET);
       const user = users.findById(decoded.id);
-      if (!user || (user.role !== 'super_admin' && user.role !== 'teacher')) {
-        return res.status(403).json({ error: 'تەنها مامۆستا و سوپەر ئەدمین بۆیان هەیە دەنگ بنێرن بۆ خەون بین' });
+      if (!user || !canManageDreams(user)) {
+        return res.status(403).json({ error: 'تەنها مامۆستا، سوپەر ئەدمین یان هەڵگری باجی مۆر بۆیان هەیە دەنگ بنێرن بۆ خەون بین' });
       }
       targetSessionId = sessionId;
       senderType = user.role;
@@ -2943,14 +3358,15 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
     const content = durationText ? `پەیامی دەنگی (${durationText})` : 'پەیامی دەنگی';
     const msg = dreamMessages.create(targetSessionId, senderType, senderName, content, 'voice', voiceUrl);
 
-    const dreamerVoiceMsg = (senderType === 'teacher' || senderType === 'super_admin')
+    const isStaffReply = (senderType === 'teacher' || senderType === 'super_admin' || (user && user.special_badge === 'purple'));
+    const dreamerVoiceMsg = isStaffReply
       ? { ...msg, sender_name: getDreamTeacherAlias(senderName) }
       : msg;
     io.to(`dream_${targetSessionId}`).emit('dream_new_message', dreamerVoiceMsg);
     emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: msg });
 
-    if (senderType === 'teacher' || senderType === 'super_admin') {
-      dreamSessions.markAnswered(targetSessionId, senderName, senderType);
+    if (isStaffReply) {
+      dreamSessions.markAnswered(targetSessionId, senderName, senderType || 'dream_interpreter');
       emitToDreamAdmins('dream_session_answered', {
         sessionId: targetSessionId,
         answered_by_name: senderName,
@@ -3052,36 +3468,29 @@ app.post('/api/dream/upload-call-recording', upload.single('call_recording'), (r
   }
 });
 
-// 6. Admin Get All Dream Sessions (Super Admin and Teacher ONLY)
-app.get('/api/dream/admin/sessions', authMiddleware, (req, res) => {
+// 6. Admin Get All Dream Sessions (Super Admin, Teacher, and Purple Badge)
+app.get('/api/dream/admin/sessions', authMiddleware, requireDreamManager, (req, res) => {
   try {
-    // Only super_admin and teacher can access!
-    if (req.user.role !== 'super_admin' && req.user.role !== 'teacher') {
-      return res.status(403).json({ error: 'ڕێگاپێدراو نییە بۆ بینینی خەونەکان' });
-    }
     const list = dreamSessions.getAll();
-    res.json({ sessions: list, canReply: req.user.role === 'super_admin' || req.user.role === 'teacher' });
+    res.json({ sessions: list, canReply: true });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە وەرگرتنی لیست' });
   }
 });
 
-// 7. Admin Get Specific Session Messages (Super Admin and Teacher)
-app.get('/api/dream/admin/session/:id/messages', authMiddleware, (req, res) => {
+// 7. Admin Get Specific Session Messages (Super Admin, Teacher, and Purple Badge)
+app.get('/api/dream/admin/session/:id/messages', authMiddleware, requireDreamManager, (req, res) => {
   try {
-    if (req.user.role !== 'super_admin' && req.user.role !== 'teacher') {
-      return res.status(403).json({ error: 'ڕێگاپێدراو نییە' });
-    }
     const sessionId = parseInt(req.params.id);
     const session = dreamSessions.findById(sessionId);
     if (!session) return res.status(404).json({ error: 'دانیشتن نەدۆزرایەوە' });
 
-    // Admin & Teacher get ALL messages INCLUDING is_secret_recording = 1!
+    // Admin, Teacher & Purple Badge get messages
     const msgs = dreamMessages.getBySessionForAdmin(sessionId);
     res.json({
       session,
       messages: msgs,
-      canReply: req.user.role === 'super_admin' || req.user.role === 'teacher'
+      canReply: true
     });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە وەرگرتنی پەیامەکان' });
@@ -3120,8 +3529,8 @@ app.delete('/api/dream/admin/message/:id', authMiddleware, requireSuperAdmin, (r
   }
 });
 
-// 9. Star/Favorite Dream Session (Super Admin & Teacher)
-app.post('/api/dream/admin/session/:id/favorite', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+// 9. Star/Favorite Dream Session (Super Admin, Teacher, and Purple Badge)
+app.post('/api/dream/admin/session/:id/favorite', authMiddleware, requireDreamManager, (req, res) => {
   try {
     const sessionId = parseInt(req.params.id);
     const session = dreamSessions.findById(sessionId);
@@ -3288,22 +3697,23 @@ io.on('connection', (socket) => {
 
   // GROUP CHAT / ADMIN USER CONNECTION
   const user = socket.user;
-  if (user.role === 'super_admin' || user.role === 'teacher') {
+  if (canManageDreams(user)) {
     socket.join('dream_admins');
   }
 
   socket.on('dream_admin_join_session', (sessionId) => {
-    if (user.role === 'super_admin' || user.role === 'teacher') {
+    if (canManageDreams(user)) {
       socket.join(`dream_${sessionId}`);
     }
   });
 
   socket.on('dream_call_start', (data) => {
-    // super_admin and teacher can start calls!
-    if (user.role !== 'super_admin' && user.role !== 'teacher') return;
+    // super_admin, teacher, and purple badge can start calls!
+    if (!canManageDreams(user)) return;
+    const defaultName = user.role === 'teacher' ? (user.full_name || 'مامۆستا') : (user.role === 'super_admin' ? (user.full_name || 'هێمن طه') : (user.full_name || 'لێکدەرەوەی خەون'));
     socket.to(`dream_${data.sessionId}`).emit('dream_incoming_call', {
       ...data,
-      callerName: user.role === 'teacher' ? (user.full_name || 'مامۆستا') : (user.full_name || 'هێمن طه')
+      callerName: defaultName
     });
   });
 

@@ -248,6 +248,14 @@ function initDb() {
       action_taken TEXT DEFAULT 'blocked',
       created_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS ai_advisor_chats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      sender TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
   `);
 
   try {
@@ -1559,6 +1567,31 @@ const aiSecurity = {
   }
 };
 
+const advisorDb = {
+  getRecentChats(limit = 50) {
+    try {
+      const rows = db.prepare('SELECT * FROM ai_advisor_chats ORDER BY id DESC LIMIT ?').all(limit);
+      return rows.reverse();
+    } catch (e) {
+      return [];
+    }
+  },
+  saveChat(userId, sender, message) {
+    try {
+      return db.prepare('INSERT INTO ai_advisor_chats (user_id, sender, message, created_at) VALUES (?, ?, ?, ?)').run(userId, sender, message, Date.now());
+    } catch (e) {
+      return null;
+    }
+  },
+  clearHistory() {
+    try {
+      return db.prepare('DELETE FROM ai_advisor_chats').run();
+    } catch (e) {
+      return null;
+    }
+  }
+};
+
 module.exports = {
   db,
   initDb,
@@ -1578,5 +1611,6 @@ module.exports = {
   liveRecordings,
   recordedLessons,
   getDreamTeacherAlias,
-  aiSecurity
+  aiSecurity,
+  advisorDb
 };

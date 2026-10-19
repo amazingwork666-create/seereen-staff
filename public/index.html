@@ -703,6 +703,18 @@
               </span>
               <span id="drawerAiSecurityBadge" class="px-2 py-0.5 bg-rose-500/80 text-white text-[10px] font-black rounded-full animate-pulse">چاودێری</span>
             </button>
+
+            <!-- AI Advisor & Companion (ڕاوێژکار - تەنها کاک هێمن) -->
+            <button id="drawerAdvisorBtn" onclick="closeMainMenuDrawer(); openAiAdvisorModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-purple-950/70 via-indigo-950/60 to-violet-950/70 hover:from-purple-900/80 hover:to-indigo-900/80 border border-purple-500/50 text-purple-200 hover:text-white transition shadow-lg group">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-wand-magic-sparkles text-amber-300 text-sm w-5 text-center transition group-hover:scale-110"></i>
+                <span class="font-black text-sm">ڕاوێژکار (AI Advisor)</span>
+              </span>
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-sm flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-300 animate-ping"></span>
+                <span>تایبەت بە هێمن</span>
+              </span>
+            </button>
           </div>
 
         </div>
@@ -1171,7 +1183,7 @@
           <p class="text-[10px] text-slate-400 leading-relaxed">
             وەک سوپەر ئەدمین، دەتوانیت یەکێک لەم باجانە ببەخشیت بەم ئەندامە تا توانای تایبەتی هەبێت:
           </p>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
             <!-- Green Badge -->
             <button type="button" onclick="assignSpecialBadge('green')" id="badgeBtnGreen" class="p-2.5 rounded-2xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
               <div class="flex items-center justify-between mb-1.5">
@@ -1215,6 +1227,21 @@
                 • کردنەوە و داخستنەوەی لایڤ<br>
                 • کۆنتڕۆڵی تەواوی ناو وانەی لایڤ<br>
                 • مۆڵەتی مایک و شەیر و قورئان
+              </div>
+            </button>
+
+            <!-- Purple Badge (تەنها بۆ مۆڵەتی لێکدانەوەی خەون) -->
+            <button type="button" onclick="assignSpecialBadge('purple')" id="badgeBtnPurple" class="p-2.5 rounded-2xl bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="font-black text-purple-300 text-xs flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-purple-400"></span> باجی مۆر
+                </span>
+                <i class="fa-solid fa-moon text-purple-400 text-xs"></i>
+              </div>
+              <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
+                • مۆڵەتی لێکدانەوەی خەونەکان<br>
+                • وەڵامدانەوەی خەونی فێرخوازان<br>
+                • تەنها بەشی خەونەکان دەبات بەڕێوە
               </div>
             </button>
           </div>
@@ -3153,6 +3180,286 @@
     </div>
   </div>
 
+  <!-- ================= MODAL: AI ADVISOR & COMPANION (تایبەت بە کاک هێمن) ================= -->
+  <div id="aiAdvisorModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="w-full max-w-4xl h-[94vh] sm:max-h-[90vh] bg-slate-900 border border-purple-500/40 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative">
+      
+      <!-- Modal Header -->
+      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-purple-950/80 via-slate-900 to-indigo-950/80 border-b border-purple-500/30 flex items-center justify-between">
+        <div class="flex items-center gap-2.5 sm:gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white flex items-center justify-center text-lg shrink-0 shadow-lg shadow-purple-900/50">
+            <i class="fa-solid fa-wand-magic-sparkles animate-pulse"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="font-black text-sm sm:text-base text-white">ڕاوێژکاری زیرەکی هێمن</h3>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 shadow-sm">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>AI Companion v2.0</span>
+              </span>
+              <span class="hidden sm:inline-block px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">هاوڕێی دڵسۆز</span>
+            </div>
+            <p class="text-[11px] text-slate-300">چاودێری بەردەوامی سەرجەم بەشەکانی سایت، ئامارە زیندووەکان و پێشنیاری زیرەکانە</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <!-- Refresh / Scan Platform Now Button -->
+          <button onclick="loadAdvisorOverview()" id="advisorRefreshBtn" class="px-2.5 py-1.5 rounded-xl bg-purple-950/50 hover:bg-purple-900/70 text-purple-300 hover:text-white flex items-center gap-1.5 text-xs border border-purple-500/30 transition shadow-sm" title="پشکنینی نوێی سایت">
+            <i class="fa-solid fa-arrows-rotate"></i>
+            <span class="hidden sm:inline font-bold">پشکنینی سایت</span>
+          </button>
+          <!-- Settings Button (Gemini Key & Clear Chat) -->
+          <button onclick="toggleAdvisorSettings()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs border border-slate-700 transition" title="ڕێکخستنی کلیل و چات">
+            <i class="fa-solid fa-gear"></i>
+          </button>
+          <!-- Close Button -->
+          <button onclick="closeAiAdvisorModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-sm border border-slate-700 transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="flex border-b border-slate-800 bg-slate-950/60 px-4 shrink-0 gap-2">
+        <button id="advisorTabBtnScanner" onclick="switchAdvisorTab('scanner')" class="py-2.5 px-3 text-xs sm:text-sm font-black border-b-2 border-purple-400 text-purple-300 flex items-center gap-2 transition">
+          <i class="fa-solid fa-gauge-high"></i>
+          <span>پشکنینی گشتی و پێشنیارەکان</span>
+          <span id="advisorSuggestionsCountBadge" class="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-500 text-white font-bold">0</span>
+        </button>
+        <button id="advisorTabBtnChat" onclick="switchAdvisorTab('chat')" class="py-2.5 px-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-purple-300 flex items-center gap-2 transition">
+          <i class="fa-solid fa-comments"></i>
+          <span>گفتوگۆ لەگەڵ ڕاوێژکار (هاوڕێی زیندوو)</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        </button>
+      </div>
+
+      <!-- Scrollable Tab Content Container -->
+      <div class="flex-1 overflow-hidden relative flex flex-col">
+        
+        <!-- ================= TAB 1: SCANNER & SUGGESTIONS ================= -->
+        <div id="advisorTabScanner" class="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4">
+          
+          <!-- Live Status Cards -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <!-- 1. Members & Online -->
+            <div class="p-3 bg-gradient-to-br from-slate-800/80 to-slate-900 border border-slate-700/60 rounded-2xl flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                <span class="font-bold flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>ئۆنلاین و ئەندامان</span>
+                </span>
+                <i class="fa-solid fa-users text-emerald-400"></i>
+              </div>
+              <div class="flex items-baseline gap-2">
+                <span id="advStatOnline" class="text-2xl font-black text-white">0</span>
+                <span class="text-[10px] text-slate-400">ئۆنلاین</span>
+              </div>
+              <div class="text-[10px] text-slate-400 mt-1 flex items-center justify-between border-t border-slate-800 pt-1">
+                <span>کۆی ئەندام: <b id="advStatTotalUsers" class="text-slate-200">0</b></span>
+                <span id="advStatPendingWrap" class="text-amber-400 font-bold">0 چاوەڕوان</span>
+              </div>
+            </div>
+
+            <!-- 2. Dreams Department -->
+            <div class="p-3 bg-gradient-to-br from-purple-950/40 to-slate-900 border border-purple-500/30 rounded-2xl flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between text-xs text-purple-300 mb-1">
+                <span class="font-bold flex items-center gap-1.5">
+                  <i class="fa-solid fa-moon text-purple-400"></i>
+                  <span>بەشی خەونەکان</span>
+                </span>
+                <span id="advStatPurpleBadgeCount" class="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">0 باجی مۆر</span>
+              </div>
+              <div class="flex items-baseline gap-2">
+                <span id="advStatUnansweredDreams" class="text-2xl font-black text-purple-300">0</span>
+                <span class="text-[10px] text-slate-400">بێ وەڵام</span>
+              </div>
+              <div class="text-[10px] text-slate-400 mt-1 flex items-center justify-between border-t border-purple-900/30 pt-1">
+                <span>کۆی خەونەکان: <b id="advStatTotalDreams" class="text-purple-200">0</b></span>
+                <span>دڵخواز: <b id="advStatFavDreams" class="text-amber-300">0</b></span>
+              </div>
+            </div>
+
+            <!-- 3. Live Lesson & Audio -->
+            <div class="p-3 bg-gradient-to-br from-rose-950/30 to-slate-900 border border-rose-500/30 rounded-2xl flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between text-xs text-rose-300 mb-1">
+                <span class="font-bold flex items-center gap-1.5">
+                  <i class="fa-solid fa-tower-broadcast text-rose-400"></i>
+                  <span>وانەی لایڤ</span>
+                </span>
+                <span id="advStatLiveBadge" class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">ناچالاک</span>
+              </div>
+              <div class="flex items-baseline gap-2">
+                <span id="advStatLiveViewers" class="text-2xl font-black text-rose-300">0</span>
+                <span class="text-[10px] text-slate-400">بەشداربوو</span>
+              </div>
+              <div class="text-[10px] text-slate-400 mt-1 flex items-center justify-between border-t border-rose-900/30 pt-1">
+                <span id="advStatLiveHost" class="truncate max-w-[120px]">دەستپێنەکراوە</span>
+              </div>
+            </div>
+
+            <!-- 4. Security Shield -->
+            <div class="p-3 bg-gradient-to-br from-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-2xl flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between text-xs text-indigo-300 mb-1">
+                <span class="font-bold flex items-center gap-1.5">
+                  <i class="fa-solid fa-shield-halved text-indigo-400"></i>
+                  <span>ئاسایش و پاراستن</span>
+                </span>
+                <span id="advStatSafetyRating" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">100%</span>
+              </div>
+              <div class="flex items-baseline gap-2">
+                <span id="advStatBlockedThreats" class="text-2xl font-black text-indigo-300">0</span>
+                <span class="text-[10px] text-slate-400">هەڕەشە بلۆککراوە</span>
+              </div>
+              <div class="text-[10px] text-slate-400 mt-1 flex items-center justify-between border-t border-indigo-900/30 pt-1">
+                <span>چات: <b id="advStatChatLockMode" class="text-emerald-400">کراوە</b></span>
+                <span id="advStatRedAlertTag" class="text-emerald-400">پارێزراو</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: Proactive AI Suggestions Feed -->
+          <div class="bg-slate-900/70 border border-purple-500/30 rounded-2xl p-3.5 sm:p-4 space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center text-sm border border-purple-500/30">
+                  <i class="fa-solid fa-brain"></i>
+                </div>
+                <div>
+                  <h4 class="text-xs sm:text-sm font-black text-white">پێشنیارە دەستپێشخەرەکانی ڕاوێژکار (AI Proactive Advisor)</h4>
+                  <p class="text-[10px] text-slate-400">سیستەم خۆکارانە بەدواداچوون بۆ کێشە و چاکسازییەکان دەکات و دەستبەجێ پێشنیارت بۆ دادەنێت</p>
+                </div>
+              </div>
+              <span id="advLastScanTime" class="text-[10px] text-purple-300/80 font-mono">ئێستا پشکێنرا</span>
+            </div>
+
+            <!-- Suggestions List -->
+            <div id="advisorSuggestionsList" class="space-y-2.5">
+              <!-- Dynamically populated -->
+              <div class="text-center py-6 text-slate-500 text-xs">
+                <i class="fa-solid fa-spinner fa-spin text-purple-400 text-xl mb-2"></i>
+                <p>ڕاوێژکار سەرقاڵی پشکنینی وردی سایتەکەیە...</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ================= TAB 2: LIVE COMPANION CHAT ================= -->
+        <div id="advisorTabChat" class="hidden flex-1 flex flex-col h-full bg-slate-950/40">
+          
+          <!-- Chat Messages Container -->
+          <div id="advisorChatMessages" class="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3">
+            <!-- Initial Warm Welcome Message -->
+            <div class="flex items-start gap-2.5 max-w-[85%]">
+              <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
+              </div>
+              <div class="bg-slate-800/90 border border-purple-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <span class="text-xs font-black text-purple-300">ڕاوێژکاری تایبەت</span>
+                  <span class="text-[9px] text-slate-400">ئێستا</span>
+                </div>
+                <p class="text-xs text-slate-200 leading-relaxed">
+                  سڵاو کاک هێمن گیان، برای بەڕێز و خۆشەویستم! من وەک ڕاوێژکار و هاوڕێی نزیکی خۆت لێرەم. چاودێری هەموو وردەکارییەکی سایت، داتابەیس، خەونەکان، ئاسایش و ئەندامان دەکەم. لە هەر بابەتێکدا پرسیار، پێشنیار، یان ڕاوێژت هەبێت، فەرموو لێرە بنووسە و لە خزمەتتدام! 💜
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Suggestion Pills -->
+          <div class="px-3.5 py-1.5 bg-slate-900/60 border-t border-slate-800/80 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+            <span class="text-[10px] text-slate-400 shrink-0 font-bold">پرسیاری خێرا:</span>
+            <button type="button" onclick="quickAskAdvisor('ئامارەکانی ئێستای سایت چی دەڵێن؟')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-purple-900/50 text-slate-300 hover:text-purple-200 text-[10px] border border-slate-700 hover:border-purple-500/40 shrink-0 transition">
+              📊 ئامارە زیندووەکان
+            </button>
+            <button type="button" onclick="quickAskAdvisor('دۆخی بەشی خەونەکان چۆنە و چۆن باجی مۆر بەکاربهێنم؟')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-purple-900/50 text-slate-300 hover:text-purple-200 text-[10px] border border-slate-700 hover:border-purple-500/40 shrink-0 transition">
+              🌙 خەونەکان و باجی مۆر
+            </button>
+            <button type="button" onclick="quickAskAdvisor('ئەمنییەتی چات و سیستەمی قەڵغان لە چ ئاستێکدایە؟')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-purple-900/50 text-slate-300 hover:text-purple-200 text-[10px] border border-slate-700 hover:border-purple-500/40 shrink-0 transition">
+              🛡️ ئاسایشی پلاتفۆرم
+            </button>
+            <button type="button" onclick="quickAskAdvisor('چ پێشنیارێکت هەیە بۆ نوێکردنەوە و گەشەپێدانی زیاتری سایتەکە؟')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-purple-900/50 text-slate-300 hover:text-purple-200 text-[10px] border border-slate-700 hover:border-purple-500/40 shrink-0 transition">
+              💡 پێشنیاری گەشەپێدان
+            </button>
+          </div>
+
+          <!-- Chat Input Bar -->
+          <div class="p-3 bg-slate-950 border-t border-slate-800 flex items-center gap-2 shrink-0">
+            <input type="text" id="advisorChatInput" placeholder="لەگەڵ ڕاوێژکار بدوێ (وەک هاوڕێت قسەی لەگەڵ بکە)..." class="flex-1 bg-slate-900 border border-slate-700 focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition shadow-inner" onkeydown="if(event.key==='Enter') sendAdvisorMessage()">
+            <button onclick="sendAdvisorMessage()" id="advisorSendBtn" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-1.5 transition shadow-md shadow-purple-900/30 active:scale-95">
+              <span>ناردن</span>
+              <i class="fa-solid fa-paper-plane text-[10px]"></i>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- ================= ADVISOR SETTINGS DRAWER (OVERLAY) ================= -->
+        <div id="advisorSettingsOverlay" class="hidden absolute inset-0 z-20 bg-slate-950/95 backdrop-blur-md p-4 flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h4 class="font-black text-sm text-white flex items-center gap-2">
+                <i class="fa-solid fa-sliders text-purple-400"></i>
+                <span>ڕێکخستنەکانی ڕاوێژکار</span>
+              </h4>
+              <button onclick="toggleAdvisorSettings()" class="text-slate-400 hover:text-white text-sm">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <!-- Gemini API Key configuration -->
+            <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                  <i class="fa-solid fa-key text-amber-400"></i>
+                  <span>کلیلی Google Gemini API (ئارەزوومەندانە)</span>
+                </span>
+                <span id="advisorGeminiStatusBadge" class="text-[9px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-400">سیستەمی کوردی چالاکە</span>
+              </div>
+              <p class="text-[10px] text-slate-400 leading-relaxed">
+                ئەگەر کلیلی تایبەتی Gemini ی خۆت دابنێیت، ڕاوێژکار بە بەهێزترین مۆدێلی ژیری دەستکرد وەڵامت دەداتەوە. ئەگەر بەتاڵی بکەیت، سیستەمی خۆماڵی کوردی پلاتفۆرمەکە بەکاردێت.
+              </p>
+              <div class="flex gap-2">
+                <input type="password" id="advisorGeminiKeyInput" placeholder="AIzaSy..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono">
+                <button onclick="saveAdvisorGeminiKey()" class="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition">
+                  پاشەکەوت
+                </button>
+              </div>
+            </div>
+
+            <!-- Clear Chat History -->
+            <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between">
+              <div>
+                <span class="text-xs font-bold text-rose-300 block">سڕینەوەی مێژووی گفتوگۆ</span>
+                <span class="text-[10px] text-slate-400">پاککردنەوەی هەموو پەیامەکانی نێوان تۆ و ڕاوێژکار</span>
+              </div>
+              <button onclick="clearAdvisorChatHistory()" class="px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 rounded-xl text-xs font-bold transition">
+                سڕینەوە
+              </button>
+            </div>
+          </div>
+
+          <button onclick="toggleAdvisorSettings()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition">
+            گەڕانەوە بۆ ڕاوێژکار
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs shrink-0">
+        <span class="text-slate-400 text-[11px] flex items-center gap-1.5">
+          <i class="fa-solid fa-lock text-purple-400 text-xs"></i>
+          <span>تەنها بۆ کاک هێمن (Hemn Taha) پارێزراوە - هیچ ئەندام و مامۆستایەک نایبینێت</span>
+        </span>
+        <button onclick="closeAiAdvisorModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700 transition">
+          داخستن
+        </button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- Audio Element for Live Room & Quran -->
   <audio id="liveRoomAudio" autoplay playsinline class="hidden"></audio>
   <audio id="liveQuranAudio" playsinline class="hidden"></audio>
@@ -3161,6 +3468,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=15.0"></script>
+  <script src="/js/app.js?v=16.0"></script>
 </body>
 </html>
