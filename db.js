@@ -733,6 +733,9 @@ const questions = {
     this.renumberQuestions();
     return this.findById(result.lastInsertRowid);
   },
+  getAll() {
+    return this.getAllArchive();
+  },
   getAllArchive() {
     const stmt = db.prepare(`
       SELECT q.*, 

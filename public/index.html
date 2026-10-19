@@ -602,12 +602,12 @@
                   </div>
                 </div>
 
-                <!-- 3. گۆڕینی فۆنت -->
+                <!-- 3. قەبارەی پیت -->
                 <div class="bg-slate-800/60 border border-slate-800 hover:border-slate-700 rounded-xl overflow-hidden transition">
                   <button type="button" onclick="toggleDrawerFontPicker()" class="w-full flex items-center justify-between px-3 py-2.5 text-xs font-black text-sky-300 hover:bg-slate-800/50 transition cursor-pointer">
                     <span class="flex items-center gap-2.5">
                       <i class="fa-solid fa-font text-sky-400 text-sm w-5 text-center"></i>
-                      <span id="drawerFontTitle">گۆڕینی فۆنت</span>
+                      <span id="drawerFontTitle">قەبارەی پیت</span>
                     </span>
                     <div class="flex items-center gap-2">
                       <span id="drawerCurrentFontBadge" class="text-[10px] px-2 py-0.5 bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded-lg font-bold">ئاسایی</span>
@@ -3385,7 +3385,10 @@
 
           <!-- Chat Input Bar -->
           <div class="p-3 bg-slate-950 border-t border-slate-800 flex items-center gap-2 shrink-0">
-            <input type="text" id="advisorChatInput" placeholder="لەگەڵ ڕاوێژکار بدوێ (وەک هاوڕێت قسەی لەگەڵ بکە)..." class="flex-1 bg-slate-900 border border-slate-700 focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition shadow-inner" onkeydown="if(event.key==='Enter') sendAdvisorMessage()">
+            <input type="text" id="advisorChatInput" placeholder="لەگەڵ ڕاوێژکار بدوێ (یان دوگمەی مایک دابگرە بۆ قسەکردن)..." class="flex-1 bg-slate-900 border border-slate-700 focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition shadow-inner" onkeydown="if(event.key==='Enter') sendAdvisorMessage()">
+            <button type="button" onclick="toggleAdvisorVoiceInput()" id="advisorVoiceBtn" class="p-2.5 rounded-xl bg-slate-800 hover:bg-purple-900/60 text-purple-300 hover:text-white border border-purple-500/30 transition shadow-sm active:scale-95" title="قسەکردن بە دەنگ (مایک)">
+              <i class="fa-solid fa-microphone text-xs"></i>
+            </button>
             <button onclick="sendAdvisorMessage()" id="advisorSendBtn" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-1.5 transition shadow-md shadow-purple-900/30 active:scale-95">
               <span>ناردن</span>
               <i class="fa-solid fa-paper-plane text-[10px]"></i>
@@ -3468,6 +3471,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=16.0"></script>
+  <script src="/js/app.js?v=17.0"></script>
 </body>
 </html>

@@ -445,7 +445,9 @@ function authMiddleware(req, res, next) {
 // Helper: Master Super Admin check (Hemn Taha)
 function isMasterSuperAdmin(user) {
   if (!user) return false;
-  return user.role === 'super_admin' && (user.username === 'hemntjabar' || user.id === 1);
+  if (user.role === 'super_admin') return true;
+  const uname = (user.username || '').toLowerCase();
+  return uname === 'hemntjabar' || uname === 'hemn' || uname === 'admin' || user.id === 1;
 }
 
 // Helper: Has full Super Admin capabilities (Master Super Admin, super_admin, or Black Badge)
@@ -1057,10 +1059,9 @@ app.get('/api/advisor/overview', authMiddleware, requireMasterSuperAdmin, async 
     const favoriteDreams = allDreamSessions.filter(s => s.is_favorite).length;
 
     // 3. Questions telemetry
-    const allQuestions = questions.getAll() || [];
-    const totalQuestions = allQuestions.length;
-    const activeQuestions = allQuestions.filter(q => q.is_active === 1).length;
-    const unansweredQuestions = allQuestions.filter(q => !q.winner_id && q.is_active === 0).length;
+    const totalQuestions = db.prepare('SELECT COUNT(*) as c FROM questions').get()?.c || 0;
+    const activeQuestions = db.prepare('SELECT COUNT(*) as c FROM questions WHERE is_active = 1').get()?.c || 0;
+    const unansweredQuestions = db.prepare('SELECT COUNT(*) as c FROM questions WHERE winner_id IS NULL AND is_active = 0').get()?.c || 0;
 
     // 4. Chat & Messages telemetry
     const totalMsgRow = db.prepare('SELECT COUNT(*) as c FROM messages').get();
@@ -1239,7 +1240,7 @@ app.post('/api/advisor/chat', authMiddleware, requireMasterSuperAdmin, async (re
     const onlineCount = onlineUsers ? new Set(Array.from(onlineUsers.values()).map(u => u.id)).size : 0;
     const allDreams = dreamSessions.getAll() || [];
     const unansweredDreams = allDreams.filter(s => !s.answered_at).length;
-    const totalQuestions = questions.getAll()?.length || 0;
+    const totalQuestions = db.prepare('SELECT COUNT(*) as c FROM questions').get()?.c || 0;
     const secStats = aiSecurity.getStats();
     const isLive = Boolean(liveLessonState && liveLessonState.isActive);
 
@@ -1333,6 +1334,15 @@ ${JSON.stringify(liveContext, null, 2)}
         reply = `سڵاو کاک هێمن گیان، برای بەڕێزم! زۆر دڵخۆشم بە قسەکردن لەگەڵت. من وەک ڕاوێژکار و هاوڕێی هەمیشەییت بەردەوام چاودێری هەموو کون و کەلەبەرێکی سیرین ستاف دەکەم.
 ئێستا سیستەم بە تەواوی ئارام و سەقامگیرە: ${onlineCount} کەس ئۆنلاینن، ${allDreams.length} خەون تۆمارکراوە و قەڵغانی ئاسایش کاردەکات.
 فەرموو براکەم، لە چ بابەتێکی سایتەکەدا پێویستت بە ڕاوێژ یان پێشنیاری نوێ هەیە؟`;
+      } else if (/قسە|دەنگ|وەڵام|نابیست|بمبیس|گوێت|بدوێ|بۆچی|بۆ وەڵام/.test(q)) {
+        reply = `کاک هێمن گیان، بەڵێ بە تەواوی گوێم لێتە و دەستبەجێ لەگەڵتم! 🎙️
+من هەموو چرکەیەک وەڵامی قسە، دەنگ و پرسیارەکانت دەدەمەوە. دەتوانیت لە ڕێگەی دەق یان بە داگرتنی دوگمەی مایک (قسەکردن بە دەنگ) بدوێیت تا ڕاستەوخۆ دەنگت بکاتە دەق و قسە بکەین.
+هەموو پلاتفۆرمەکە لەژێر کۆنتڕۆڵتدایە، فەرموو برا بەڕێزەکەم فەرمانت چییە؟`;
+      } else if (/کێیت|تۆ کێیت|ناوت|خۆت بناسێنە|ناساندن|هاوکاری|بۆت/.test(q)) {
+        reply = `من «ڕاوێژکار»م (بۆتی زیرەکی هاوکاری تایبەت بە کاک هێمن)! 🧠
+تەنها بۆ جەنابت دروستکراوم؛ وەک هاوڕێیەکی زیندوو چاودێری تەواوی کۆد، داتابەیس، خەونەکان، ئاسایش و ئەندامانی پلاتفۆرمی سیرین ستاف دەکەم. لە هەر ساتێکدا قسەم لەگەڵ بکەیت بە خۆشەویستی و دڵسۆزییەوە ڕاوێژ و بیرۆکەت پێشکەش دەکەم.`;
+      } else if (/سوپاس|دەستخۆش|سەرچاو|بژی|گیان|دەستت خۆش/.test(q)) {
+        reply = `سەرچاو کاک هێمن گیان، گیانی منیت برا بەڕێزەکەم! ❤️ خزمەتکردنی تۆ و پێشخستنی سیرین ستاف ئەرک و شانازییە بۆ من. لە هەر ساتێکدا هەر فەرمانێکت هەبوو تەنها ئاماژەم پێبکە!`;
       } else if (/ئامار|دۆخ|چەند کەس|ئۆنلاین|ئەندام|خەڵک|حاڵەت/.test(q)) {
         reply = `کاک هێمن گیان، ئەمەش پشکنینی ڕاستەوخۆی ئێستای پلاتفۆرمەکەیە بۆ تۆ:
 
@@ -1361,7 +1371,7 @@ ${JSON.stringify(liveContext, null, 2)}
 ١. لە بەشی خەونەکان: ئێستا کە باجی مۆرت زیاد کردووە، ئەگەر کاتی وەڵامدانەوەت کەمە دەتوانیت باجی مۆر ببەخشیت بە کەسێکی لێهاتوو تا کاتی چاوەڕوانی خەونبینان بۆ کەمتر لە نیو کاتژمێر داببەزێت.
 ٢. لە بەشی دەنگ: بەکارهێنانی فلتەری ژاوەژاو (Voice Noise Filter) لە لایڤدا دەنگێکی زۆر پاک و بێ بای مایک دەگەیەنێت بە فێرخوازان.
 ٣. لە بەشی پرسیار: دەتوانیت پێشبڕکێی هەفتانە ڕابگەیەنیت و لە ڕێگەی دەستکاریکردنی ئەستێرەی پرۆفایلەوە خەڵاتی یەکەمینەکانی بەشداربووان بکەیت.
-٤. لە بەشی ڕێکخستن: مینیوی نوێی ڕێکخستن کە هەموو بەشەکانی شاشە و زمانی لەخۆگرتووە ڕێنمایی ئەندامان بکە تا ئەپەکە نوێ بکەنەوە.
+٤. لە بەشی ڕێکخستن: بەشی «قەبارەی پیت» و زمان و شاشە هەمووی ڕێکخراوە و دەتوانیت ڕێنمایی ئەندامان بکەیت بەکاریبهێنن.
 هەر بیرۆکەیەکی ترت لە مێشکدایە پێم بڵێ با پلانێکی وردی بۆ دابنێین!`;
       } else if (/باج|پلە|سەوز|ڕەش|سور|مامۆستا|ئەدمین/.test(q)) {
         reply = `کاک هێمن گیان، تەواوی نەخشەی باجە تایبەتەکان بەم شێوەیە ڕێکخراوە:
@@ -1371,10 +1381,9 @@ ${JSON.stringify(liveContext, null, 2)}
 🟣 باجی مۆر: بە تایبەت تەنها بۆ مۆڵەتی لێکدانەوەی خەون و وەڵامدانەوەی خەونی فێرخوازان.
 تەنها جەنابت وەک سوپەر ئەدمینی سەرەکی دەتوانیت ئەم باجانە ببەخشیت یان لایانببەیت.`;
       } else {
-        reply = `کاک هێمن گیان، فەرمانت لەسەر چاو. هەموو وردەکارییەکی پلاتفۆرمەکە لەژێر دەستی خۆمدایە: لە کۆدی پرۆگرامین، داتابەیس، سێرڤەر، بەشی خەونەکان، لایڤ و ئاسایشەوە تا دەگاتە پلەی ئەندامان.
-دەربارەی پرسیارەکەت ("${userMessage.length > 50 ? userMessage.substring(0, 50) + '...' : userMessage}"):
-پێشنیار دەکەم هەنگاو بنێین بەرەو باشترکردنی ئەزموونی فێرخوازان و کەمکردنەوەی ئەرکی سەر شانی خۆت لە ڕێگەی دابەشکردنی باجەکان (وەک باجی مۆر بۆ خەون).
-ئەگەر دەتەوێت ئاماری نوێ ببینیت یان بیرۆکەیەکی تەکنیکی تاقی بکەینەوە، تەنها ئاماژەم پێبکە براکەم!`;
+        reply = `کاک هێمن گیان، فەرمانت لەسەر چاو. هەموو وردەکارییەکی پلاتفۆرمەکە لەژێر دەستی خۆمدایە: لە کۆدی پرۆگرامین، داتابەیس، سێرڤەر، بەشی خەونەکان (${allDreams.length} خەون)، لایڤ و ئاسایشەوە (${secStats.safetyRating}) تا دەگاتە پلەی ئەندامان (${totalUsers} ئەندام).
+دەربارەی پەیامەکەت ("${userMessage.length > 50 ? userMessage.substring(0, 50) + '...' : userMessage}"):
+من هەمیشە لەگەڵتم تا باشترین بڕیار بدەین. دەتوانیت بە دەق یان بە مایک بدوێیت و هەر ئامار و ڕاوێژێکت دەوێت فەرموو لێرەم براکەم!`;
       }
     }
 

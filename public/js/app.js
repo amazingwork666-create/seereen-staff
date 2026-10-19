@@ -298,7 +298,9 @@ function renderStarBadge(correctCount, role = 'student') {
 
 function isMasterSuperAdmin(user) {
   if (!user) return false;
-  return user.role === 'super_admin' && (user.username === 'hemntjabar' || user.id === 1);
+  if (user.role === 'super_admin') return true;
+  const uname = (user.username || '').toLowerCase();
+  return uname === 'hemntjabar' || uname === 'hemn' || uname === 'admin' || user.id === 1;
 }
 
 function hasSuperAdminPrivileges(user) {
@@ -12417,7 +12419,7 @@ function applyAppLanguage(lang) {
       drawerProfileText: 'پرۆفایل',
       drawerSettingsTitle: 'ڕێکخستن',
       drawerLangTitle: 'گۆڕینی زمان',
-      drawerFontTitle: 'گۆڕینی فۆنت',
+      drawerFontTitle: 'قەبارەی پیت',
       drawerGeneralHeader: 'خزمەتگوزارییە سەرەکییەکان',
       drawerRecordedLessonsText: 'وانە تۆمارکراوەکان',
       drawerRecordedLessonsBadge: 'گوێگرتن',
@@ -13907,16 +13909,21 @@ async function loadAdvisorChatHistory() {
           `;
         } else {
           return `
-            <div class="flex items-start gap-2.5 max-w-[85%]">
+            <div class="flex items-start gap-2.5 max-w-[85%] advisor-bubble">
               <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
                 <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
               </div>
               <div class="bg-slate-800/90 border border-purple-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
                 <div class="flex items-center justify-between gap-2 mb-1">
-                  <span class="text-xs font-black text-purple-300">ڕاوێژکار</span>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs font-black text-purple-300">ڕاوێژکار</span>
+                    <button type="button" onclick="speakAdvisorMessage(this)" class="text-slate-400 hover:text-purple-300 p-0.5 transition" title="گوێگرتن لە دەنگ">
+                      <i class="fa-solid fa-volume-high text-[10px]"></i>
+                    </button>
+                  </div>
                   <span class="text-[9px] text-slate-400">${timeStr}</span>
                 </div>
-                <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">${escapeHtml(item.message)}</p>
+                <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap advisor-msg-text">${escapeHtml(item.message)}</p>
               </div>
             </div>
           `;
@@ -14008,16 +14015,21 @@ async function sendAdvisorMessage() {
 
     const replyTimeStr = new Date().toLocaleTimeString('ckb', { hour: '2-digit', minute: '2-digit' });
     const replyHtml = `
-      <div class="flex items-start gap-2.5 max-w-[85%]">
+      <div class="flex items-start gap-2.5 max-w-[85%] advisor-bubble">
         <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
           <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
         </div>
         <div class="bg-slate-800/90 border border-purple-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
           <div class="flex items-center justify-between gap-2 mb-1">
-            <span class="text-xs font-black text-purple-300">ڕاوێژکار</span>
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-black text-purple-300">ڕاوێژکار</span>
+              <button type="button" onclick="speakAdvisorMessage(this)" class="text-slate-400 hover:text-purple-300 p-0.5 transition" title="گوێگرتن لە دەنگ">
+                <i class="fa-solid fa-volume-high text-[10px]"></i>
+              </button>
+            </div>
             <span class="text-[9px] text-slate-400">${replyTimeStr}</span>
           </div>
-          <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">${escapeHtml(reply)}</p>
+          <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap advisor-msg-text">${escapeHtml(reply)}</p>
         </div>
       </div>
     `;
@@ -14047,6 +14059,121 @@ async function sendAdvisorMessage() {
       if (inp) inp.focus();
     }, 50);
   }
+}
+
+let advisorSpeechRecognition = null;
+let isAdvisorListening = false;
+
+function toggleAdvisorVoiceInput() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert('وێبگەڕەکەت پشتگیری لە ناسینەوەی دەنگ (Voice Recognition) ناکات. تکایە Google Chrome بەکاربهێنە.');
+    return;
+  }
+
+  const voiceBtn = document.getElementById('advisorVoiceBtn');
+  const input = document.getElementById('advisorChatInput');
+
+  if (isAdvisorListening) {
+    if (advisorSpeechRecognition) {
+      try { advisorSpeechRecognition.stop(); } catch (e) {}
+    }
+    return;
+  }
+
+  try {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'ckb-IQ';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    advisorSpeechRecognition = recognition;
+
+    recognition.onstart = () => {
+      isAdvisorListening = true;
+      if (voiceBtn) {
+        voiceBtn.classList.remove('bg-slate-800', 'text-purple-300');
+        voiceBtn.classList.add('bg-rose-600', 'text-white', 'animate-pulse');
+        voiceBtn.title = 'گوێم لێتە... قسە بکە (کلیک بکە بۆ وەستاندن)';
+      }
+      if (input) {
+        input.placeholder = 'گوێم لێتە کاک هێمن گیان، قسە بکە... 🎙️';
+      }
+    };
+
+    recognition.onresult = (event) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        transcript += event.results[i][0].transcript;
+      }
+      if (input && transcript) {
+        input.value = transcript;
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.warn('Speech recognition error:', event.error);
+      if (event.error === 'language-not-supported' && recognition.lang === 'ckb-IQ') {
+        recognition.lang = 'ar-IQ';
+        try { recognition.start(); return; } catch (e) {}
+      }
+    };
+
+    recognition.onend = () => {
+      isAdvisorListening = false;
+      if (voiceBtn) {
+        voiceBtn.classList.remove('bg-rose-600', 'text-white', 'animate-pulse');
+        voiceBtn.classList.add('bg-slate-800', 'text-purple-300');
+        voiceBtn.title = 'قسەکردن بە دەنگ (مایک)';
+      }
+      if (input) {
+        input.placeholder = 'لەگەڵ ڕاوێژکار بدوێ (یان دوگمەی مایک دابگرە بۆ قسەکردن)...';
+        if (input.value.trim().length > 0) {
+          sendAdvisorMessage();
+        }
+      }
+    };
+
+    recognition.start();
+  } catch (err) {
+    console.error('Failed to start speech recognition:', err);
+    isAdvisorListening = false;
+    if (voiceBtn) {
+      voiceBtn.classList.remove('bg-rose-600', 'text-white', 'animate-pulse');
+      voiceBtn.classList.add('bg-slate-800', 'text-purple-300');
+    }
+  }
+}
+
+function speakAdvisorMessage(btn) {
+  if (!('speechSynthesis' in window)) {
+    alert('وێبگەڕەکەت پشتگیری خوێندنەوەی دەنگی ناکات.');
+    return;
+  }
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-volume-high text-[10px]"></i>';
+    return;
+  }
+  const bubble = btn.closest('.advisor-bubble');
+  const textElem = bubble ? bubble.querySelector('.advisor-msg-text') : null;
+  const text = textElem ? textElem.innerText : '';
+  if (!text) return;
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.95;
+  utterance.pitch = 1.0;
+  const voices = window.speechSynthesis.getVoices();
+  const arVoice = voices.find(v => v.lang.startsWith('ar') || v.lang.includes('Arabic'));
+  if (arVoice) utterance.voice = arVoice;
+
+  btn.innerHTML = '<i class="fa-solid fa-stop text-rose-400 text-[10px] animate-pulse"></i>';
+  utterance.onend = () => {
+    btn.innerHTML = '<i class="fa-solid fa-volume-high text-[10px]"></i>';
+  };
+  utterance.onerror = () => {
+    btn.innerHTML = '<i class="fa-solid fa-volume-high text-[10px]"></i>';
+  };
+  window.speechSynthesis.speak(utterance);
 }
 
 function quickAskAdvisor(promptText) {
