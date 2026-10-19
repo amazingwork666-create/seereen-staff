@@ -9,7 +9,7 @@ const multer = require('multer');
 const fs = require('fs');
 let archiver;
 try { archiver = require('archiver'); } catch (e) {}
-const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias } = require('./db');
+const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 4000;
@@ -212,6 +212,181 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// =========================================================================
+// AI GUARDIAN & SECURITY ENGINE (پاسەوانی زیرەکی دەستکرد بۆ ستافی سیرین)
+// =========================================================================
+
+// Global Red Alert State
+let isRedAlertActive = false;
+
+// Multi-account / star fraud tracking per question: questionId -> Map(deviceFingerprint -> userId)
+const questionDeviceSubmissions = new Map();
+
+// 1. SMART KURDISH NLP & OBFUSCATION DETECTOR
+const FORBIDDEN_WORDS_LIST = [
+  // Kurdish & Arabic vulgarities, slurs, insults, blasphemy
+  'کەودەن', 'کەر', 'سەگ', 'حیز', 'قەحبە', 'قاحبە', 'داوێنپیس', 'بێناموس', 'بێڕەوشت',
+  'قنگ', 'کیر', 'گاو', 'گەواد', 'سووک', 'دایک سەگ', 'باوک سەگ', 'حیزباب', 'کەرباب',
+  'قۆشمە', 'تڕ', 'مسیبە', 'خۆفرۆش', 'جاش', 'تڕحێو', 'پۆڕت', 'سەگباب',
+  // Common transliterated / leetspeak bad patterns
+  'qahba', '7iz', 'heez', 'kerbab', 'dayk sag', 'bynamus', 'qashmar', 'gawad'
+];
+
+function unmaskObfuscatedText(str) {
+  if (!str) return { normalized: '', collapsed: '' };
+  let s = String(str).toLowerCase();
+  
+  // Remove zero-width characters, tatweel, and invisible controls
+  s = s.replace(/[\u200B-\u200D\uFEFF\u0640]/g, '');
+  
+  // Replace leetspeak numbers and symbols commonly used to evade filters
+  s = s.replace(/0/g, 'o')
+       .replace(/1/g, 'i')
+       .replace(/3/g, 'ع')
+       .replace(/4/g, 'ذ')
+       .replace(/5/g, 'خ')
+       .replace(/7/g, 'ح')
+       .replace(/8/g, 'غ')
+       .replace(/@/g, 'a')
+       .replace(/\$/g, 's')
+       .replace(/sh/g, 'ش')
+       .replace(/ch/g, 'چ');
+
+  // Normalize Kurdish/Arabic characters
+  s = s.replace(/[يى]/g, 'ی')
+       .replace(/[ك]/g, 'ک')
+       .replace(/[ة]/g, 'ە')
+       .replace(/[ھ]/g, 'ه')
+       .replace(/[أإآ]/g, 'ا')
+       .replace(/[ؤ]/g, 'و')
+       .replace(/[ئ]/g, 'ی')
+       .replace(/[\u064B-\u065F]/g, '');
+
+  // Fully collapsed version: strips dots, hyphens, spaces between letters
+  const fullyCollapsed = s.replace(/[^a-z0-9\u0600-\u06FF]/gi, '');
+
+  return { normalized: s, collapsed: fullyCollapsed };
+}
+
+function scanKurdishSmartText(rawText) {
+  if (!rawText) return { isBlocked: false };
+  const { collapsed } = unmaskObfuscatedText(rawText);
+
+  for (const bad of FORBIDDEN_WORDS_LIST) {
+    const { collapsed: badCollapsed } = unmaskObfuscatedText(bad);
+    if (badCollapsed && collapsed.includes(badCollapsed)) {
+      return {
+        isBlocked: true,
+        reason: 'دەستەواژەی نەشیاو یان قەدەغەکراو',
+        matched: bad,
+        category: 'bad_word'
+      };
+    }
+  }
+
+  return { isBlocked: false };
+}
+
+// 2. MALICIOUS & PHISHING LINK DETECTOR
+const PHISHING_PATTERNS = [
+  /grabify\./i, /iplogger\./i, /2no\.co/i, /yip\.su/i, /curiouscat\./i,
+  /snapchat-login/i, /facebook-login/i, /free-followers/i, /gift-nitro/i,
+  /free-gems/i, /free-stars/i, /wa\.me\/.*\?text=/i, /bit\.ly\//i, /tinyurl\.com\//i
+];
+
+function scanMaliciousLink(text) {
+  if (!text) return { isMalicious: false };
+  const str = String(text);
+  for (const pattern of PHISHING_PATTERNS) {
+    if (pattern.test(str)) {
+      return {
+        isMalicious: true,
+        reason: 'بەستەری گوماناوی، ڕاوکردنی داتا یان هاک (Phishing/Malware)'
+      };
+    }
+  }
+  return { isMalicious: false };
+}
+
+// 3. IMPERSONATION DETECTOR
+const OFFICIAL_PROTECTED_NAMES = [
+  'هێمن', 'hemn', 'hemntjabar', 'سوپەر ئەدمین', 'super admin', 'سیرین', 'seereen',
+  'مامۆستا سیرین', 'بەڕێوەبەر', 'ئەدمین', 'admin'
+];
+
+function checkImpersonation(requestedName, userRole) {
+  if (['super_admin', 'teacher'].includes(userRole)) return { isForbidden: false };
+  if (!requestedName) return { isForbidden: false };
+
+  const { collapsed } = unmaskObfuscatedText(requestedName);
+  for (const protectedName of OFFICIAL_PROTECTED_NAMES) {
+    const { collapsed: protCollapsed } = unmaskObfuscatedText(protectedName);
+    if (collapsed === protCollapsed || (collapsed.includes(protCollapsed) && protCollapsed.length >= 4)) {
+      return {
+        isForbidden: true,
+        reason: `ناتوانیت ناوی پارێزراوی ستاف یان بەڕێوەبەر بەکاربهێنیت (${protectedName})`
+      };
+    }
+  }
+  return { isForbidden: false };
+}
+
+// 4. SMART RATE LIMITER & ANTI-FLOOD RAID SHIELD
+const userFloodTracker = new Map(); // userId -> { timestamps: [], violationsCount: 0 }
+
+function checkFloodRaid(userId, userRole) {
+  if (['super_admin', 'teacher'].includes(userRole)) return { isFlood: false };
+
+  const now = Date.now();
+  let entry = userFloodTracker.get(userId);
+  if (!entry) {
+    entry = { timestamps: [], violationsCount: 0 };
+    userFloodTracker.set(userId, entry);
+  }
+
+  // Keep timestamps in last 10 seconds
+  entry.timestamps = entry.timestamps.filter(t => now - t < 10000);
+  entry.timestamps.push(now);
+
+  // If > 4 messages in 3 seconds or > 8 messages in 10 seconds -> FLOOD
+  const last3s = entry.timestamps.filter(t => now - t < 3000);
+  if (last3s.length >= 4 || entry.timestamps.length >= 8) {
+    entry.violationsCount++;
+    return {
+      isFlood: true,
+      violationsCount: entry.violationsCount,
+      freezeDurationSecs: entry.violationsCount > 1 ? 300 : 60
+    };
+  }
+
+  return { isFlood: false };
+}
+
+// 5. PRIVATE & DREAM HARASSMENT SHIELD
+function checkHarassmentContent(text, userRole) {
+  if (['super_admin', 'teacher'].includes(userRole)) return { isHarassment: false };
+  if (!text) return { isHarassment: false };
+
+  const phoneRegex = /(?:\+?964|00964|0)?[7][578][0-9]{8}\b/;
+  const socialRegex = /(snapchat|سناپ|انستا|ئینستا|ئینیستا|ئینستاگرام|instagram|telegram|تێلیگرام|تلیگرام)\s*[:=؛،-]?\s*[a-zA-Z0-9._-]{4,}/i;
+
+  if (phoneRegex.test(text)) {
+    return {
+      isHarassment: true,
+      reason: 'ناردنی ژمارەی مۆبایل لە پەیامدا قەدەغەیە بەپێی یاساکانی پاراستنی ستاف.'
+    };
+  }
+
+  if (socialRegex.test(text)) {
+    return {
+      isHarassment: true,
+      reason: 'داواکردن یان ناردنی هەژماری سۆشیال میدیا قەدەغەیە.'
+    };
+  }
+
+  return { isHarassment: false };
+}
 
 // Helper: Link detection
 function containsLink(text) {
@@ -756,6 +931,91 @@ app.post('/api/admin/password-resets/:id/reject', authMiddleware, requireSuperAd
   }
 });
 
+// --- AI SECURITY COMMAND CENTER & RED ALERT ENDPOINTS ---
+app.get('/api/admin/security/stats', authMiddleware, requireAdmin, (req, res) => {
+  try {
+    const stats = aiSecurity.getStats();
+    const recent = aiSecurity.getRecentIncidents(50);
+    res.json({
+      success: true,
+      stats,
+      recent,
+      isRedAlertActive
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی زانیارییەکانی ئاسایش' });
+  }
+});
+
+app.post('/api/admin/security/red-alert', authMiddleware, requireSuperAdmin, (req, res) => {
+  try {
+    const { active } = req.body;
+    isRedAlertActive = (active !== undefined) ? !!active : !isRedAlertActive;
+
+    if (isRedAlertActive) {
+      settings.set('chat_lock_mode', 'staff_only');
+      settings.set('chat_lock_by', `🚨 قەڵغانی پۆڵایین (${req.user.full_name})`);
+      settings.set('chat_lock_time', String(Date.now()));
+      aiSecurity.logIncident('red_alert', req.user.id, req.user.full_name, 'دۆخی نائاسایی (Red Alert Lockdown) کاراکرا', 'critical', 'red_alert_active');
+
+      io.emit('red_alert_state_changed', {
+        active: true,
+        activated_by: req.user.full_name,
+        timestamp: Date.now()
+      });
+      io.emit('chat_lock_status_updated', {
+        mode: 'staff_only',
+        locked_by: `🚨 قەڵغانی پۆڵایین (${req.user.full_name})`,
+        timestamp: Date.now()
+      });
+      const sysMsg = messages.create(req.user.id, 'سیستەم', 'سیستەم', 'system', '🚨 قەڵغانی پۆڵایین (Red Alert Lockdown) کاراکرا! چات بە شێوەی نائاسایی داخرا و تەنها مامۆستایان دەتوانن بنووسن.', 'system');
+      io.emit('new_message', sysMsg);
+    } else {
+      settings.set('chat_lock_mode', 'none');
+      settings.set('chat_lock_by', '');
+      settings.set('chat_lock_time', '');
+      aiSecurity.logIncident('red_alert', req.user.id, req.user.full_name, 'دۆخی نائاسایی (Red Alert) کۆتایی پێهات', 'medium', 'red_alert_disabled');
+
+      io.emit('red_alert_state_changed', {
+        active: false,
+        timestamp: Date.now()
+      });
+      io.emit('chat_lock_status_updated', {
+        mode: 'none',
+        locked_by: '',
+        timestamp: Date.now()
+      });
+      const sysMsg = messages.create(req.user.id, 'سیستەم', 'سیستەم', 'system', '🛡️ دۆخی نائاسایی کۆتایی پێهات، چات کراوەیە.', 'system');
+      io.emit('new_message', sysMsg);
+    }
+
+    res.json({ success: true, isRedAlertActive });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە گۆڕینی دۆخی نائاسایی' });
+  }
+});
+
+app.post('/api/admin/security/log-incident', authMiddleware, (req, res) => {
+  try {
+    const { type, details, severity, action_taken } = req.body;
+    const allowedTypes = ['bad_word', 'nsfw_image', 'flood_raid', 'malicious_link', 'star_fraud', 'harassment', 'impersonation'];
+    const safeType = allowedTypes.includes(type) ? type : 'other';
+    aiSecurity.logIncident(safeType, req.user.id, req.user.full_name, details || 'پشکنەری کڵاینت هەوڵێکی گوماناوی ڕاگرت', severity || 'medium', action_taken || 'blocked');
+    io.emit('security_incident_alert', {
+      type: safeType,
+      user_id: req.user.id,
+      user_name: req.user.full_name,
+      details: details || '',
+      severity: severity || 'medium',
+      action_taken: action_taken || 'blocked',
+      timestamp: Date.now()
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە تۆمارکردنی ئاگاداری ئاسایش' });
+  }
+});
+
 // 7. Get all users / members list (Super Admin, Teacher, and Admin ONLY)
 app.get('/api/admin/users', authMiddleware, (req, res) => {
   const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher' || req.user.role === 'admin';
@@ -827,6 +1087,20 @@ app.post('/api/user/request-profile-change', authMiddleware, (req, res) => {
 
   if (!requested_name && !requested_password) {
     return res.status(400).json({ error: 'تکایە ناو یان پاسوۆردی نوێ بنووسە' });
+  }
+
+  // AI Impersonation & NLP Check on requested name
+  if (requested_name) {
+    const impCheck = checkImpersonation(requested_name, req.user.role);
+    if (impCheck.isForbidden) {
+      aiSecurity.logIncident('impersonation', req.user.id, req.user.full_name, `هەوڵی گۆڕینی ناو بۆ ناوی پارێزراو: "${requested_name}"`, 'high', 'blocked');
+      return res.status(400).json({ error: impCheck.reason });
+    }
+    const nlpCheck = scanKurdishSmartText(requested_name);
+    if (nlpCheck.isBlocked) {
+      aiSecurity.logIncident('bad_word', req.user.id, req.user.full_name, `ناوی نەشیاو لە داواکاری: "${requested_name}"`, 'high', 'blocked');
+      return res.status(400).json({ error: '❌ ناتوانیت دەستەواژەی نەشیاو لە ناوی پرۆفایلدا بەکاربهێنیت!' });
+    }
   }
 
   // If user already has a pending request, remove the previous pending one so they can update cleanly
@@ -1444,8 +1718,39 @@ app.post('/api/chat/question/submit-secret-answer', authMiddleware, (req, res) =
       return res.status(400).json({ error: 'کاتی پرسیار بەسەرچووە و وەڵامەکان ئاشکراکراون' });
     }
 
+    // 1. Kurdish Smart NLP on question answer
+    const nlpCheck = scanKurdishSmartText(answer_text);
+    if (nlpCheck.isBlocked) {
+      aiSecurity.logIncident('bad_word', req.user.id, req.user.full_name, `وەڵامی پرسیار: "${nlpCheck.matched}"`, 'high', 'blocked');
+      return res.status(400).json({ error: '❌ وەڵامەکەت دەستەواژەی نەشیاوی تێدایە و ڕێگری لێکرا!' });
+    }
+
+    // 2. Multi-Account Star Fraud Shield (Device / IP Tracking)
+    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    const clientUa = (req.headers['user-agent'] || '').slice(0, 40);
+    const deviceKey = `${clientIp}-${clientUa}`;
+
+    if (!questionDeviceSubmissions.has(q.id)) {
+      questionDeviceSubmissions.set(q.id, new Map());
+    }
+    const qDevices = questionDeviceSubmissions.get(q.id);
+    const prevDevUser = qDevices.get(deviceKey);
+
     const existing = questions.getStudentSubmission(q.id, req.user.id);
     const isEdit = !!existing;
+
+    if (prevDevUser && prevDevUser !== req.user.id && !isEdit) {
+      aiSecurity.logIncident('star_fraud', req.user.id, req.user.full_name, `هەوڵی وەڵامدانەوە بە فرە-ئەکاونت لەسەر هەمان ئامێر بۆ پرسیاری #${q.question_number || q.id}`, 'high', 'blocked');
+      io.emit('security_incident_alert', {
+        type: 'star_fraud',
+        userName: req.user.full_name,
+        message: `👥 هەوڵی فێڵی فرە-ئەکاونت ئاشکراکرا بۆ پرسیاری #${q.question_number || q.id} لەلایەن ${req.user.full_name}.`
+      });
+      return res.status(403).json({
+        error: '⚠️ سیستەمی دادپەروەریی ئەستێرەکان: لەم ئامێرەوە پێشتر بە ئەکاونتێکی تر وەڵامی ئەم پرسیارە دراوەتەوە! بۆ پاراستنی مافی هەمووان، تەنها یەک ئەکاونت دەتوانێت وەڵام بداتەوە.'
+      });
+    }
+    qDevices.set(deviceKey, req.user.id);
 
     // Save or update secret answer
     const submission = questions.submitAnswer(
@@ -2014,6 +2319,20 @@ app.post('/api/chat/private/send', authMiddleware, (req, res) => {
       return res.status(403).json({ error: 'بەپێی ڕێنماییەکان، قوتابی کوڕ ناتوانێت نامەی تایبەت بۆ مامۆستای ئافرەت بنێرێت' });
     }
 
+    // 1. Kurdish Smart NLP on private message
+    const nlpCheck = scanKurdishSmartText(content);
+    if (nlpCheck.isBlocked) {
+      aiSecurity.logIncident('bad_word', req.user.id, req.user.full_name, `پەیامی تایبەت: "${nlpCheck.matched}"`, 'high', 'blocked');
+      return res.status(400).json({ error: '⚠️ پەیامەکەت دەستەواژەی نەشیاوی تێدایە و ڕێگری لێکرا.' });
+    }
+
+    // 2. Harassment & contact exchange check
+    const harassCheck = checkHarassmentContent(content, req.user.role);
+    if (harassCheck.isHarassment) {
+      aiSecurity.logIncident('harassment', req.user.id, req.user.full_name, `هەراسانکردن/ژمارە لە چاتی تایبەت بۆ ${recipient.full_name}`, 'high', 'blocked');
+      return res.status(400).json({ error: harassCheck.reason });
+    }
+
     const msg = privateMessages.create(
       req.user.id,
       recId,
@@ -2504,6 +2823,21 @@ app.post('/api/dream/message', async (req, res) => {
 
     const session = dreamSessions.findById(targetSessionId);
     if (!session) return res.status(404).json({ error: 'دانیشتن نەدۆزرایەوە' });
+
+    // AI Guardian check on dream messages
+    if (senderType === 'dreamer') {
+      const nlp = scanKurdishSmartText(content);
+      if (nlp.isBlocked) {
+        aiSecurity.logIncident('bad_word', null, senderName, `خەون: "${nlp.matched}"`, 'high', 'blocked');
+        return res.status(400).json({ error: '⚠️ پەیامەکەت دەستەواژەی نەشیاوی تێدایە و ڕێگری لێکرا.' });
+      }
+
+      const harass = checkHarassmentContent(content, 'dreamer');
+      if (harass.isHarassment) {
+        aiSecurity.logIncident('harassment', null, senderName, `هەراسانکردن/ژمارە لە خەون: "${content.substring(0, 60)}"`, 'high', 'blocked');
+        return res.status(400).json({ error: '❌ ناردنی ژمارەی مۆبایل یان هەژماری کەسی لە بەشی خەونەکاندا قەدەغەیە!' });
+      }
+    }
 
     const msg = dreamMessages.create(targetSessionId, senderType, senderName, content.trim(), 'text');
     
@@ -3026,6 +3360,27 @@ io.on('connection', (socket) => {
         return;
       }
 
+      // 1. Red Alert Lockdown Check
+      if (isRedAlertActive && !['super_admin', 'teacher'].includes(freshUser.role)) {
+        socket.emit('error_message', '🚨 دۆخی نائاسایی (Red Alert Lockdown) کارایە! چات بە شێوەی پارێزراو تەنها بۆ ستاف کراوەیە.');
+        return;
+      }
+
+      // 2. Anti-Flood & Raid Protection
+      const floodCheck = checkFloodRaid(freshUser.id, freshUser.role);
+      if (floodCheck.isFlood) {
+        const freezeSecs = floodCheck.freezeDurationSecs || 60;
+        users.muteUser(freshUser.id, freezeSecs);
+        aiSecurity.logIncident('flood_attack', freshUser.id, freshUser.full_name, `هەوڵی هێرشی لافاوی پەیام (سڕکرا بۆ ${freezeSecs} چـ)`, 'high', 'auto_muted');
+        io.emit('security_incident_alert', {
+          type: 'flood_attack',
+          userName: freshUser.full_name,
+          message: `🚨 هێرشی لافاوی پەیام لەلایەن ${freshUser.full_name} تێکشکێنرا و بۆ ${Math.ceil(freezeSecs/60)} خولەک بێدەنگ کرا.`
+        });
+        socket.emit('error_message', `🛑 هۆشداری ئاسایش: بەهۆی ناردنی خێرای پەیام، هەژمارەکەت بۆ ${Math.ceil(freezeSecs/60)} خولەک سڕکرا!`);
+        return;
+      }
+
       // Anti-Spam Rate Limiter: Max 5 messages in 4 seconds
       if (isSpamming(freshUser.id)) {
         socket.emit('error_message', '⚠️ تکایە لەسەرخۆ بە لە ناردنی پەیام! (سیستەمی پاراستن لە سپام)');
@@ -3034,6 +3389,33 @@ io.on('connection', (socket) => {
 
       const content = (data.content || '').trim();
       if (!content) return;
+
+      // 3. Smart Kurdish NLP Guard & Malicious Link Shield (For non-staff)
+      if (!['super_admin', 'teacher'].includes(freshUser.role)) {
+        const nlpResult = scanKurdishSmartText(content);
+        if (nlpResult.isBlocked) {
+          aiSecurity.logIncident('bad_word', freshUser.id, freshUser.full_name, `وشەی قەدەغەکراو: "${nlpResult.matched}" لە دەقی: "${content.substring(0, 60)}"`, 'high', 'blocked');
+          io.emit('security_incident_alert', {
+            type: 'bad_word',
+            userName: freshUser.full_name,
+            message: `🛑 فلتەری دەق ڕێگری لە دەستەواژەی نەشیاو کرد لەلایەن ${freshUser.full_name}.`
+          });
+          socket.emit('error_message', '⚠️ قەڵغانی زیرەک: پەیامەکەت دەستەواژەی نەشیاو یان قەدەغەکراوی تێدایە و ڕێگری لێکرا.');
+          return;
+        }
+
+        const linkCheck = scanMaliciousLink(content);
+        if (linkCheck.isMalicious) {
+          aiSecurity.logIncident('malicious_link', freshUser.id, freshUser.full_name, `لینکی گوماناوی/فیشینگ: "${content.substring(0, 80)}"`, 'critical', 'blocked');
+          io.emit('security_incident_alert', {
+            type: 'malicious_link',
+            userName: freshUser.full_name,
+            message: `🚫 بەستەری زیانبەخش/ڕاوکردن بلۆککرا لەلایەن ${freshUser.full_name}.`
+          });
+          socket.emit('error_message', '❌ قەڵغانی ئاسایش: ئەم بەستەرە زیانبەخشە و ڕێگەپێنەدراوە!');
+          return;
+        }
+      }
 
       // --- CHAT LOCK COMMAND HANDLING (SUPER ADMIN OR GREEN/BLACK BADGE) ---
       const hasLockAll = content.includes('@قفڵ.عام') || content.includes('@قفل.عام');

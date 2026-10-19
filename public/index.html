@@ -674,6 +674,15 @@
               </span>
               <span id="drawerPendingBadgeCount" class="hidden px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
             </button>
+
+            <!-- AI Security Command Center (Super Admin Only) -->
+            <button id="drawerAiSecurityBtn" onclick="closeMainMenuDrawer(); openAiSecurityModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-rose-950/40 to-indigo-950/40 hover:from-rose-900/60 hover:to-indigo-900/60 border border-rose-500/40 text-rose-200 hover:text-white transition shadow-sm">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-shield-virus text-rose-400 text-sm w-5 text-center"></i>
+                <span class="font-bold">ژووری ئۆپەراسیۆنی پاراستن (AI Guard)</span>
+              </span>
+              <span id="drawerAiSecurityBadge" class="px-2 py-0.5 bg-rose-500/80 text-white text-[10px] font-black rounded-full animate-pulse">چاودێری</span>
+            </button>
           </div>
 
         </div>
@@ -1549,6 +1558,11 @@
 
         <button id="adminTabBackups" onclick="switchAdminSubTab('backups')" class="px-2.5 py-2 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-1.5 shrink-0">
           <span>💾 یەدەگی داتابەیس</span>
+        </button>
+
+        <button id="adminTabAiSecurity" onclick="openAiSecurityModal()" class="px-2.5 py-2 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-rose-400 hover:text-rose-300 flex items-center gap-1.5 shrink-0">
+          <i class="fa-solid fa-shield-cat text-rose-400"></i>
+          <span>🛡️ ژووری ئاسایشی AI</span>
         </button>
       </div>
 
@@ -2960,6 +2974,165 @@
     </div>
   </div>
 
+  <!-- ================= MODAL: AI SECURITY COMMAND CENTER (SUPER ADMIN) ================= -->
+  <div id="aiSecurityModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="w-full max-w-4xl h-[94vh] sm:max-h-[90vh] bg-slate-900 border border-rose-500/40 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-rose-950/70 via-slate-900 to-indigo-950/70 border-b border-rose-500/30 flex items-center justify-between">
+        <div class="flex items-center gap-2.5 sm:gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-rose-600/20 text-rose-400 border border-rose-500/40 flex items-center justify-center text-lg shrink-0 shadow-lg shadow-rose-900/30">
+            <i class="fa-solid fa-shield-cat"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="font-black text-sm sm:text-base text-white">ژووری ئۆپەراسیۆنی پاراستنی زیرەک</h3>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>AI Guard v2.0</span>
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-300">چاودێری و تێکشکاندنی هەڕەشەکان، دژە-فێڵ، پاراستنی بینایی و قەڵغانی نائاسایی</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="loadAiSecurityStats()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs border border-slate-700 transition" title="تازەکردنەوە">
+            <i class="fa-solid fa-arrows-rotate"></i>
+          </button>
+          <button onclick="closeAiSecurityModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-sm border border-slate-700 transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Scrollable Body -->
+      <div class="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4">
+        
+        <!-- Emergency Red Alert Lockdown Box -->
+        <div class="p-4 rounded-2xl bg-gradient-to-r from-rose-950/60 to-purple-950/50 border-2 border-rose-500/50 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div class="space-y-1 text-center sm:text-right">
+            <div class="flex items-center justify-center sm:justify-start gap-2">
+              <span class="w-3 h-3 rounded-full bg-rose-500 animate-ping"></span>
+              <h4 class="font-black text-sm sm:text-base text-white flex items-center gap-1.5">
+                <span>قەڵغانی پۆڵایین (Red Alert Lockdown)</span>
+              </h4>
+              <span id="aiSecurityLockdownStatusBadge" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">سیستم ئاساییە</span>
+            </div>
+            <p class="text-xs text-slate-300 max-w-xl leading-relaxed">
+              لە کاتی هێرش یان شڵەژان بە یەک کلیک ئەم قەڵغانە چالاک بکە؛ چاتەکە دەستبەجێ قفڵ دەبێت و تەنها سوپەر ئەدمین و مامۆستایان دەتوانن بنووسن بۆ کۆنترۆڵکردنی دۆخەکە.
+            </p>
+          </div>
+          <button id="aiSecurityRedAlertBtn" onclick="toggleRedAlertLockdown()" class="px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-2 shadow-lg active:scale-95 shrink-0 bg-rose-600 hover:bg-rose-500 text-white border border-rose-400">
+            <i class="fa-solid fa-bullhorn"></i>
+            <span id="aiSecurityRedAlertBtnText">چالاککردنی قەڵغانی پۆڵایین</span>
+          </button>
+        </div>
+
+        <!-- 6 Security Metric Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3.5">
+          <!-- Card 1: Safety Rating -->
+          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-emerald-500/30 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg shrink-0 border border-emerald-500/30">
+              <i class="fa-solid fa-heart-pulse"></i>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400 font-bold">ئاستی سەلامەتی و پاراستن</p>
+              <h5 id="aiSecRatingVal" class="text-base sm:text-lg font-black text-emerald-400">99.8%</h5>
+            </div>
+          </div>
+
+          <!-- Card 2: Smart NLP Guard -->
+          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-purple-500/30 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-lg shrink-0 border border-purple-500/30">
+              <i class="fa-solid fa-spell-check"></i>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400 font-bold">فلتەری دەقی فێڵاوی (NLP)</p>
+              <h5 id="aiSecBadWordVal" class="text-base sm:text-lg font-black text-purple-300">0 ڕەتکراوە</h5>
+            </div>
+          </div>
+
+          <!-- Card 3: NSFW Visual Shield -->
+          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-pink-500/30 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center text-lg shrink-0 border border-pink-500/30">
+              <i class="fa-solid fa-eye-slash"></i>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400 font-bold">پاسەوانی بینایی وێنە (NSFW)</p>
+              <h5 id="aiSecNsfwVal" class="text-base sm:text-lg font-black text-pink-300">0 ڕەتکراوە</h5>
+            </div>
+          </div>
+
+          <!-- Card 4: Anti-Flood & Raid -->
+          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-amber-500/30 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg shrink-0 border border-amber-500/30">
+              <i class="fa-solid fa-bolt"></i>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400 font-bold">دژە-لافاو و هێرش (Flood)</p>
+              <h5 id="aiSecFloodVal" class="text-base sm:text-lg font-black text-amber-300">0 بێدەنگکراو</h5>
+            </div>
+          </div>
+
+          <!-- Card 5: Malicious Links -->
+          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-cyan-500/30 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-lg shrink-0 border border-cyan-500/30">
+              <i class="fa-solid fa-link-slash"></i>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400 font-bold">پشکنەری لینکی زیانبەخش</p>
+              <h5 id="aiSecLinksVal" class="text-base sm:text-lg font-black text-cyan-300">0 تێکشکێنراو</h5>
+            </div>
+          </div>
+
+          <!-- Card 6: Star Fraud & Harassment -->
+          <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-indigo-500/30 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg shrink-0 border border-indigo-500/30">
+              <i class="fa-solid fa-user-secret"></i>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400 font-bold">فێڵی ئەستێرە و هەراسانکاری</p>
+              <h5 id="aiSecFraudVal" class="text-base sm:text-lg font-black text-indigo-300">0 تۆمار</h5>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Incidents Feed -->
+        <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <h5 class="text-xs font-black text-white flex items-center gap-2">
+              <i class="fa-solid fa-list-check text-rose-400"></i>
+              <span>تۆماری ڕووداوە پارێزراوەکانی دوایی (Live Incident Feed)</span>
+            </h5>
+            <span id="aiSecIncidentCountBadge" class="text-[10px] text-slate-400">0 ڕووداو</span>
+          </div>
+
+          <!-- Incidents Container -->
+          <div id="aiSecIncidentsList" class="space-y-2 max-h-72 overflow-y-auto no-scrollbar">
+            <!-- Dynamically populated or empty state -->
+            <div class="text-center py-8 text-slate-500">
+              <i class="fa-solid fa-shield-check text-3xl text-emerald-500/60 mb-2"></i>
+              <p class="text-xs font-bold text-slate-400">هیچ ڕووداوێکی مەترسیدار تۆمار نەکراوە - سیستم بە تەواوی ئارامە ✅</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs">
+        <span class="text-slate-400 text-[11px] flex items-center gap-1.5">
+          <i class="fa-solid fa-lock text-emerald-400 text-xs"></i>
+          <span>پاراستنی کۆتایی-بۆ-کۆتایی لەلایەن ژیری دەستکردی سیرین</span>
+        </span>
+        <button onclick="closeAiSecurityModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700 transition">
+          داخستن
+        </button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- Audio Element for Live Room & Quran -->
   <audio id="liveRoomAudio" autoplay playsinline class="hidden"></audio>
   <audio id="liveQuranAudio" playsinline class="hidden"></audio>
@@ -2968,6 +3141,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=13.0"></script>
+  <script src="/js/app.js?v=14.0"></script>
 </body>
 </html>

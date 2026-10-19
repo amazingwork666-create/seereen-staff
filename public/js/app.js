@@ -757,6 +757,7 @@ function updateUserUI() {
   const drawerPostQuestionBtn = document.getElementById('drawerPostQuestionBtn');
   const drawerUnansweredBtn = document.getElementById('drawerUnansweredBtn');
   const drawerAdminPanelBtn = document.getElementById('drawerAdminPanelBtn');
+  const drawerAiSecurityBtn = document.getElementById('drawerAiSecurityBtn');
   const drawerDreamAdminBtn = document.getElementById('drawerDreamAdminBtn');
   const drawerMembersBtn = document.getElementById('drawerMembersBtn');
   const drawerLibraryBtn = document.getElementById('drawerLibraryBtn');
@@ -772,9 +773,11 @@ function updateUserUI() {
   if (isSuperAdmin) {
     if (adminPanelBtn) adminPanelBtn.classList.remove('hidden');
     if (drawerAdminPanelBtn) drawerAdminPanelBtn.classList.remove('hidden');
+    if (drawerAiSecurityBtn) drawerAiSecurityBtn.classList.remove('hidden');
   } else {
     if (adminPanelBtn) adminPanelBtn.classList.add('hidden');
     if (drawerAdminPanelBtn) drawerAdminPanelBtn.classList.add('hidden');
+    if (drawerAiSecurityBtn) drawerAiSecurityBtn.classList.add('hidden');
   }
 
   const dreamAdminNavBtn = document.getElementById('dreamAdminNavBtn');
@@ -1768,6 +1771,23 @@ function initSocket() {
 
   socket.on('chat_lock_status_updated', (data) => {
     updateChatLockUI(data);
+  });
+
+  socket.on('red_alert_state_changed', (data) => {
+    isRedAlertActiveGlobal = !!(data && data.active);
+    updateRedAlertUIState(data);
+    if (typeof loadAiSecurityStats === 'function') {
+      loadAiSecurityStats();
+    }
+  });
+
+  socket.on('security_incident_alert', (incident) => {
+    if (currentUser && currentUser.role === 'super_admin') {
+      showSecurityIncidentToast(incident);
+      if (typeof loadAiSecurityStats === 'function') {
+        loadAiSecurityStats();
+      }
+    }
   });
 
   socket.on('dream_session_updated', () => {
@@ -3401,9 +3421,111 @@ let recordedVoiceBlob = null;
 let recordedVoiceUrl = null;
 let voicePreviewAudio = null;
 
+// --- AI VOICE NOISE CANCELLATION & STUDIO-QUALITY PIPELINE ---
+async function getStudioQualityAudioStream() {
+  const constraints = {
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      channelCount: 1
+    }
+  };
+
+  let rawStream = null;
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    try {
+      rawStream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (e1) {
+      console.warn('Advanced mic constraints failed, trying basic audio...', e1);
+      rawStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    }
+  } else {
+    const legacyGUM = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+    if (legacyGUM) {
+      rawStream = await new Promise((resolve, reject) => {
+        legacyGUM.call(navigator, { audio: true }, resolve, reject);
+      });
+    } else {
+      throw new Error('NO_GETUSERMEDIA');
+    }
+  }
+
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) {
+    return rawStream;
+  }
+
+  try {
+    const ctx = new AudioCtx();
+    const source = ctx.createMediaStreamSource(rawStream);
+
+    // 1. High-pass filter at 85Hz (eliminates mic thumps, breath pops, wind noise)
+    const highpass = ctx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 85;
+    highpass.Q.value = 0.707;
+
+    // 2. Presence filter at 2800Hz (enhances speech clarity and voice intelligibility)
+    const presencePeak = ctx.createBiquadFilter();
+    presencePeak.type = 'peaking';
+    presencePeak.frequency.value = 2800;
+    presencePeak.gain.value = 2.5;
+    presencePeak.Q.value = 1.0;
+
+    // 3. Gentle high-shelf filter at 8500Hz (cuts background electronic hiss)
+    const hissCut = ctx.createBiquadFilter();
+    hissCut.type = 'highshelf';
+    hissCut.frequency.value = 8500;
+    hissCut.gain.value = -2.0;
+
+    // 4. Dynamics Compressor (studio leveling: smooths vocal dynamics, avoids mic clipping)
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -24;
+    compressor.knee.value = 15;
+    compressor.ratio.value = 3.5;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.25;
+
+    // 5. Connect processing pipeline
+    source.connect(highpass);
+    highpass.connect(presencePeak);
+    presencePeak.connect(hissCut);
+    hissCut.connect(compressor);
+
+    // 6. MediaStreamDestination for WebRTC / MediaRecorder
+    const destination = ctx.createMediaStreamDestination();
+    compressor.connect(destination);
+
+    const outStream = destination.stream;
+    outStream._rawStream = rawStream;
+    outStream._audioCtx = ctx;
+
+    // Hook stop on track to cleanly release hardware microphone and close context
+    const outTrack = outStream.getAudioTracks()[0];
+    if (outTrack) {
+      const origStop = outTrack.stop.bind(outTrack);
+      outTrack.stop = () => {
+        try { origStop(); } catch (e) {}
+        try {
+          rawStream.getTracks().forEach(t => t.stop());
+        } catch (e) {}
+        try {
+          if (ctx.state !== 'closed') ctx.close();
+        } catch (e) {}
+      };
+    }
+
+    return outStream;
+  } catch (err) {
+    console.warn('AI Noise Cancellation AudioContext failed, falling back to raw stream:', err);
+    return rawStream;
+  }
+}
+
 async function startVoiceRecording() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await getStudioQualityAudioStream();
     audioChunks = [];
     mediaRecorder = new MediaRecorder(stream);
     
@@ -3626,22 +3748,117 @@ async function stopAndSendVoiceRecording() {
   }
 }
 
+// --- AI VISUAL & NSFW SHIELD (CLIENT-SIDE COMPUTER VISION PRE-CHECK) ---
+async function scanImageWithVisualShield(file) {
+  if (!file || !file.type || !file.type.startsWith('image/')) {
+    return { safe: true };
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        try {
+          const canvas = document.createElement('canvas');
+          const maxDim = 120;
+          let w = img.width;
+          let h = img.height;
+          if (w > h) {
+            h = Math.max(1, Math.round((h * maxDim) / w));
+            w = maxDim;
+          } else {
+            w = Math.max(1, Math.round((w * maxDim) / h));
+            h = maxDim;
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(img, 0, 0, w, h);
+          const imgData = ctx.getImageData(0, 0, w, h).data;
+
+          let skinPixels = 0;
+          const totalPixels = w * h;
+
+          for (let i = 0; i < imgData.length; i += 4) {
+            const r = imgData[i];
+            const g = imgData[i + 1];
+            const b = imgData[i + 2];
+            // Peer et al. skin detection heuristic
+            const isSkin = (
+              r > 95 && g > 40 && b > 20 &&
+              (Math.max(r, g, b) - Math.min(r, g, b)) > 15 &&
+              Math.abs(r - g) > 15 &&
+              r > g && r > b
+            );
+            if (isSkin) skinPixels++;
+          }
+
+          const skinRatio = skinPixels / totalPixels;
+          if (skinRatio > 0.52) {
+            // Log to server incident center
+            fetch('/api/admin/security/log-incident', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                type: 'nsfw_image',
+                details: `وێنەی نەشیاو (ڕێژەی ڕووتی پێست: ${Math.round(skinRatio * 100)}%) لە کاتی ئەپلۆد ڕەتکرایەوە`,
+                severity: 'high',
+                action_taken: 'blocked'
+              })
+            }).catch(() => {});
+
+            resolve({
+              safe: false,
+              skinRatio,
+              message: '⚠️ پاسەوانی AI وێنە: ئەم وێنەیە نەشیاوە یان بە تەواوی داپۆشراو نییە و ڕێگەی پێ نادرێت!'
+            });
+            return;
+          }
+
+          resolve({ safe: true, skinRatio });
+        } catch (err) {
+          console.warn('Visual shield analysis error:', err);
+          resolve({ safe: true });
+        }
+      };
+      img.onerror = () => resolve({ safe: true });
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve({ safe: true });
+    reader.readAsDataURL(file);
+  });
+}
+
 // --- IMAGE, VIDEO & DOCUMENT UPLOAD (ADMIN ONLY) ---
 function triggerImagePicker() {
   document.getElementById('imageFileInput').click();
 }
 
-function handleImagePicked(e) {
+async function handleImagePicked(e) {
   const file = e.target.files[0];
   if (!file) return;
+
+  const mime = file.type || '';
+  if (mime.startsWith('image/')) {
+    const shield = await scanImageWithVisualShield(file);
+    if (!shield.safe) {
+      alert(shield.message || '⚠️ پاسەوانی وێنەی AI: ئەم وێنەیە نەشیاوە و ڕەتکرایەوە!');
+      e.target.value = '';
+      pendingImageFile = null;
+      return;
+    }
+  }
+
   pendingImageFile = file;
 
   const previewImg = document.getElementById('imagePreviewImg');
   const previewVid = document.getElementById('videoPreviewVid');
   const docPreviewBox = document.getElementById('docPreviewBox');
   const docPreviewName = document.getElementById('docPreviewName');
-
-  const mime = file.type || '';
   const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
   const isVideo = mime.startsWith('video/');
   const isPdf = mime === 'application/pdf' || ext === '.pdf';
@@ -5213,6 +5430,15 @@ function renderMembersList() {
 async function uploadMyAvatar(fileInput) {
   const file = fileInput.files && fileInput.files[0];
   if (!file) return;
+
+  if (file.type && file.type.startsWith('image/')) {
+    const shield = await scanImageWithVisualShield(file);
+    if (!shield.safe) {
+      alert(shield.message || '⚠️ پاسەوانی وێنەی AI: ئەم وێنەیە نەشیاوە بۆ پرۆفایل و ڕەتکرایەوە!');
+      fileInput.value = '';
+      return;
+    }
+  }
 
   const formData = new FormData();
   formData.append('avatar', file);
@@ -7870,7 +8096,7 @@ async function toggleDreamVoiceRecording(isAdmin = false) {
       return;
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await getStudioQualityAudioStream();
     dreamAudioChunks = [];
     dreamRecordingIsAdmin = isAdmin;
 
@@ -10065,7 +10291,7 @@ async function togglePrivateVoiceRecording() {
   }
 
   try {
-    privateAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    privateAudioStream = await getStudioQualityAudioStream();
     privateAudioChunks = [];
     privateRecordingSeconds = 0;
 
@@ -10801,36 +11027,7 @@ async function requestLiveAudioStream() {
     localLiveAudioStream = null;
   }
 
-  // 1. Modern navigator.mediaDevices.getUserMedia with fallback
-  if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
-    try {
-      return await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
-    } catch (err1) {
-      console.warn('Advanced audio constraints failed, trying basic audio...', err1);
-      try {
-        return await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (err2) {
-        console.warn('Basic audio constraint failed:', err2);
-        throw err2;
-      }
-    }
-  }
-
-  // 2. Legacy getUserMedia polyfill
-  const legacyGUM = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
-  if (legacyGUM) {
-    return new Promise((resolve, reject) => {
-      legacyGUM.call(navigator, { audio: true }, resolve, reject);
-    });
-  }
-
-  throw new Error('NO_GETUSERMEDIA');
+  return await getStudioQualityAudioStream();
 }
 
 async function toggleLiveMic() {
@@ -12924,7 +13121,7 @@ async function toggleLessonVoiceRecord() {
   }
 
   try {
-    lessonAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    lessonAudioStream = await getStudioQualityAudioStream();
     lessonAudioChunks = [];
     lessonRecordSeconds = 0;
 
@@ -13165,6 +13362,205 @@ document.addEventListener('visibilitychange', () => {
     } catch (e) {}
   }
 });
+
+// =========================================================================
+// AI SECURITY COMMAND CENTER & RED ALERT LOCKDOWN (SUPER ADMIN ONLY)
+// =========================================================================
+let isRedAlertActiveGlobal = false;
+
+function openAiSecurityModal() {
+  const modal = document.getElementById('aiSecurityModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  loadAiSecurityStats();
+}
+
+function closeAiSecurityModal() {
+  const modal = document.getElementById('aiSecurityModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function loadAiSecurityStats() {
+  if (!currentUser || currentUser.role !== 'super_admin') return;
+  try {
+    const res = await fetch('/api/admin/security/stats', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.success) return;
+
+    isRedAlertActiveGlobal = !!data.isRedAlertActive;
+    updateRedAlertUIState({ active: isRedAlertActiveGlobal });
+
+    const stats = data.stats || {};
+    const totalThreats = Number(stats.total_incidents || 0);
+
+    const badWords = Number(stats.bad_words || 0);
+    const nsfw = Number(stats.nsfw_images || 0);
+    const floods = Number(stats.flood_raids || 0);
+    const links = Number(stats.malicious_links || 0);
+    const frauds = Number(stats.star_frauds || 0) + Number(stats.harassments || 0);
+
+    const badWordEl = document.getElementById('aiSecBadWordVal');
+    if (badWordEl) badWordEl.innerText = `${badWords} ڕەتکراوە`;
+
+    const nsfwEl = document.getElementById('aiSecNsfwVal');
+    if (nsfwEl) nsfwEl.innerText = `${nsfw} ڕەتکراوە`;
+
+    const floodEl = document.getElementById('aiSecFloodVal');
+    if (floodEl) floodEl.innerText = `${floods} بێدەنگکراو`;
+
+    const linksEl = document.getElementById('aiSecLinksVal');
+    if (linksEl) linksEl.innerText = `${links} تێکشکێنراو`;
+
+    const fraudEl = document.getElementById('aiSecFraudVal');
+    if (fraudEl) fraudEl.innerText = `${frauds} تۆمار`;
+
+    // Dynamic safety rating
+    const safetyRate = totalThreats === 0 ? '100%' : `${Math.max(94.5, 100 - (totalThreats * 0.15)).toFixed(1)}%`;
+    const ratingEl = document.getElementById('aiSecRatingVal');
+    if (ratingEl) ratingEl.innerText = safetyRate;
+
+    // Render Recent Incidents Feed
+    const listEl = document.getElementById('aiSecIncidentsList');
+    const badgeEl = document.getElementById('aiSecIncidentCountBadge');
+    if (badgeEl) badgeEl.innerText = `${(data.recent || []).length} ڕووداو`;
+
+    if (listEl) {
+      if (!data.recent || data.recent.length === 0) {
+        listEl.innerHTML = `
+          <div class="text-center py-8 text-slate-500">
+            <i class="fa-solid fa-shield-check text-3xl text-emerald-500/60 mb-2"></i>
+            <p class="text-xs font-bold text-slate-400">هیچ ڕووداوێکی مەترسیدار تۆمار نەکراوە - سیستم بە تەواوی ئارامە ✅</p>
+          </div>
+        `;
+      } else {
+        listEl.innerHTML = data.recent.map(inc => {
+          const typeMap = {
+            bad_word: { label: 'دەقی فێڵاوی (NLP)', color: 'bg-purple-900/50 text-purple-300 border-purple-500/40', icon: 'fa-spell-check' },
+            nsfw_image: { label: 'وێنەی نەشیاو (NSFW)', color: 'bg-pink-900/50 text-pink-300 border-pink-500/40', icon: 'fa-eye-slash' },
+            flood_raid: { label: 'هێرشی لافاو (Flood)', color: 'bg-amber-900/50 text-amber-300 border-amber-500/40', icon: 'fa-bolt' },
+            malicious_link: { label: 'لینکی زیانبەخش', color: 'bg-cyan-900/50 text-cyan-300 border-cyan-500/40', icon: 'fa-link-slash' },
+            star_fraud: { label: 'فێڵی ئەستێرە', color: 'bg-indigo-900/50 text-indigo-300 border-indigo-500/40', icon: 'fa-star' },
+            harassment: { label: 'هەراسانکاری / ژمارە', color: 'bg-rose-900/50 text-rose-300 border-rose-500/40', icon: 'fa-phone-slash' },
+            impersonation: { label: 'خۆکردن بە ئەدمین', color: 'bg-red-900/50 text-red-300 border-red-500/40', icon: 'fa-user-ninja' },
+            red_alert: { label: 'قەڵغانی پۆڵایین', color: 'bg-rose-900/70 text-rose-200 border-rose-500/50', icon: 'fa-bullhorn' }
+          };
+          const tInfo = typeMap[inc.incident_type] || { label: inc.incident_type, color: 'bg-slate-800 text-slate-300 border-slate-700', icon: 'fa-shield' };
+          const actionMap = {
+            blocked: 'بلۆککرا (Blocked)',
+            auto_muted_60s: 'بێدەنگکرا بۆ ٦٠ چرکە',
+            auto_muted_300s: 'بێدەنگکرا بۆ ٥ خولەک',
+            red_alert_active: 'بارودۆخی نائاسایی کارابوو',
+            red_alert_disabled: 'بارودۆخی نائاسایی کۆتایی هات'
+          };
+          const actLabel = actionMap[inc.action_taken] || inc.action_taken || 'ڕێگری لێکرا';
+          const timeStr = new Date(inc.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
+
+          return `
+            <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-3 text-xs hover:border-slate-700 transition">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="px-2 py-0.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 shrink-0 ${tInfo.color}">
+                  <i class="fa-solid ${tInfo.icon}"></i>
+                  <span>${tInfo.label}</span>
+                </span>
+                <div class="min-w-0">
+                  <p class="font-bold text-white truncate text-[11px]">${escapeHtml(inc.user_name || 'نەناسراو')}</p>
+                  <p class="text-[10px] text-slate-400 truncate">${escapeHtml(inc.details || '')}</p>
+                </div>
+              </div>
+              <div class="text-left shrink-0">
+                <span class="px-1.5 py-0.5 rounded bg-slate-800 text-[9px] text-emerald-400 font-bold block">${actLabel}</span>
+                <span class="text-[9px] text-slate-500">${timeStr}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load AI security stats:', err);
+  }
+}
+
+async function toggleRedAlertLockdown() {
+  if (!currentUser || currentUser.role !== 'super_admin') return;
+  const newActive = !isRedAlertActiveGlobal;
+  const confirmMsg = newActive 
+    ? '🚨 ئایا دڵنیایت لە چالاککردنی قەڵغانی پۆڵایین (Red Alert Lockdown)؟\nچاتی گشتی دەستبەجێ قفڵ دەبێت و تەنها سوپەر ئەدمین و مامۆستایان دەتوانن بنووسن.'
+    : 'ئایا دڵنیایت لە ناچالاککردنەوەی قەڵغانی پۆڵایین؟ چات ئاسایی دەبێتەوە.';
+  
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    const res = await fetch('/api/admin/security/red-alert', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ active: newActive })
+    });
+    const data = await res.json();
+    if (data.success) {
+      isRedAlertActiveGlobal = !!data.isRedAlertActive;
+      updateRedAlertUIState({ active: isRedAlertActiveGlobal });
+      loadAiSecurityStats();
+    } else {
+      alert('نەتوانرا گۆڕانکاری بکرێت: ' + (data.error || 'هەڵەیەک ڕوویدا'));
+    }
+  } catch (err) {
+    alert('هەڵەی پەیوەندی بە سێرڤەرەوە');
+  }
+}
+
+function updateRedAlertUIState(data) {
+  const active = !!(data && data.active);
+  const badge = document.getElementById('aiSecurityLockdownStatusBadge');
+  const btn = document.getElementById('aiSecurityRedAlertBtn');
+  const btnText = document.getElementById('aiSecurityRedAlertBtnText');
+
+  if (badge) {
+    if (active) {
+      badge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-500 text-white animate-pulse shadow';
+      badge.innerText = '🚨 قەڵغانی پۆڵایین کارایە!';
+    } else {
+      badge.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+      badge.innerText = 'سیستم ئاساییە';
+    }
+  }
+
+  if (btn) {
+    if (active) {
+      btn.className = 'px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-2 shadow-lg active:scale-95 shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400';
+      if (btnText) btnText.innerText = 'ناچالاککردنەوەی قەڵغان (گەڕانەوە بۆ دۆخی ئاسایی)';
+    } else {
+      btn.className = 'px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm transition flex items-center gap-2 shadow-lg active:scale-95 shrink-0 bg-rose-600 hover:bg-rose-500 text-white border border-rose-400';
+      if (btnText) btnText.innerText = 'چالاککردنی قەڵغانی پۆڵایین';
+    }
+  }
+}
+
+function showSecurityIncidentToast(incident) {
+  if (!incident) return;
+  const toast = document.createElement('div');
+  toast.className = 'fixed bottom-20 left-4 right-4 sm:left-auto sm:right-6 sm:w-96 z-50 p-3 bg-rose-950/95 border border-rose-500/60 rounded-2xl shadow-2xl flex items-center gap-3 text-white text-xs animate-bounce';
+  toast.innerHTML = `
+    <div class="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0">
+      <i class="fa-solid fa-shield-halved text-sm"></i>
+    </div>
+    <div class="min-w-0 flex-1">
+      <p class="font-black text-rose-200">ئاگاداری پاسەوانی AI 🛡️</p>
+      <p class="text-[11px] text-slate-200 truncate">${escapeHtml(incident.details || incident.user_name || 'هەڕەشەیەک ڕەتکرایەوە')}</p>
+    </div>
+    <button onclick="this.parentElement.remove(); openAiSecurityModal();" class="px-2 py-1 bg-rose-800 hover:bg-rose-700 text-[10px] font-bold rounded-lg shrink-0">بینین</button>
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    try { toast.remove(); } catch (e) {}
+  }, 6000);
+}
 
 
 
