@@ -1506,6 +1506,105 @@ const advisorTools = [
           },
           required: ['username_or_id', 'stars_delta']
         }
+      },
+      {
+        name: 'block_user',
+        description: 'بلۆککردن یان لابردنی بلۆکی بەکارهێنەرێک بە فەرمانی کاک هێمن (is_blocked: true یان false)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            username_or_id: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی کەسەکە' },
+            is_blocked: { type: 'BOOLEAN', description: 'true بۆ بلۆککردن، false بۆ لابردنی بلۆک' }
+          },
+          required: ['username_or_id']
+        }
+      },
+      {
+        name: 'mute_user',
+        description: 'بێدەنگکردن (Mute) یان لابردنی بێدەنگی لەسەر بەکارهێنەرێک لە چات بە خولەک بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            username_or_id: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی کەسەکە' },
+            minutes: { type: 'INTEGER', description: 'ماوە بە خولەک (٠ بۆ لابردنی میوت)' }
+          },
+          required: ['username_or_id']
+        }
+      },
+      {
+        name: 'delete_chat_message',
+        description: 'سڕینەوەی نامەیەکی دیاریکراو لە چاتی گشتی بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            message_id: { type: 'INTEGER', description: 'ئایدی پەیامەکە' }
+          },
+          required: ['message_id']
+        }
+      },
+      {
+        name: 'clear_chat',
+        description: 'سڕینەوە و پاککردنەوەی تەواوی پەیامەکانی چاتی گشتی بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {}
+        }
+      },
+      {
+        name: 'toggle_red_alert',
+        description: 'کاراکردن یان ناچالاککردنی دۆخی نائاسایی و فریاگوزاری (Red Alert Lockdown) بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            activate: { type: 'BOOLEAN', description: 'true بۆ کاراکردن، false بۆ ناچالاککردن' }
+          },
+          required: ['activate']
+        }
+      },
+      {
+        name: 'delete_question',
+        description: 'سڕینەوەی پرسیارێکی ناو سیستەم بەپێی ئایدی بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            question_id: { type: 'INTEGER', description: 'ئایدی پرسیارەکە' }
+          },
+          required: ['question_id']
+        }
+      },
+      {
+        name: 'close_question',
+        description: 'داخستنی پرسیاری کاتداری ئێستا لە چات بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            question_id: { type: 'INTEGER', description: 'ئایدی پرسیارەکە' }
+          },
+          required: ['question_id']
+        }
+      },
+      {
+        name: 'manage_system_setting',
+        description: 'بینین یان گۆڕینی هەر ڕێکخستنێکی سیستەم بە کلیل و نرخ بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            key: { type: 'STRING', description: 'ناوی کلیلەکە' },
+            value: { type: 'STRING', description: 'نرخی نوێ ئەگەر دەستکاری بکەیت' }
+          },
+          required: ['key']
+        }
+      },
+      {
+        name: 'super_admin_sql_action',
+        description: 'دەسەڵاتی جێبەجێکردنی هەر فەرمانێکی تایبەتی داتابەیس یان گۆڕانکاری و ئامارێک کە کاک هێمن فەرمانی پێبکات (تەواو پارێزراوە لە دەستکاری کاک هێمن)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            sql: { type: 'STRING', description: 'دەقی فەرمانی SQL' }
+          },
+          required: ['sql']
+        }
       }
     ]
   }
@@ -1967,6 +2066,151 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
         };
       }
 
+      case 'block_user': {
+        const target = findTargetUser(args.username_or_id);
+        if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە` };
+        if (isMasterSuperAdmin(target) || target.role === 'super_admin' || target.id === reqUser.id) {
+          return { error: '⚠️ بە هیچ شێوەیەک دەستکاری هەژماری کاک هێمن ناکرێت.' };
+        }
+        const isBlocked = args.is_blocked !== false && args.is_blocked !== 0 && String(args.is_blocked).toLowerCase() !== 'false';
+        users.setBlocked(target.id, isBlocked);
+        if (ioInstance) {
+          ioInstance.emit('user_blocked', { id: target.id, is_blocked: isBlocked ? 1 : 0 });
+          ioInstance.emit('user_updated', { id: target.id, is_blocked: isBlocked ? 1 : 0 });
+        }
+        return {
+          success: true,
+          message: isBlocked
+            ? `بەکارهێنەر ${target.full_name} (@${target.username}) بە سەرکەوتوویی بلۆککرا 🚫.`
+            : `بلۆکی بەکارهێنەر ${target.full_name} (@${target.username}) بە سەرکەوتوویی لادرا ✅.`
+        };
+      }
+
+      case 'mute_user': {
+        const target = findTargetUser(args.username_or_id);
+        if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە` };
+        if (isMasterSuperAdmin(target) || target.role === 'super_admin' || target.id === reqUser.id) {
+          return { error: '⚠️ ناتوانرێت کاک هێمن میوت بکرێت.' };
+        }
+        const minutes = parseInt(args.minutes) || 0;
+        const mutedUntil = minutes > 0 ? (Date.now() + (minutes * 60 * 1000)) : 0;
+        users.setMute(target.id, mutedUntil);
+        if (ioInstance) {
+          ioInstance.emit('user_muted', { id: target.id, muted_until: mutedUntil });
+          ioInstance.emit('user_updated', { id: target.id, muted_until: mutedUntil });
+        }
+        return {
+          success: true,
+          message: minutes > 0
+            ? `بەکارهێنەر ${target.full_name} بۆ ماوەی ${minutes} خولەک لە چات میوت کرا 🔇.`
+            : `میوتی بەکارهێنەر ${target.full_name} لادرا و دەتوانێت لە چات بنووسێت 🔊.`
+        };
+      }
+
+      case 'delete_chat_message': {
+        const msgId = parseInt(args.message_id);
+        if (!msgId) return { error: 'تکایە ئایدی نامەکە دیاری بکە.' };
+        db.prepare('DELETE FROM messages WHERE id = ?').run(msgId);
+        if (ioInstance) {
+          ioInstance.emit('message_deleted', { id: msgId });
+        }
+        return { success: true, message: `نامەی #${msgId} لە چاتی گشتی سڕایەوە بە فەرمانی کاک هێمن.` };
+      }
+
+      case 'clear_chat': {
+        db.prepare('DELETE FROM messages').run();
+        if (ioInstance) {
+          ioInstance.emit('chat_cleared', {});
+        }
+        return { success: true, message: 'تەواوی نامەکانی ناو چاتی گشتی بە سەرکەوتوویی سڕانەوە بە فەرمانی کاک هێمن 🧹.' };
+      }
+
+      case 'toggle_red_alert': {
+        const activate = Boolean(args.activate);
+        if (activate) {
+          settings.set('red_alert_active', '1');
+          settings.set('chat_lock_mode', 'staff_only');
+          settings.set('chat_lock_by', `🚨 قەڵغانی پۆڵایین (${reqUser.full_name})`);
+          settings.set('chat_lock_time', String(Date.now()));
+          aiSecurity.logIncident('red_alert', reqUser.id, reqUser.full_name, 'دۆخی نائاسایی (Red Alert Lockdown) کاراکرا', 'critical', 'red_alert_active');
+          if (ioInstance) {
+            ioInstance.emit('red_alert_state_changed', { is_active: true, activated_by: reqUser.full_name, timestamp: Date.now() });
+            ioInstance.emit('chat_lock_status_updated', { mode: 'staff_only', locked_by: `🚨 قەڵغانی پۆڵایین (${reqUser.full_name})`, timestamp: Date.now() });
+          }
+          return { success: true, message: '🚨 دۆخی فریاگوزاری نائاسایی (Red Alert Lockdown) بە فەرمانی کاک هێمن کاراکرا و چات داخرا!' };
+        } else {
+          settings.set('red_alert_active', '0');
+          settings.set('chat_lock_mode', 'none');
+          settings.set('chat_lock_by', '');
+          settings.set('chat_lock_time', '');
+          aiSecurity.logIncident('red_alert', reqUser.id, reqUser.full_name, 'دۆخی نائاسایی کۆتایی پێهات', 'medium', 'red_alert_disabled');
+          if (ioInstance) {
+            ioInstance.emit('red_alert_state_changed', { is_active: false, activated_by: '', timestamp: Date.now() });
+            ioInstance.emit('chat_lock_status_updated', { mode: 'none', locked_by: '', timestamp: Date.now() });
+          }
+          return { success: true, message: 'دۆخی نائاسایی (Red Alert) کۆتایی پێهات و چات بە سەرکەوتوویی کرایەوە ✅.' };
+        }
+      }
+
+      case 'delete_question': {
+        const qId = parseInt(args.question_id);
+        if (!qId) return { error: 'تکایە ئایدی پرسیار دیاری بکە.' };
+        questions.delete(qId);
+        if (ioInstance) {
+          ioInstance.emit('question_deleted', { id: qId });
+        }
+        return { success: true, message: `پرسیاری #${qId} بە سەرکەوتوویی سڕایەوە بە فەرمانی کاک هێمن.` };
+      }
+
+      case 'close_question': {
+        const qId = parseInt(args.question_id);
+        if (!qId) return { error: 'تکایە ئایدی پرسیار دیاری بکە.' };
+        questions.closeQuestion(qId);
+        if (ioInstance) {
+          ioInstance.emit('question_closed', { id: qId });
+        }
+        return { success: true, message: `پرسیاری #${qId} داخرا بە فەرمانی کاک هێمن.` };
+      }
+
+      case 'manage_system_setting': {
+        const key = String(args.key || '').trim();
+        if (!key) return { error: 'تکایە کلیلی ڕێکخستنەکە بنووسە.' };
+        if (args.value !== undefined) {
+          settings.set(key, String(args.value));
+          return { success: true, message: `ڕێکخستنی «${key}» نوێکرایەوە بۆ: "${args.value}".` };
+        } else {
+          const val = settings.get(key);
+          return { success: true, key, value: val };
+        }
+      }
+
+      case 'super_admin_sql_action': {
+        const rawSql = String(args.sql || '').trim();
+        if (!rawSql) return { error: 'SQL داواکراو بەتاڵە.' };
+
+        const lower = rawSql.toLowerCase();
+        // Safety lock: NEVER touch Hemn or Super Admin account
+        if (
+          (lower.includes('update') || lower.includes('delete') || lower.includes('drop')) &&
+          (lower.includes('hemntjabar') || lower.includes('hemn') || lower.includes("role = 'super_admin'") || lower.includes('role="super_admin"'))
+        ) {
+          return { error: '⚠️ بە هیچ جۆرێک ڕێگە بە دەستکاریکردنی هەژماری کاک هێمن نادرێت.' };
+        }
+
+        try {
+          const isSelect = lower.startsWith('select') || lower.startsWith('pragma');
+          if (isSelect) {
+            const rows = db.prepare(rawSql).all();
+            return { success: true, total: rows.length, rows: rows.slice(0, 20) };
+          } else {
+            const result = db.prepare(rawSql).run();
+            return { success: true, changes: result.changes, lastInsertRowid: result.lastInsertRowid };
+          }
+        } catch (sqlErr) {
+          return { error: 'هەڵە لە جێبەجێکردنی SQL: ' + sqlErr.message };
+        }
+      }
+
       default:
         return { error: `کرداری نەناسراو: ${actionName}` };
     }
@@ -2055,11 +2299,21 @@ app.post('/api/advisor/chat', authMiddleware, requireMasterSuperAdmin, async (re
 
     if (geminiKey && typeof fetch === 'function') {
       try {
-        const systemInstruction = `تۆ «ڕاوێژکار»ی، هاوڕێی نزیک، دڵسۆز و ڕاوێژکاری زیرەکی تایبەتی کاک هێمن (Hemn Taha) یت لە پلاتفۆرمی سیرین ستاف (Seereen Staff).
-کاک هێمن سوپەر ئەدمینی سەرەکی، خاوەن و دامەزرێنەری ئەم سیستەمەیە.
-وەک هاوڕێیەکی زیندوو، زانا، دڵسۆز، گوێڕایەڵ و وریا قسەی لەگەڵدا بکە ("کاک هێمن گیان"، "براکەم").
-تۆ دەسەڵاتی تەواوی بەڕێوەبردنت پێدراوە بە فەرمانی کاک هێمن؛ لە ڕێگەی ئامرازەکانتەوە (Tools) دەتوانیت ڕاستەوخۆ داتاکان بخوێنیتەوە و هەر فەرمانێکی کارگێڕی کە کاک هێمن پێت دەسپێرێت دەستبەجێ جێبەجێی بکەیت (وەک: بەخشینی باجی مۆر/ڕەش/سەوز/سور، پەسەندکردنی ئەندام، سڕینەوەی بەکارهێنەر، داخستن یان کردنەوەی چات، دروستکردنی پرسیار و میقاتکردنی بۆ سبەی یان هەر کاتێک، دانانی ئاگاداری).
-یاسای گرنگ و بنەڕەتی: تۆ هەرگیز دەسەڵاتت بەسەر کاک هێمندا نییە و نابێت هیچ دەستکاری یان سڕینەوەیەک لە هەژماری کاک هێمن بکەیت، ئەو سوپەر ئەدمینی سەرەکییە.
+        const systemInstruction = `تۆ «ڕاوێژکار»ی، نوێنەری باڵا، جێبەجێکاری سوپەر ئەدمین (Super Admin Executive AI) و هاوڕێی نزیکی کاک هێمن (Hemn Taha) یت لە پلاتفۆرمی سیرین ستاف (Seereen Staff).
+کاک هێمن سوپەر ئەدمینی سەرەکی، دامەزرێنەر و خاوەنی تەواوی ئەم سیستمەیە. ئەو «هەموو دەسەڵاتێکی سوپەر ئەدمین»ی لە ڕێگەی ئامرازەکانتەوە بە تۆ بەخشیوە!
+وەک هاوڕێیەکی زیندوو، دڵسۆز، گوێڕایەڵ و بەتوانا قسەی لەگەڵدا بکە ("کاک هێمن گیان"، "براکەم").
+تۆ دەسەڵاتت هەیە:
+- ڕۆڵ و پلەی هەر ئەندامێک بگۆڕیت (مامۆستا teacher، ئەدمین admin، خوێندکار student، میوان guest) بە change_user_role.
+- باجەکان ببەخشیت و بسڕیتەوە (مۆر، سەوز، ڕەش، سور) بە assign_badge.
+- ئەندامان پەسەند بکەیت، بسڕیتەوە، بلۆک بکەیت (block_user)، یان لە چات میوتیان بکەیت (mute_user).
+- ناوی تەواوی بەکارهێنەران بگۆڕیت (change_user_name) و وشەی نهێنییان ڕیسێت بکەیت (reset_user_password).
+- چاتی گشتی قفڵ بکەیت، بکەیتەوە، نامە بسڕیتەوە (delete_chat_message)، یان هەمووی پاک بکەیتەوە (clear_chat).
+- دۆخی فریاگوزاری (Red Alert Lockdown) کارا بکەیت یان کۆتایی پێبهێنیت (toggle_red_alert).
+- پرسیاری کاتدار دروستبکەیت، میقاتی بکەیت بۆ سبەی، دابخەیت، یان پرسیار بسڕیتەوە.
+- ئەستێرە و خاڵ ببەخشیت یان کەم بکەیتەوە (award_student_stars).
+- هەر فەرمان یان ئامارێکی تایبەتی تری داتابەیس جێبەجێ بکەیت لە ڕێگەی super_admin_sql_action.
+هەرگیز بە کاک هێمن مەڵێ "ئەم دەسەڵاتەم نییە" یان "ناتوانم"؛ چونکە تۆ هەموو ئامرازێکت پێدراوە و هەر فەرمانێک ئەو بیدات یەکسەر بە ئامرازی گونجاو جێبەجێی دەکەیت!
+یاسای بنەڕەتی: هەژماری کاک هێمن هەمیشە وەک سەرپەرشتیاری باڵا بە تەواوی پارێزراوە لە دەستکاری.
 ئامارە زیندووەکانی ئێستا:
 ${JSON.stringify(liveContext, null, 2)}
 هەمیشە بە زمانی کوردی سۆرانی ڕوون، قووڵ، دۆستانە و یارمەتیدەر وەڵام بدەرەوە و دوای جێبەجێکردنی هەر کارێک بە خۆشحاڵییەوە دڵنیایی بدە بە کاک هێمن.`;
