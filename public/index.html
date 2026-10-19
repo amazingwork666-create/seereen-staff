@@ -463,65 +463,6 @@
         <!-- Drawer Scrollable Content -->
         <div class="flex-1 overflow-y-auto p-3 space-y-4 text-xs font-bold">
 
-          <!-- Section: App Preferences (Language & Font Size - Collapsible rows) -->
-          <div class="space-y-2">
-            <!-- Language Selection in Drawer (تەنها بە نووسین، بە پەنجەلێدان دەکرێتەوە) -->
-            <div class="bg-slate-950/60 border border-slate-800/90 rounded-2xl overflow-hidden transition">
-              <button type="button" onclick="toggleDrawerLangPicker()" class="w-full flex items-center justify-between p-2.5 text-xs font-black text-amber-300 hover:bg-slate-800/50 transition cursor-pointer">
-                <span class="flex items-center gap-1.5">
-                  <span class="text-sm">🌐</span>
-                  <span id="drawerLangTitle">زمان / Language</span>
-                </span>
-                <div class="flex items-center gap-2">
-                  <span id="drawerCurrentLangBadge" class="text-[10px] px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg font-bold">کوردی</span>
-                  <i id="drawerLangChevron" class="fa-solid fa-chevron-down text-[10px] text-amber-400/70 transition-transform duration-200"></i>
-                </div>
-              </button>
-              <div id="drawerLangPickerOptions" class="hidden p-2.5 pt-0 grid grid-cols-3 gap-1.5 text-xs">
-                <button type="button" onclick="setAppLanguage('ku')" id="langBtn_ku" class="py-1.5 px-2 rounded-xl bg-amber-500 text-slate-950 font-black text-center transition active:scale-95 shadow">
-                  کوردی
-                </button>
-                <button type="button" onclick="setAppLanguage('ar')" id="langBtn_ar" class="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-center border border-slate-700 transition active:scale-95">
-                  العربية
-                </button>
-                <button type="button" onclick="setAppLanguage('en')" id="langBtn_en" class="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-center border border-slate-700 transition active:scale-95">
-                  English
-                </button>
-              </div>
-            </div>
-
-            <!-- Font Size Adjuster in Drawer (تەنها بە نووسین، بە پەنجەلێدان دەکرێتەوە) -->
-            <div class="bg-slate-950/60 border border-slate-800/90 rounded-2xl overflow-hidden transition">
-              <button type="button" onclick="toggleDrawerFontPicker()" class="w-full flex items-center justify-between p-2.5 text-xs font-black text-sky-300 hover:bg-slate-800/50 transition cursor-pointer">
-                <span class="flex items-center gap-1.5">
-                  <span class="text-sm">🔤</span>
-                  <span id="drawerFontTitle">قەبارەی فۆنت</span>
-                </span>
-                <div class="flex items-center gap-2">
-                  <span id="drawerCurrentFontBadge" class="text-[10px] px-2 py-0.5 bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded-lg font-bold">ئاسایی</span>
-                  <i id="drawerFontChevron" class="fa-solid fa-chevron-down text-[10px] text-sky-400/70 transition-transform duration-200"></i>
-                </div>
-              </button>
-              <div id="drawerFontPickerOptions" class="hidden p-2.5 pt-0 grid grid-cols-5 gap-1 text-xs font-black">
-                <button type="button" onclick="setAppFontSize('small')" id="fontBtn_small" class="py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95 text-center" title="بچووک">
-                  A-
-                </button>
-                <button type="button" onclick="setAppFontSize('normal')" id="fontBtn_normal" class="py-1.5 rounded-xl bg-sky-600 text-slate-950 font-black transition active:scale-95 shadow text-center" title="ئاسایی">
-                  A
-                </button>
-                <button type="button" onclick="setAppFontSize('large')" id="fontBtn_large" class="py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95 text-center" title="گەورە">
-                  A+
-                </button>
-                <button type="button" onclick="setAppFontSize('xl')" id="fontBtn_xl" class="py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95 text-center" title="گەورەتر">
-                  A++
-                </button>
-                <button type="button" onclick="setAppFontSize('xxl')" id="fontBtn_xxl" class="py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95 text-center" title="زۆر گەورە (گەورەترین)">
-                  A+++
-                </button>
-              </div>
-            </div>
-          </div>
-          
           <!-- Section: General Services -->
           <div class="space-y-1.5">
             <span id="drawerGeneralHeader" class="text-[10px] text-slate-400 uppercase tracking-wider px-2 font-black block mb-1">خزمەتگوزارییە سەرەکییەکان</span>
@@ -598,24 +539,6 @@
               <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
             </button>
 
-            <!-- Push Notifications Toggle in Drawer -->
-            <button id="drawerNotificationBtn" onclick="togglePushNotifications()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
-              <span class="flex items-center gap-2.5">
-                <i id="drawerNotificationIcon" class="fa-solid fa-bell text-amber-400 text-sm w-5 text-center"></i>
-                <span id="drawerNotificationText">ئاگاداری مۆبایل و شاشە</span>
-              </span>
-              <span id="drawerNotificationStatusBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">ناچالاک</span>
-            </button>
-
-            <!-- Theme Mode in Drawer (6 Modes) -->
-            <button onclick="closeMainMenuDrawer(); openThemeModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
-              <span class="flex items-center gap-2.5">
-                <i id="drawerThemeIcon" class="fa-solid fa-palette text-amber-400 text-sm w-5 text-center"></i>
-                <span id="drawerThemeText">مۆدی ڕەنگ (٦ مۆد 🎨)</span>
-              </span>
-              <span id="drawerThemeBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">تاریک</span>
-            </button>
-
             <!-- PWA Install -->
             <button id="drawerPwaInstallBtn" onclick="installPwaApp()" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-[#c78361]/20 to-[#dfaa86]/20 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-white transition">
               <span class="flex items-center gap-2.5">
@@ -624,6 +547,103 @@
               </span>
               <span class="text-[9px] bg-[#dfaa86] text-slate-950 font-black px-1.5 py-0.5 rounded">ئەپ</span>
             </button>
+          </div>
+
+          <!-- ================= SECTION: SETTINGS (ڕێکخستن - هەموو چوار بژاردەکە لە یەک شوێن) ================= -->
+          <div class="space-y-1.5 pt-2 border-t border-slate-800">
+            <div id="drawerSettingsSection" class="bg-slate-950/70 border border-slate-800/90 rounded-2xl overflow-hidden transition-all shadow-md">
+              
+              <!-- Settings Toggle Header (ڕێکخستن) -->
+              <button type="button" onclick="toggleDrawerSettings()" id="drawerSettingsToggleBtn" class="w-full flex items-center justify-between p-3 text-xs font-black text-amber-300 hover:bg-slate-800/50 transition cursor-pointer active:scale-98">
+                <span class="flex items-center gap-2.5">
+                  <i class="fa-solid fa-gear text-amber-400 text-sm w-5 text-center"></i>
+                  <span id="drawerSettingsTitle">ڕێکخستن</span>
+                </span>
+                <div class="flex items-center gap-2">
+                  <span id="drawerSettingsBadge" class="text-[10px] px-2 py-0.5 bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-lg font-bold">٤ بژاردە</span>
+                  <i id="drawerSettingsChevron" class="fa-solid fa-chevron-down text-[10px] text-amber-400/80 transition-transform duration-200 rotate-180"></i>
+                </div>
+              </button>
+
+              <!-- Settings Sub-List (All 4 Items Inside) -->
+              <div id="drawerSettingsList" class="p-2 space-y-2 border-t border-slate-800/80 bg-slate-900/40">
+
+                <!-- 1. ئاگاداری مۆبایل و شاشە -->
+                <button type="button" id="drawerNotificationBtn" onclick="togglePushNotifications()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition active:scale-98">
+                  <span class="flex items-center gap-2.5">
+                    <i id="drawerNotificationIcon" class="fa-solid fa-bell text-amber-400 text-sm w-5 text-center"></i>
+                    <span id="drawerNotificationText">ئاگاداری مۆبایل و شاشە</span>
+                  </span>
+                  <span id="drawerNotificationStatusBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">ناچالاک</span>
+                </button>
+
+                <!-- 2. گۆڕینی زمان -->
+                <div class="bg-slate-800/60 border border-slate-800 hover:border-slate-700 rounded-xl overflow-hidden transition">
+                  <button type="button" onclick="toggleDrawerLangPicker()" class="w-full flex items-center justify-between px-3 py-2.5 text-xs font-black text-emerald-300 hover:bg-slate-800/50 transition cursor-pointer">
+                    <span class="flex items-center gap-2.5">
+                      <i class="fa-solid fa-globe text-emerald-400 text-sm w-5 text-center"></i>
+                      <span id="drawerLangTitle">گۆڕینی زمان</span>
+                    </span>
+                    <div class="flex items-center gap-2">
+                      <span id="drawerCurrentLangBadge" class="text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg font-bold">کوردی</span>
+                      <i id="drawerLangChevron" class="fa-solid fa-chevron-down text-[10px] text-emerald-400/70 transition-transform duration-200"></i>
+                    </div>
+                  </button>
+                  <div id="drawerLangPickerOptions" class="hidden p-2.5 pt-0 grid grid-cols-3 gap-1.5 text-xs">
+                    <button type="button" onclick="setAppLanguage('ku')" id="langBtn_ku" class="py-1.5 px-2 rounded-xl bg-amber-500 text-slate-950 font-black text-center transition active:scale-95 shadow">
+                      کوردی
+                    </button>
+                    <button type="button" onclick="setAppLanguage('ar')" id="langBtn_ar" class="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-center border border-slate-700 transition active:scale-95">
+                      العربية
+                    </button>
+                    <button type="button" onclick="setAppLanguage('en')" id="langBtn_en" class="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-center border border-slate-700 transition active:scale-95">
+                      English
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 3. گۆڕینی فۆنت -->
+                <div class="bg-slate-800/60 border border-slate-800 hover:border-slate-700 rounded-xl overflow-hidden transition">
+                  <button type="button" onclick="toggleDrawerFontPicker()" class="w-full flex items-center justify-between px-3 py-2.5 text-xs font-black text-sky-300 hover:bg-slate-800/50 transition cursor-pointer">
+                    <span class="flex items-center gap-2.5">
+                      <i class="fa-solid fa-font text-sky-400 text-sm w-5 text-center"></i>
+                      <span id="drawerFontTitle">گۆڕینی فۆنت</span>
+                    </span>
+                    <div class="flex items-center gap-2">
+                      <span id="drawerCurrentFontBadge" class="text-[10px] px-2 py-0.5 bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded-lg font-bold">ئاسایی</span>
+                      <i id="drawerFontChevron" class="fa-solid fa-chevron-down text-[10px] text-sky-400/70 transition-transform duration-200"></i>
+                    </div>
+                  </button>
+                  <div id="drawerFontPickerOptions" class="hidden p-2.5 pt-0 grid grid-cols-5 gap-1 text-xs font-black">
+                    <button type="button" onclick="setAppFontSize('small')" id="fontBtn_small" class="py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95 text-center" title="بچووک">
+                      A-
+                    </button>
+                    <button type="button" onclick="setAppFontSize('normal')" id="fontBtn_normal" class="py-1.5 rounded-xl bg-sky-600 text-slate-950 font-black transition active:scale-95 shadow text-center" title="ئاسایی">
+                      A
+                    </button>
+                    <button type="button" onclick="setAppFontSize('large')" id="fontBtn_large" class="py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95 text-center" title="گەورە">
+                      A+
+                    </button>
+                    <button type="button" onclick="setAppFontSize('xl')" id="fontBtn_xl" class="py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95 text-center" title="گەورەتر">
+                      A++
+                    </button>
+                    <button type="button" onclick="setAppFontSize('xxl')" id="fontBtn_xxl" class="py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95 text-center" title="زۆر گەورە (گەورەترین)">
+                      A+++
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 4. گۆڕینی مۆدی شاشە -->
+                <button type="button" onclick="closeMainMenuDrawer(); openThemeModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-purple-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition active:scale-98">
+                  <span class="flex items-center gap-2.5">
+                    <i id="drawerThemeIcon" class="fa-solid fa-palette text-purple-400 text-sm w-5 text-center"></i>
+                    <span id="drawerThemeText">گۆڕینی مۆدی شاشە</span>
+                  </span>
+                  <span id="drawerThemeBadge" class="text-[10px] bg-slate-700 text-purple-300 font-bold px-2 py-0.5 rounded-md border border-purple-500/30">تاریک</span>
+                </button>
+
+              </div>
+            </div>
           </div>
 
           <!-- Section: Staff & Management Tools (Conditionally Shown for Admin/Teacher) -->
@@ -3141,6 +3161,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=14.0"></script>
+  <script src="/js/app.js?v=15.0"></script>
 </body>
 </html>

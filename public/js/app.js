@@ -351,6 +351,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   initTheme();
   initAppLanguage();
   initAppFontSize();
+  initDrawerSettingsState();
   fetchDreamAvailability();
 
   // Handle mobile keyboard adaptation and secret answer draft
@@ -7239,7 +7240,7 @@ function applyTheme(theme) {
   const drawerText = document.getElementById('drawerThemeText');
   const drawerBadge = document.getElementById('drawerThemeBadge');
   if (drawerIcon) drawerIcon.className = `${themeObj.icon} ${themeObj.iconColor} text-sm w-5 text-center`;
-  if (drawerText) drawerText.innerText = `مۆدی ڕووکار (${themeObj.name})`;
+  if (drawerText) drawerText.innerText = (currentAppLanguage === 'ar') ? `تغيير مظهر الشاشة (${themeObj.name})` : ((currentAppLanguage === 'en') ? `Change Screen Theme (${themeObj.name})` : `گۆڕینی مۆدی شاشە (${themeObj.name})`);
   if (drawerBadge) drawerBadge.innerText = themeObj.badgeText;
 }
 
@@ -12196,8 +12197,9 @@ const translatedMsgsCache = new Map();
 const APP_TRANSLATIONS = {
   ar: {
     drawerProfileText: 'الملف الشخصي',
-    drawerLangTitle: 'اللغة',
-    drawerFontTitle: 'حجم الخط',
+    drawerSettingsTitle: 'الإعدادات',
+    drawerLangTitle: 'تغيير اللغة',
+    drawerFontTitle: 'تغيير حجم الخط',
     drawerGeneralHeader: 'الخدمات الرئيسية',
     drawerRecordedLessonsText: 'الدروس المسجلة',
     drawerRecordedLessonsBadge: 'استماع',
@@ -12210,7 +12212,7 @@ const APP_TRANSLATIONS = {
     drawerSearchText: 'البحث في الرسائل',
     drawerMembersText: 'قائمة الأعضاء',
     drawerNotificationText: 'إشعارات الهاتف والشاشة',
-    drawerThemeText: 'تغيير المظهر (فاتح / داكن)',
+    drawerThemeText: 'تغيير مظهر الشاشة',
     drawerThemeBadge: 'المظهر',
     drawerPwaText: 'تثبيت التطبيق (PWA)',
     drawerStaffHeader: 'أدوات الإدارة والمعلم',
@@ -12241,8 +12243,9 @@ const APP_TRANSLATIONS = {
   },
   en: {
     drawerProfileText: 'Profile',
-    drawerLangTitle: 'Language',
-    drawerFontTitle: 'Font Size',
+    drawerSettingsTitle: 'Settings',
+    drawerLangTitle: 'Change Language',
+    drawerFontTitle: 'Change Font Size',
     drawerGeneralHeader: 'Main Services',
     drawerRecordedLessonsText: 'Recorded Lessons',
     drawerRecordedLessonsBadge: 'Listen',
@@ -12255,7 +12258,7 @@ const APP_TRANSLATIONS = {
     drawerSearchText: 'Search Messages',
     drawerMembersText: 'Members List',
     drawerNotificationText: 'Phone & Screen Alerts',
-    drawerThemeText: 'Toggle Theme (Light / Dark)',
+    drawerThemeText: 'Change Screen Theme',
     drawerThemeBadge: 'Theme',
     drawerPwaText: 'Install Application (PWA)',
     drawerStaffHeader: 'Staff & Admin Tools',
@@ -12378,8 +12381,9 @@ function applyAppLanguage(lang) {
     // Restore default Kurdish text
     const kuDefaults = {
       drawerProfileText: 'پرۆفایل',
-      drawerLangTitle: 'زمان / Language',
-      drawerFontTitle: 'قەبارەی فۆنت',
+      drawerSettingsTitle: 'ڕێکخستن',
+      drawerLangTitle: 'گۆڕینی زمان',
+      drawerFontTitle: 'گۆڕینی فۆنت',
       drawerGeneralHeader: 'خزمەتگوزارییە سەرەکییەکان',
       drawerRecordedLessonsText: 'وانە تۆمارکراوەکان',
       drawerRecordedLessonsBadge: 'گوێگرتن',
@@ -12392,7 +12396,7 @@ function applyAppLanguage(lang) {
       drawerSearchText: 'گەڕان لەناو پەیامەکان',
       drawerMembersText: 'لیستی ئەندامان',
       drawerNotificationText: 'ئاگاداری مۆبایل و شاشە',
-      drawerThemeText: 'گۆڕینی مۆد (ڕووناک / تاریک)',
+      drawerThemeText: 'گۆڕینی مۆدی شاشە',
       drawerThemeBadge: 'مۆد',
       drawerPwaText: 'داگرتنی ئەپڵیکەیشن (PWA)',
       drawerStaffHeader: 'ئامرازەکانی ستاف و ئەدمین',
@@ -12687,8 +12691,37 @@ async function translateQuestionContent(questionId, btnElem) {
 }
 
 // =========================================================================
-// 7. FONT SIZE & LANGUAGE COLLAPSIBLE PICKERS (سێ خەتەکە)
+// 7. DRAWER SETTINGS & PREFERENCES (ڕێکخستن)
 // =========================================================================
+function toggleDrawerSettings() {
+  const list = document.getElementById('drawerSettingsList');
+  const chevron = document.getElementById('drawerSettingsChevron');
+  if (!list) return;
+  const isHidden = list.classList.contains('hidden');
+  if (isHidden) {
+    list.classList.remove('hidden');
+    if (chevron) chevron.classList.add('rotate-180');
+    localStorage.setItem('drawer_settings_collapsed', 'false');
+  } else {
+    list.classList.add('hidden');
+    if (chevron) chevron.classList.remove('rotate-180');
+    localStorage.setItem('drawer_settings_collapsed', 'true');
+  }
+}
+
+function initDrawerSettingsState() {
+  const isCollapsed = localStorage.getItem('drawer_settings_collapsed') === 'true';
+  const list = document.getElementById('drawerSettingsList');
+  const chevron = document.getElementById('drawerSettingsChevron');
+  if (list && isCollapsed) {
+    list.classList.add('hidden');
+    if (chevron) chevron.classList.remove('rotate-180');
+  } else if (list && !isCollapsed) {
+    list.classList.remove('hidden');
+    if (chevron) chevron.classList.add('rotate-180');
+  }
+}
+
 function toggleDrawerLangPicker() {
   const opts = document.getElementById('drawerLangPickerOptions');
   const chevron = document.getElementById('drawerLangChevron');
