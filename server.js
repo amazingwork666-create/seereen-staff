@@ -9,7 +9,7 @@ const multer = require('multer');
 const fs = require('fs');
 let archiver;
 try { archiver = require('archiver'); } catch (e) {}
-const { initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb } = require('./db');
+const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 4000;
@@ -1317,6 +1317,16 @@ const advisorTools = [
   {
     function_declarations: [
       {
+        name: 'get_teachers_and_staff',
+        description: 'وەرگرتنی لیستی تەواوی مامۆستایان، ئەدمینەکان، و ستافی بەڕێوەبەرایەتی پلاتفۆرمی سیرین',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            role: { type: 'STRING', description: "'teacher', 'admin', 'super_admin', or 'all'" }
+          }
+        }
+      },
+      {
         name: 'get_top_students',
         description: 'وەرگرتنی ڕیزبەندی خوێندکارە یەکەمەکان و ئەستێرە و خاڵەکانیان (Leaderboard)',
         parameters: {
@@ -1464,9 +1474,54 @@ const advisorTools = [
   }
 ];
 
+function findTargetUser(identifier) {
+  if (!identifier) return null;
+  const str = String(identifier).trim();
+  if (!isNaN(Number(str))) {
+    try {
+      const byId = users.findById(Number(str));
+      if (byId) return byId;
+    } catch (e) {}
+  }
+  try {
+    const byUser = users.findByUsername(str);
+    if (byUser) return byUser;
+  } catch (e) {}
+  try {
+    const byLike = db.prepare("SELECT * FROM users WHERE full_name LIKE ? OR username LIKE ? LIMIT 1").get(`%${str}%`, `%${str}%`);
+    if (byLike) return byLike;
+  } catch (e) {}
+  return null;
+}
+
 async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
   try {
     switch (actionName) {
+      case 'get_teachers_and_staff': {
+        const roleFilter = String(args.role || 'all').toLowerCase().trim();
+        let sql = "SELECT id, username, full_name, role, special_badge, status, correct_answers_count FROM users WHERE role IN ('teacher', 'admin', 'super_admin')";
+        let params = [];
+        if (roleFilter === 'teacher') {
+          sql = "SELECT id, username, full_name, role, special_badge, status, correct_answers_count FROM users WHERE role = 'teacher'";
+        } else if (roleFilter === 'admin') {
+          sql = "SELECT id, username, full_name, role, special_badge, status, correct_answers_count FROM users WHERE role = 'admin'";
+        }
+        sql += " ORDER BY role = 'super_admin' DESC, role = 'admin' DESC, role = 'teacher' DESC, id ASC";
+        const staff = db.prepare(sql).all(...params);
+        return {
+          total: staff.length,
+          filter: roleFilter,
+          staff: staff.map(s => ({
+            id: s.id,
+            name: s.full_name,
+            username: s.username,
+            role: s.role === 'super_admin' ? 'سوپەر ئەدمین (سەرپەرشتیاری گشتی)' : (s.role === 'admin' ? 'ئەدمین (بەڕێوەبەر)' : 'مامۆستا'),
+            badge: s.special_badge || 'بێ باجی تایبەت',
+            status: s.status
+          }))
+        };
+      }
+
       case 'get_top_students': {
         const limit = Math.min(20, parseInt(args.limit) || 5);
         let list = [];
@@ -1521,22 +1576,49 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
       }
 
       case 'search_user': {
-        const q = (args.query || '').trim();
-        const found = users.findByUsernameOrName(q) || users.findById(q);
-        if (!found) return { found: false, message: `بەکارهێنەرێک بە ناوی «${q}» نەدۆزرایەوە.` };
+        const q = String(args.query || '').trim();
+        if (!q) return { found: false, message: 'تکایە ناوێک بنووسە بۆ گەڕان.' };
+
+        let matches = [];
+        try {
+          matches = db.prepare(`
+            SELECT id, username, full_name, role, status, special_badge, correct_answers_count, is_blocked, created_at
+            FROM users
+            WHERE full_name LIKE ? OR username LIKE ?
+            LIMIT 10
+          `).all(`%${q}%`, `%${q}%`);
+        } catch (e) {}
+
+        if (matches.length === 0 && !isNaN(Number(q))) {
+          try {
+            const byId = users.findById(Number(q));
+            if (byId) matches = [byId];
+          } catch (e) {}
+        }
+
+        if (matches.length === 0) {
+          return {
+            found: false,
+            query: q,
+            message: `هیچ بەکارهێنەرێک بە ناوی «${q}» لە داتابەیسی سەیرین ستاف نەدۆزرایەوە.`
+          };
+        }
+
         return {
           found: true,
-          user: {
-            id: found.id,
-            name: found.full_name,
-            username: found.username,
-            role: found.role,
-            status: found.status,
-            special_badge: found.special_badge || 'هیچ باجێکی نییە',
-            stars: found.correct_answers_count || 0,
-            is_blocked: !!found.is_blocked,
-            created_at: new Date(found.created_at).toLocaleDateString('ku')
-          }
+          query: q,
+          total_matches: matches.length,
+          users: matches.map(u => ({
+            id: u.id,
+            name: u.full_name,
+            username: u.username,
+            role: u.role,
+            status: u.status,
+            badge: u.special_badge || 'هیچ باجێکی نییە',
+            stars: u.correct_answers_count || 0,
+            is_blocked: !!u.is_blocked,
+            joined_at: new Date(u.created_at).toLocaleDateString('ku')
+          }))
         };
       }
 
@@ -1585,7 +1667,7 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
       }
 
       case 'assign_badge': {
-        const target = users.findByUsernameOrName(args.username_or_id) || users.findById(args.username_or_id);
+        const target = findTargetUser(args.username_or_id);
         if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە` };
         
         // Strict Safety Check: Kak Hemn is completely immutable
@@ -1612,7 +1694,7 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
       }
 
       case 'approve_member': {
-        const target = users.findByUsernameOrName(args.username_or_id) || users.findById(args.username_or_id);
+        const target = findTargetUser(args.username_or_id);
         if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە` };
         users.updateStatus(target.id, 'approved');
         if (ioInstance) {
@@ -1625,7 +1707,7 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
       }
 
       case 'delete_member': {
-        const target = users.findByUsernameOrName(args.username_or_id) || users.findById(args.username_or_id);
+        const target = findTargetUser(args.username_or_id);
         if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە` };
 
         // Absolute Safety Check: Cannot delete Hemn or Super Admin!
@@ -1741,7 +1823,7 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
       }
 
       case 'award_student_stars': {
-        const target = users.findByUsernameOrName(args.username_or_id) || users.findById(args.username_or_id);
+        const target = findTargetUser(args.username_or_id);
         if (!target) return { error: `خوێندکار «${args.username_or_id}» نەدۆزرایەوە` };
         const delta = parseInt(args.stars_delta) || 1;
         const newTotal = users.adjustStars(target.id, delta);

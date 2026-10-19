@@ -416,6 +416,19 @@ const users = {
     const stmt = db.prepare('SELECT * FROM users WHERE id = ?');
     return stmt.get(id);
   },
+  findByUsernameOrName(identifier) {
+    return this.findByUsername(identifier);
+  },
+  searchUsers(query, limit = 10) {
+    if (!query) return [];
+    const clean = String(query).trim();
+    return db.prepare(`
+      SELECT id, username, full_name, role, status, is_blocked, special_badge, correct_answers_count, created_at 
+      FROM users 
+      WHERE username LIKE ? OR full_name LIKE ?
+      LIMIT ?
+    `).all(`%${clean}%`, `%${clean}%`, limit);
+  },
   create(username, passwordHash, fullName, gender = 'male', role = 'student', status = 'pending') {
     const stmt = db.prepare(`
       INSERT INTO users (username, password_hash, full_name, gender, role, status, is_blocked, muted_until, correct_answers_count, created_at)
