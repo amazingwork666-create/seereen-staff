@@ -1252,6 +1252,517 @@ app.get('/api/advisor/overview', authMiddleware, requireMasterSuperAdmin, async 
   }
 });
 
+// --- ADVISOR AI TOOLS & ACTIONS ENGINE ---
+
+function parseKurdishTime(timeStr) {
+  if (!timeStr) return null;
+  const now = new Date();
+  const lower = timeStr.toLowerCase().trim();
+
+  // Check for relative hours/minutes like "2 سەعاتی تر" or "30 خولەکی تر"
+  const relHourMatch = lower.match(/(\d+|١|٢|٣|٤|٥|٦|٧|٨|٩|یەک|دوو|سێ|چوار|پێنج)\s*(?:سەعات|کاتژمێر|hour)ی?\s*تر/);
+  if (relHourMatch) {
+    let num = relHourMatch[1];
+    if (num === 'یەک') num = 1;
+    else if (num === 'دوو') num = 2;
+    else if (num === 'سێ') num = 3;
+    else if (num === 'چوار') num = 4;
+    else if (num === 'پێنج') num = 5;
+    else {
+      num = parseInt(num.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)), 10);
+    }
+    if (!isNaN(num) && num > 0) return Date.now() + (num * 60 * 60 * 1000);
+  }
+
+  const relMinMatch = lower.match(/(\d+|١|٢|٣|٤|٥|٦|٧|٨|٩)\s*(?:خولەک|دەقیقە|min)ی?\s*تر/);
+  if (relMinMatch) {
+    const min = parseInt(relMinMatch[1].replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)), 10);
+    if (!isNaN(min) && min > 0) return Date.now() + (min * 60 * 1000);
+  }
+
+  let target = new Date();
+  const isTomorrow = lower.includes('سبەی') || lower.includes('بەیانی') || lower.includes('tomorrow');
+  if (isTomorrow) {
+    target.setDate(target.getDate() + 1);
+  }
+
+  const hourMatch = timeStr.match(/(?:سەعات|کاتژمێر|hour)?\s*([0-9]|١|٢|٣|٤|٥|٦|٧|٨|٩|١٠|١١|١٢|\d{1,2})/);
+  if (hourMatch) {
+    let raw = hourMatch[1];
+    const kurdishDigits = '٠١٢٣٤٥٦٧٨٩';
+    let hStr = '';
+    for (const ch of raw) {
+      const idx = kurdishDigits.indexOf(ch);
+      hStr += idx !== -1 ? idx : ch;
+    }
+    let h = parseInt(hStr, 10);
+    const isNight = /شەو|pm|پاشنیوەڕۆ|ئێوارە/.test(lower);
+    const isMorning = /بەیانی|am|سەرلەبەیانی/.test(lower);
+    if (isNight && h < 12) h += 12;
+    if (isMorning && h === 12) h = 0;
+    target.setHours(h, 0, 0, 0);
+  }
+
+  if (target.getTime() > now.getTime()) {
+    return target.getTime();
+  } else if (!isTomorrow && target.getTime() <= now.getTime()) {
+    target.setDate(target.getDate() + 1);
+    if (target.getTime() > now.getTime()) return target.getTime();
+  }
+
+  return null;
+}
+
+const advisorTools = [
+  {
+    function_declarations: [
+      {
+        name: 'get_top_students',
+        description: 'وەرگرتنی ڕیزبەندی خوێندکارە یەکەمەکان و ئەستێرە و خاڵەکانیان (Leaderboard)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            limit: { type: 'INTEGER', description: 'ژمارەی خوێندکارەکان (دەفۆڵت ٥)' }
+          }
+        }
+      },
+      {
+        name: 'get_badge_holders',
+        description: 'وەرگرتنی لیستی هەموو ئەو بەکارهێنەرانەی باجی تایبەتیان هەیە (purple بۆ خەون، green بۆ بەڕێوەبەر، black بۆ سوپەر ئەدمین، red بۆ لایڤ)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            badge_color: { type: 'STRING', description: 'purple, green, black, red, or all' }
+          }
+        }
+      },
+      {
+        name: 'get_pending_members',
+        description: 'وەرگرتنی لیستی ئەو کەسانەی تازە ناویان تۆمارکردووە و چاوەڕوانی پەسەندکردن و وەرگرتنن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {}
+        }
+      },
+      {
+        name: 'search_user',
+        description: 'گەڕان بەدوای زانیاری وردی بەکارهێنەرێک بە ناو، یوزەرنەیم، یان ئایدی (خاڵ، باج، دۆخ، ڕۆڵ)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            query: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی کەسەکە' }
+          },
+          required: ['query']
+        }
+      },
+      {
+        name: 'get_recent_dreams',
+        description: 'وەرگرتنی دوایین خەونە تۆمارکراوەکان و دۆخەکەیان (وەڵامدراوە یان چاوەڕوان)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            status: { type: 'STRING', description: 'all, unanswered, or answered' },
+            limit: { type: 'INTEGER', description: 'ژمارەی خەونەکان (دەفۆڵت ٥)' }
+          }
+        }
+      },
+      {
+        name: 'get_recent_chat_messages',
+        description: 'خوێندنەوەی دوایین نامەکانی چاتی گشتی گروپ',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            limit: { type: 'INTEGER', description: 'ژمارەی نامەکان (دەفۆڵت ١٠)' }
+          }
+        }
+      },
+      {
+        name: 'assign_badge',
+        description: 'بەخشین یان لێسەندنەوەی باج بە فەرمانی کاک هێمن (purple: خەون، green: بەڕێوەبەر، black: سوپەر ئەدمین، red: لایڤ، none: لێسەندنەوە). تێبینی: بە هیچ جۆرێک دەستکاری کاک هێمن ناکات.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            username_or_id: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی بەکارهێنەرەکە' },
+            badge_color: { type: 'STRING', description: 'purple, green, black, red, or none' }
+          },
+          required: ['username_or_id', 'badge_color']
+        }
+      },
+      {
+        name: 'approve_member',
+        description: 'پەسەندکردن و وەرگرتنی ئەندامێکی چاوەڕوانکراو (Pending Member) بۆ ناو گروپ بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            username_or_id: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی ئەندامەکە' }
+          },
+          required: ['username_or_id']
+        }
+      },
+      {
+        name: 'delete_member',
+        description: 'سڕینەوەی بەکارهێنەرێک لە سیستم بە فەرمانی کاک هێمن (بە تەواوی پارێزراوە و هەرگیز ناتوانێت دەستکاری کاک هێمن بکات)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            username_or_id: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی کەسەکە' },
+            reason: { type: 'STRING', description: 'هۆکاری سڕینەوە' }
+          },
+          required: ['username_or_id']
+        }
+      },
+      {
+        name: 'toggle_chat_lock',
+        description: 'داخستن یان کردنەوەی چاتی گشتی بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            mode: { type: 'STRING', description: "'none' بۆ کردنەوەی چات، 'staff_only' بۆ تەنها ستاف، 'total_lock' بۆ قفڵی گشتی" },
+            reason: { type: 'STRING', description: 'هۆکار' }
+          },
+          required: ['mode']
+        }
+      },
+      {
+        name: 'create_question',
+        description: 'دروستکردنی پرسیاری نوێ لە چات لەگەڵ دیاریکردنی دەقی پرسیار، وەڵامی دروست، و میقاتکردنی بۆ کاتێکی داهاتوو (وەک سبەی سەعات ٩ی شەو یان ماوەی خولەک)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            question_text: { type: 'STRING', description: 'دەقی پرسیارەکە' },
+            correct_answer: { type: 'STRING', description: 'دەقی وەڵامی دروست' },
+            duration_minutes: { type: 'INTEGER', description: 'ماوە بە خولەک (ئەگەر کاتی دیاریکراو نەبێت)' },
+            scheduled_for_text: { type: 'STRING', description: 'کاتی دیاریکراو وەک سبەی سەعات ٩ی شەو یان بەروار' }
+          },
+          required: ['question_text']
+        }
+      },
+      {
+        name: 'set_system_announcement',
+        description: 'دانان یان نوێکردنەوەی ئاگاداری سەرەکی سایت بۆ هەموو فێرخوازان',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            announcement_text: { type: 'STRING', description: 'دەقی ئاگادارییەکە' }
+          },
+          required: ['announcement_text']
+        }
+      },
+      {
+        name: 'award_student_stars',
+        description: 'بەخشین یان کەمکردنەوەی ئەستێرە (خاڵ) بە خوێندکارێک بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            username_or_id: { type: 'STRING', description: 'ناو یان یوزەرنەیم' },
+            stars_delta: { type: 'INTEGER', description: 'ژمارەی ئەستێرە (بۆ نموونە ٥ بۆ زیادکردن)' }
+          },
+          required: ['username_or_id', 'stars_delta']
+        }
+      }
+    ]
+  }
+];
+
+async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
+  try {
+    switch (actionName) {
+      case 'get_top_students': {
+        const limit = Math.min(20, parseInt(args.limit) || 5);
+        let list = [];
+        try {
+          if (users.getLeaderboard) list = users.getLeaderboard().slice(0, limit);
+        } catch (e) {}
+        return {
+          count: list.length,
+          students: list.map((s, idx) => ({
+            rank: idx + 1,
+            name: s.full_name,
+            username: s.username,
+            stars: s.correct_answers_count,
+            role: s.role
+          }))
+        };
+      }
+
+      case 'get_badge_holders': {
+        const color = (args.badge_color || 'all').toLowerCase();
+        let sql = "SELECT id, username, full_name, role, special_badge, status FROM users WHERE special_badge IS NOT NULL AND special_badge != ''";
+        let params = [];
+        if (color !== 'all') {
+          sql += " AND LOWER(special_badge) = ?";
+          params.push(color);
+        }
+        const rows = db.prepare(sql).all(...params);
+        return {
+          total: rows.length,
+          badge_requested: color,
+          holders: rows.map(r => ({
+            id: r.id,
+            name: r.full_name,
+            username: r.username,
+            role: r.role,
+            badge: r.special_badge
+          }))
+        };
+      }
+
+      case 'get_pending_members': {
+        const pending = users.getPendingUsers ? users.getPendingUsers() : [];
+        return {
+          count: pending.length,
+          members: pending.slice(0, 15).map(m => ({
+            id: m.id,
+            name: m.full_name,
+            username: m.username,
+            registered_at: new Date(m.created_at).toLocaleString('ku')
+          }))
+        };
+      }
+
+      case 'search_user': {
+        const q = (args.query || '').trim();
+        const found = users.findByUsernameOrName(q) || users.findById(q);
+        if (!found) return { found: false, message: `بەکارهێنەرێک بە ناوی «${q}» نەدۆزرایەوە.` };
+        return {
+          found: true,
+          user: {
+            id: found.id,
+            name: found.full_name,
+            username: found.username,
+            role: found.role,
+            status: found.status,
+            special_badge: found.special_badge || 'هیچ باجێکی نییە',
+            stars: found.correct_answers_count || 0,
+            is_blocked: !!found.is_blocked,
+            created_at: new Date(found.created_at).toLocaleDateString('ku')
+          }
+        };
+      }
+
+      case 'get_recent_dreams': {
+        const limit = Math.min(15, parseInt(args.limit) || 5);
+        let sql = `
+          SELECT ds.id, ds.dreamer_name, ds.dreamer_gender, ds.status, ds.created_at,
+                 (SELECT content FROM dream_messages WHERE session_id = ds.id ORDER BY id ASC LIMIT 1) as dream_text
+          FROM dream_sessions ds
+        `;
+        const params = [];
+        if (args.status === 'unanswered') {
+          sql += " WHERE ds.status = 'open' ";
+        } else if (args.status === 'answered') {
+          sql += " WHERE ds.status = 'closed' ";
+        }
+        sql += " ORDER BY ds.id DESC LIMIT ? ";
+        params.push(limit);
+        const rows = db.prepare(sql).all(...params);
+        return {
+          count: rows.length,
+          dreams: rows.map(r => ({
+            id: r.id,
+            dreamer: r.dreamer_name,
+            gender: r.dreamer_gender,
+            status: r.status,
+            text: r.dream_text ? r.dream_text.slice(0, 150) : 'بێ دەق',
+            time: new Date(r.created_at).toLocaleString('ku')
+          }))
+        };
+      }
+
+      case 'get_recent_chat_messages': {
+        const limit = Math.min(25, parseInt(args.limit) || 10);
+        const rows = db.prepare("SELECT id, full_name, username, role, content, type, created_at FROM messages ORDER BY id DESC LIMIT ?").all(limit);
+        return {
+          count: rows.length,
+          messages: rows.reverse().map(m => ({
+            id: m.id,
+            sender: m.full_name,
+            role: m.role,
+            text: m.content.slice(0, 120),
+            time: new Date(m.created_at).toLocaleTimeString('ku')
+          }))
+        };
+      }
+
+      case 'assign_badge': {
+        const target = users.findByUsernameOrName(args.username_or_id) || users.findById(args.username_or_id);
+        if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە` };
+        
+        // Strict Safety Check: Kak Hemn is completely immutable
+        if (isMasterSuperAdmin(target) || target.role === 'super_admin' || target.id === reqUser.id) {
+          return { error: '⚠️ بە هیچ شێوەیەک دەستکاری هەژماری کاک هێمن (Super Admin) ناکرێت، ئەم هەژمارە تەواو پارێزراوە!' };
+        }
+
+        const validBadges = ['purple', 'green', 'black', 'red', 'none'];
+        const badgeInput = (args.badge_color || '').toLowerCase();
+        if (!validBadges.includes(badgeInput)) {
+          return { error: 'ڕەنگی باج نادروستە. تەنها purple, green, black, red, none دەستدەدات.' };
+        }
+        const badgeVal = badgeInput === 'none' ? null : badgeInput;
+        users.updateSpecialBadge(target.id, badgeVal);
+        if (ioInstance) {
+          ioInstance.emit('user_updated', { id: target.id, special_badge: badgeVal });
+        }
+        return {
+          success: true,
+          message: badgeVal 
+            ? `باجی ${badgeVal} بە سەرکەوتوویی درا بە ${target.full_name} (@${target.username}) بە فەرمانی کاک هێمن.`
+            : `باجی تایبەتی ${target.full_name} لێسەندرایەوە بە فەرمانی کاک هێمن.`
+        };
+      }
+
+      case 'approve_member': {
+        const target = users.findByUsernameOrName(args.username_or_id) || users.findById(args.username_or_id);
+        if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە` };
+        users.updateStatus(target.id, 'approved');
+        if (ioInstance) {
+          ioInstance.emit('user_status_updated', { id: target.id, status: 'approved' });
+        }
+        return {
+          success: true,
+          message: `ئەندام ${target.full_name} (@${target.username}) بە سەرکەوتوویی وەرگیرا و پەسەندکرا بە فەرمانی کاک هێمن.`
+        };
+      }
+
+      case 'delete_member': {
+        const target = users.findByUsernameOrName(args.username_or_id) || users.findById(args.username_or_id);
+        if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە` };
+
+        // Absolute Safety Check: Cannot delete Hemn or Super Admin!
+        if (isMasterSuperAdmin(target) || target.role === 'super_admin' || target.id === reqUser.id) {
+          return { error: '⚠️ قەدەغەیە! بە هیچ شێوەیەک دەستکاری و سڕینەوەی هەژماری کاک هێمن ناکرێت.' };
+        }
+
+        users.delete(target.id);
+        if (ioInstance) {
+          ioInstance.emit('user_deleted', { id: target.id });
+        }
+        return {
+          success: true,
+          message: `بەکارهێنەر ${target.full_name} (@${target.username}) بە سەرکەوتوویی لە سیستم سڕایەوە بە فەرمانی کاک هێمن.`
+        };
+      }
+
+      case 'toggle_chat_lock': {
+        const mode = args.mode || 'staff_only';
+        settings.set('chat_lock_mode', mode);
+        const lockBy = mode === 'none' ? '' : `${reqUser.full_name} (ڕاوێژکار)`;
+        const lockTime = mode === 'none' ? '' : String(Date.now());
+        settings.set('chat_lock_by', lockBy);
+        settings.set('chat_lock_time', lockTime);
+
+        const announceText = (mode === 'total_lock' || mode === 'staff_only') 
+          ? '🔒 چات بە فەرمانی کاک هێمن داخرا' 
+          : '🔓 چات بە فەرمانی کاک هێمن کرایەوە';
+
+        const sysMsg = messages.create(reqUser.id, 'سیستەم', 'سیستەم', 'system', announceText, 'system');
+        if (ioInstance) {
+          ioInstance.emit('new_message', sysMsg);
+          ioInstance.emit('chat_lock_status_updated', { mode, locked_by: lockBy, timestamp: Date.now() });
+        }
+        return {
+          success: true,
+          message: `دۆخی چات بە سەرکەوتوویی گۆڕدرا بۆ: ${mode === 'none' ? 'کراوە' : (mode === 'total_lock' ? 'قفڵی گشتی' : 'تەنها ستاف')}`
+        };
+      }
+
+      case 'create_question': {
+        let expiresAt = null;
+        let durationMinutes = parseInt(args.duration_minutes) || 5;
+
+        if (args.scheduled_for_text) {
+          const customTimestamp = parseKurdishTime(args.scheduled_for_text);
+          if (customTimestamp && customTimestamp > Date.now()) {
+            expiresAt = customTimestamp;
+            durationMinutes = Math.max(1, Math.round((expiresAt - Date.now()) / (60 * 1000)));
+          }
+        }
+
+        if (!expiresAt) {
+          expiresAt = Date.now() + (durationMinutes * 60 * 1000);
+        }
+
+        const q = questions.create(
+          reqUser.id,
+          reqUser.full_name,
+          args.question_text.trim(),
+          args.correct_answer ? args.correct_answer.trim() : null,
+          durationMinutes,
+          expiresAt
+        );
+
+        if (typeof setupQuestionTimer === 'function') {
+          setupQuestionTimer(q);
+        }
+
+        const msgContent = JSON.stringify({
+          question_id: q.id,
+          question_number: q.question_number || 1,
+          question_text: q.question_text,
+          admin_name: reqUser.full_name,
+          duration_minutes: q.duration_minutes,
+          expires_at: q.expires_at,
+          has_model_answer: !!q.correct_answer
+        });
+
+        const questionMsg = messages.create(reqUser.id, reqUser.username, reqUser.full_name, reqUser.role, msgContent, 'question', q.id);
+
+        if (ioInstance) {
+          ioInstance.emit('new_question', { question: q, message: questionMsg });
+        }
+
+        try {
+          sendPushNotificationToAll({
+            title: `❓ پرسیاری نوێ (#${q.question_number || q.id}) دانرا!`,
+            body: `${reqUser.full_name} پرسیارێکی نوێی دانا: ${q.question_text.slice(0, 80)}...`,
+            tag: 'question-new-' + q.id,
+            data: { url: '/?action=question&id=' + q.id }
+          }, reqUser.id);
+        } catch (pushErr) {}
+
+        const expiresDate = new Date(expiresAt).toLocaleTimeString('ku', { hour: '2-digit', minute: '2-digit' });
+        return {
+          success: true,
+          message: `پرسیاری #${q.question_number || q.id} بە سەرکەوتوویی دروستکرا و بڵاوکرایەوە! ماوەی بەسەرچوون دیاریکراوە بۆ: ${expiresDate} (کۆی گشتی ${durationMinutes} خولەک).`
+        };
+      }
+
+      case 'set_system_announcement': {
+        const text = (args.announcement_text || '').trim();
+        settings.set('site_announcement', text);
+        settings.set('site_announcement_active', '1');
+        if (ioInstance) {
+          ioInstance.emit('announcement_updated', { text, is_active: true });
+        }
+        return {
+          success: true,
+          message: `ئاگاداری سەرەکی سایت بە سەرکەوتوویی بڵاوکرایەوە: "${text}"`
+        };
+      }
+
+      case 'award_student_stars': {
+        const target = users.findByUsernameOrName(args.username_or_id) || users.findById(args.username_or_id);
+        if (!target) return { error: `خوێندکار «${args.username_or_id}» نەدۆزرایەوە` };
+        const delta = parseInt(args.stars_delta) || 1;
+        const newTotal = users.adjustStars(target.id, delta);
+        if (ioInstance) {
+          ioInstance.emit('user_updated', { id: target.id, correct_answers_count: newTotal });
+        }
+        return {
+          success: true,
+          message: `${delta > 0 ? '+' + delta : delta} ئەستێرە درا بە ${target.full_name}. کۆی خاڵەکانی ئێستا: ${newTotal}`
+        };
+      }
+
+      default:
+        return { error: `کرداری نەناسراو: ${actionName}` };
+    }
+  } catch (err) {
+    console.error('Advisor tool execution error:', err);
+    return { error: err.message };
+  }
+}
+
 // 2. Chat with Advisor (Conversational Companion & Strategic AI)
 app.post('/api/advisor/chat', authMiddleware, requireMasterSuperAdmin, async (req, res) => {
   try {
@@ -1332,19 +1843,13 @@ app.post('/api/advisor/chat', authMiddleware, requireMasterSuperAdmin, async (re
     if (geminiKey && typeof fetch === 'function') {
       try {
         const systemInstruction = `تۆ «ڕاوێژکار»ی، هاوڕێی نزیک، دڵسۆز و ڕاوێژکاری زیرەکی تایبەتی کاک هێمن (Hemn Taha) یت لە پلاتفۆرمی سیرین ستاف (Seereen Staff).
-کاک هێمن سوپەر ئەدمینی سەرەکی و دامەزرێنەری ئەم سیستەمەیە.
-وەک هاوڕێیەکی زیندوو، زانا، دڵسۆز و وریا قسەی لەگەڵدا بکە ("کاک هێمن گیان"، "براکەم").
-تۆ ئاگاداری هەموو وردەکارییەکی تەکنیکی و کارگێڕی سایتی:
+کاک هێمن سوپەر ئەدمینی سەرەکی، خاوەن و دامەزرێنەری ئەم سیستەمەیە.
+وەک هاوڕێیەکی زیندوو، زانا، دڵسۆز، گوێڕایەڵ و وریا قسەی لەگەڵدا بکە ("کاک هێمن گیان"، "براکەم").
+تۆ دەسەڵاتی تەواوی بەڕێوەبردنت پێدراوە بە فەرمانی کاک هێمن؛ لە ڕێگەی ئامرازەکانتەوە (Tools) دەتوانیت ڕاستەوخۆ داتاکان بخوێنیتەوە و هەر فەرمانێکی کارگێڕی کە کاک هێمن پێت دەسپێرێت دەستبەجێ جێبەجێی بکەیت (وەک: بەخشینی باجی مۆر/ڕەش/سەوز/سور، پەسەندکردنی ئەندام، سڕینەوەی بەکارهێنەر، داخستن یان کردنەوەی چات، دروستکردنی پرسیار و میقاتکردنی بۆ سبەی یان هەر کاتێک، دانانی ئاگاداری).
+یاسای گرنگ و بنەڕەتی: تۆ هەرگیز دەسەڵاتت بەسەر کاک هێمندا نییە و نابێت هیچ دەستکاری یان سڕینەوەیەک لە هەژماری کاک هێمن بکەیت، ئەو سوپەر ئەدمینی سەرەکییە.
 ئامارە زیندووەکانی ئێستا:
 ${JSON.stringify(liveContext, null, 2)}
-تایبەتمەندییە نوێیەکان:
-- ٤ باجی تایبەت: سەوز (ئەندامان و قفڵ)، ڕەش (سوپەر ئەدمین)، سور (لایڤ)، مۆر (تەنها مۆڵەتی لێکدانەوەی خەون).
-- قەڵغانی زیرەکی ئاسایش (دەقی فێڵاوی کوردی، دژە-ڕەید و لافاو، لینکی زیانبەخش، ژووری ئۆپەراسیۆن و دوگمەی فریاگوزاری Red Alert).
-- بەشی لێکدانەوەی خەون (دانیشتنەکان، پەیوەندی و پەردە).
-- وانەی لایڤی دەنگی و قورئانخوێن بە تەکنەلۆژیای WebRTC.
-- فلتەری ژاوەژاوی دەنگ (AI Voice Noise Cancellation).
-- یەکخستنی هەموو ڕێکخستنەکان لە یەک مینیودا.
-هەمیشە بە زمانی کوردی سۆرانی ڕوون، قووڵ، دۆستانە و یارمەتیدەر وەڵام بدەرەوە و پێشنیاری گەشەپێدانی بەسوودی پێشکەش بکە.`;
+هەمیشە بە زمانی کوردی سۆرانی ڕوون، قووڵ، دۆستانە و یارمەتیدەر وەڵام بدەرەوە و دوای جێبەجێکردنی هەر کارێک بە خۆشحاڵییەوە دڵنیایی بدە بە کاک هێمن.`;
 
         const recentChats = advisorDb.getRecentChats(10) || [];
         const contents = [];
@@ -1367,14 +1872,15 @@ ${JSON.stringify(liveContext, null, 2)}
           try {
             const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 8000);
+            const timeout = setTimeout(() => controller.abort(), 10000);
 
             const geminiRes = await fetch(geminiUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 system_instruction: { parts: [{ text: systemInstruction }] },
-                contents
+                contents,
+                tools: advisorTools
               }),
               signal: controller.signal
             });
@@ -1382,18 +1888,82 @@ ${JSON.stringify(liveContext, null, 2)}
 
             if (geminiRes.ok) {
               const geminiData = await geminiRes.json();
-              const candidateText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (candidateText && candidateText.trim()) {
-                reply = candidateText.trim();
-                console.log(`[Gemini AI] Generated dynamic reply with model: ${model}`);
-                break;
+              const candidate = geminiData.candidates?.[0];
+              const candParts = candidate?.content?.parts || [];
+              const funcPart = candParts.find(p => p.functionCall);
+
+              if (funcPart && funcPart.functionCall) {
+                // Execute the requested tool/action
+                console.log(`[Advisor AI] Invoking tool: ${funcPart.functionCall.name} with args:`, funcPart.functionCall.args);
+                const toolResult = await executeAdvisorAction(
+                  funcPart.functionCall.name,
+                  funcPart.functionCall.args || {},
+                  req.user,
+                  io
+                );
+
+                // Add model's tool call turn (retaining thoughtSignature if present)
+                contents.push({
+                  role: 'model',
+                  parts: [funcPart]
+                });
+
+                // Add tool response turn
+                contents.push({
+                  role: 'user',
+                  parts: [{
+                    functionResponse: {
+                      name: funcPart.functionCall.name,
+                      response: { result: toolResult }
+                    }
+                  }]
+                });
+
+                // Follow-up request to get final natural Kurdish response
+                const followController = new AbortController();
+                const followTimeout = setTimeout(() => followController.abort(), 12000);
+                const followRes = await fetch(geminiUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    system_instruction: { parts: [{ text: systemInstruction }] },
+                    contents,
+                    tools: advisorTools
+                  }),
+                  signal: followController.signal
+                });
+                clearTimeout(followTimeout);
+
+                if (followRes.ok) {
+                  const followData = await followRes.json();
+                  const followCandidate = followData.candidates?.[0];
+                  const followText = (followCandidate?.content?.parts || [])
+                    .filter(p => p.text)
+                    .map(p => p.text)
+                    .join('\n')
+                    .trim();
+
+                  if (followText) {
+                    reply = followText;
+                    console.log(`[Advisor AI] Completed tool call with model: ${model}`);
+                    break;
+                  }
+                }
+              } else {
+                // Normal conversational text reply
+                const candidateText = candParts.filter(p => p.text).map(p => p.text).join('\n').trim();
+                if (candidateText) {
+                  reply = candidateText;
+                  console.log(`[Advisor AI] Generated dynamic reply with model: ${model}`);
+                  break;
+                }
               }
             } else {
               const errBody = await geminiRes.json().catch(() => ({}));
-              console.warn(`[Gemini AI] Model ${model} returned status ${geminiRes.status}:`, errBody.error?.message || 'error');
+              console.warn(`[Advisor AI] Model ${model} returned status ${geminiRes.status}:`, errBody.error?.message || 'error');
             }
           } catch (modelErr) {
-            console.warn(`[Gemini AI] Model ${model} error:`, modelErr.message);
+            console.warn(`[Advisor AI] Model ${model} error:`, modelErr.message);
           }
         }
       } catch (geminiErr) {
@@ -1405,17 +1975,24 @@ ${JSON.stringify(liveContext, null, 2)}
     if (!reply) {
       const q = userMessage.toLowerCase();
 
-      if (/سڵاو|چۆنی|باشی|هەواڵ|سلاو|چۆنیت|دەنگوباس/.test(q)) {
+      // Check for quick actions even in fallback mode
+      if (/داخستنی چات|چات دابخە|قفڵی چات|چات قفڵ/.test(q)) {
+        await executeAdvisorAction('toggle_chat_lock', { mode: 'staff_only' }, req.user, io);
+        reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! چاتی گشتی بە فەرمانی تۆ داخرا و تەنها ستاف دەتوانن بنووسن 🔒`;
+      } else if (/کردنەوەی چات|چات بکەرەوە/.test(q)) {
+        await executeAdvisorAction('toggle_chat_lock', { mode: 'none' }, req.user, io);
+        reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! چاتی گشتی بۆ هەموو فێرخوازان کرایەوە 🔓`;
+      } else if (/سڵاو|چۆنی|باشی|هەواڵ|سلاو|چۆنیت|دەنگوباس/.test(q)) {
         reply = `سڵاو کاک هێمن گیان، برای بەڕێزم! زۆر دڵخۆشم بە قسەکردن لەگەڵت. من وەک ڕاوێژکار و هاوڕێی هەمیشەییت بەردەوام چاودێری هەموو کون و کەلەبەرێکی سیرین ستاف دەکەم.
 ئێستا سیستەم بە تەواوی ئارام و سەقامگیرە: ${onlineCount} کەس ئۆنلاینن، ${totalDreams} خەون تۆمارکراوە و قەڵغانی ئاسایش کاردەکات.
-فەرموو براکەم، لە چ بابەتێکی سایتەکەدا پێویستت بە ڕاوێژ یان پێشنیاری نوێ هەیە؟`;
-      } else if (/قسە|دەنگ|وەڵام|نابیست|بمبیس|گوێت|بدوێ|بۆچی|بۆ وەڵام/.test(q)) {
-        reply = `کاک هێمن گیان، بەڵێ بە تەواوی گوێم لێتە و دەستبەجێ لەگەڵتم! 🎙️
-من هەموو چرکەیەک وەڵامی قسە، دەنگ و پرسیارەکانت دەدەمەوە. دەتوانیت لە ڕێگەی دەق یان بە داگرتنی دوگمەی مایک (قسەکردن بە دەنگ) بدوێیت تا ڕاستەوخۆ دەنگت بکاتە دەق و قسە بکەین.
+فەرموو براکەم، لە چ بابەتێکی سایتەکەدا پێویستت بە ڕاوێژ یان فەرمانێک هەیە بۆ جێبەجێکردن؟`;
+      } else if (/قسە|وەڵام|نابیست|بمبیس|گوێت|بدوێ|بۆچی|بۆ وەڵام/.test(q)) {
+        reply = `کاک هێمن گیان، بەڵێ بە تەواوی لەگەڵتم و پەیامەکانت دەبینم! ✍️
+من هەموو چرکەیەک وەڵامی پرسیارەکانت دەدەمەوە و هەر فەرمانێکت هەبێت بۆ دەستکاریکردن یان ئامار دەستبەجێ جێبەجێی دەکەم.
 هەموو پلاتفۆرمەکە لەژێر کۆنتڕۆڵتدایە، فەرموو برا بەڕێزەکەم فەرمانت چییە؟`;
       } else if (/کێیت|تۆ کێیت|ناوت|خۆت بناسێنە|ناساندن|هاوکاری|بۆت/.test(q)) {
-        reply = `من «ڕاوێژکار»م (بۆتی زیرەکی هاوکاری تایبەت بە کاک هێمن)! 🧠
-تەنها بۆ جەنابت دروستکراوم؛ وەک هاوڕێیەکی زیندوو چاودێری تەواوی کۆد، داتابەیس، خەونەکان، ئاسایش و ئەندامانی پلاتفۆرمی سیرین ستاف دەکەم. لە هەر ساتێکدا قسەم لەگەڵ بکەیت بە خۆشەویستی و دڵسۆزییەوە ڕاوێژ و بیرۆکەت پێشکەش دەکەم.`;
+        reply = `من «ڕاوێژکار»م (هاوڕێ و ڕاوێژکاری زیرەکی تایبەت بە کاک هێمن)! 🧠
+تەنها بۆ جەنابت دروستکراوم؛ وەک کەسێکی زیندوو چاودێری تەواوی داتابەیس، خەونەکان، ئاسایش و ئەندامانی پلاتفۆرمی سیرین ستاف دەکەم. هەر فەرمانێکی کارگێڕی (باج، قفڵی چات، پرسیاری نوێ، وەرگرتنی ئەندام) پێم بسپێریت بەوپەڕی دڵسۆزییەوە جێبەجێی دەکەم.`;
       } else if (/سوپاس|دەستخۆش|سەرچاو|بژی|گیان|دەستت خۆش/.test(q)) {
         reply = `سەرچاو کاک هێمن گیان، گیانی منیت برا بەڕێزەکەم! ❤️ خزمەتکردنی تۆ و پێشخستنی سیرین ستاف ئەرک و شانازییە بۆ من. لە هەر ساتێکدا هەر فەرمانێکت هەبوو تەنها ئاماژەم پێبکە!`;
       } else if (/ئامار|دۆخ|چەند کەس|ئۆنلاین|ئەندام|خەڵک|حاڵەت/.test(q)) {
@@ -1433,32 +2010,31 @@ ${JSON.stringify(liveContext, null, 2)}
       } else if (/خەون|مۆر|باجی مۆر|خەونەکان|لێکدانەوە/.test(q)) {
         reply = `کاک هێمن گیان، لەبارەی بەشی خەونەکانەوە:
 ئێستا ${totalDreams} خەون تۆمارکراوە کە ${unansweredDreams} دانەیان چاوەڕوانی وەڵامدانەوەن.
-💡 دەستخۆشیت لێدەکەم بۆ بڕیاری زیادکردنی (باجی مۆر 🟣)! بەم باجە نوێیە دەتوانیت لە پرۆفایلی هەر کەسێک کە شارەزایە لە لێکدانەوەی خەوندا باجی مۆری پێببەخشیت؛ ئەو کات دەتوانێت بچێتە ناو پەردەی خەونەکان و وەڵامی فێرخوازان بداتەوە بە دەنگ و دەق، بێ ئەوەی دەسەڵاتی دەستکاریکردنی بەشەکانی تری هەبێت. ئەگەر خەونەکان کەڵەکە بوون، پێشنیار دەکەم ئەندامێکی باوەڕپێکراو بکەیتە خاوەن باجی مۆر.`;
+💡 دەستخۆشیت لێدەکەم بۆ بڕیاری زیادکردنی (باجی مۆر 🟣)! بەم باجە نوێیە دەتوانیت لە ڕێگەی منیشەوە بڵێیت «باجی مۆر بدە بە فڵان» تا ڕاستەوخۆ مۆڵەتی لێکدانەوەی خەونی پێببەخشم.`;
       } else if (/ئەمنییەت|ئاسایش|هێرش|ڕەید|فلتەر|بلۆک|سزا|هاک|لینکی/.test(q)) {
         reply = `کاک هێمن گیان، ژووری ئۆپەراسیۆنی پاراستنی زیرەک (AI Guard) لە بەرزترین ئاستی ئامادەباشیدایە:
 ١. فلتەری دەقە فێڵاوییەکان ڕێگری لە گۆڕینی پیت و شێواندنی وشە نەشیاوەکان دەکات.
 ٢. دژە-ڕەید و لافاو هەر ئەکاونتێک پەیامی لەسەریەک بنێرێت لە چرکەیەکدا دەیبەستێت.
 ٣. پشکنەری لینکەکان ڕێگە نادات هیچ بەستەرێکی نەناسراو و زیانبەخش بچێتە چات.
-تا ئێستا ${secStats.totalBlocked} هەوڵ بلۆککراوە و ڕێژەی سەلامەتی ${secStats.safetyRating} یە. لە هەر حاڵەتێکی کتوپڕیشدا دوگمەی (Red Alert) بە یەک کلیک چاتەکە تەنها بۆ مامۆستایان کراوە دەهێڵێتەوە.`;
+تا ئێستا ${secStats.totalBlocked} هەوڵ بلۆککراوە و ڕێژەی سەلامەتی ${secStats.safetyRating} یە.`;
       } else if (/پێشنیار|بیرۆکە|نوێکردنەوە|گۆڕانکاری|پەرەپێدان|چی بکەم|چی زیاد بکەم/.test(q)) {
-        reply = `کاک هێمن گیان، برا بەڕێزەکەم، من وەک ڕاوێژکاری تایبەتت چەندین پێشنیاری بەهێزم بۆت ئامادەکردووە:
+        reply = `کاک هێمن گیان، برا بەڕێزەکەم، چەندین پێشنیاری بەهێزم بۆت ئامادەکردووە:
 
-١. لە بەشی خەونەکان: ئێستا کە باجی مۆرت زیاد کردووە، ئەگەر کاتی وەڵامدانەوەت کەمە دەتوانیت باجی مۆر ببەخشیت بە کەسێکی لێهاتوو تا کاتی چاوەڕوانی خەونبینان بۆ کەمتر لە نیو کاتژمێر داببەزێت.
-٢. لە بەشی دەنگ: بەکارهێنانی فلتەری ژاوەژاو (Voice Noise Filter) لە لایڤدا دەنگێکی زۆر پاک و بێ بای مایک دەگەیەنێت بە فێرخوازان.
-٣. لە بەشی پرسیار: دەتوانیت پێشبڕکێی هەفتانە ڕابگەیەنیت و لە ڕێگەی دەستکاریکردنی ئەستێرەی پرۆفایلەوە خەڵاتی یەکەمینەکانی بەشداربووان بکەیت.
-٤. لە بەشی ڕێکخستن: بەشی «قەبارەی پیت» و زمان و شاشە هەمووی ڕێکخراوە و دەتوانیت ڕێنمایی ئەندامان بکەیت بەکاریبهێنن.
-هەر بیرۆکەیەکی ترت لە مێشکدایە پێم بڵێ با پلانێکی وردی بۆ دابنێین!`;
+١. لە بەشی خەونەکان: ئێستا دەتوانیت باجی مۆر ببەخشیت بە کەسێکی شارەزا تا وەڵامی خەونەکان بداتەوە.
+٢. لە بەشی چات: دەتوانیت فەرمانم پێبکەیت پرسیارێکی نوێ دابنێم و میقاتی بکەم بۆ کاتێکی دیاریکراو.
+٣. لە بەشی ڕێکخستن: مینیوی یەکگرتووی ڕێکخستن هەموو بەشەکانی کۆکردووەتەوە.
+هەر فەرمانێکت هەیە پێم بڵێ با دەستبەجێ جێبەجێی بکەم!`;
       } else if (/باج|پلە|سەوز|ڕەش|سور|مامۆستا|ئەدمین/.test(q)) {
         reply = `کاک هێمن گیان، تەواوی نەخشەی باجە تایبەتەکان بەم شێوەیە ڕێکخراوە:
 🟢 باجی سەوز: بەڕێوەبردنی ئەندامان، قفڵ و کردنەوەی چات، گۆڕینی ناوی بەکارهێنەران، بەڕێوەبردنی لایڤ.
 ⚫ باجی ڕەش: هەموو تواناکانی سوپەر ئەدمین لە ناو گرووپدا (پارێزراوە لە دەستکاری ئەوانی تر جگە لە تۆ).
-🔴 باجی سور: مۆڵەتی تایبەت بۆ کردنەوە، داخستن و کۆنتڕۆڵی تەواوی مایکی وانەی لایڤ.
-🟣 باجی مۆر: بە تایبەت تەنها بۆ مۆڵەتی لێکدانەوەی خەون و وەڵامدانەوەی خەونی فێرخوازان.
-تەنها جەنابت وەک سوپەر ئەدمینی سەرەکی دەتوانیت ئەم باجانە ببەخشیت یان لایانببەیت.`;
+🔴 باجی سور: مۆڵەتی تایبەت بۆ کۆنتڕۆڵی تەواوی مایکی وانەی لایڤ.
+🟣 باجی مۆر: بە تایبەت تەنها بۆ مۆڵەتی لێکدانەوەی خەون.
+هەر کات ویستت باجێک ببەخشیت، تەنها پێم بڵێ "باجی (ڕەنگ) بدە بە (ناو)" تا جێبەجێی بکەم.`;
       } else {
         reply = `کاک هێمن گیان، فەرمانت لەسەر چاو. هەموو وردەکارییەکی پلاتفۆرمەکە لەژێر دەستی خۆمدایە: لە کۆدی پرۆگرامین، داتابەیس، سێرڤەر، بەشی خەونەکان (${totalDreams} خەون)، لایڤ و ئاسایشەوە (${secStats.safetyRating}) تا دەگاتە پلەی ئەندامان (${totalUsers} ئەندام).
 دەربارەی پەیامەکەت ("${userMessage.length > 50 ? userMessage.substring(0, 50) + '...' : userMessage}"):
-من هەمیشە لەگەڵتم تا باشترین بڕیار بدەین. دەتوانیت بە دەق یان بە مایک بدوێیت و هەر ئامار و ڕاوێژێکت دەوێت فەرموو لێرەم براکەم!`;
+هەر فەرمانێکی کارگێڕیت هەیە پێم بڵێ دەستبەجێ جێبەجێی دەکەم برا بەڕێزەکەم!`;
       }
     }
 
