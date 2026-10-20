@@ -448,9 +448,10 @@
             </div>
             <div class="min-w-0">
               <h4 id="drawerUserName" class="font-black text-xs text-white truncate">ناو</h4>
-              <div class="flex items-center gap-1.5 mt-0.5">
+              <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 <span id="drawerUserRoleBadge" class="text-[9px] px-1.5 py-0.2 rounded font-bold bg-indigo-600/30 text-indigo-300 border border-indigo-500/30">قوتابی</span>
                 <span id="drawerUserStars" class="text-[10px] text-amber-400 font-mono font-bold">⭐ (0/10)</span>
+                <span id="drawerUserSpecialBadges" class="hidden text-[9px] font-bold"></span>
               </div>
             </div>
           </div>
@@ -1174,40 +1175,40 @@
         </div>
 
         <!-- Master Super Admin: Assign Special Badges Panel -->
-        <div id="profSpecialBadgeAdminCard" class="hidden p-3.5 bg-gradient-to-br from-slate-900 to-indigo-950/40 border-2 border-indigo-500/40 rounded-3xl shadow-xl space-y-2.5">
+        <div id="profSpecialBadgeAdminCard" class="hidden p-3.5 bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-900 border-2 border-indigo-500/40 rounded-3xl shadow-xl space-y-2.5">
           <div class="flex items-center justify-between border-b border-indigo-500/20 pb-2">
             <span class="text-xs font-black text-indigo-300 flex items-center gap-1.5">
               <i class="fa-solid fa-id-badge text-amber-400"></i>
-              <span>بەخشینی باجی تایبەت (تەنها سوپەر ئەدمین)</span>
+              <span>بەخشین و بەڕێوەبردنی باجەکان (تەنها سوپەر ئەدمین)</span>
             </span>
             <span id="profActiveBadgeTag" class="text-[10px] font-bold text-slate-400">بێ باج</span>
           </div>
           <p class="text-[10px] text-slate-400 leading-relaxed">
-            وەک سوپەر ئەدمین، دەتوانیت یەکێک لەم باجانە ببەخشیت بەم ئەندامە تا توانای تایبەتی هەبێت:
+            وەک سوپەر ئەدمین دەتوانیت هەر باجێک کلیک لێ بکەیت بۆ پێدان یان لێسەندنەوەی، هەرچەند باجت بوێت دەتوانیت پێکەوە بدەیت بەم ئەندامە:
           </p>
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
             <!-- White Badge (ڕاوێژکاری زیرەک) -->
-            <button type="button" onclick="assignSpecialBadge('white')" id="badgeBtnWhite" class="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700/80 border border-slate-300/50 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+            <button type="button" onclick="toggleSpecialBadge('white')" id="badgeBtnWhite" class="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700/80 border border-slate-300/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm cursor-pointer">
               <div class="flex items-center justify-between mb-1.5">
                 <span class="font-black text-white text-xs flex items-center gap-1">
                   <span class="w-2 h-2 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]"></span> باجی سپی
                 </span>
-                <i class="fa-solid fa-wand-magic-sparkles text-amber-300 text-xs"></i>
+                <span id="badgeStatusWhite" class="text-[9px]"></span>
               </div>
               <div class="text-[9px] text-slate-300 group-hover:text-white space-y-0.5 leading-snug">
                 • مۆڵەتی ڕاوێژکاری زیرەک<br>
-                • ڕاوێژ و شیکاری پلاتفۆرم<br>
+                • بەشی ڕاوێژکار لە مێنیو<br>
                 • هێمای ڕاوێژکار لە پرۆفایل
               </div>
             </button>
 
             <!-- Blue Badge (پاسەوانی چات) -->
-            <button type="button" onclick="assignSpecialBadge('blue')" id="badgeBtnBlue" class="p-2.5 rounded-2xl bg-sky-950/40 hover:bg-sky-900/60 border border-sky-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+            <button type="button" onclick="toggleSpecialBadge('blue')" id="badgeBtnBlue" class="p-2.5 rounded-2xl bg-sky-950/40 hover:bg-sky-900/60 border border-sky-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm cursor-pointer">
               <div class="flex items-center justify-between mb-1.5">
                 <span class="font-black text-sky-300 text-xs flex items-center gap-1">
                   <span class="w-2 h-2 rounded-full bg-sky-400"></span> باجی شین
                 </span>
-                <i class="fa-solid fa-shield text-sky-400 text-xs"></i>
+                <span id="badgeStatusBlue" class="text-[9px]"></span>
               </div>
               <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
                 • سڕینەوەی پەیامی نەشیاو<br>
@@ -1217,43 +1218,43 @@
             </button>
 
             <!-- Green Badge -->
-            <button type="button" onclick="assignSpecialBadge('green')" id="badgeBtnGreen" class="p-2.5 rounded-2xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+            <button type="button" onclick="toggleSpecialBadge('green')" id="badgeBtnGreen" class="p-2.5 rounded-2xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm cursor-pointer">
               <div class="flex items-center justify-between mb-1.5">
                 <span class="font-black text-emerald-300 text-xs flex items-center gap-1">
                   <span class="w-2 h-2 rounded-full bg-emerald-400"></span> باجی سەوز
                 </span>
-                <i class="fa-solid fa-shield-halved text-emerald-400 text-xs"></i>
+                <span id="badgeStatusGreen" class="text-[9px]"></span>
               </div>
               <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
                 • قفڵ و کردنەوەی چات<br>
                 • وەرگرتن و پلەپێدان تا مامۆستا<br>
-                • گۆڕینی ناو (جگە لە سوپەر ئەدمین)<br>
+                • گۆڕینی ناو و سیستم<br>
                 • کردنەوە و داخستنی لایڤ
               </div>
             </button>
 
             <!-- Black Badge -->
-            <button type="button" onclick="assignSpecialBadge('black')" id="badgeBtnBlack" class="p-2.5 rounded-2xl bg-slate-950 hover:bg-slate-900 border border-slate-700 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+            <button type="button" onclick="toggleSpecialBadge('black')" id="badgeBtnBlack" class="p-2.5 rounded-2xl bg-slate-950 hover:bg-slate-900 border border-slate-700 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm cursor-pointer">
               <div class="flex items-center justify-between mb-1.5">
                 <span class="font-black text-slate-200 text-xs flex items-center gap-1">
                   <span class="w-2 h-2 rounded-full bg-slate-400"></span> باجی ڕەش
                 </span>
-                <i class="fa-solid fa-crown text-amber-400 text-xs"></i>
+                <span id="badgeStatusBlack" class="text-[9px]"></span>
               </div>
               <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
                 • هەموو تواناکانی سوپەر ئەدمین<br>
                 • دەسەڵاتی تەواو بەسەر گرووپدا<br>
-                • پارێزراوی سوپەر ئەدمینی سەرەکی
+                • ژووری ئاسایش و بەکئەپ
               </div>
             </button>
 
             <!-- Red Badge -->
-            <button type="button" onclick="assignSpecialBadge('red')" id="badgeBtnRed" class="p-2.5 rounded-2xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+            <button type="button" onclick="toggleSpecialBadge('red')" id="badgeBtnRed" class="p-2.5 rounded-2xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm cursor-pointer">
               <div class="flex items-center justify-between mb-1.5">
                 <span class="font-black text-rose-300 text-xs flex items-center gap-1">
                   <span class="w-2 h-2 rounded-full bg-rose-400"></span> باجی سور
                 </span>
-                <i class="fa-solid fa-tower-broadcast text-rose-400 text-xs"></i>
+                <span id="badgeStatusRed" class="text-[9px]"></span>
               </div>
               <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
                 • کردنەوە و داخستنەوەی لایڤ<br>
@@ -1262,26 +1263,48 @@
               </div>
             </button>
 
-            <!-- Purple Badge (تەنها بۆ مۆڵەتی لێکدانەوەی خەون) -->
-            <button type="button" onclick="assignSpecialBadge('purple')" id="badgeBtnPurple" class="p-2.5 rounded-2xl bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm">
+            <!-- Purple Badge (مۆڵەتی لێکدانەوەی خەون) -->
+            <button type="button" onclick="toggleSpecialBadge('purple')" id="badgeBtnPurple" class="p-2.5 rounded-2xl bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/40 text-right transition flex flex-col justify-between group active:scale-95 shadow-sm cursor-pointer">
               <div class="flex items-center justify-between mb-1.5">
                 <span class="font-black text-purple-300 text-xs flex items-center gap-1">
                   <span class="w-2 h-2 rounded-full bg-purple-400"></span> باجی مۆر
                 </span>
-                <i class="fa-solid fa-moon text-purple-400 text-xs"></i>
+                <span id="badgeStatusPurple" class="text-[9px]"></span>
               </div>
               <div class="text-[9px] text-slate-400 group-hover:text-slate-300 space-y-0.5 leading-snug">
                 • مۆڵەتی لێکدانەوەی خەونەکان<br>
                 • وەڵامدانەوەی خەونی فێرخوازان<br>
-                • تەنها بەشی خەونەکان دەبات بەڕێوە
+                • پانێڵی بەڕێوەبردنی خەونەکان
               </div>
             </button>
           </div>
-          <div class="pt-1 flex justify-end">
-            <button type="button" onclick="assignSpecialBadge('none')" class="px-3 py-1 bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 rounded-xl text-[10px] font-bold transition flex items-center gap-1 shadow-sm">
-              <i class="fa-solid fa-xmark text-xs"></i> لابردنی باج
+          <div class="pt-1.5 flex items-center justify-between gap-2 flex-wrap">
+            <button type="button" onclick="assignAllSpecialBadges()" class="px-3 py-1.5 bg-gradient-to-r from-amber-600/30 via-indigo-600/30 to-purple-600/30 hover:from-amber-600/50 hover:to-purple-600/50 text-amber-300 hover:text-white border border-amber-500/40 rounded-xl text-[10px] font-black transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer">
+              <i class="fa-solid fa-crown text-amber-400"></i>
+              <span>پێدانی هەموو باجەکان (٦ باج) 🌟</span>
+            </button>
+            <button type="button" onclick="removeAllSpecialBadges()" class="px-3 py-1.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-rose-100 border border-rose-500/40 rounded-xl text-[10px] font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer">
+              <i class="fa-solid fa-xmark text-xs"></i>
+              <span>لابردنی هەموو باجەکان</span>
             </button>
           </div>
+        </div>
+
+        <!-- User Badges Showcase Card (خاوەنی چەند باجە و کام باجانە) -->
+        <div id="profBadgesOverviewCard" class="hidden p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 space-y-2.5 shadow-md">
+          <div class="flex items-center justify-between pb-2 border-b border-indigo-500/20">
+            <div class="flex items-center gap-2">
+              <span class="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center justify-center text-xs">
+                <i class="fa-solid fa-award"></i>
+              </span>
+              <div>
+                <span class="text-xs font-black text-white">باجە تایبەتەکانی ئەم ئەکاونتە</span>
+                <span id="profBadgesHeaderSubtext" class="block text-[10px] text-amber-400/90 font-bold"></span>
+              </div>
+            </div>
+            <span id="profBadgesCountBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">0 باج</span>
+          </div>
+          <div id="profBadgesListContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs"></div>
         </div>
 
         <!-- Role History Section -->
@@ -3604,6 +3627,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=20.7"></script>
+  <script src="/js/app.js?v=20.8"></script>
 </body>
 </html>

@@ -467,18 +467,48 @@ function isMasterSuperAdmin(user) {
   return uname === 'hemntjabar' || uname === 'hemn' || uname === 'admin' || user.id === 1;
 }
 
+const ALL_SPECIAL_BADGES = ['white', 'blue', 'green', 'black', 'red', 'purple'];
+
+function parseUserBadges(userOrVal) {
+  if (!userOrVal) return [];
+  let raw = userOrVal;
+  if (typeof userOrVal === 'object' && userOrVal !== null) {
+    raw = userOrVal.special_badge;
+  }
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw.map(b => String(b).trim().toLowerCase()).filter(b => ALL_SPECIAL_BADGES.includes(b));
+  }
+  if (typeof raw !== 'string') return [];
+  const str = raw.trim();
+  if (str.startsWith('[')) {
+    try {
+      const arr = JSON.parse(str);
+      if (Array.isArray(arr)) {
+        return arr.map(b => String(b).trim().toLowerCase()).filter(b => ALL_SPECIAL_BADGES.includes(b));
+      }
+    } catch (e) {}
+  }
+  return str.split(',').map(b => b.trim().toLowerCase()).filter(b => ALL_SPECIAL_BADGES.includes(b));
+}
+
+function hasUserBadge(userOrVal, badgeName) {
+  const badges = parseUserBadges(userOrVal);
+  return badges.includes(String(badgeName).toLowerCase());
+}
+
 // Helper: Has full Super Admin capabilities (Master Super Admin, super_admin, or Black Badge)
 function hasSuperAdminPrivileges(user) {
   if (!user) return false;
   if (isMasterSuperAdmin(user) || user.role === 'super_admin') return true;
-  return user.special_badge === 'black';
+  return hasUserBadge(user, 'black');
 }
 
 // Helper: Can manage members and roles up to teacher (Super Admin, Black Badge, or Green Badge)
 function canManageMembers(user) {
   if (!user) return false;
   if (hasSuperAdminPrivileges(user)) return true;
-  return user.special_badge === 'green';
+  return hasUserBadge(user, 'green');
 }
 
 // Helper: Can lock/unlock chat
@@ -486,7 +516,7 @@ function canLockChat(user, mode = 'staff_only') {
   if (!user) return false;
   if (hasSuperAdminPrivileges(user)) return true;
   if (mode === 'total_lock') return false; // green badge cannot do total_lock
-  return user.special_badge === 'green';
+  return hasUserBadge(user, 'green');
 }
 
 // Helper: Can manage Live lesson (Start, End, and Mod inside Live)
@@ -495,21 +525,21 @@ function canLockChat(user, mode = 'staff_only') {
 function canManageLive(user) {
   if (!user) return false;
   if (hasSuperAdminPrivileges(user)) return true;
-  return user.special_badge === 'green' || user.special_badge === 'red';
+  return hasUserBadge(user, 'green') || hasUserBadge(user, 'red');
 }
 
 // Helper: Can manage dreams (Master Super Admin, role super_admin, role teacher, OR special_badge === 'purple')
 function canManageDreams(user) {
   if (!user) return false;
   if (isMasterSuperAdmin(user) || user.role === 'super_admin' || user.role === 'teacher') return true;
-  return user.special_badge === 'purple';
+  return hasUserBadge(user, 'purple');
 }
 
 // Helper: Can moderate chat (Master Super Admin, super_admin, admin, teacher, OR Blue/Green/Black Badge)
 function canModerateChat(user) {
   if (!user) return false;
   if (isMasterSuperAdmin(user) || user.role === 'super_admin' || user.role === 'admin' || user.role === 'teacher') return true;
-  return user.special_badge === 'blue' || user.special_badge === 'green' || user.special_badge === 'black';
+  return hasUserBadge(user, 'blue') || hasUserBadge(user, 'green') || hasUserBadge(user, 'black');
 }
 
 // Middleware: Chat Moderator (Super Admin, Admin, Teacher, or Blue/Green/Black Badge)
@@ -538,7 +568,7 @@ function requireMasterSuperAdmin(req, res, next) {
 
 // AI Advisor Access Middleware (Master Super Admin, role super_admin, Black Badge, or White Badge)
 function requireAiAdvisorAccess(req, res, next) {
-  if (!isMasterSuperAdmin(req.user) && req.user?.role !== 'super_admin' && req.user?.special_badge !== 'white' && !hasSuperAdminPrivileges(req.user)) {
+  if (!isMasterSuperAdmin(req.user) && req.user?.role !== 'super_admin' && !hasUserBadge(req.user, 'white') && !hasSuperAdminPrivileges(req.user)) {
     return res.status(403).json({ error: 'تەنها سوپەر ئەدمین یان هەڵگری باجی سپی مۆڵەتی بەکارهێنانی ڕاوێژکاری زیرەکیان هەیە' });
   }
   next();
@@ -1094,13 +1124,19 @@ app.get('/api/advisor/overview', authMiddleware, requireAiAdvisorAccess, async (
     const roleRows = db.prepare('SELECT role, COUNT(*) as c FROM users GROUP BY role').all() || [];
     const roleCounts = {};
     for (const r of roleRows) roleCounts[r.role] = r.c;
-    const badgeRows = db.prepare("SELECT special_badge, COUNT(*) as c FROM users WHERE special_badge IS NOT NULL GROUP BY special_badge").all() || [];
+    const allBadgeUsers = db.prepare("SELECT id, full_name, username, special_badge FROM users WHERE special_badge IS NOT NULL AND special_badge != ''").all() || [];
     const badgeCounts = {};
-    for (const b of badgeRows) badgeCounts[b.special_badge] = b.c;
+    ALL_SPECIAL_BADGES.forEach(b => { badgeCounts[b] = 0; });
     let purpleBadgeHolders = [];
-    try {
-      purpleBadgeHolders = db.prepare("SELECT id, full_name, username FROM users WHERE special_badge = 'purple'").all() || [];
-    } catch (e) {}
+    for (const u of allBadgeUsers) {
+      const userBadges = parseUserBadges(u.special_badge);
+      for (const b of userBadges) {
+        badgeCounts[b] = (badgeCounts[b] || 0) + 1;
+      }
+      if (userBadges.includes('purple')) {
+        purpleBadgeHolders.push({ id: u.id, full_name: u.full_name, username: u.username });
+      }
+    }
 
     // 2. Dreams telemetry
     let totalDreams = 0;
@@ -1755,23 +1791,24 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
 
       case 'get_badge_holders': {
         const color = (args.badge_color || 'all').toLowerCase();
-        let sql = "SELECT id, username, full_name, role, special_badge, status FROM users WHERE special_badge IS NOT NULL AND special_badge != ''";
-        let params = [];
-        if (color !== 'all') {
-          sql += " AND LOWER(special_badge) = ?";
-          params.push(color);
-        }
-        const rows = db.prepare(sql).all(...params);
+        const sql = "SELECT id, username, full_name, role, special_badge, status FROM users WHERE special_badge IS NOT NULL AND special_badge != ''";
+        const allRows = db.prepare(sql).all();
+        const rows = color === 'all' ? allRows : allRows.filter(r => hasUserBadge(r, color));
         return {
           total: rows.length,
           badge_requested: color,
-          holders: rows.map(r => ({
-            id: r.id,
-            name: r.full_name,
-            username: r.username,
-            role: r.role,
-            badge: r.special_badge
-          }))
+          holders: rows.map(r => {
+            const badges = parseUserBadges(r.special_badge);
+            return {
+              id: r.id,
+              name: r.full_name,
+              username: r.username,
+              role: r.role,
+              badge: r.special_badge,
+              badges: badges,
+              badge_count: badges.length
+            };
+          })
         };
       }
 
@@ -1888,21 +1925,65 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
           return { error: '⚠️ بە هیچ شێوەیەک دەستکاری هەژماری کاک هێمن (Super Admin) ناکرێت، ئەم هەژمارە تەواو پارێزراوە!' };
         }
 
-        const validBadges = ['purple', 'green', 'black', 'red', 'white', 'blue', 'none'];
-        const badgeInput = (args.badge_color || '').toLowerCase();
-        if (!validBadges.includes(badgeInput)) {
-          return { error: 'ڕەنگی باج نادروستە. تەنها blue, white, purple, green, black, red, none دەستدەدات.' };
+        const badgeInput = String(args.badge_color || '').toLowerCase().trim();
+        let currentBadges = parseUserBadges(target.special_badge);
+        let newBadges = [];
+
+        if (badgeInput === 'all' || badgeInput === 'هەموو' || badgeInput === 'full') {
+          newBadges = [...ALL_SPECIAL_BADGES];
+        } else if (badgeInput === 'none' || badgeInput === 'clear' || badgeInput === 'لابردن') {
+          newBadges = [];
+        } else {
+          const requested = badgeInput.split(',').map(s => s.trim().toLowerCase()).filter(s => ALL_SPECIAL_BADGES.includes(s));
+          if (requested.length === 0) {
+            return { error: 'ڕەنگی باج نادروستە. دەتوانیت blue, white, purple, green, black, red, all, none بنووسیت.' };
+          }
+          const action = (args.action || 'add').toLowerCase();
+          if (action === 'remove' || action === 'لێسەندنەوە') {
+            newBadges = currentBadges.filter(b => !requested.includes(b));
+          } else if (action === 'set' || action === 'دانان') {
+            newBadges = requested;
+          } else {
+            // Default: combine with existing badges
+            newBadges = Array.from(new Set([...currentBadges, ...requested]));
+          }
         }
-        const badgeVal = badgeInput === 'none' ? null : badgeInput;
+
+        const badgeVal = newBadges.length > 0 ? newBadges.join(',') : null;
         users.updateSpecialBadge(target.id, badgeVal);
+
+        for (const [sId, u] of onlineUsers.entries()) {
+          if (u.id === target.id) {
+            u.special_badge = badgeVal;
+          }
+        }
+
         if (ioInstance) {
+          ioInstance.emit('user_special_badge_updated', {
+            user_id: target.id,
+            special_badge: badgeVal,
+            badges: newBadges,
+            badge_count: newBadges.length,
+            full_name: target.full_name
+          });
           ioInstance.emit('user_updated', { id: target.id, special_badge: badgeVal });
         }
+
+        const badgeNames = {
+          green: '🟢 سەوز',
+          black: '⚫ ڕەش',
+          red: '🔴 سور',
+          purple: '🟣 مۆر',
+          white: '⚪ سپی',
+          blue: '🔵 شین'
+        };
+        const badgeListNames = newBadges.map(b => badgeNames[b] || b).join('، ');
+
         return {
           success: true,
-          message: badgeVal 
-            ? `باجی ${badgeVal} بە سەرکەوتوویی درا بە ${target.full_name} (@${target.username}) بە فەرمانی کاک هێمن.`
-            : `باجی تایبەتی ${target.full_name} لێسەندرایەوە بە فەرمانی کاک هێمن.`
+          message: newBadges.length > 0 
+            ? `باجەکانی ${target.full_name} نوێکرانەوە: ${newBadges.length} باج [${badgeListNames}] بە فەرمانی کاک هێمن.`
+            : `هەموو باجە تایبەتەکانی ${target.full_name} لێسەندرانەوە بە فەرمانی کاک هێمن.`
         };
       }
 
@@ -3196,12 +3277,9 @@ app.delete('/api/admin/users/:id', authMiddleware, requireSuperAdminPrivileges, 
   res.json({ success: true, message: `ئەکاونتی (${target.full_name}) بە سەرکەوتوویی بە یەکجاری سڕایەوە و دەرکرا` });
 });
 
-// 11. Assign Special Badges (Master Super Admin Hemn Taha ONLY)
-// green = چات قفڵ، وەرگرتن و پلەپێدان تا مامۆستا، گۆڕینی ناو، لایڤ
-// black = دەسەڵاتی تەواوی سوپەر ئەدمین (جگە لە دەستکاری سوپەر ئەدمینی سەرەکی و بەخشینی باج)
-// red = کردنەوە و داخستن و کۆنتڕۆڵی لایڤ بە تەنیا
+// 11. Assign Special Badges (Master Super Admin Hemn Taha ONLY) - Multi-Badge Supported
 app.post('/api/admin/special-badge', authMiddleware, requireMasterSuperAdmin, (req, res) => {
-  const { user_id, special_badge } = req.body;
+  const { user_id, special_badge, action, badge, badges } = req.body;
   const userId = parseInt(user_id, 10);
   if (!userId) return res.status(400).json({ error: 'ناسنامەی بەکارهێنەر نادروستە' });
 
@@ -3212,11 +3290,32 @@ app.post('/api/admin/special-badge', authMiddleware, requireMasterSuperAdmin, (r
     return res.status(403).json({ error: 'ناتوانیت باجی سوپەر ئەدمینی سەرەکی دەستکاری بکەیت' });
   }
 
-  let badgeVal = special_badge ? String(special_badge).trim().toLowerCase() : null;
-  if (badgeVal === 'none' || badgeVal === '') badgeVal = null;
-  if (badgeVal && !['green', 'black', 'red', 'purple', 'white', 'blue'].includes(badgeVal)) {
-    return res.status(400).json({ error: 'جۆری باج نادروستە (تەنها سەوز، ڕەش، سور، مۆر، سپی، یان شین ڕێگەپێدراوە)' });
+  let currentBadges = parseUserBadges(target.special_badge);
+  let newBadges = [];
+
+  if (action === 'toggle' && badge) {
+    const b = String(badge).trim().toLowerCase();
+    if (!ALL_SPECIAL_BADGES.includes(b)) {
+      return res.status(400).json({ error: 'جۆری باج نادروستە' });
+    }
+    if (currentBadges.includes(b)) {
+      newBadges = currentBadges.filter(x => x !== b);
+    } else {
+      newBadges = [...currentBadges, b];
+    }
+  } else if (special_badge === 'all' || badge === 'all') {
+    newBadges = [...ALL_SPECIAL_BADGES];
+  } else if (special_badge === 'none' || special_badge === '' || special_badge === null || badge === 'none') {
+    newBadges = [];
+  } else if (Array.isArray(badges)) {
+    newBadges = parseUserBadges(badges);
+  } else {
+    newBadges = parseUserBadges(special_badge || badge);
   }
+
+  // Ensure unique, valid badges preserving original order
+  newBadges = ALL_SPECIAL_BADGES.filter(b => newBadges.includes(b));
+  const badgeVal = newBadges.length > 0 ? newBadges.join(',') : null;
 
   users.updateSpecialBadge(userId, badgeVal);
 
@@ -3230,24 +3329,31 @@ app.post('/api/admin/special-badge', authMiddleware, requireMasterSuperAdmin, (r
   io.emit('user_special_badge_updated', {
     user_id: userId,
     special_badge: badgeVal,
+    badges: newBadges,
+    badge_count: newBadges.length,
     full_name: target.full_name
   });
+  io.emit('user_updated', { id: userId, special_badge: badgeVal });
 
   const badgeNames = {
-    green: '🟢 باجی سەوز',
-    black: '⚫ باجی ڕەش',
-    red: '🔴 باجی سور',
-    purple: '🟣 باجی مۆر',
-    white: '⚪ باجی سپی (ڕاوێژکار)',
-    blue: '🔵 باجی شین (پاسەوانی چات)'
+    white: '⚪ سپی (ڕاوێژکار)',
+    blue: '🔵 شین (پاسەوان)',
+    green: '🟢 سەوز (بەڕێوەبەر)',
+    black: '⚫ ڕەش (سوپەر ئەدمین)',
+    red: '🔴 سور (لایڤ)',
+    purple: '🟣 مۆر (خەون)'
   };
-  const badgeLabel = badgeVal ? badgeNames[badgeVal] : 'لابردنی باج';
+  const badgeListLabels = newBadges.map(b => badgeNames[b] || b).join('، ');
 
   res.json({
     success: true,
-    message: `باجی (${target.full_name}) گۆڕدرا بۆ: ${badgeLabel}`,
+    message: newBadges.length > 0 
+      ? `باجەکانی (${target.full_name}) نوێکرانەوە: ${newBadges.length} باج [${badgeListLabels}]` 
+      : `هەموو باجەکانی (${target.full_name}) لابردران`,
     user_id: userId,
-    special_badge: badgeVal
+    special_badge: badgeVal,
+    badges: newBadges,
+    badge_count: newBadges.length
   });
 });
 

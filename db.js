@@ -494,7 +494,12 @@ const users = {
     return stmt.run(avatarUrl, id);
   },
   updateSpecialBadge(id, specialBadge) {
-    const val = specialBadge ? String(specialBadge).trim().toLowerCase() : null;
+    let val = specialBadge;
+    if (Array.isArray(val)) {
+      val = val.filter(Boolean).map(b => String(b).trim().toLowerCase()).join(',');
+    }
+    val = val ? String(val).trim().toLowerCase() : null;
+    if (val === '' || val === 'none') val = null;
     const stmt = db.prepare('UPDATE users SET special_badge = ? WHERE id = ?');
     return stmt.run(val, id);
   },

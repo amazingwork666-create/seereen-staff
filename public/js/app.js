@@ -303,63 +303,167 @@ function isMasterSuperAdmin(user) {
   return uname === 'hemntjabar' || uname === 'hemn' || uname === 'admin' || user.id === 1;
 }
 
+const ALL_SPECIAL_BADGES = ['white', 'blue', 'green', 'black', 'red', 'purple'];
+
+const BADGE_CONFIG = {
+  white: {
+    color: 'white',
+    name: 'باجی سپی (ڕاوێژکار)',
+    shortName: 'سپی',
+    icon: 'fa-wand-magic-sparkles',
+    dotColor: 'bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]',
+    chipClass: 'bg-white/20 text-white border-white/50',
+    emoji: '⚪',
+    desc: 'مۆڵەتی ڕاوێژکاری زیرەکی ستاف (AI)'
+  },
+  blue: {
+    color: 'blue',
+    name: 'باجی شین (پاسەوان)',
+    shortName: 'شین',
+    icon: 'fa-shield',
+    dotColor: 'bg-sky-400',
+    chipClass: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+    emoji: '🔵',
+    desc: 'سڕینەوەی پەیام و سڕکردنی سەرپێچیکار'
+  },
+  green: {
+    color: 'green',
+    name: 'باجی سەوز (بەڕێوەبەر)',
+    shortName: 'سەوز',
+    icon: 'fa-shield-halved',
+    dotColor: 'bg-emerald-400',
+    chipClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+    emoji: '🟢',
+    desc: 'بەڕێوەبردنی ئەندامان، پەسەندکردن، پلە و لایڤ'
+  },
+  black: {
+    color: 'black',
+    name: 'باجی ڕەش (سوپەر ئەدمین)',
+    shortName: 'ڕەش',
+    icon: 'fa-crown',
+    dotColor: 'bg-slate-300',
+    chipClass: 'bg-slate-950 text-slate-100 border-slate-700',
+    emoji: '⚫',
+    desc: 'دەسەڵاتی تەواوی سوپەر ئەدمین لە سیستەمدا'
+  },
+  red: {
+    color: 'red',
+    name: 'باجی سور (لایڤ)',
+    shortName: 'سور',
+    icon: 'fa-tower-broadcast',
+    dotColor: 'bg-rose-400',
+    chipClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+    emoji: '🔴',
+    desc: 'بەڕێوەبەری وانەی ڕاستەوخۆ و کۆنتڕۆڵی لایڤ'
+  },
+  purple: {
+    color: 'purple',
+    name: 'باجی مۆر (خەون)',
+    shortName: 'مۆر',
+    icon: 'fa-moon',
+    dotColor: 'bg-purple-400',
+    chipClass: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+    emoji: '🟣',
+    desc: 'مۆڵەتی لێکدانەوەی خەونی فێرخوازان'
+  }
+};
+
+function parseUserBadges(userOrVal) {
+  if (!userOrVal) return [];
+  let raw = userOrVal;
+  if (typeof userOrVal === 'object' && userOrVal !== null) {
+    raw = userOrVal.special_badge;
+  }
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw.map(b => String(b).trim().toLowerCase()).filter(b => ALL_SPECIAL_BADGES.includes(b));
+  }
+  if (typeof raw !== 'string') return [];
+  const str = raw.trim();
+  if (str.startsWith('[')) {
+    try {
+      const arr = JSON.parse(str);
+      if (Array.isArray(arr)) {
+        return arr.map(b => String(b).trim().toLowerCase()).filter(b => ALL_SPECIAL_BADGES.includes(b));
+      }
+    } catch (e) {}
+  }
+  return str.split(',').map(b => b.trim().toLowerCase()).filter(b => ALL_SPECIAL_BADGES.includes(b));
+}
+
+function hasUserBadge(userOrVal, badgeName) {
+  const badges = parseUserBadges(userOrVal);
+  return badges.includes(String(badgeName).toLowerCase());
+}
+
 function hasSuperAdminPrivileges(user) {
   if (!user) return false;
   if (isMasterSuperAdmin(user) || user.role === 'super_admin') return true;
-  return user.special_badge === 'black';
+  return hasUserBadge(user, 'black');
 }
 
 function canUserManageMembers(user) {
   if (!user) return false;
   if (hasSuperAdminPrivileges(user)) return true;
-  return user.special_badge === 'green';
+  return hasUserBadge(user, 'green');
 }
 
 function canUserLockChat(user) {
   if (!user) return false;
   if (hasSuperAdminPrivileges(user)) return true;
-  return user.special_badge === 'green';
+  return hasUserBadge(user, 'green');
 }
 
 function canUserManageLive(user) {
   if (!user) return false;
   if (hasSuperAdminPrivileges(user)) return true;
-  return user.special_badge === 'green' || user.special_badge === 'red';
+  return hasUserBadge(user, 'green') || hasUserBadge(user, 'red');
 }
 
 function canUserManageDreams(user) {
   if (!user) return false;
   if (isMasterSuperAdmin(user) || user.role === 'super_admin' || user.role === 'teacher') return true;
-  return user.special_badge === 'purple';
+  return hasUserBadge(user, 'purple');
 }
 
 function canUserModerateChat(user) {
   if (!user) return false;
   if (isMasterSuperAdmin(user) || user.role === 'super_admin' || user.role === 'admin' || user.role === 'teacher') return true;
-  return user.special_badge === 'blue' || user.special_badge === 'green' || user.special_badge === 'black';
+  return hasUserBadge(user, 'blue') || hasUserBadge(user, 'green') || hasUserBadge(user, 'black');
 }
 
-function renderSpecialBadgeHtml(badge) {
-  if (!badge) return '';
-  if (badge === 'blue') {
-    return `<span class="px-1.5 py-0.5 rounded-md bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span> باجی شین (پاسەوان)</span>`;
+function renderSpecialBadgeHtml(badgeOrUser, options = {}) {
+  const badges = parseUserBadges(badgeOrUser);
+  if (badges.length === 0) return '';
+
+  const showCount = options.showCount !== false;
+  let html = '';
+
+  if (badges.length === 6) {
+    html += `
+      <span class="px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500/25 via-purple-500/25 to-indigo-500/25 text-amber-300 border border-amber-400/50 text-[9px] font-black inline-flex items-center gap-1 shadow-sm" title="هەموو باجە تایبەتەکانی هەیە">
+        <i class="fa-solid fa-crown text-[8px] text-amber-300"></i> هەموو باجەکان (٦ باج)
+      </span>
+    `;
+  } else if (badges.length > 1 && showCount) {
+    html += `
+      <span class="px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[9px] font-black inline-flex items-center gap-1 shadow-sm" title="خاوەنی ${badges.length} باجی تایبەتە">
+        <i class="fa-solid fa-award text-[8px]"></i> ${badges.length} باج
+      </span>
+    `;
   }
-  if (badge === 'white') {
-    return `<span class="px-1.5 py-0.5 rounded-md bg-white/20 text-white border border-white/50 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.8)]"></span> باجی سپی (ڕاوێژکار)</span>`;
+
+  for (const b of badges) {
+    const cfg = BADGE_CONFIG[b];
+    if (!cfg) continue;
+    html += `
+      <span class="px-1.5 py-0.5 rounded-md ${cfg.chipClass} text-[9px] font-black inline-flex items-center gap-1 shadow-sm" title="${cfg.name}: ${cfg.desc}">
+        <span class="w-1.5 h-1.5 rounded-full ${cfg.dotColor}"></span>
+        <span>${cfg.name}</span>
+      </span>
+    `;
   }
-  if (badge === 'green') {
-    return `<span class="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> باجی سەوز</span>`;
-  }
-  if (badge === 'black') {
-    return `<span class="px-1.5 py-0.5 rounded-md bg-slate-950 text-slate-100 border border-slate-700 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> باجی ڕەش</span>`;
-  }
-  if (badge === 'red') {
-    return `<span class="px-1.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> باجی سور</span>`;
-  }
-  if (badge === 'purple') {
-    return `<span class="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[9px] font-black inline-flex items-center gap-1 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span> باجی مۆر (خەون)</span>`;
-  }
-  return '';
+  return html;
 }
 
 // Link detector
@@ -763,6 +867,20 @@ function updateUserUI() {
     }
   }
 
+  const drawerSpecialBadges = document.getElementById('drawerUserSpecialBadges');
+  if (drawerSpecialBadges) {
+    const userBadges = parseUserBadges(currentUser.special_badge);
+    if (userBadges.length > 0) {
+      drawerSpecialBadges.classList.remove('hidden');
+      const dots = userBadges.map(b => BADGE_CONFIG[b]?.emoji || '🎖️').join('');
+      const countLabel = userBadges.length === 6 ? '٦ باج 🌟' : `${userBadges.length} باج`;
+      drawerSpecialBadges.innerHTML = `<span class="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[9px] font-black">${countLabel} ${dots}</span>`;
+    } else {
+      drawerSpecialBadges.classList.add('hidden');
+      drawerSpecialBadges.innerHTML = '';
+    }
+  }
+
   const isSuperAdmin = currentUser.role === 'super_admin';
   const isTeacher = currentUser.role === 'teacher';
   const hasBlackBadge = hasSuperAdminPrivileges(currentUser);
@@ -770,7 +888,7 @@ function updateUserUI() {
   const canLive = canUserManageLive(currentUser); // Green, Red, Black, Super Admin
   const canDream = canUserManageDreams(currentUser); // Purple, Super Admin, Teacher
   const canMod = canUserModerateChat(currentUser); // Blue, Green, Black, Super Admin, Teacher, Admin
-  const hasAdvisorAccess = isMasterSuperAdmin(currentUser) || hasBlackBadge || (currentUser && currentUser.special_badge === 'white');
+  const hasAdvisorAccess = isMasterSuperAdmin(currentUser) || hasBlackBadge || hasUserBadge(currentUser, 'white');
 
   const isAdmin = currentUser.role === 'admin' || isSuperAdmin || isTeacher || hasBlackBadge;
   const canViewMembers = isAdmin || canManageMbrs;
@@ -2879,8 +2997,9 @@ function appendMessage(msg, scroll = true) {
       currentUser.role === 'super_admin' || 
       currentUser.role === 'teacher' || 
       currentUser.role === 'admin' ||
-      currentUser.special_badge === 'white' || 
-      currentUser.special_badge === 'black'
+      hasSuperAdminPrivileges(currentUser) ||
+      hasUserBadge(currentUser, 'white') || 
+      hasUserBadge(currentUser, 'black')
     );
 
     attachmentHtml = `
@@ -5727,11 +5846,13 @@ async function openUserProfileModal(userId) {
     }
     roleEl.innerHTML = renderRoleBadge(prof.role, prof.gender);
 
+    const userBadges = parseUserBadges(prof.special_badge);
     const specialBadgeSlot = document.getElementById('profSpecialBadgeSlot');
     if (specialBadgeSlot) {
-      if (prof.special_badge) {
-        specialBadgeSlot.innerHTML = renderSpecialBadgeHtml(prof.special_badge);
+      if (userBadges.length > 0) {
+        specialBadgeSlot.innerHTML = renderSpecialBadgeHtml(userBadges, { showCount: true });
         specialBadgeSlot.classList.remove('hidden');
+        specialBadgeSlot.classList.add('inline-flex', 'items-center', 'gap-1', 'flex-wrap');
       } else {
         specialBadgeSlot.innerHTML = '';
         specialBadgeSlot.classList.add('hidden');
@@ -5741,13 +5862,50 @@ async function openUserProfileModal(userId) {
     const profAdvisorBtn = document.getElementById('profAdvisorBtn');
     if (profAdvisorBtn) {
       // Allowed if it's my profile AND (I am master super admin OR have super admin privileges OR I have white badge)
-      const hasAdvisorAccess = isMe && (isMasterSuperAdmin(currentUser) || hasSuperAdminPrivileges(currentUser) || (currentUser && currentUser.special_badge === 'white'));
+      const hasAdvisorAccess = isMe && (isMasterSuperAdmin(currentUser) || hasSuperAdminPrivileges(currentUser) || hasUserBadge(currentUser, 'white'));
       if (hasAdvisorAccess) {
         profAdvisorBtn.classList.remove('hidden');
         profAdvisorBtn.classList.add('inline-flex');
       } else {
         profAdvisorBtn.classList.add('hidden');
         profAdvisorBtn.classList.remove('inline-flex');
+      }
+    }
+
+    // Show Account Badges Showcase Card
+    const badgesCard = document.getElementById('profBadgesOverviewCard');
+    const badgesCountBadge = document.getElementById('profBadgesCountBadge');
+    const badgesSubtext = document.getElementById('profBadgesHeaderSubtext');
+    const badgesListContainer = document.getElementById('profBadgesListContainer');
+    if (badgesCard && badgesListContainer) {
+      if (userBadges.length > 0) {
+        badgesCard.classList.remove('hidden');
+        if (badgesCountBadge) {
+          badgesCountBadge.innerText = userBadges.length === 6 ? '٦ باج (هەمووی)' : `${userBadges.length} باج`;
+        }
+        if (badgesSubtext) {
+          badgesSubtext.innerText = `خاوەنی ${userBadges.length} باجی تایبەتە لە پلاتفۆرم`;
+        }
+        badgesListContainer.innerHTML = userBadges.map(b => {
+          const cfg = BADGE_CONFIG[b];
+          if (!cfg) return '';
+          return `
+            <div class="p-2.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 flex items-center justify-between gap-2 shadow-sm">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="w-7 h-7 rounded-xl ${cfg.chipClass} flex items-center justify-center text-xs shrink-0 shadow-inner">
+                  <i class="fa-solid ${cfg.icon}"></i>
+                </span>
+                <div class="min-w-0">
+                  <span class="font-black text-xs ${cfg.color} block truncate">${cfg.name}</span>
+                  <span class="text-[9px] text-slate-400 block truncate">${cfg.desc}</span>
+                </div>
+              </div>
+              <span class="px-2 py-0.5 rounded-full text-[8px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">چالاکە ✓</span>
+            </div>
+          `;
+        }).join('');
+      } else {
+        badgesCard.classList.add('hidden');
       }
     }
 
@@ -5910,35 +6068,41 @@ async function openUserProfileModal(userId) {
     // Master Super Admin: Special Badges Panel (باجە تایبەتەکان)
     const badgeAdminCard = document.getElementById('profSpecialBadgeAdminCard');
     const activeBadgeTag = document.getElementById('profActiveBadgeTag');
-    const btnWhite = document.getElementById('badgeBtnWhite');
-    const btnBlue = document.getElementById('badgeBtnBlue');
-    const btnGreen = document.getElementById('badgeBtnGreen');
-    const btnBlack = document.getElementById('badgeBtnBlack');
-    const btnRed = document.getElementById('badgeBtnRed');
-    const btnPurple = document.getElementById('badgeBtnPurple');
 
     if (badgeAdminCard) {
       if (isMasterSuperAdmin(currentUser) && !isMe && !targetIsMaster) {
         badgeAdminCard.classList.remove('hidden');
-        const b = prof.special_badge || null;
+        const count = userBadges.length;
         if (activeBadgeTag) {
-          if (b === 'white') activeBadgeTag.innerHTML = '<span class="text-white font-black">باجی سپی چالاکە ⚪ (ڕاوێژکار)</span>';
-          else if (b === 'blue') activeBadgeTag.innerHTML = '<span class="text-sky-400 font-black">باجی شین چالاکە 🔵 (پاسەوانی چات)</span>';
-          else if (b === 'green') activeBadgeTag.innerHTML = '<span class="text-emerald-400 font-black">باجی سەوز چالاکە 🟢</span>';
-          else if (b === 'black') activeBadgeTag.innerHTML = '<span class="text-slate-300 font-black">باجی ڕەش چالاکە ⚫</span>';
-          else if (b === 'red') activeBadgeTag.innerHTML = '<span class="text-rose-400 font-black">باجی سور چالاکە 🔴</span>';
-          else if (b === 'purple') activeBadgeTag.innerHTML = '<span class="text-purple-400 font-black">باجی مۆر چالاکە 🟣 (لێکدانەوەی خەون)</span>';
-          else activeBadgeTag.innerHTML = '<span class="text-slate-400 font-bold">بێ باج</span>';
+          if (count === 0) {
+            activeBadgeTag.innerHTML = '<span class="text-slate-400 font-bold">بێ باج</span>';
+          } else if (count === 6) {
+            activeBadgeTag.innerHTML = '<span class="text-amber-300 font-black">خاوەنی هەموو ٦ باجەکەیە 🌟</span>';
+          } else {
+            const dots = userBadges.map(b => BADGE_CONFIG[b]?.emoji || '🎖️').join(' ');
+            activeBadgeTag.innerHTML = `<span class="text-emerald-300 font-black">خاوەنی ${count} باجە (${dots})</span>`;
+          }
         }
-        [btnWhite, btnBlue, btnGreen, btnBlack, btnRed, btnPurple].forEach(btn => {
-          if (btn) btn.classList.remove('ring-2', 'ring-indigo-400', 'bg-indigo-950/80');
+        ALL_SPECIAL_BADGES.forEach(b => {
+          const cap = b.charAt(0).toUpperCase() + b.slice(1);
+          const btn = document.getElementById(`badgeBtn${cap}`);
+          const statusEl = document.getElementById(`badgeStatus${cap}`);
+          const isActive = userBadges.includes(b);
+          if (btn) {
+            if (isActive) {
+              btn.classList.add('ring-2', 'ring-indigo-400', 'bg-indigo-950/80', 'border-indigo-400');
+            } else {
+              btn.classList.remove('ring-2', 'ring-indigo-400', 'bg-indigo-950/80', 'border-indigo-400');
+            }
+          }
+          if (statusEl) {
+            if (isActive) {
+              statusEl.innerHTML = '<span class="px-1.5 py-0.2 rounded-md bg-emerald-500 text-slate-950 text-[8px] font-black">هەیەتی ✓</span>';
+            } else {
+              statusEl.innerHTML = '<span class="text-[8px] text-slate-500">لێدان بۆ پێدان</span>';
+            }
+          }
         });
-        if (b === 'white' && btnWhite) btnWhite.classList.add('ring-2', 'ring-indigo-400');
-        if (b === 'blue' && btnBlue) btnBlue.classList.add('ring-2', 'ring-indigo-400');
-        if (b === 'green' && btnGreen) btnGreen.classList.add('ring-2', 'ring-indigo-400');
-        if (b === 'black' && btnBlack) btnBlack.classList.add('ring-2', 'ring-indigo-400');
-        if (b === 'red' && btnRed) btnRed.classList.add('ring-2', 'ring-indigo-400');
-        if (b === 'purple' && btnPurple) btnPurple.classList.add('ring-2', 'ring-indigo-400');
       } else {
         badgeAdminCard.classList.add('hidden');
       }
@@ -6011,26 +6175,10 @@ function closeUserProfileModal() {
   currentProfileUser = null;
 }
 
-async function assignSpecialBadge(badge) {
+async function toggleSpecialBadge(badge) {
   if (!currentProfileUserId) return;
   if (!isMasterSuperAdmin(currentUser)) {
     alert('تەنها سوپەر ئەدمینی سەرەکی دەسەڵاتی بەخشینی باجی هەیە.');
-    return;
-  }
-
-  const badgeValue = (badge === 'none' || !badge) ? null : badge;
-  const badgeLabels = {
-    'white': 'باجی سپی ⚪ (ڕاوێژکار)',
-    'blue': 'باجی شین 🔵 (پاسەوانی چات)',
-    'green': 'باجی سەوز 🟢',
-    'black': 'باجی ڕەش ⚫',
-    'red': 'باجی سور 🔴',
-    'purple': 'باجی مۆر 🟣 (مۆڵەتی خەون)',
-    'none': 'لابردنی باج ❌'
-  };
-  const label = badgeLabels[badge] || 'باج';
-
-  if (!confirm(`ئایا دڵنیایت لە دەستکاریکردنی باجی ئەم ئەندامە بۆ: (${label})؟`)) {
     return;
   }
 
@@ -6043,7 +6191,8 @@ async function assignSpecialBadge(badge) {
       },
       body: JSON.stringify({
         user_id: currentProfileUserId,
-        special_badge: badgeValue
+        action: 'toggle',
+        badge: badge
       })
     });
 
@@ -6054,24 +6203,23 @@ async function assignSpecialBadge(badge) {
     }
 
     if (currentProfileUser) {
-      currentProfileUser.special_badge = badgeValue;
+      currentProfileUser.special_badge = data.special_badge;
     }
 
     if (Array.isArray(allMembersCache)) {
       const idx = allMembersCache.findIndex(u => Number(u.id) === Number(currentProfileUserId));
       if (idx !== -1) {
-        allMembersCache[idx].special_badge = badgeValue;
+        allMembersCache[idx].special_badge = data.special_badge;
       }
     }
 
     if (Array.isArray(allUsersAdminCache)) {
       const idx = allUsersAdminCache.findIndex(u => Number(u.id) === Number(currentProfileUserId));
       if (idx !== -1) {
-        allUsersAdminCache[idx].special_badge = badgeValue;
+        allUsersAdminCache[idx].special_badge = data.special_badge;
       }
     }
 
-    alert(`بە سەرکەوتوویی باجەکە گۆڕدرا: ${label}`);
     openUserProfileModal(currentProfileUserId);
     if (typeof renderMembersList === 'function') {
       renderMembersList();
@@ -6080,9 +6228,110 @@ async function assignSpecialBadge(badge) {
       renderAllUsersList();
     }
   } catch (err) {
-    console.error('Assign special badge error:', err);
+    console.error('Toggle special badge error:', err);
     alert('هەڵەیەک لە پەیوەندی بە سێرڤەر ڕوویدا');
   }
+}
+
+async function assignAllSpecialBadges() {
+  if (!currentProfileUserId) return;
+  if (!isMasterSuperAdmin(currentUser)) {
+    alert('تەنها سوپەر ئەدمینی سەرەکی دەسەڵاتی بەخشینی باجی هەیە.');
+    return;
+  }
+
+  if (!confirm('ئایا دڵنیایت لە پێدانی هەموو ٦ باجەکە بەیەکەوە بەم ئەندامە؟')) return;
+
+  try {
+    const res = await fetch('/api/admin/special-badge', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        user_id: currentProfileUserId,
+        special_badge: 'all'
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'هەڵەیەک ڕوویدا');
+      return;
+    }
+
+    if (currentProfileUser) {
+      currentProfileUser.special_badge = data.special_badge;
+    }
+    if (Array.isArray(allMembersCache)) {
+      const idx = allMembersCache.findIndex(u => Number(u.id) === Number(currentProfileUserId));
+      if (idx !== -1) allMembersCache[idx].special_badge = data.special_badge;
+    }
+    if (Array.isArray(allUsersAdminCache)) {
+      const idx = allUsersAdminCache.findIndex(u => Number(u.id) === Number(currentProfileUserId));
+      if (idx !== -1) allUsersAdminCache[idx].special_badge = data.special_badge;
+    }
+
+    openUserProfileModal(currentProfileUserId);
+    if (typeof renderMembersList === 'function') renderMembersList();
+    if (typeof renderAllUsersList === 'function') renderAllUsersList();
+  } catch (err) {
+    alert('هەڵەیەک لە پەیوەندی بە سێرڤەر ڕوویدا');
+  }
+}
+
+async function removeAllSpecialBadges() {
+  if (!currentProfileUserId) return;
+  if (!isMasterSuperAdmin(currentUser)) {
+    alert('تەنها سوپەر ئەدمینی سەرەکی دەسەڵاتی بەخشینی باجی هەیە.');
+    return;
+  }
+
+  if (!confirm('ئایا دڵنیایت لە لابردنی هەموو باجە تایبەتەکانی ئەم ئەندامە؟')) return;
+
+  try {
+    const res = await fetch('/api/admin/special-badge', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        user_id: currentProfileUserId,
+        special_badge: 'none'
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'هەڵەیەک ڕوویدا');
+      return;
+    }
+
+    if (currentProfileUser) {
+      currentProfileUser.special_badge = null;
+    }
+    if (Array.isArray(allMembersCache)) {
+      const idx = allMembersCache.findIndex(u => Number(u.id) === Number(currentProfileUserId));
+      if (idx !== -1) allMembersCache[idx].special_badge = null;
+    }
+    if (Array.isArray(allUsersAdminCache)) {
+      const idx = allUsersAdminCache.findIndex(u => Number(u.id) === Number(currentProfileUserId));
+      if (idx !== -1) allUsersAdminCache[idx].special_badge = null;
+    }
+
+    openUserProfileModal(currentProfileUserId);
+    if (typeof renderMembersList === 'function') renderMembersList();
+    if (typeof renderAllUsersList === 'function') renderAllUsersList();
+  } catch (err) {
+    alert('هەڵەیەک لە پەیوەندی بە سێرڤەر ڕوویدا');
+  }
+}
+
+// Legacy compatibility
+async function assignSpecialBadge(badge) {
+  return toggleSpecialBadge(badge);
 }
 
 async function adjustCurrentProfileStars(delta) {
@@ -13820,7 +14069,7 @@ let advisorTelemetryCache = null;
 let isAdvisorTyping = false;
 
 function openAiAdvisorModal() {
-  const hasAccess = isMasterSuperAdmin(currentUser) || hasSuperAdminPrivileges(currentUser) || (currentUser && currentUser.special_badge === 'white');
+  const hasAccess = isMasterSuperAdmin(currentUser) || hasSuperAdminPrivileges(currentUser) || hasUserBadge(currentUser, 'white');
   if (!hasAccess) {
     alert('ئەم بەشە تەنها بۆ کاک هێمن، سوپەر ئەدمین یان هەڵگرانی باجی سپی ڕێگەپێدراوە.');
     return;
