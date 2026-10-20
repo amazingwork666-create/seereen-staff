@@ -453,6 +453,9 @@ function authMiddleware(req, res, next) {
       return res.status(403).json({ error: 'ئەم هەژمارە بلۆک کراوە' });
     }
     req.user = user;
+    if (!user.last_active_at || (Date.now() - user.last_active_at > 5 * 60 * 1000)) {
+      users.updateLastActive(user.id);
+    }
     next();
   } catch (err) {
     return res.status(401).json({ error: 'تۆکنی نادروستە یان بەسەرچووە' });
@@ -746,6 +749,33 @@ setTimeout(() => {
   }
 }, 1000);
 
+// Auto-Cleanup: Automatically delete user accounts inactive for > 1 month (30 days)
+function cleanupInactiveUsers() {
+  try {
+    const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+    const inactiveUsers = users.getInactiveUsers(ONE_MONTH_MS);
+    if (inactiveUsers && inactiveUsers.length > 0) {
+      console.log(`[Auto-Cleanup] Found ${inactiveUsers.length} inactive account(s) (> 1 month). Processing deletion...`);
+      for (const u of inactiveUsers) {
+        if (isMasterSuperAdmin(u) || u.role === 'super_admin' || u.username === 'admin' || u.username === 'hemntjabar' || u.id === 1) {
+          continue;
+        }
+        users.delete(u.id);
+        console.log(`[Auto-Cleanup] Deleted inactive user: ID ${u.id}, ${u.username} (${u.full_name})`);
+        if (typeof io !== 'undefined' && io) {
+          io.emit('user_deleted', { user_id: u.id, full_name: u.full_name });
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Auto-Cleanup] Error cleaning up inactive accounts:', err);
+  }
+}
+
+// Run auto-cleanup on startup and every 6 hours
+setTimeout(cleanupInactiveUsers, 5000);
+setInterval(cleanupInactiveUsers, 6 * 60 * 60 * 1000);
+
 // --- AUTH ROUTES ---
 
 // 1. Register
@@ -825,6 +855,8 @@ app.post('/api/auth/login', (req, res) => {
         status: 'rejected'
       });
     }
+
+    users.updateLastActive(user.id);
 
     const token = jwt.sign(
       { id: user.id, username: user.username, role: user.role },
@@ -1312,6 +1344,7 @@ app.get('/api/advisor/overview', authMiddleware, requireAiAdvisorAccess, async (
           liveStartedBy,
           liveViewers,
           secStats,
+          liveAuditLogs: advisorDb.getLiveAuditLogs(25),
           latest_button_report: buttonClicks.getAttendanceReport(null)
         },
         suggestions
@@ -1394,6 +1427,16 @@ const advisorTools = [
           type: 'OBJECT',
           properties: {
             role: { type: 'STRING', description: "'teacher', 'admin', 'super_admin', or 'all'" }
+          }
+        }
+      },
+      {
+        name: 'get_live_audit_logs',
+        description: 'بینین و پشکنینی مێژووی کردنەوە و داخستنی لایڤ لە ژوری پشکنینی گشتی (کێ لایڤی کردەوە و کێ دایخست لەگەڵ کات و بەروار و ماوە)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            limit: { type: 'INTEGER', description: 'ژمارەی تۆمارەکان (دەفۆڵت ١٠)' }
           }
         }
       },
@@ -1776,6 +1819,23 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
             role: s.role === 'super_admin' ? 'سوپەر ئەدمین (سەرپەرشتیاری گشتی)' : (s.role === 'admin' ? 'ئەدمین (بەڕێوەبەر)' : 'مامۆستا'),
             badge: s.special_badge || 'بێ باجی تایبەت',
             status: s.status
+          }))
+        };
+      }
+
+      case 'get_live_audit_logs': {
+        const limit = args.limit ? parseInt(args.limit, 10) : 10;
+        const logs = advisorDb.getLiveAuditLogs(limit);
+        return {
+          total: logs.length,
+          logs: logs.map(l => ({
+            action: l.action === 'opened' ? 'کردنەوەی لایڤ 🔴' : 'داخستنی لایڤ ⏹️',
+            user_name: l.user_name,
+            username: l.username,
+            title: l.title || 'وانەی ڕاستەوخۆ',
+            started_by: l.started_by_name || null,
+            duration_minutes: l.duration_seconds ? Math.round(l.duration_seconds / 60) : 0,
+            time: new Date(l.created_at).toLocaleString('ckb')
           }))
         };
       }
@@ -2762,13 +2822,13 @@ ${JSON.stringify(liveContext, null, 2)}
           });
         }
 
-        const CANDIDATE_MODELS = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+        const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
         for (const model of CANDIDATE_MODELS) {
           if (reply) break;
           try {
             const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 10000);
+            const timeout = setTimeout(() => controller.abort(), 35000);
 
             const geminiRes = await fetch(geminiUrl, {
               method: 'POST',
@@ -2817,7 +2877,7 @@ ${JSON.stringify(liveContext, null, 2)}
 
                 // Follow-up request to get final natural Kurdish response
                 const followController = new AbortController();
-                const followTimeout = setTimeout(() => followController.abort(), 12000);
+                const followTimeout = setTimeout(() => followController.abort(), 35000);
                 const followRes = await fetch(geminiUrl, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -2867,121 +2927,9 @@ ${JSON.stringify(liveContext, null, 2)}
       }
     }
 
-    // Fallback to Built-in Intelligent Kurdish Advisor Engine
+    // AI-Only Mode: Pure AI without pre-written/canned responses
     if (!reply) {
-      const q = userMessage.toLowerCase();
-
-      // Check for quick actions even in fallback mode
-      if (/داخستنی چات|چات دابخە|قفڵی چات|چات قفڵ/.test(q)) {
-        await executeAdvisorAction('toggle_chat_lock', { mode: 'staff_only' }, req.user, io);
-        reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! چاتی گشتی بە فەرمانی تۆ داخرا و تەنها ستاف دەتوانن بنووسن 🔒`;
-      } else if (/کردنەوەی چات|چات بکەرەوە/.test(q)) {
-        await executeAdvisorAction('toggle_chat_lock', { mode: 'none' }, req.user, io);
-        reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! چاتی گشتی بۆ هەموو فێرخوازان کرایەوە 🔓`;
-      } else if (/سڵاو|چۆنی|باشی|هەواڵ|سلاو|چۆنیت|دەنگوباس/.test(q)) {
-        reply = `سڵاو کاک هێمن گیان، برای بەڕێزم! زۆر دڵخۆشم بە قسەکردن لەگەڵت. من وەک ڕاوێژکار و هاوڕێی هەمیشەییت بەردەوام چاودێری هەموو کون و کەلەبەرێکی سیرین ستاف دەکەم.
-ئێستا سیستەم بە تەواوی ئارام و سەقامگیرە: ${onlineCount} کەس ئۆنلاینن، ${totalDreams} خەون تۆمارکراوە و قەڵغانی ئاسایش کاردەکات.
-فەرموو براکەم، لە چ بابەتێکی سایتەکەدا پێویستت بە ڕاوێژ یان فەرمانێک هەیە بۆ جێبەجێکردن؟`;
-      } else if (/قسە|وەڵام|نابیست|بمبیس|گوێت|بدوێ|بۆچی|بۆ وەڵام/.test(q)) {
-        reply = `کاک هێمن گیان، بەڵێ بە تەواوی لەگەڵتم و پەیامەکانت دەبینم! ✍️
-من هەموو چرکەیەک وەڵامی پرسیارەکانت دەدەمەوە و هەر فەرمانێکت هەبێت بۆ دەستکاریکردن یان ئامار دەستبەجێ جێبەجێی دەکەم.
-هەموو پلاتفۆرمەکە لەژێر کۆنتڕۆڵتدایە، فەرموو برا بەڕێزەکەم فەرمانت چییە؟`;
-      } else if (/کێیت|تۆ کێیت|ناوت|خۆت بناسێنە|ناساندن|هاوکاری|بۆت/.test(q)) {
-        reply = `من «ڕاوێژکار»م (هاوڕێ و ڕاوێژکاری زیرەکی تایبەت بە کاک هێمن)! 🧠
-تەنها بۆ جەنابت دروستکراوم؛ وەک کەسێکی زیندوو چاودێری تەواوی داتابەیس، خەونەکان، ئاسایش و ئەندامانی پلاتفۆرمی سیرین ستاف دەکەم. هەر فەرمانێکی کارگێڕی (باج، قفڵی چات، پرسیاری نوێ، وەرگرتنی ئەندام) پێم بسپێریت بەوپەڕی دڵسۆزییەوە جێبەجێی دەکەم.`;
-      } else if (/سوپاس|دەستخۆش|سەرچاو|بژی|گیان|دەستت خۆش/.test(q)) {
-        reply = `سەرچاو کاک هێمن گیان، گیانی منیت برا بەڕێزەکەم! ❤️ خزمەتکردنی تۆ و پێشخستنی سیرین ستاف ئەرک و شانازییە بۆ من. لە هەر ساتێکدا هەر فەرمانێکت هەبوو تەنها ئاماژەم پێبکە!`;
-      } else if (/ئامار|دۆخ|چەند کەس|ئۆنلاین|ئەندام|خەڵک|حاڵەت/.test(q)) {
-        reply = `کاک هێمن گیان، ئەمەش پشکنینی ڕاستەوخۆی ئێستای پلاتفۆرمەکەیە بۆ تۆ:
-
-👥 کۆی ئەندامان: ${totalUsers} کەس
-🟢 چالاک و ئۆنلاین: ${onlineCount} کەس لە ئێستادا
-⏳ داواکاری چاوەڕوانکراو: ${pendingUsers} داواکاری ئەندامێتی
-🌙 بەشی خەونەکان: ${totalDreams} خەون (${unansweredDreams} چاوەڕوانی وەڵامن)
-❓ پرسیارەکان: ${totalQuestions} پرسیاری گشتی
-🛡️ قەڵغانی ئاسایش: ${secStats.safetyRating} سەلامەت (${secStats.totalBlocked} هەوڵی نایاسایی تێکشکێنراون)
-🎙️ وانەی لایڤ: ${isLive ? 'چالاکە' : 'ناچالاکە'}
-
-هەموو جوڵە و ئامارەکان لەژێر چاودێریدان و سیستمەکە بە تەواوی خێرا کار دەکات.`;
-      } else if (/خەون|مۆر|باجی مۆر|خەونەکان|لێکدانەوە/.test(q)) {
-        reply = `کاک هێمن گیان، لەبارەی بەشی خەونەکانەوە:
-ئێستا ${totalDreams} خەون تۆمارکراوە کە ${unansweredDreams} دانەیان چاوەڕوانی وەڵامدانەوەن.
-💡 دەستخۆشیت لێدەکەم بۆ بڕیاری زیادکردنی (باجی مۆر 🟣)! بەم باجە نوێیە دەتوانیت لە ڕێگەی منیشەوە بڵێیت «باجی مۆر بدە بە فڵان» تا ڕاستەوخۆ مۆڵەتی لێکدانەوەی خەونی پێببەخشم.`;
-      } else if (/ئەمنییەت|ئاسایش|هێرش|ڕەید|فلتەر|بلۆک|سزا|هاک|لینکی/.test(q)) {
-        reply = `کاک هێمن گیان، ژووری ئۆپەراسیۆنی پاراستنی زیرەک (AI Guard) لە بەرزترین ئاستی ئامادەباشیدایە:
-١. فلتەری دەقە فێڵاوییەکان ڕێگری لە گۆڕینی پیت و شێواندنی وشە نەشیاوەکان دەکات.
-٢. دژە-ڕەید و لافاو هەر ئەکاونتێک پەیامی لەسەریەک بنێرێت لە چرکەیەکدا دەیبەستێت.
-٣. پشکنەری لینکەکان ڕێگە نادات هیچ بەستەرێکی نەناسراو و زیانبەخش بچێتە چات.
-تا ئێستا ${secStats.totalBlocked} هەوڵ بلۆککراوە و ڕێژەی سەلامەتی ${secStats.safetyRating} یە.`;
-      } else if (/پێشنیار|بیرۆکە|نوێکردنەوە|گۆڕانکاری|پەرەپێدان|چی بکەم|چی زیاد بکەم/.test(q)) {
-        reply = `کاک هێمن گیان، برا بەڕێزەکەم، چەندین پێشنیاری بەهێزم بۆت ئامادەکردووە:
-
-١. لە بەشی خەونەکان: ئێستا دەتوانیت باجی مۆر ببەخشیت بە کەسێکی شارەزا تا وەڵامی خەونەکان بداتەوە.
-٢. لە بەشی چات: دەتوانیت فەرمانم پێبکەیت پرسیارێکی نوێ دابنێم و میقاتی بکەم بۆ کاتێکی دیاریکراو.
-٣. لە بەشی ڕێکخستن: مینیوی یەکگرتووی ڕێکخستن هەموو بەشەکانی کۆکردووەتەوە.
-هەر فەرمانێکت هەیە پێم بڵێ با دەستبەجێ جێبەجێی بکەم!`;
-      } else if (/باج|پلە|سەوز|ڕەش|سور|شین|سپی|مامۆستا|ئەدمین/.test(q)) {
-        reply = `کاک هێمن گیان، تەواوی نەخشەی باجە تایبەتەکان بەم شێوەیە ڕێکخراوە:
-🔵 باجی شین: پاسەوانی چات (سڕینەوەی پەیامی نەشیاو، بێدەنگکردن / سڕکردنی سەرپێچیکار لە چات).
-⚪ باجی سپی: دەسەڵاتی بەکارهێنانی ڕاوێژکاری زیرەک و هێمای ڕاوێژکار لە پرۆفایل.
-🟢 باجی سەوز: بەڕێوەبردنی ئەندامان، قفڵ و کردنەوەی چات، گۆڕینی ناوی بەکارهێنەران، بەڕێوەبردنی لایڤ.
-⚫ باجی ڕەش: هەموو تواناکانی سوپەر ئەدمین لە ناو گرووپدا (پارێزراوە لە دەستکاری ئەوانی تر جگە لە تۆ).
-🔴 باجی سور: مۆڵەتی تایبەت بۆ کۆنتڕۆڵی تەواوی مایکی وانەی لایڤ.
-🟣 باجی مۆر: بە تایبەت تەنها بۆ مۆڵەتی لێکدانەوەی خەون.
-هەر کات ویستت باجێک ببەخشیت، تەنها پێم بڵێ "باجی (ڕەنگ) بدە بە (ناو)" تا جێبەجێی بکەم.`;
-      } else if (/گەڕاندنەوە|بهێنەوە|هێنانەوە|سڕاوە|سڕاونەتەوە|چاتی سڕاوە|نامەی سڕاوە/.test(q)) {
-        let limit = null;
-        if (/دوو|2/.test(q)) limit = 2;
-        else if (/سێ|3/.test(q)) limit = 3;
-        else if (/چوار|4/.test(q)) limit = 4;
-        else if (/پێنج|5/.test(q)) limit = 5;
-        else if (/دە|10/.test(q)) limit = 10;
-        else if (/بیست|20/.test(q)) limit = 20;
-
-        let targetUser = null;
-        try {
-          const allUsers = users.getAllUsersAdmin();
-          for (const u of allUsers) {
-            if (u.id !== 1 && (q.includes(u.full_name.toLowerCase()) || q.includes(u.username.toLowerCase()))) {
-              targetUser = u;
-              break;
-            }
-          }
-        } catch (e) {}
-
-        const restored = messages.restore({ userId: targetUser ? targetUser.id : null, limit });
-        if (restored && restored.length > 0) {
-          if (io) {
-            io.emit('messages_restored', { count: restored.length, target_user: targetUser ? targetUser.full_name : null });
-          }
-          const userText = targetUser ? ` هی (${targetUser.full_name})` : '';
-          const limitText = limit ? ` (${limit} پەیامی کۆتایی)` : ' (تەواوی نامە سڕاوەکان)';
-          reply = `کاک هێمن گیان، فەرمانت لەسەر چاو! بە سەرکەوتوویی (${restored.length}) نامەی سڕاوە${userText}${limitText} گەڕێنرانەوە بۆ ناو چاتی گشتی ✨.`;
-        } else {
-          reply = `کاک هێمن گیان، پشکنینم کرد؛ لە ئێستادا هیچ نامەیەکی سڕاوە لە ئەرشیڤی پارێزراودا نەدۆزرایەوە بۆ گەڕاندنەوە. هەر کاتێک لەمەودوا نامەیەک بسڕدرێتەوە یەکسەر دەتوانیت پێم بڵێیت تا بۆت بگەڕێنمەوە.`;
-        }
-      } else if (/دوگمە|دوگمه|پەنجە|دەست لێدان|کێ دەستی|کێ پەنجەی|ئامادەبووان/.test(q)) {
-        const rep = await executeAdvisorAction('get_button_attendance', {}, req.user, io);
-        if (rep.error) {
-          reply = `کاک هێمن گیان، ${rep.error}`;
-        } else {
-          let clickedList = rep.clicked_users.map((u, i) => `${i + 1}. ${u.name} (@${u.username}) [کات: ${u.clicked_at}]`).join('\n');
-          let unclickedList = rep.unclicked_users.map((u, i) => `${i + 1}. ${u.name} (@${u.username})`).join('\n');
-          reply = `کاک هێمن گیان، ئەمەش ئاماری تەواوی دوایین دوگمەی چاتە (@دوگمە):
-📌 دەقی پەیامەکە: «${rep.message_content}»
-⏰ کاتی ناردن: ${rep.message_time}
-
-🟢 ئەوانەی دەستیان لە دوگمەکە داوە (${rep.clicked_count} کەس):
-${clickedList || 'هیچ کەسێک هێشتا دەستی لێنەداوە.'}
-
-🔴 ئەوانەی دەستیان لە دوگمەکە نەداوە (${rep.unclicked_count} کەس):
-${unclickedList || 'دەستخۆش! هەموو فێرخوازان دەستیان لە دوگمەکە داوە.'}`;
-        }
-      } else {
-        reply = `کاک هێمن گیان، فەرمانت لەسەر چاو. هەموو وردەکارییەکی پلاتفۆرمەکە لەژێر دەستی خۆمدایە: لە کۆدی پرۆگرامین، داتابەیس، سێرڤەر، بەشی خەونەکان (${totalDreams} خەون)، لایڤ و ئاسایشەوە (${secStats.safetyRating}) تا دەگاتە پلەی ئەندامان (${totalUsers} ئەندام).
-دەربارەی پەیامەکەت ("${userMessage.length > 50 ? userMessage.substring(0, 50) + '...' : userMessage}"):
-هەر فەرمانێکی کارگێڕیت هەیە پێم بڵێ دەستبەجێ جێبەجێی دەکەم برا بەڕێزەکەم!`;
-      }
+      reply = 'ببورە کاک هێمن گیان، لە ئێستادا وەڵامدانەوە تەنها لە ڕێگەی ژیری دەستکردەوە (Gemini AI) کاردەکات بەڵام پەیوەندی بە ژیری دەستکرد دروست نەبوو؛ تکایە دڵنیابە لە کارایی کلیلی API یان دوای کەمێکی تر دووبارەی بکەرەوە.';
     }
 
     try {
@@ -2991,14 +2939,13 @@ ${unclickedList || 'دەستخۆش! هەموو فێرخوازان دەستیان
     return res.json({ success: true, reply });
   } catch (err) {
     console.error('Advisor chat error:', err);
-    // Never send 500 or error to Hemn! Provide a warm, intelligent Kurdish response!
-    const fallbackReply = `سڵاو کاک هێمن گیان، برای بەڕێزم! هەموو کات لە خزمەتتدام. دۆخی پلاتفۆرمی سیرین ستاف بە تەواوی ئارام و پارێزراوە و لەژێر کۆنتڕۆڵدایە. فەرموو براکەم چیت لە من دەوێت؟`;
+    const errorReply = 'ببورە کاک هێمن گیان، هەڵەیەک ڕوویدا لە پەیوەندیکردن بە ژیری دەستکرد؛ تکایە دووبارەی بکەرەوە.';
     try {
       if (req.user && req.user.id) {
-        advisorDb.saveChat(req.user.id, 'advisor', fallbackReply);
+        advisorDb.saveChat(req.user.id, 'advisor', errorReply);
       }
     } catch (e) {}
-    return res.json({ success: true, reply: fallbackReply });
+    return res.json({ success: true, reply: errorReply });
   }
 });
 
@@ -5401,6 +5348,9 @@ io.on('connection', (socket) => {
 
   // GROUP CHAT / ADMIN USER CONNECTION
   const user = socket.user;
+  if (user && user.id) {
+    users.updateLastActive(user.id);
+  }
   if (canManageDreams(user)) {
     socket.join('dream_admins');
   }
@@ -5734,6 +5684,20 @@ io.on('connection', (socket) => {
     });
     socket.join('live_lesson_room');
 
+    // Record in Advisor General Inspection Room Audit Log
+    try {
+      advisorDb.logLiveAudit({
+        userId: freshUser.id,
+        userName: freshUser.full_name,
+        username: freshUser.username,
+        action: 'opened',
+        title: liveLessonState.title
+      });
+      io.emit('live_audit_updated');
+    } catch (e) {
+      console.error('Error logging live audit start:', e);
+    }
+
     broadcastLiveLessonState();
     io.emit('live_lesson_started_alert', {
       title: liveLessonState.title,
@@ -5752,6 +5716,26 @@ io.on('connection', (socket) => {
   socket.on('live_end', () => {
     const freshUser = users.findById(user.id);
     if (!freshUser || !canManageLive(freshUser)) return;
+
+    // Record in Advisor General Inspection Room Audit Log
+    try {
+      const prevTitle = liveLessonState.title;
+      const startedByName = liveLessonState.startedBy ? liveLessonState.startedBy.name : null;
+      const durationSeconds = liveLessonState.startedAt ? Math.round((Date.now() - liveLessonState.startedAt) / 1000) : 0;
+
+      advisorDb.logLiveAudit({
+        userId: freshUser.id,
+        userName: freshUser.full_name,
+        username: freshUser.username,
+        action: 'closed',
+        title: prevTitle,
+        startedByName,
+        durationSeconds
+      });
+      io.emit('live_audit_updated');
+    } catch (e) {
+      console.error('Error logging live audit end:', e);
+    }
 
     liveLessonState.isActive = false;
     liveLessonState.startedBy = null;

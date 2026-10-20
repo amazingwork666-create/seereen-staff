@@ -282,6 +282,23 @@ function initDb() {
   try { db.exec("ALTER TABLE users ADD COLUMN special_badge TEXT DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE users ADD COLUMN last_read_message_id INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE users ADD COLUMN last_star_awarded_at INTEGER DEFAULT NULL"); } catch (e) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN last_active_at INTEGER DEFAULT NULL"); } catch (e) {}
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS live_audit_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        user_name TEXT NOT NULL,
+        username TEXT NOT NULL,
+        action TEXT NOT NULL,
+        title TEXT,
+        started_by_name TEXT,
+        duration_seconds INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_live_audit_logs_created ON live_audit_logs(created_at DESC);
+    `);
+  } catch (e) {}
   try {
     db.exec(`
       UPDATE users 
@@ -471,19 +488,44 @@ const users = {
     `).all(`%${clean}%`, `%${clean}%`, limit);
   },
   create(username, passwordHash, fullName, gender = 'male', role = 'student', status = 'pending') {
+    const now = Date.now();
     const stmt = db.prepare(`
-      INSERT INTO users (username, password_hash, full_name, gender, role, status, is_blocked, muted_until, correct_answers_count, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, ?)
+      INSERT INTO users (username, password_hash, full_name, gender, role, status, is_blocked, muted_until, correct_answers_count, created_at, last_active_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?)
     `);
-    const result = stmt.run(username, passwordHash, fullName, gender, role, status, Date.now());
+    const result = stmt.run(username, passwordHash, fullName, gender, role, status, now, now);
     return result.lastInsertRowid;
+  },
+  updateLastActive(id) {
+    try {
+      return db.prepare('UPDATE users SET last_active_at = ? WHERE id = ?').run(Date.now(), id);
+    } catch (e) {
+      return null;
+    }
+  },
+  getInactiveUsers(thresholdMs) {
+    try {
+      const cutoff = Date.now() - thresholdMs;
+      return db.prepare(`
+        SELECT id, username, full_name, role, special_badge, created_at, last_active_at
+        FROM users
+        WHERE role != 'super_admin'
+          AND username != 'admin'
+          AND username != 'hemntjabar'
+          AND id != 1
+          AND COALESCE(last_active_at, created_at) < ?
+      `).all(cutoff);
+    } catch (e) {
+      console.error('Error fetching inactive users:', e);
+      return [];
+    }
   },
   getPendingUsers() {
     const stmt = db.prepare("SELECT id, username, full_name, gender, role, status, created_at FROM users WHERE status = 'pending' ORDER BY created_at ASC");
     return stmt.all();
   },
   getAllUsers() {
-    const stmt = db.prepare("SELECT id, username, full_name, gender, role, status, is_blocked, muted_until, correct_answers_count, last_star_awarded_at, avatar_url, special_badge, created_at FROM users ORDER BY role = 'super_admin' DESC, role = 'admin' DESC, role = 'teacher' DESC, role = 'student' DESC, role = 'new_student' DESC, role = 'guest' DESC, correct_answers_count DESC, created_at DESC");
+    const stmt = db.prepare("SELECT id, username, full_name, gender, role, status, is_blocked, muted_until, correct_answers_count, last_star_awarded_at, avatar_url, special_badge, created_at, last_active_at FROM users ORDER BY role = 'super_admin' DESC, role = 'admin' DESC, role = 'teacher' DESC, role = 'student' DESC, role = 'new_student' DESC, role = 'guest' DESC, correct_answers_count DESC, created_at DESC");
     return stmt.all();
   },
   getAll() {
@@ -1759,6 +1801,26 @@ const advisorDb = {
       return db.prepare('DELETE FROM ai_advisor_chats').run();
     } catch (e) {
       return null;
+    }
+  },
+  logLiveAudit({ userId, userName, username, action, title = null, startedByName = null, durationSeconds = 0 }) {
+    try {
+      const stmt = db.prepare(`
+        INSERT INTO live_audit_logs (user_id, user_name, username, action, title, started_by_name, duration_seconds, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      return stmt.run(userId, userName, username, action, title, startedByName, durationSeconds, Date.now());
+    } catch (e) {
+      console.error('Error logging live audit:', e);
+      return null;
+    }
+  },
+  getLiveAuditLogs(limit = 30) {
+    try {
+      return db.prepare('SELECT * FROM live_audit_logs ORDER BY id DESC LIMIT ?').all(limit);
+    } catch (e) {
+      console.error('Error getting live audit logs:', e);
+      return [];
     }
   }
 };

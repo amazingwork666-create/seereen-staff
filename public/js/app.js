@@ -2198,6 +2198,13 @@ function initSocket() {
     handleLiveEndedNotice();
   });
 
+  socket.on('live_audit_updated', () => {
+    const modal = document.getElementById('aiAdvisorModal');
+    if (modal && !modal.classList.contains('hidden') && typeof loadAdvisorOverview === 'function') {
+      loadAdvisorOverview();
+    }
+  });
+
   socket.on('live_mic_permission_granted', () => {
     handleLiveMicGranted();
   });
@@ -14387,6 +14394,9 @@ async function loadAdvisorOverview() {
 
     renderAdvisorSuggestions(data.data.suggestions || []);
 
+    // Render Live Streams Audit Logs
+    renderAdvisorLiveAudit(t.liveAuditLogs || []);
+
     const scanTime = document.getElementById('advLastScanTime');
     if (scanTime) {
       const now = new Date();
@@ -14467,6 +14477,53 @@ function renderAdvisorSuggestions(suggestions) {
         <div class="flex justify-end shrink-0">
           ${actionBtnHtml}
         </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderAdvisorLiveAudit(logs) {
+  const container = document.getElementById('advLiveAuditList');
+  const countBadge = document.getElementById('advLiveAuditCountBadge');
+  if (countBadge) countBadge.innerText = `${(logs || []).length} تۆمار`;
+  if (!container) return;
+
+  if (!logs || logs.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-4 text-slate-500 text-xs">
+        <i class="fa-solid fa-clock-rotate-left text-base mb-1 block opacity-60"></i>
+        <span>هێشتا هیچ تۆمارێکی کردنەوە یان داخستنی لایڤ نییە</span>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = logs.map(l => {
+    const isOpened = l.action === 'opened';
+    const actionText = isOpened ? 'کردنەوەی لایڤ 🔴' : 'داخستنی لایڤ ⏹️';
+    const badgeClass = isOpened ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-slate-700/50 text-slate-300 border-slate-600/40';
+    const icon = isOpened ? 'fa-tower-broadcast text-rose-400' : 'fa-circle-stop text-slate-400';
+    const timeFormatted = new Date(l.created_at).toLocaleTimeString('ckb', { hour: '2-digit', minute: '2-digit' }) + ' • ' + new Date(l.created_at).toLocaleDateString('ckb', { day: 'numeric', month: 'short' });
+    const durationText = (!isOpened && l.duration_seconds > 0) ? ` (ماوەی لایڤ: ${Math.round(l.duration_seconds / 60)} خولەک)` : '';
+    const startedBySubtext = (!isOpened && l.started_by_name) ? `<span class="text-[10px] text-slate-400 mr-1.5">کەسێک کە لایڤەکەی کردبۆوە: <b class="text-slate-300">${escapeHtml(l.started_by_name)}</b></span>` : '';
+
+    return `
+      <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-2 text-xs">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <div class="w-7 h-7 rounded-lg ${isOpened ? 'bg-rose-500/10' : 'bg-slate-800'} flex items-center justify-center shrink-0">
+            <i class="fa-solid ${icon} text-xs"></i>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="font-black text-white text-xs">${escapeHtml(l.user_name || l.username)}</span>
+              <span class="text-[9px] px-1.5 py-0.2 rounded border ${badgeClass} font-bold">${actionText}</span>
+              ${durationText ? `<span class="text-[10px] text-amber-300 font-mono">${durationText}</span>` : ''}
+            </div>
+            ${l.title ? `<p class="text-[10px] text-slate-300 truncate mt-0.5">ناونیشان: «${escapeHtml(l.title)}»</p>` : ''}
+            ${startedBySubtext}
+          </div>
+        </div>
+        <div class="text-[10px] text-slate-400 shrink-0 font-mono">${timeFormatted}</div>
       </div>
     `;
   }).join('');
@@ -14640,29 +14697,21 @@ async function sendAdvisorMessage() {
     const typingElem = document.getElementById(typingId);
     if (typingElem) typingElem.remove();
 
-    // Resilient fallback so the chat NEVER breaks even if network or server has a temporary delay
+    console.error('Advisor chat error:', err);
     const replyTimeStr = new Date().toLocaleTimeString('ckb', { hour: '2-digit', minute: '2-digit' });
-    let friendlyReply = 'سڵاو کاک هێمن گیان، برای بەڕێزم! هەموو ساتێک بە تەواوی گوێم لێتە و لە خزمەتتدام. فەرموو براکەم لە چ بابەتێکی سیرین ستافدا ڕاوێژت دەوێت؟ 💜';
-    const q = text.toLowerCase();
-    if (/ئامار|دۆخ|چەند|ئۆنلاین/.test(q)) {
-      friendlyReply = 'کاک هێمن گیان، پلاتفۆرمی سیرین ستاف بە تەواوی ئارام و سەقامگیرە؛ ئەندامان چالاکن و قەڵغانی ئاسایش کاردەکات!';
-    } else if (/خەون|مۆر/.test(q)) {
-      friendlyReply = 'کاک هێمن گیان، بەشی خەونەکان و باجی مۆر بە تەواوی ئامادەن؛ دەتوانیت باجی مۆر بە کەسێکی لێهاتوو ببەخشیت بۆ هاوکاری لە وەڵامدانەوەدا.';
-    } else if (/پێشنیار|نوێ|چی بکەم/.test(q)) {
-      friendlyReply = 'کاک هێمن گیان، پێشنیار دەکەم ئەندامان هان بدەین بەشی نوێی «قەبارەی پیت» بەکاربهێنن و پێشبڕکێی نوێ بۆ فێرخوازان دابنێین.';
-    }
+    const errText = (err && err.message) ? err.message : 'ببورە کاک هێمن گیان، کێشەیەک لە پەیوەندیکردن بە زیرەکی دەستکرد دروست بوو؛ تکایە دووبارەی بکەرەوە.';
 
     const replyHtml = `
       <div class="flex items-start gap-2.5 max-w-[85%] advisor-bubble">
-        <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
-          <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-600 to-purple-600 text-white flex items-center justify-center shrink-0 shadow-md">
+          <i class="fa-solid fa-triangle-exclamation text-xs"></i>
         </div>
-        <div class="bg-slate-800/90 border border-purple-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
+        <div class="bg-slate-800/90 border border-rose-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
           <div class="flex items-center justify-between gap-2 mb-1">
-            <span class="text-xs font-black text-purple-300">ڕاوێژکار</span>
+            <span class="text-xs font-black text-rose-300">ڕاوێژکار (سیستەم)</span>
             <span class="text-[9px] text-slate-400">${replyTimeStr}</span>
           </div>
-          <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">${escapeHtml(friendlyReply)}</p>
+          <p class="text-xs text-rose-200 leading-relaxed whitespace-pre-wrap">${escapeHtml(errText)}</p>
         </div>
       </div>
     `;
