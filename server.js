@@ -9,6 +9,8 @@ const multer = require('multer');
 const fs = require('fs');
 let archiver;
 try { archiver = require('archiver'); } catch (e) {}
+let DatabaseSync;
+try { DatabaseSync = require('node:sqlite').DatabaseSync; } catch (e) {}
 const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
@@ -1597,6 +1599,24 @@ const advisorTools = [
         }
       },
       {
+        name: 'check_database_backups',
+        description: 'پشکنینی هەموو فایلە یەدەگەکانی (Backups) ناو سێرڤەر بۆ ئەوەی بزانرێت کام کۆپی یەدەگ چەند نامەی تێدایە و نامەکانی پێش سڕینەوەی تێدا ماوە یان نا',
+        parameters: {
+          type: 'OBJECT',
+          properties: {}
+        }
+      },
+      {
+        name: 'restore_messages_from_backup',
+        description: 'گەڕاندنەوە و هێنانەوەی نامەکان لەناو فایلە یەدەگەکانی (chat_backup_*.db) ناو سێرڤەر بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            backup_filename: { type: 'STRING', description: 'ناوی فایلی یەدەگەکە ئەگەر بتەوێت فایلی دیاریکراو بێت (ئەگەر دانەنرێت تازەترین یەدەگ هەڵدەبژێرێت)' }
+          }
+        }
+      },
+      {
         name: 'toggle_red_alert',
         description: 'کاراکردن یان ناچالاککردنی دۆخی نائاسایی و فریاگوزاری (Red Alert Lockdown) بە فەرمانی کاک هێمن',
         parameters: {
@@ -2245,6 +2265,142 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
           restored_count: restored.length,
           message: `بە سەرکەوتوویی (${restored.length}) پەیامی سڕاوەی [${targetLabel}] ${limitDesc} گەڕێنرانەوە بۆ ناو چاتی گشتی بە فەرمانی کاک هێمن ✨.`
         };
+      }
+
+      case 'check_database_backups': {
+        try {
+          if (!fs.existsSync(backupsDir)) {
+            return { success: true, count: 0, message: 'هیچ فۆڵدەرێکی یەدەگ نەدۆزرایەوە.' };
+          }
+          const files = fs.readdirSync(backupsDir)
+            .filter(f => f.startsWith('chat_backup_') && f.endsWith('.db'))
+            .map(f => ({ name: f, time: fs.statSync(path.join(backupsDir, f)).mtime.getTime() }))
+            .sort((a, b) => b.time - a.time);
+
+          if (!files.length) {
+            return { success: true, count: 0, message: 'هیچ فایلی یەدەگێکی پێشوو لەسەر سێرڤەر نەدۆزرایەوە.' };
+          }
+
+          const details = [];
+          for (const fileObj of files) {
+            try {
+              if (DatabaseSync) {
+                const bPath = path.join(backupsDir, fileObj.name);
+                const bDb = new DatabaseSync(bPath, { readOnly: true });
+                const msgCount = bDb.prepare('SELECT COUNT(*) as c FROM messages').get()?.c || 0;
+                const lastMsg = msgCount > 0 ? bDb.prepare('SELECT content, created_at, full_name FROM messages ORDER BY id DESC LIMIT 1').get() : null;
+                details.push({
+                  filename: fileObj.name,
+                  created_at: new Date(fileObj.time).toLocaleString('ku-IQ'),
+                  message_count: msgCount,
+                  has_messages: msgCount > 0,
+                  last_sample: lastMsg ? `${lastMsg.full_name}: ${String(lastMsg.content).substring(0, 50)} (${new Date(lastMsg.created_at).toLocaleTimeString('ku-IQ')})` : 'هیچ نامەی تێدا نییە'
+                });
+              } else {
+                details.push({ filename: fileObj.name, created_at: new Date(fileObj.time).toLocaleString('ku-IQ') });
+              }
+            } catch (e) {
+              details.push({ filename: fileObj.name, error: e.message });
+            }
+          }
+
+          const withMessages = details.filter(d => d.message_count > 0);
+          return {
+            success: true,
+            total_backups: files.length,
+            backups_with_messages: withMessages.length,
+            details: details.slice(0, 10),
+            summary: withMessages.length > 0 
+              ? `دۆزرایەوە! (${withMessages.length}) فایلی یەدەگ هەیە کە نامەکانی تێدایە (بۆ نموونە: ${withMessages[0].filename} کە ${withMessages[0].message_count} نامەی تێدایە). دەتوانیت فەرمانم پێبکەیت تا دەستبەجێ لەو یەدەگەوە بیگەڕێنمەوە.`
+              : 'لە تەواوی ئەو یەدەگانەی پشکنران، خشتەی نامەکان ٠ بووە و بەتاڵە.'
+          };
+        } catch (err) {
+          return { error: `هەڵە لە پشکنینی یەدەگەکان: ${err.message}` };
+        }
+      }
+
+      case 'restore_messages_from_backup': {
+        try {
+          if (!fs.existsSync(backupsDir)) {
+            return { error: 'فۆڵدەری یەدەگ نەدۆزرایەوە.' };
+          }
+          if (!DatabaseSync) {
+            return { error: 'مۆدیوڵی خوێندنەوەی یەدەگ بەردەست نییە.' };
+          }
+          const files = fs.readdirSync(backupsDir)
+            .filter(f => f.startsWith('chat_backup_') && f.endsWith('.db'))
+            .map(f => ({ name: f, time: fs.statSync(path.join(backupsDir, f)).mtime.getTime() }))
+            .sort((a, b) => b.time - a.time);
+
+          let chosenFile = args.backup_filename ? String(args.backup_filename).trim() : null;
+          if (!chosenFile) {
+            for (const f of files) {
+              try {
+                const bDb = new DatabaseSync(path.join(backupsDir, f.name), { readOnly: true });
+                const c = bDb.prepare('SELECT COUNT(*) as c FROM messages').get()?.c || 0;
+                if (c > 0) {
+                  chosenFile = f.name;
+                  break;
+                }
+              } catch (e) {}
+            }
+          }
+
+          if (!chosenFile) {
+            return { error: 'هیچ فایلی یەدەگێک نەدۆزرایەوە کە نامەی پارێزراوی تێدابێت بۆ گەڕاندنەوە.' };
+          }
+
+          const targetBackupPath = path.join(backupsDir, chosenFile);
+          if (!fs.existsSync(targetBackupPath)) {
+            return { error: `فایلی یەدەگی «${chosenFile}» نەدۆزرایەوە.` };
+          }
+
+          const bDb = new DatabaseSync(targetBackupPath, { readOnly: true });
+          const rows = bDb.prepare('SELECT * FROM messages ORDER BY id ASC').all();
+          if (!rows || rows.length === 0) {
+            return { error: `فایلی «${chosenFile}» هیچ پەیامێکی تێدا نییە.` };
+          }
+
+          const insertStmt = db.prepare(`
+            INSERT OR IGNORE INTO messages (id, user_id, username, full_name, role, content, type, question_id, reply_to_id, attachment_type, attachment_url, is_deleted, deleted_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)
+          `);
+
+          let restoredCount = 0;
+          for (const m of rows) {
+            try {
+              const res = insertStmt.run(
+                m.id,
+                m.user_id,
+                m.username || 'user',
+                m.full_name || 'بەکارهێنەر',
+                m.role || 'student',
+                m.content || '',
+                m.type || 'text',
+                m.question_id || null,
+                m.reply_to_id || null,
+                m.attachment_type || 'none',
+                m.attachment_url || null,
+                m.created_at || Date.now()
+              );
+              if (res.changes > 0) restoredCount++;
+            } catch (e) {}
+          }
+
+          if (ioInstance) {
+            ioInstance.emit('messages_restored', { count: restoredCount, from_backup: chosenFile });
+          }
+
+          return {
+            success: true,
+            backup_file: chosenFile,
+            total_in_backup: rows.length,
+            restored_new_messages: restoredCount,
+            message: `پیرۆزە کاک هێمن گیان! بە سەرکەوتوویی (${rows.length}) نامە لە فایلی یەدەگی [${chosenFile}] دەرهێنران و (${restoredCount}) نامەی نوێ خرانەوە ناو چاتی زیندووی گروپ ✨.`
+          };
+        } catch (err) {
+          return { error: `هەڵە لە گەڕاندنەوەی یەدەگ: ${err.message}` };
+        }
       }
 
       case 'toggle_red_alert': {
