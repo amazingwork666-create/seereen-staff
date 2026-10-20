@@ -85,6 +85,8 @@ function initDb() {
       reply_to_id INTEGER DEFAULT NULL,
       attachment_type TEXT DEFAULT 'none',
       attachment_url TEXT DEFAULT NULL,
+      is_deleted INTEGER DEFAULT 0,
+      deleted_at INTEGER DEFAULT NULL,
       created_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -270,6 +272,8 @@ function initDb() {
   try { db.exec("ALTER TABLE users ADD COLUMN last_read_message_id INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN attachment_type TEXT DEFAULT 'none'"); } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN attachment_url TEXT DEFAULT NULL"); } catch (e) {}
+  try { db.exec("ALTER TABLE messages ADD COLUMN is_deleted INTEGER DEFAULT 0"); } catch (e) {}
+  try { db.exec("ALTER TABLE messages ADD COLUMN deleted_at INTEGER DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN duration_minutes INTEGER DEFAULT 5"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN expires_at INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN is_revealed INTEGER DEFAULT 0"); } catch (e) {}
@@ -708,6 +712,7 @@ const messages = {
       FROM messages m
       LEFT JOIN users u ON m.user_id = u.id
       LEFT JOIN messages orig ON m.reply_to_id = orig.id
+      WHERE COALESCE(m.is_deleted, 0) = 0
       ORDER BY m.id DESC
       LIMIT ?
     `);
@@ -716,16 +721,90 @@ const messages = {
   },
   getUserMessageCountLast24h(userId) {
     const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
-    const stmt = db.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND type = 'text' AND created_at >= ?");
+    const stmt = db.prepare("SELECT COUNT(*) as count FROM messages WHERE user_id = ? AND type = 'text' AND created_at >= ? AND COALESCE(is_deleted, 0) = 0");
     const row = stmt.get(userId, oneDayAgo);
     return row ? row.count : 0;
   },
   delete(id) {
+    const stmt = db.prepare('UPDATE messages SET is_deleted = 1, deleted_at = ? WHERE id = ?');
+    return stmt.run(Date.now(), id);
+  },
+  hardDelete(id) {
     const stmt = db.prepare('DELETE FROM messages WHERE id = ?');
     return stmt.run(id);
   },
   clearAll() {
-    return db.prepare('DELETE FROM messages').run();
+    const now = Date.now();
+    return db.prepare('UPDATE messages SET is_deleted = 1, deleted_at = ? WHERE COALESCE(is_deleted, 0) = 0').run(now);
+  },
+  getDeleted(options = {}) {
+    const { userId = null, limit = 50 } = options;
+    let sql = `
+      SELECT m.*, u.gender, u.correct_answers_count,
+        orig.full_name as reply_to_name,
+        orig.content as reply_to_content
+      FROM messages m
+      LEFT JOIN users u ON m.user_id = u.id
+      LEFT JOIN messages orig ON m.reply_to_id = orig.id
+      WHERE m.is_deleted = 1
+    `;
+    const params = [];
+    if (userId) {
+      sql += ' AND m.user_id = ?';
+      params.push(userId);
+    }
+    sql += ' ORDER BY COALESCE(m.deleted_at, m.id) DESC, m.id DESC LIMIT ?';
+    params.push(Number(limit) || 50);
+    return db.prepare(sql).all(...params);
+  },
+  restore(options = {}) {
+    const { messageIds = null, userId = null, limit = null } = options;
+    if (Array.isArray(messageIds) && messageIds.length > 0) {
+      const placeholders = messageIds.map(() => '?').join(',');
+      db.prepare(`UPDATE messages SET is_deleted = 0, deleted_at = NULL WHERE id IN (${placeholders})`).run(...messageIds);
+      return db.prepare(`
+        SELECT m.*, u.gender, u.correct_answers_count,
+          orig.full_name as reply_to_name,
+          orig.content as reply_to_content,
+          orig.attachment_type as reply_to_attachment_type
+        FROM messages m
+        LEFT JOIN users u ON m.user_id = u.id
+        LEFT JOIN messages orig ON m.reply_to_id = orig.id
+        WHERE m.id IN (${placeholders})
+        ORDER BY m.id ASC
+      `).all(...messageIds);
+    }
+
+    let findSql = 'SELECT id FROM messages WHERE is_deleted = 1';
+    const params = [];
+    if (userId) {
+      findSql += ' AND user_id = ?';
+      params.push(userId);
+    }
+    findSql += ' ORDER BY COALESCE(deleted_at, id) DESC, id DESC';
+    if (limit && Number(limit) > 0) {
+      findSql += ' LIMIT ?';
+      params.push(Number(limit));
+    }
+
+    const targets = db.prepare(findSql).all(...params);
+    if (!targets || targets.length === 0) return [];
+
+    const ids = targets.map(t => t.id);
+    const placeholders = ids.map(() => '?').join(',');
+    db.prepare(`UPDATE messages SET is_deleted = 0, deleted_at = NULL WHERE id IN (${placeholders})`).run(...ids);
+
+    return db.prepare(`
+      SELECT m.*, u.gender, u.correct_answers_count,
+        orig.full_name as reply_to_name,
+        orig.content as reply_to_content,
+        orig.attachment_type as reply_to_attachment_type
+      FROM messages m
+      LEFT JOIN users u ON m.user_id = u.id
+      LEFT JOIN messages orig ON m.reply_to_id = orig.id
+      WHERE m.id IN (${placeholders})
+      ORDER BY m.id ASC
+    `).all(...ids);
   }
 };
 

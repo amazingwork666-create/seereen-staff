@@ -1959,6 +1959,15 @@ function initSocket() {
     if (el) el.remove();
   });
 
+  socket.on('chat_cleared', () => {
+    const container = document.getElementById('messagesContainer');
+    if (container) container.innerHTML = '';
+  });
+
+  socket.on('messages_restored', (data) => {
+    loadMessages();
+  });
+
   // Question submission evaluation updated (⭐ or ❌)
   socket.on('submission_evaluated', (data) => {
     handleSubmissionEvaluated(data);

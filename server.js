@@ -1567,10 +1567,33 @@ const advisorTools = [
       },
       {
         name: 'clear_chat',
-        description: 'سڕینەوە و پاککردنەوەی تەواوی پەیامەکانی چاتی گشتی بە فەرمانی کاک هێمن',
+        description: 'سڕینەوە و پاککردنەوەی تەواوی پەیامەکانی چاتی گشتی بە فەرمانی کاک هێمن (نامەکان دەچنە ئەرشیڤی پارێزراو بۆ گەڕاندنەوە)',
         parameters: {
           type: 'OBJECT',
           properties: {}
+        }
+      },
+      {
+        name: 'restore_deleted_messages',
+        description: 'گەڕاندنەوەی پەیامە سڕاوەکانی چاتی گشتی بە فەرمانی کاک هێمن. دەتوانرێت تەواوی چاتە سڕاوەکان، یان نامە سڕاوەکانی کەسێکی دیاریکراو (target_user)، یان بەپێی ژمارەی پەیامەکانی کۆتایی (limit: وەک ٢ دانە یان ١٠ دانەی کۆتایی کە سڕاونەتەوە) بگەڕێنێتەوە.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            target_user: { type: 'STRING', description: 'ناو، یوزەرنەیم، یان ئایدی بەکارهێنەرێک ئەگەر تەنها نامەکانی ئەو بگەڕێنیتەوە (ئارەزوومەندانە)' },
+            limit: { type: 'INTEGER', description: 'ژمارەی ئەو پەیامانەی دەتەوێت بگەڕێنرێنەوە وەک ٢ یان ١٠ دانەی کۆتایی (ئەگەر دانەنرێت هەمووی دەگەڕێنێتەوە)' },
+            message_id: { type: 'INTEGER', description: 'ئایدی پەیامێکی دیاریکراو ئەگەر ئایدییەکە بزانیت' }
+          }
+        }
+      },
+      {
+        name: 'get_deleted_messages',
+        description: 'بینین و پشکنینی لیستی ئەو پەیامانەی لە چاتی گشتی سڕاونەتەوە پێش گەڕاندنەوەیان بە فەرمانی کاک هێمن (ناوەڕۆک، ناوی کەسەکە، کاتی ناردن، کاتی سڕینەوە)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            target_user: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی کەسەکە (ئارەزوومەندانە)' },
+            limit: { type: 'INTEGER', description: 'ژمارەی پەیامەکان بۆ پیشاندان (دەفۆڵت ١٠)' }
+          }
         }
       },
       {
@@ -2133,19 +2156,95 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
       case 'delete_chat_message': {
         const msgId = parseInt(args.message_id);
         if (!msgId) return { error: 'تکایە ئایدی نامەکە دیاری بکە.' };
-        db.prepare('DELETE FROM messages WHERE id = ?').run(msgId);
+        messages.delete(msgId);
         if (ioInstance) {
           ioInstance.emit('message_deleted', { id: msgId });
         }
-        return { success: true, message: `نامەی #${msgId} لە چاتی گشتی سڕایەوە بە فەرمانی کاک هێمن.` };
+        return { success: true, message: `نامەی #${msgId} لە چاتی گشتی سڕایەوە بە فەرمانی کاک هێمن (لە ئەرشیڤ پارێزراوە بۆ گەڕاندنەوە).` };
       }
 
       case 'clear_chat': {
-        db.prepare('DELETE FROM messages').run();
+        const res = messages.clearAll();
         if (ioInstance) {
           ioInstance.emit('chat_cleared', {});
         }
-        return { success: true, message: 'تەواوی نامەکانی ناو چاتی گشتی بە سەرکەوتوویی سڕانەوە بە فەرمانی کاک هێمن 🧹.' };
+        return { success: true, message: `تەواوی نامەکانی ناو چاتی گشتی (${res.changes || 0} نامە) سڕانەوە بە فەرمانی کاک هێمن و لە ئەرشیڤی پارێزراودا ماونەتەوە کە هەر کات ویستت دەتوانیت بیانگەڕێنیتەوە 🧹.` };
+      }
+
+      case 'get_deleted_messages': {
+        let targetId = null;
+        let targetLabel = 'هەموو ئەندامان';
+        if (args.target_user) {
+          const target = findTargetUser(args.target_user);
+          if (target) {
+            targetId = target.id;
+            targetLabel = `${target.full_name} (@${target.username})`;
+          }
+        }
+        const limit = parseInt(args.limit) || 10;
+        const list = messages.getDeleted({ userId: targetId, limit });
+        if (!list || list.length === 0) {
+          return {
+            success: true,
+            count: 0,
+            message: `هیچ پەیامێکی سڕاوە بۆ (${targetLabel}) لە ناو ئەرشیڤدا نییە.`
+          };
+        }
+        return {
+          success: true,
+          count: list.length,
+          target: targetLabel,
+          messages: list.map(m => ({
+            id: m.id,
+            author: m.full_name,
+            username: m.username,
+            content: m.content ? m.content.substring(0, 120) : '',
+            type: m.type,
+            sent_at: new Date(m.created_at).toLocaleString('ku-IQ'),
+            deleted_at: m.deleted_at ? new Date(m.deleted_at).toLocaleString('ku-IQ') : 'نەزانراو'
+          }))
+        };
+      }
+
+      case 'restore_deleted_messages': {
+        let targetId = null;
+        let targetLabel = 'هەموو ئەندامان';
+        if (args.target_user) {
+          const target = findTargetUser(args.target_user);
+          if (!target) return { error: `بەکارهێنەر «${args.target_user}» نەدۆزرایەوە.` };
+          targetId = target.id;
+          targetLabel = target.full_name;
+        }
+
+        let messageIds = null;
+        if (args.message_id) {
+          messageIds = [parseInt(args.message_id)];
+        }
+
+        const limit = args.limit ? parseInt(args.limit) : null;
+        const restored = messages.restore({ messageIds, userId: targetId, limit });
+
+        if (!restored || restored.length === 0) {
+          return {
+            success: false,
+            message: `هیچ پەیامێکی سڕاوە نەدۆزرایەوە بۆ گەڕاندنەوە بۆ (${targetLabel}).`
+          };
+        }
+
+        if (ioInstance) {
+          ioInstance.emit('messages_restored', {
+            count: restored.length,
+            target_user: targetLabel,
+            message_ids: restored.map(m => m.id)
+          });
+        }
+
+        const limitDesc = limit ? `(${limit} پەیامی کۆتایی)` : 'تەواوی پەیامە سڕاوەکان';
+        return {
+          success: true,
+          restored_count: restored.length,
+          message: `بە سەرکەوتوویی (${restored.length}) پەیامی سڕاوەی [${targetLabel}] ${limitDesc} گەڕێنرانەوە بۆ ناو چاتی گشتی بە فەرمانی کاک هێمن ✨.`
+        };
       }
 
       case 'toggle_red_alert': {
@@ -2331,6 +2430,8 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
 - ئەندامان پەسەند بکەیت، بسڕیتەوە، بلۆک بکەیت (block_user)، یان لە چات میوتیان بکەیت (mute_user).
 - ناوی تەواوی بەکارهێنەران بگۆڕیت (change_user_name) و وشەی نهێنییان ڕیسێت بکەیت (reset_user_password).
 - چاتی گشتی قفڵ بکەیت، بکەیتەوە، نامە بسڕیتەوە (delete_chat_message)، یان هەمووی پاک بکەیتەوە (clear_chat).
+- نامە سڕاوەکانی چات بە تەواوی و وردی بگەڕێنیتەوە بە restore_deleted_messages (وەک گەڕاندنەوەی چاتی یەک کەس، یان دوو دانە یان ١٠ دانەی کۆتایی کە سڕاونەتەوە، یان هەموو چاتە سڕاوەکان).
+- پشکنین و بینینی لیستی نامە سڕاوەکان پێش گەڕاندنەوە بە get_deleted_messages.
 - دۆخی فریاگوزاری (Red Alert Lockdown) کارا بکەیت یان کۆتایی پێبهێنیت (toggle_red_alert).
 - پرسیاری کاتدار دروستبکەیت، میقاتی بکەیت بۆ سبەی، دابخەیت، یان پرسیار بسڕیتەوە.
 - ئەستێرە و خاڵ ببەخشیت یان کەم بکەیتەوە (award_student_stars).
@@ -2523,6 +2624,37 @@ ${JSON.stringify(liveContext, null, 2)}
 🔴 باجی سور: مۆڵەتی تایبەت بۆ کۆنتڕۆڵی تەواوی مایکی وانەی لایڤ.
 🟣 باجی مۆر: بە تایبەت تەنها بۆ مۆڵەتی لێکدانەوەی خەون.
 هەر کات ویستت باجێک ببەخشیت، تەنها پێم بڵێ "باجی (ڕەنگ) بدە بە (ناو)" تا جێبەجێی بکەم.`;
+      } else if (/گەڕاندنەوە|بهێنەوە|هێنانەوە|سڕاوە|سڕاونەتەوە|چاتی سڕاوە|نامەی سڕاوە/.test(q)) {
+        let limit = null;
+        if (/دوو|2/.test(q)) limit = 2;
+        else if (/سێ|3/.test(q)) limit = 3;
+        else if (/چوار|4/.test(q)) limit = 4;
+        else if (/پێنج|5/.test(q)) limit = 5;
+        else if (/دە|10/.test(q)) limit = 10;
+        else if (/بیست|20/.test(q)) limit = 20;
+
+        let targetUser = null;
+        try {
+          const allUsers = users.getAllUsersAdmin();
+          for (const u of allUsers) {
+            if (u.id !== 1 && (q.includes(u.full_name.toLowerCase()) || q.includes(u.username.toLowerCase()))) {
+              targetUser = u;
+              break;
+            }
+          }
+        } catch (e) {}
+
+        const restored = messages.restore({ userId: targetUser ? targetUser.id : null, limit });
+        if (restored && restored.length > 0) {
+          if (io) {
+            io.emit('messages_restored', { count: restored.length, target_user: targetUser ? targetUser.full_name : null });
+          }
+          const userText = targetUser ? ` هی (${targetUser.full_name})` : '';
+          const limitText = limit ? ` (${limit} پەیامی کۆتایی)` : ' (تەواوی نامە سڕاوەکان)';
+          reply = `کاک هێمن گیان، فەرمانت لەسەر چاو! بە سەرکەوتوویی (${restored.length}) نامەی سڕاوە${userText}${limitText} گەڕێنرانەوە بۆ ناو چاتی گشتی ✨.`;
+        } else {
+          reply = `کاک هێمن گیان، پشکنینم کرد؛ لە ئێستادا هیچ نامەیەکی سڕاوە لە ئەرشیڤی پارێزراودا نەدۆزرایەوە بۆ گەڕاندنەوە. هەر کاتێک لەمەودوا نامەیەک بسڕدرێتەوە یەکسەر دەتوانیت پێم بڵێیت تا بۆت بگەڕێنمەوە.`;
+        }
       } else {
         reply = `کاک هێمن گیان، فەرمانت لەسەر چاو. هەموو وردەکارییەکی پلاتفۆرمەکە لەژێر دەستی خۆمدایە: لە کۆدی پرۆگرامین، داتابەیس، سێرڤەر، بەشی خەونەکان (${totalDreams} خەون)، لایڤ و ئاسایشەوە (${secStats.safetyRating}) تا دەگاتە پلەی ئەندامان (${totalUsers} ئەندام).
 دەربارەی پەیامەکەت ("${userMessage.length > 50 ? userMessage.substring(0, 50) + '...' : userMessage}"):
@@ -3686,7 +3818,7 @@ app.delete('/api/library/books/:id', authMiddleware, requireAdmin, (req, res) =>
   res.json({ success: true, message: 'کتێبەکە لە کتێبخانە سڕایەوە' });
 });
 
-// Delete Message (Admins, Teachers, or Message Author)
+// Delete Message (Admins, Teachers, or Message Author) - Soft Delete to allow restoration
 app.delete('/api/chat/messages/:id', authMiddleware, (req, res) => {
   const msgId = parseInt(req.params.id);
   const msg = messages.findById(msgId);
@@ -3701,22 +3833,9 @@ app.delete('/api/chat/messages/:id', authMiddleware, (req, res) => {
     return res.status(403).json({ error: 'تەنها ئەدمین، مامۆستا، پاسەوانی چات یان خاوەنی پەیامەکە دەتوانێت نامەکە بسڕێتەوە' });
   }
 
-  // Delete attachment file from public/uploads if exists
-  if (msg.attachment_url) {
-    try {
-      const filename = path.basename(msg.attachment_url);
-      const filePath = path.join(uploadsDir, filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    } catch (err) {
-      console.error('Failed to unlink deleted attachment:', err);
-    }
-  }
-
   messages.delete(msgId);
   io.emit('message_deleted', { id: msgId });
-  res.json({ success: true });
+  res.json({ success: true, message: 'نامەکە سڕایەوە (لە ئەرشیڤ پارێزراوە بۆ گەڕاندنەوە)' });
 });
 
 // Leaderboard
@@ -3761,12 +3880,14 @@ app.get('/api/chat/search', authMiddleware, (req, res) => {
       FROM messages m
       LEFT JOIN users u ON m.user_id = u.id
       LEFT JOIN messages orig ON m.reply_to_id = orig.id
-      WHERE m.content LIKE ? 
+      WHERE COALESCE(m.is_deleted, 0) = 0 AND (
+            m.content LIKE ? 
          OR m.full_name LIKE ? 
          OR m.username LIKE ?
          OR REPLACE(REPLACE(REPLACE(m.content, 'ي', 'ی'), 'ك', 'ک'), 'ھ', 'ه') LIKE ?
          OR REPLACE(REPLACE(REPLACE(m.full_name, 'ي', 'ی'), 'ك', 'ک'), 'ھ', 'ه') LIKE ?
          OR REPLACE(REPLACE(REPLACE(m.content, 'ە', 'ه'), 'ێ', 'ی'), 'ۆ', 'و') LIKE ?
+      )
       ORDER BY m.id DESC
       LIMIT 80
     `);
