@@ -2455,6 +2455,157 @@ async function loadMessages() {
   }
 }
 
+// =========================================================================
+// KURDISH DATE & TIME HELPERS FOR CHAT MESSAGES
+// =========================================================================
+const KURDISH_MONTHS = [
+  'کانوونی دووەم', 'شوبات', 'ئازار', 'نیسان', 'ئایار', 'حوزەیران',
+  'تەمووز', 'ئاب', 'ئەیلوول', 'تشرینی یەکەم', 'تشرینی دووەم', 'کانوونی یەکەم'
+];
+const KURDISH_WEEKDAYS = [
+  'یەکشەممە', 'دووشەممە', 'سێشەممە', 'چوارشەممە', 'پێنجشەممە', 'هەینی', 'شەممە'
+];
+
+function getMessageDateTimeInfo(timestamp) {
+  if (!timestamp) {
+    return {
+      shortTime: '',
+      shortDate: '',
+      dayName: '',
+      fullDateStr: '',
+      exactTimeStr: '',
+      relativeTime: '',
+      detailedText: ''
+    };
+  }
+  const raw = (typeof timestamp === 'string' && !isNaN(Number(timestamp))) ? Number(timestamp) : timestamp;
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) {
+    return {
+      shortTime: '',
+      shortDate: '',
+      dayName: '',
+      fullDateStr: '',
+      exactTimeStr: '',
+      relativeTime: '',
+      detailedText: ''
+    };
+  }
+
+  const dayName = KURDISH_WEEKDAYS[d.getDay()] || '';
+  const dayNum = d.getDate();
+  const monthName = KURDISH_MONTHS[d.getMonth()] || '';
+  const yearNum = d.getFullYear();
+
+  const hours24 = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const seconds = String(d.getSeconds()).padStart(2, '0');
+  const isPm = hours24 >= 12;
+  const period = isPm ? 'د.ن' : 'ب.ن'; // د.ن = دوای نیوەڕۆ, ب.ن = پێش نیوەڕۆ
+  const hours12 = hours24 % 12 || 12;
+  const hours12Str = String(hours12).padStart(2, '0');
+
+  const shortTime = `${hours12Str}:${minutes} ${period}`;
+  const shortMonthMap = {
+    'کانوونی دووەم': 'کانوون',
+    'شوبات': 'شوبات',
+    'ئازار': 'ئازار',
+    'نیسان': 'نیسان',
+    'ئایار': 'ئایار',
+    'حوزەیران': 'حوزەیران',
+    'تەمووز': 'تەمووز',
+    'ئاب': 'ئاب',
+    'ئەیلوول': 'ئەیلوول',
+    'تشرینی یەکەم': 'تشرین',
+    'تشرینی دووەم': 'تشرین',
+    'کانوونی یەکەم': 'کانوون'
+  };
+  const shortMonth = shortMonthMap[monthName] || monthName.split(' ')[0] || '';
+  const shortDate = `${dayNum} ${shortMonth}`;
+
+  // Relative time calculation
+  const now = Date.now();
+  const diffSec = Math.max(0, Math.floor((now - d.getTime()) / 1000));
+  let relativeTime = '';
+  if (diffSec < 45) {
+    relativeTime = 'کەمێک لەمەوبەر';
+  } else if (diffSec < 3600) {
+    const mins = Math.floor(diffSec / 60);
+    relativeTime = `پێش ${mins} خولەک`;
+  } else if (diffSec < 86400) {
+    const hrs = Math.floor(diffSec / 3600);
+    relativeTime = `پێش ${hrs} کاتژمێر`;
+  } else if (diffSec < 172800) {
+    relativeTime = 'دوێنێ';
+  } else {
+    const days = Math.floor(diffSec / 86400);
+    relativeTime = `پێش ${days} ڕۆژ`;
+  }
+
+  const fullDateStr = `${dayName}، ${dayNum}ی ${monthName}ی ${yearNum}`;
+  const exactTimeStr = `${hours12Str}:${minutes}:${seconds} ${period}`;
+  const detailedText = `📅 ${fullDateStr} • ⏰ ${exactTimeStr} (${relativeTime})`;
+
+  return {
+    shortTime,
+    shortDate,
+    dayName,
+    fullDateStr,
+    exactTimeStr,
+    relativeTime,
+    detailedText
+  };
+}
+
+let activeDetailedTimeMsgId = null;
+
+function toggleMessageDetailedTime(msgId, event) {
+  if (event) {
+    event.stopPropagation();
+  }
+  const target = document.getElementById(`msg-detailed-time-${msgId}`);
+  if (!target) return;
+
+  const isCurrentlyOpen = !target.classList.contains('hidden');
+
+  // Close any previously opened detailed time badge
+  closeAllDetailedTimeBadges();
+
+  if (!isCurrentlyOpen) {
+    target.classList.remove('hidden');
+    target.classList.add('flex');
+    activeDetailedTimeMsgId = msgId;
+    if (navigator.vibrate) {
+      try { navigator.vibrate(12); } catch (e) {}
+    }
+  }
+}
+
+function closeMessageDetailedTime(msgId, event) {
+  if (event) {
+    event.stopPropagation();
+  }
+  const target = document.getElementById(`msg-detailed-time-${msgId}`);
+  if (target) {
+    target.classList.add('hidden');
+    target.classList.remove('flex');
+  }
+  if (activeDetailedTimeMsgId === msgId) {
+    activeDetailedTimeMsgId = null;
+  }
+}
+
+function closeAllDetailedTimeBadges() {
+  if (activeDetailedTimeMsgId !== null) {
+    const prev = document.getElementById(`msg-detailed-time-${activeDetailedTimeMsgId}`);
+    if (prev) {
+      prev.classList.add('hidden');
+      prev.classList.remove('flex');
+    }
+    activeDetailedTimeMsgId = null;
+  }
+}
+
 function appendMessage(msg, scroll = true) {
   const container = document.getElementById('messagesContainer');
   const emptyPlaceholder = container.querySelector('.empty-welcome-box, .text-slate-500');
@@ -2465,7 +2616,8 @@ function appendMessage(msg, scroll = true) {
   const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
   const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
   const isChatMod = canUserModerateChat(currentUser);
-  const dateStr = new Date(msg.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
+  const timeInfo = getMessageDateTimeInfo(msg.created_at);
+  const dateStr = timeInfo.shortTime || new Date(msg.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
 
   let msgElem = document.createElement('div');
   msgElem.id = `msg-${msg.id}`;
@@ -2476,10 +2628,17 @@ function appendMessage(msg, scroll = true) {
     if (msg.content && msg.content.includes('بەخێرهات')) {
       return;
     }
-    msgElem.className = 'chat-msg-item flex justify-center my-2';
+    msgElem.className = 'chat-msg-item flex flex-col items-center justify-center my-2 select-none';
     msgElem.innerHTML = `
-      <div class="px-4 py-2 rounded-2xl bg-slate-900 border border-slate-700/80 text-xs text-slate-200 font-medium text-right shadow-md max-w-xl leading-relaxed whitespace-pre-line">
+      <div onclick="toggleMessageDetailedTime(${msg.id}, event)" class="cursor-pointer px-4 py-2 rounded-2xl bg-slate-900 border border-slate-700/80 text-xs text-slate-200 font-medium text-right shadow-md max-w-xl leading-relaxed whitespace-pre-line group/sys hover:border-indigo-500/40 transition">
         ${escapeHtml(msg.content)}
+        <div class="mt-1 pt-1 border-t border-slate-800/80 text-[9px] text-slate-400 font-mono flex items-center justify-end gap-1 opacity-70 group-hover/sys:opacity-100 transition">
+          <i class="fa-regular fa-clock text-[8px]"></i>
+          <span>${timeInfo.shortTime} • ${timeInfo.shortDate}</span>
+        </div>
+      </div>
+      <div id="msg-detailed-time-${msg.id}" class="hidden msg-detailed-time-banner my-1 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700 text-xs text-slate-300 shadow-lg text-center animate-fadeIn max-w-md">
+        <span>${timeInfo.detailedText}</span>
       </div>
     `;
     container.appendChild(msgElem);
@@ -2761,8 +2920,34 @@ function appendMessage(msg, scroll = true) {
                   <span>سڕینەوە</span>
                 </button>
               ` : ''}
-              <span class="text-[11px] text-slate-400 font-mono">${dateStr}</span>
+              <span onclick="toggleMessageDetailedTime(${msg.id}, event)" class="msg-faint-time cursor-pointer text-[10px] text-slate-400/80 font-mono bg-slate-950/70 border border-slate-800 px-2 py-0.5 rounded-lg hover:text-white hover:border-indigo-500/40 transition flex items-center gap-1 select-none" title="کلیک بکە بۆ دەرکەوتنی وردی کات و بەروار">
+                <i class="fa-regular fa-clock text-[9px] opacity-60"></i>
+                <span>${timeInfo.shortTime}</span>
+                <span class="opacity-40">•</span>
+                <span class="opacity-75">${timeInfo.shortDate}</span>
+              </span>
             </div>
+          </div>
+
+          <!-- Detailed Time & Date Badge (Revealed on tap/click) -->
+          <div id="msg-detailed-time-${msg.id}" class="hidden msg-detailed-time-banner mb-3 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-indigo-500/40 shadow-xl text-xs flex items-center justify-between gap-2.5 text-slate-200 select-none z-10 transition-all">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="inline-flex items-center gap-1.5 text-indigo-300 font-bold">
+                <i class="fa-regular fa-calendar-days text-[11px] text-indigo-400"></i>
+                <span>${timeInfo.fullDateStr}</span>
+              </span>
+              <span class="text-slate-500 font-bold">•</span>
+              <span class="inline-flex items-center gap-1.5 text-amber-300 font-mono font-bold">
+                <i class="fa-regular fa-clock text-[11px] text-amber-400"></i>
+                <span>${timeInfo.exactTimeStr}</span>
+              </span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-200 font-bold border border-indigo-500/30">
+                ${timeInfo.relativeTime}
+              </span>
+            </div>
+            <button type="button" onclick="closeMessageDetailedTime(${msg.id}, event)" class="text-slate-400 hover:text-rose-300 text-xs p-1 rounded-lg hover:bg-slate-800 transition" title="داخستن">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
           </div>
 
           <div class="bg-slate-950/70 p-3 rounded-2xl border border-slate-800 mb-3.5">
@@ -2853,8 +3038,34 @@ function appendMessage(msg, scroll = true) {
                 <span class="hidden sm:inline">سڕینەوە</span>
               </button>
             ` : ''}
-            <span class="text-[10px] text-slate-400 font-mono bg-slate-950/70 border border-slate-800 px-1.5 py-0.5 rounded-md">${dateStr}</span>
+            <span onclick="toggleMessageDetailedTime(${msg.id}, event)" class="msg-faint-time cursor-pointer text-[10px] text-slate-400 font-mono bg-slate-950/70 border border-slate-800 px-1.5 py-0.5 rounded-md hover:text-white hover:border-amber-500/40 transition flex items-center gap-1 select-none" title="کلیک بکە بۆ دەرکەوتنی وردی کات و بەروار">
+              <i class="fa-regular fa-clock text-[9px] opacity-60"></i>
+              <span>${timeInfo.shortTime}</span>
+              <span class="opacity-40">•</span>
+              <span class="opacity-75">${timeInfo.shortDate}</span>
+            </span>
           </div>
+        </div>
+
+        <!-- Detailed Time & Date Badge (Revealed on tap/click) -->
+        <div id="msg-detailed-time-${msg.id}" class="hidden msg-detailed-time-banner mb-2 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-amber-500/40 shadow-xl text-xs flex items-center justify-between gap-2.5 text-slate-200 select-none z-10 transition-all">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="inline-flex items-center gap-1.5 text-amber-300 font-bold">
+              <i class="fa-regular fa-calendar-days text-[11px] text-amber-400"></i>
+              <span>${timeInfo.fullDateStr}</span>
+            </span>
+            <span class="text-slate-500 font-bold">•</span>
+            <span class="inline-flex items-center gap-1.5 text-amber-300 font-mono font-bold">
+              <i class="fa-regular fa-clock text-[11px] text-amber-400"></i>
+              <span>${timeInfo.exactTimeStr}</span>
+            </span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-200 font-bold border border-amber-500/30">
+              ${timeInfo.relativeTime}
+            </span>
+          </div>
+          <button type="button" onclick="closeMessageDetailedTime(${msg.id}, event)" class="text-slate-400 hover:text-rose-300 text-xs p-1 rounded-lg hover:bg-slate-800 transition" title="داخستن">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
         </div>
 
         <!-- Row 2: Author, Target, and Timer Pills -->
@@ -3163,7 +3374,12 @@ function appendMessage(msg, scroll = true) {
       ${starBadge}
       ${starGlowPillBadge}
       ${mentionAllBadge}
-      <span class="text-[10px] text-slate-500 font-mono">${dateStr}</span>
+      <span onclick="toggleMessageDetailedTime(${msg.id}, event)" class="msg-faint-time cursor-pointer px-1.5 py-0.5 rounded text-[10px] text-slate-400/80 hover:text-slate-200 hover:bg-slate-800/60 transition-all font-mono inline-flex items-center gap-1 opacity-80 hover:opacity-100 select-none" title="کلیک بکە بۆ دەرکەوتنی وردی کات و بەروار">
+        <i class="fa-regular fa-clock text-[9px] opacity-60"></i>
+        <span>${timeInfo.shortTime}</span>
+        <span class="opacity-40">•</span>
+        <span class="opacity-75">${timeInfo.shortDate}</span>
+      </span>
       <button type="button" onclick="toggleReactionPicker(${msg.id}, event)" class="text-slate-400 hover:text-amber-300 px-1 py-0.5 rounded text-[11px] hover:bg-slate-800 transition flex items-center gap-0.5" title="کارلێک بە ئیمۆجی">
         <i class="fa-regular fa-face-smile"></i>
       </button>
@@ -3181,10 +3397,31 @@ function appendMessage(msg, scroll = true) {
       <button type="button" onclick="sendReaction(${msg.id}, '💯', event)" class="p-1.5 hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="سەد لەسەد">💯</button>
     </div>
 
-    <div id="msg-bubble-${msg.id}" onclick="handleMessageBubbleClick(${msg.id}, event)" class="max-w-lg md:max-w-xl rounded-2xl px-3.5 py-2 text-xs md:text-sm leading-relaxed shadow break-words ${bubbleBg} cursor-pointer md:cursor-default transition-transform duration-150">
+    <div id="msg-bubble-${msg.id}" onclick="handleMessageBubbleClick(${msg.id}, event)" class="max-w-lg md:max-w-xl rounded-2xl px-3.5 py-2 text-xs md:text-sm leading-relaxed shadow break-words ${bubbleBg} cursor-pointer transition-transform duration-150 active:scale-[0.99] group/bubble">
       ${replyQuoteHtml}
       ${msg.content ? `<div id="msg-content-${msg.id}" class="${msgTextClass}">${escapeHtml(msg.content)}</div>` : ''}
       ${attachmentHtml}
+    </div>
+
+    <!-- Detailed Time & Date Badge (Revealed on tap/click) -->
+    <div id="msg-detailed-time-${msg.id}" class="hidden msg-detailed-time-banner my-1 px-3 py-1.5 rounded-xl bg-slate-900/95 border border-indigo-500/40 shadow-xl text-xs flex items-center justify-between gap-2.5 text-slate-200 select-none z-10 transition-all max-w-lg">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="inline-flex items-center gap-1 text-indigo-300 font-bold">
+          <i class="fa-regular fa-calendar-days text-[11px] text-indigo-400"></i>
+          <span>${timeInfo.fullDateStr}</span>
+        </span>
+        <span class="text-slate-500 font-bold">•</span>
+        <span class="inline-flex items-center gap-1 text-amber-300 font-mono font-bold">
+          <i class="fa-regular fa-clock text-[11px] text-amber-400"></i>
+          <span>${timeInfo.exactTimeStr}</span>
+        </span>
+        <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-200 font-bold border border-indigo-500/30">
+          ${timeInfo.relativeTime}
+        </span>
+      </div>
+      <button type="button" onclick="closeMessageDetailedTime(${msg.id}, event)" class="text-slate-400 hover:text-rose-300 text-xs p-1 rounded-lg hover:bg-slate-800 transition" title="داخستن">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
     </div>
 
     <!-- Reactions Container -->
@@ -3243,10 +3480,11 @@ function toggleMsgActions(msgId, event) {
 }
 
 function handleMessageBubbleClick(msgId, event) {
-  if (window.innerWidth >= 768) return; // Desktop uses hover
   if (!event || !event.target) return;
-  if (event.target.closest('button, a, audio, img, input, .audio-player-btn, i')) return;
-  toggleMsgActions(msgId, event);
+  if (event.target.closest('button, a, audio, img, input, .waveform-bars-track, .audio-player-btn, .msg-actions-bar, [data-interactive]')) {
+    return;
+  }
+  toggleMessageDetailedTime(msgId, event);
 }
 
 function closeAllMobileMsgActions() {
@@ -3263,6 +3501,9 @@ function closeAllMobileMsgActions() {
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.msg-actions-bar') && !e.target.closest('.msg-actions-trigger')) {
     closeAllMobileMsgActions();
+  }
+  if (!e.target.closest('.msg-detailed-time-banner') && !e.target.closest('.msg-faint-time') && !e.target.closest('[id^="msg-bubble-"]')) {
+    closeAllDetailedTimeBadges();
   }
 });
 
@@ -10706,7 +10947,8 @@ function appendPrivateMessageToThread(m, scroll = true) {
   }
 
   const isMe = currentUser && m.sender_id === currentUser.id;
-  const timeFormatted = m.created_at ? new Date(m.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
+  const pTimeInfo = getMessageDateTimeInfo(m.created_at);
+  const timeFormatted = pTimeInfo.shortTime || (m.created_at ? new Date(m.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '');
 
   const mediaUrl = m.attachment_url || (m.content && m.content.startsWith('/uploads/') ? m.content : '');
   const isAudio = m.type === 'voice' || (mediaUrl && (mediaUrl.endsWith('.webm') || mediaUrl.endsWith('.mp3') || mediaUrl.endsWith('.ogg') || mediaUrl.endsWith('.m4a') || mediaUrl.endsWith('.wav')));
@@ -10735,13 +10977,28 @@ function appendPrivateMessageToThread(m, scroll = true) {
   if (m.id) div.id = `private-msg-${m.id}`;
   div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} my-1.5`;
   div.innerHTML = `
-    <div class="max-w-[85%] sm:max-w-[75%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow break-words ${
+    <div onclick="toggleMessageDetailedTime('p-${m.id}', event)" class="cursor-pointer max-w-[85%] sm:max-w-[75%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow break-words ${
       isMe ? 'bg-sky-600 text-white rounded-br-none' : 'bg-slate-800 text-slate-100 border border-slate-700/80 rounded-bl-none'
     }">
       ${bodyHtml}
-      <div class="text-[9px] mt-1 text-right font-mono ${isMe ? 'text-sky-200' : 'text-slate-400'}">
-        ${timeFormatted}
+      <div class="msg-faint-time text-[9px] mt-1 text-right font-mono ${isMe ? 'text-sky-200/80' : 'text-slate-400/80'} flex items-center justify-end gap-1 select-none">
+        <span>${pTimeInfo.shortTime}</span>
+        <span class="opacity-50">•</span>
+        <span class="opacity-80">${pTimeInfo.shortDate}</span>
       </div>
+    </div>
+    <div id="msg-detailed-time-p-${m.id}" class="hidden msg-detailed-time-banner my-1 px-3 py-1.5 rounded-xl bg-slate-900/95 border border-sky-500/40 shadow-xl text-xs flex items-center justify-between gap-2 text-slate-200 select-none z-10 transition-all max-w-sm">
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <span class="text-sky-300 font-bold">📅 ${pTimeInfo.fullDateStr}</span>
+        <span class="text-slate-500">•</span>
+        <span class="text-amber-300 font-mono font-bold">⏰ ${pTimeInfo.exactTimeStr}</span>
+        <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-sky-500/20 text-sky-200 font-bold">
+          ${pTimeInfo.relativeTime}
+        </span>
+      </div>
+      <button type="button" onclick="closeMessageDetailedTime('p-${m.id}', event)" class="text-slate-400 hover:text-rose-300 text-xs p-1" title="داخستن">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
     </div>
   `;
   container.appendChild(div);
