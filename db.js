@@ -259,6 +259,16 @@ function initDb() {
       message TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS message_button_clicks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      clicked_at INTEGER NOT NULL,
+      UNIQUE(message_id, user_id),
+      FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
 
   try {
@@ -342,6 +352,20 @@ function initDb() {
         uploaded_by_name TEXT NOT NULL,
         uploaded_by_role TEXT NOT NULL,
         created_at INTEGER NOT NULL
+      );
+    `);
+  } catch (e) {}
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS message_button_clicks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        clicked_at INTEGER NOT NULL,
+        UNIQUE(message_id, user_id),
+        FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
     `);
   } catch (e) {}
@@ -1715,6 +1739,105 @@ const advisorDb = {
   }
 };
 
+// Interactive Chat Button Clicks (@دوگمە)
+const buttonClicks = {
+  recordClick(messageId, userId) {
+    try {
+      const stmt = db.prepare(`
+        INSERT OR IGNORE INTO message_button_clicks (message_id, user_id, clicked_at)
+        VALUES (?, ?, ?)
+      `);
+      const res = stmt.run(messageId, userId, Date.now());
+      return res.changes > 0;
+    } catch (e) {
+      return false;
+    }
+  },
+  hasUserClicked(messageId, userId) {
+    try {
+      const row = db.prepare('SELECT id FROM message_button_clicks WHERE message_id = ? AND user_id = ?').get(messageId, userId);
+      return Boolean(row);
+    } catch (e) {
+      return false;
+    }
+  },
+  getClicksCount(messageId) {
+    try {
+      const row = db.prepare('SELECT COUNT(*) as count FROM message_button_clicks WHERE message_id = ?').get(messageId);
+      return row ? row.count : 0;
+    } catch (e) {
+      return 0;
+    }
+  },
+  getClicksForMessages(messageIds, userId = null) {
+    if (!messageIds || messageIds.length === 0) return { counts: {}, userClicked: {} };
+    try {
+      const placeholders = messageIds.map(() => '?').join(',');
+      const rows = db.prepare(`SELECT message_id, user_id FROM message_button_clicks WHERE message_id IN (${placeholders})`).all(...messageIds);
+      const counts = {};
+      const userClicked = {};
+      rows.forEach(r => {
+        counts[r.message_id] = (counts[r.message_id] || 0) + 1;
+        if (userId && r.user_id === userId) {
+          userClicked[r.message_id] = true;
+        }
+      });
+      return { counts, userClicked };
+    } catch (e) {
+      return { counts: {}, userClicked: {} };
+    }
+  },
+  getAttendanceReport(messageId = null) {
+    try {
+      let targetMsgId = messageId;
+      if (!targetMsgId) {
+        const latestMsg = db.prepare(`
+          SELECT id, content, created_at, user_id, full_name 
+          FROM messages 
+          WHERE attachment_type = 'action_button' AND COALESCE(is_deleted, 0) = 0
+          ORDER BY id DESC LIMIT 1
+        `).get();
+        if (!latestMsg) return null;
+        targetMsgId = latestMsg.id;
+      }
+
+      const msg = db.prepare('SELECT id, content, created_at, user_id, full_name FROM messages WHERE id = ?').get(targetMsgId);
+      if (!msg) return null;
+
+      // Clicked users
+      const clickedUsers = db.prepare(`
+        SELECT u.id, u.full_name, u.username, u.role, u.gender, u.special_badge, u.avatar_url, c.clicked_at
+        FROM message_button_clicks c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.message_id = ?
+        ORDER BY c.clicked_at ASC
+      `).all(targetMsgId);
+
+      // Unclicked users: all active approved members who have not clicked (excluding message sender and super_admin Hemn)
+      const unclickedUsers = db.prepare(`
+        SELECT u.id, u.full_name, u.username, u.role, u.gender, u.special_badge, u.avatar_url
+        FROM users u
+        WHERE u.status = 'approved' AND u.is_blocked = 0 
+          AND u.id != ?
+          AND u.role != 'super_admin'
+          AND u.id NOT IN (SELECT user_id FROM message_button_clicks WHERE message_id = ?)
+        ORDER BY (CASE WHEN u.role = 'student' OR u.role = 'new_student' THEN 0 ELSE 1 END), u.full_name ASC
+      `).all(msg.user_id, targetMsgId);
+
+      return {
+        message: msg,
+        clicked_count: clickedUsers.length,
+        unclicked_count: unclickedUsers.length,
+        clicked_users: clickedUsers,
+        unclicked_users: unclickedUsers
+      };
+    } catch (e) {
+      console.error('Error getting button attendance report:', e);
+      return null;
+    }
+  }
+};
+
 module.exports = {
   db,
   initDb,
@@ -1735,5 +1858,6 @@ module.exports = {
   recordedLessons,
   getDreamTeacherAlias,
   aiSecurity,
-  advisorDb
+  advisorDb,
+  buttonClicks
 };

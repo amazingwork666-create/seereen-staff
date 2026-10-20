@@ -11,7 +11,7 @@ let archiver;
 try { archiver = require('archiver'); } catch (e) {}
 let DatabaseSync;
 try { DatabaseSync = require('node:sqlite').DatabaseSync; } catch (e) {}
-const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb } = require('./db');
+const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb, buttonClicks } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 4000;
@@ -1266,7 +1266,8 @@ app.get('/api/advisor/overview', authMiddleware, requireAiAdvisorAccess, async (
           isLive,
           liveStartedBy,
           liveViewers,
-          secStats
+          secStats,
+          latest_button_report: buttonClicks.getAttendanceReport(null)
         },
         suggestions
       }
@@ -1659,6 +1660,16 @@ const advisorTools = [
             value: { type: 'STRING', description: 'نرخی نوێ ئەگەر دەستکاری بکەیت' }
           },
           required: ['key']
+        }
+      },
+      {
+        name: 'get_button_attendance',
+        description: 'وەرگرتنی ئاماری دوگمەی چات (@دوگمە) بە فەرمانی کاک هێمن: لیستی ناوی هەموو ئەو کەسانەی پەنجەیان بە دوگمەکەدا ناوە (سەوز بووە) و لیستی ناوی هەموو ئەو کەسانەی هێشتا دەستیان لێنەداوە، لەگەڵ دەقی پەیام و کاتی ناردن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            message_id: { type: 'INTEGER', description: 'ئایدی پەیامی دوگمەکە ئەگەر بتەوێت دوگمەیەکی دیاریکراو بێت (ئەگەر دانەنرێت دوایین دوگمە وەردەگرێت)' }
+          }
         }
       },
       {
@@ -2479,6 +2490,36 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
         }
       }
 
+      case 'get_button_attendance': {
+        const msgId = args.message_id ? parseInt(args.message_id, 10) : null;
+        const report = buttonClicks.getAttendanceReport(msgId);
+        if (!report) {
+          return { error: 'هیچ پەیامێکی دوگمەی چات (@دوگمە) لە سیستەمدا نەدۆزرایەوە.' };
+        }
+        return {
+          success: true,
+          message_id: report.message.id,
+          message_content: report.message.content,
+          message_time: new Date(report.message.created_at).toLocaleString('ku-IQ'),
+          created_by: report.message.full_name,
+          clicked_count: report.clicked_count,
+          unclicked_count: report.unclicked_count,
+          clicked_users: report.clicked_users.map(u => ({
+            id: u.id,
+            name: u.full_name,
+            username: u.username,
+            role: u.role,
+            clicked_at: new Date(u.clicked_at).toLocaleTimeString('ku-IQ')
+          })),
+          unclicked_users: report.unclicked_users.map(u => ({
+            id: u.id,
+            name: u.full_name,
+            username: u.username,
+            role: u.role
+          }))
+        };
+      }
+
       case 'super_admin_sql_action': {
         const rawSql = String(args.sql || '').trim();
         if (!rawSql) return { error: 'SQL داواکراو بەتاڵە.' };
@@ -2608,6 +2649,7 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
 - دۆخی فریاگوزاری (Red Alert Lockdown) کارا بکەیت یان کۆتایی پێبهێنیت (toggle_red_alert).
 - پرسیاری کاتدار دروستبکەیت، میقاتی بکەیت بۆ سبەی، دابخەیت، یان پرسیار بسڕیتەوە.
 - ئەستێرە و خاڵ ببەخشیت یان کەم بکەیتەوە (award_student_stars).
+- ئاماری دوگمەی چات (@دوگمە) پیشان بدەیت بە get_button_attendance (ناوی هەموو ئەو کەسانەی دوگمەکەیان دەست لێداوە و سەوز بووە و ناوی هەموو ئەوانەی هێشتا دەستیان لێنەداوە بە وردی).
 - هەر فەرمان یان ئامارێکی تایبەتی تری داتابەیس جێبەجێ بکەیت لە ڕێگەی super_admin_sql_action.
 هەرگیز بە کاک هێمن مەڵێ "ئەم دەسەڵاتەم نییە" یان "ناتوانم"؛ چونکە تۆ هەموو ئامرازێکت پێدراوە و هەر فەرمانێک ئەو بیدات یەکسەر بە ئامرازی گونجاو جێبەجێی دەکەیت!
 یاسای بنەڕەتی: هەژماری کاک هێمن هەمیشە وەک سەرپەرشتیاری باڵا بە تەواوی پارێزراوە لە دەستکاری.
@@ -2827,6 +2869,23 @@ ${JSON.stringify(liveContext, null, 2)}
           reply = `کاک هێمن گیان، فەرمانت لەسەر چاو! بە سەرکەوتوویی (${restored.length}) نامەی سڕاوە${userText}${limitText} گەڕێنرانەوە بۆ ناو چاتی گشتی ✨.`;
         } else {
           reply = `کاک هێمن گیان، پشکنینم کرد؛ لە ئێستادا هیچ نامەیەکی سڕاوە لە ئەرشیڤی پارێزراودا نەدۆزرایەوە بۆ گەڕاندنەوە. هەر کاتێک لەمەودوا نامەیەک بسڕدرێتەوە یەکسەر دەتوانیت پێم بڵێیت تا بۆت بگەڕێنمەوە.`;
+        }
+      } else if (/دوگمە|دوگمه|پەنجە|دەست لێدان|کێ دەستی|کێ پەنجەی|ئامادەبووان/.test(q)) {
+        const rep = await executeAdvisorAction('get_button_attendance', {}, req.user, io);
+        if (rep.error) {
+          reply = `کاک هێمن گیان، ${rep.error}`;
+        } else {
+          let clickedList = rep.clicked_users.map((u, i) => `${i + 1}. ${u.name} (@${u.username}) [کات: ${u.clicked_at}]`).join('\n');
+          let unclickedList = rep.unclicked_users.map((u, i) => `${i + 1}. ${u.name} (@${u.username})`).join('\n');
+          reply = `کاک هێمن گیان، ئەمەش ئاماری تەواوی دوایین دوگمەی چاتە (@دوگمە):
+📌 دەقی پەیامەکە: «${rep.message_content}»
+⏰ کاتی ناردن: ${rep.message_time}
+
+🟢 ئەوانەی دەستیان لە دوگمەکە داوە (${rep.clicked_count} کەس):
+${clickedList || 'هیچ کەسێک هێشتا دەستی لێنەداوە.'}
+
+🔴 ئەوانەی دەستیان لە دوگمەکە نەداوە (${rep.unclicked_count} کەس):
+${unclickedList || 'دەستخۆش! هەموو فێرخوازان دەستیان لە دوگمەکە داوە.'}`;
         }
       } else {
         reply = `کاک هێمن گیان، فەرمانت لەسەر چاو. هەموو وردەکارییەکی پلاتفۆرمەکە لەژێر دەستی خۆمدایە: لە کۆدی پرۆگرامین، داتابەیس، سێرڤەر، بەشی خەونەکان (${totalDreams} خەون)، لایڤ و ئاسایشەوە (${secStats.safetyRating}) تا دەگاتە پلەی ئەندامان (${totalUsers} ئەندام).
@@ -4037,18 +4096,21 @@ app.get('/api/chat/leaderboard', authMiddleware, (req, res) => {
   res.json({ leaderboard: list });
 });
 
-// Message History with Reactions
+// Message History with Reactions & Action Button Clicks
 app.get('/api/chat/messages', authMiddleware, (req, res) => {
   const history = messages.getRecent(120);
   const msgIds = history.map(m => m.id);
   const reactionsMap = messageReactions.getForMessages(msgIds, req.user.id);
+  const buttonClicksData = buttonClicks.getClicksForMessages(msgIds, req.user.id);
   const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
   const now = Date.now();
   const result = history.map(m => ({
     ...m,
     is_star_glowing: Boolean(m.last_star_awarded_at && (now - Number(m.last_star_awarded_at) <= TWO_DAYS_MS)),
     starInfo: calculateStars(m.correct_answers_count),
-    reactions: reactionsMap[m.id] || []
+    reactions: reactionsMap[m.id] || [],
+    button_clicks_count: buttonClicksData.counts[m.id] || 0,
+    user_has_clicked: !!buttonClicksData.userClicked[m.id]
   }));
   res.json({ 
     messages: result,
@@ -4133,6 +4195,61 @@ app.get('/api/chat/messages/:id/reactions/:emoji/users', authMiddleware, (req, r
   const emoji = req.params.emoji;
   const users = messageReactions.getUsersForReaction(msgId, emoji);
   res.json({ success: true, users });
+});
+
+// --- ACTION BUTTON MESSAGE CLICK & STATS (@دوگمە) ---
+
+// 1. User clicks the action button on a message
+app.post('/api/chat/messages/:id/button-click', authMiddleware, (req, res) => {
+  try {
+    const messageId = parseInt(req.params.id, 10);
+    if (!messageId) return res.status(400).json({ error: 'ناسنامەی پەیام هەڵەیە' });
+
+    const msg = messages.findById(messageId);
+    if (!msg || msg.attachment_type !== 'action_button') {
+      return res.status(400).json({ error: 'ئەم پەیامە دوگمەی کارای نییە' });
+    }
+
+    buttonClicks.recordClick(messageId, req.user.id);
+    const count = buttonClicks.getClicksCount(messageId);
+
+    io.emit('message_button_clicked', {
+      message_id: messageId,
+      user_id: req.user.id,
+      user_name: req.user.full_name,
+      total_clicks: count
+    });
+
+    res.json({ success: true, clicked: true, total_clicks: count });
+  } catch (err) {
+    console.error('Button click error:', err);
+    res.status(500).json({ error: 'هەڵە لە تۆمارکردنی دەستلێدان' });
+  }
+});
+
+// 2. Get detailed attendance list for a specific button message
+app.get('/api/chat/messages/:id/button-stats', authMiddleware, (req, res) => {
+  try {
+    const messageId = parseInt(req.params.id, 10);
+    const report = buttonClicks.getAttendanceReport(messageId);
+    if (!report) return res.status(404).json({ error: 'پەیامی دوگمە نەدۆزرایەوە' });
+    res.json({ success: true, ...report });
+  } catch (err) {
+    console.error('Button stats error:', err);
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی ئامار' });
+  }
+});
+
+// 3. Get detailed attendance list for the latest button message
+app.get('/api/chat/button-latest-stats', authMiddleware, (req, res) => {
+  try {
+    const report = buttonClicks.getAttendanceReport(null);
+    if (!report) return res.status(404).json({ error: 'هیچ پەیامێکی دوگمە بوونی نییە' });
+    res.json({ success: true, ...report });
+  } catch (err) {
+    console.error('Latest button stats error:', err);
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی ئامار' });
+  }
 });
 
 // --- PRIVATE MESSAGING (تەنها بۆ مامۆستا و سوپەر ئەدمین) ---
@@ -5382,6 +5499,20 @@ io.on('connection', (socket) => {
         return;
       }
 
+      const isPrivilegedUser = ['super_admin', 'teacher', 'admin'].includes(freshUser.role) || freshUser.special_badge === 'black' || freshUser.special_badge === 'white';
+      const hasButtonTrigger = isPrivilegedUser && /@دوگم[ەه]/.test(content);
+
+      let cleanContent = content;
+      let attachmentType = 'none';
+
+      if (hasButtonTrigger) {
+        attachmentType = 'action_button';
+        cleanContent = content.replace(/@دوگم[ەه]/g, '').trim();
+        if (!cleanContent) {
+          cleanContent = 'تکایە پەنجە بە دوگمە سورەکەدا بنێن 🔴';
+        }
+      }
+
       const replyToId = data.reply_to_id || null;
 
       const savedMsg = messages.create(
@@ -5389,11 +5520,11 @@ io.on('connection', (socket) => {
         freshUser.username,
         freshUser.full_name,
         freshUser.role,
-        content,
+        cleanContent,
         'text',
         null,
         replyToId,
-        'none',
+        attachmentType,
         null
       );
 
@@ -5402,13 +5533,15 @@ io.on('connection', (socket) => {
         content.includes('@هەموو') || 
         content.includes('@هەمو') || 
         content.includes('@1') ||
-        content.includes('@all')
+        content.includes('@all') ||
+        cleanContent.includes('@هەموو') ||
+        cleanContent.includes('@هەمو')
       );
 
       if (isMentionAll) {
         sendPushNotificationToAll({
           title: `📢 ئاگاداری هەمووان لەلایەن ${freshUser.full_name}`,
-          body: content.trim(),
+          body: cleanContent.trim(),
           icon: '/favicon.png',
           tag: 'mention-all-' + Date.now()
         }, freshUser.id);
@@ -5416,7 +5549,7 @@ io.on('connection', (socket) => {
         io.emit('mention_all_alert', {
           sender: freshUser.full_name,
           senderRole: freshUser.role,
-          content: content.trim(),
+          content: cleanContent.trim(),
           messageId: savedMsg.id
         });
       }
@@ -5430,7 +5563,9 @@ io.on('connection', (socket) => {
         starInfo,
         last_star_awarded_at: freshUser.last_star_awarded_at || null,
         is_star_glowing: isStarGlowing,
-        is_mention_all: !!isMentionAll
+        is_mention_all: !!isMentionAll,
+        button_clicks_count: 0,
+        user_has_clicked: false
       };
 
       io.emit('new_message', broadcastMsg);

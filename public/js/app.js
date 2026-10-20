@@ -1987,6 +1987,23 @@ function initSocket() {
     if (el) el.innerHTML = renderMessageReactionsHtml(data.reactions, data.message_id);
   });
 
+  // Action button clicked in chat (@دوگمە)
+  socket.on('message_button_clicked', (data) => {
+    // data: { message_id, user_id, user_name, total_clicks }
+    const countEl = document.querySelector(`#action-clicks-count-${data.message_id} .clicks-num`);
+    if (countEl) {
+      countEl.innerText = data.total_clicks;
+    }
+    if (currentUser && currentUser.id === data.user_id) {
+      const btn = document.getElementById(`action-btn-${data.message_id}`);
+      if (btn) {
+        btn.className = 'action-chat-btn w-full px-5 py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 transition-all duration-300 active:scale-95 shadow-lg select-none cursor-pointer action-btn-green';
+        btn.setAttribute('data-clicked', 'true');
+        btn.innerHTML = '<i class="fa-solid fa-circle-check text-base animate-scale-up"></i><span>تۆمارکراوە (دەستت لێداوە) ✅</span>';
+      }
+    }
+  });
+
   // New private message received
   socket.on('new_private_message', (msg) => {
     handleNewPrivateMessage(msg);
@@ -2800,6 +2817,44 @@ function appendMessage(msg, scroll = true) {
           ${downloadBtnHtml}
         </div>
         <audio id="wave-audio-${msg.id}" src="${msg.attachment_url}" preload="metadata" ontimeupdate="updateWaveformAudioProgress(${msg.id})" onloadedmetadata="initWaveformAudioDuration(${msg.id})" onended="onWaveformAudioEnded(${msg.id})"></audio>
+      </div>
+    `;
+  } else if (msg.attachment_type === 'action_button') {
+    const isClicked = !!msg.user_has_clicked;
+    const clicksCount = msg.button_clicks_count || 0;
+    const canViewStats = currentUser && (
+      currentUser.role === 'super_admin' || 
+      currentUser.role === 'teacher' || 
+      currentUser.role === 'admin' ||
+      currentUser.special_badge === 'white' || 
+      currentUser.special_badge === 'black'
+    );
+
+    attachmentHtml = `
+      <div class="mt-3 pt-2.5 border-t border-white/10 flex flex-col gap-2">
+        <button 
+          type="button" 
+          id="action-btn-${msg.id}" 
+          onclick="handleActionButtonClick(${msg.id}, event)"
+          class="action-chat-btn w-full px-5 py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 transition-all duration-300 active:scale-95 shadow-lg select-none cursor-pointer ${isClicked ? 'action-btn-green' : 'action-btn-red'}"
+          data-clicked="${isClicked ? 'true' : 'false'}">
+          ${isClicked 
+            ? '<i class="fa-solid fa-circle-check text-base"></i><span>تۆمارکراوە (دەستت لێداوە) ✅</span>' 
+            : '<i class="fa-solid fa-hand-pointer text-base animate-bounce"></i><span>پەنجە داگرە (دەست لێدان) 🔴</span>'
+          }
+        </button>
+        <div class="flex items-center justify-between gap-2 px-1 text-[11px] text-slate-300/80">
+          <span id="action-clicks-count-${msg.id}" class="inline-flex items-center gap-1 font-bold">
+            <i class="fa-solid fa-users text-amber-400 text-xs"></i>
+            <span class="clicks-num font-mono">${clicksCount}</span> کەس پەنجەی پێدا ناوە
+          </span>
+          ${canViewStats ? `
+            <button type="button" onclick="openButtonStatsModal(${msg.id}, event)" class="text-amber-300 hover:text-white px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 transition font-black flex items-center gap-1 text-[10px]">
+              <i class="fa-solid fa-list-check"></i>
+              <span>ناوی ئەوانەی پەنجەیان داوە</span>
+            </button>
+          ` : ''}
+        </div>
       </div>
     `;
   }
@@ -13828,6 +13883,28 @@ async function loadAdvisorOverview() {
       elRedAlert.className = t.isRedAlert ? 'text-rose-400 font-bold animate-pulse' : 'text-emerald-400';
     }
 
+    // Update Action Button (@دوگمە) Card in Advisor
+    const btnReport = t.latest_button_report;
+    const btnCard = document.getElementById('advActionButtonCard');
+    if (btnCard) {
+      if (btnReport && btnReport.message) {
+        btnCard.classList.remove('hidden');
+        const msgEl = document.getElementById('advBtnMsgText');
+        if (msgEl) msgEl.innerText = btnReport.message.content;
+        const clickedEl = document.getElementById('advBtnClickedCount');
+        if (clickedEl) clickedEl.innerText = btnReport.clicked_count || 0;
+        const unclickedEl = document.getElementById('advBtnUnclickedCount');
+        if (unclickedEl) unclickedEl.innerText = btnReport.unclicked_count || 0;
+      } else {
+        const msgEl = document.getElementById('advBtnMsgText');
+        if (msgEl) msgEl.innerText = 'هێشتا هیچ پەیامێکی دوگمە (@دوگمە) دانەنراوە';
+        const clickedEl = document.getElementById('advBtnClickedCount');
+        if (clickedEl) clickedEl.innerText = '0';
+        const unclickedEl = document.getElementById('advBtnUnclickedCount');
+        if (unclickedEl) unclickedEl.innerText = '0';
+      }
+    }
+
     // Render suggestions
     const badgeCount = document.getElementById('advisorSuggestionsCountBadge');
     if (badgeCount) badgeCount.innerText = (data.data.suggestions || []).length;
@@ -14219,6 +14296,215 @@ async function clearAdvisorChatHistory() {
     toggleAdvisorSettings();
   } catch (e) {
     alert(e.message || 'هەڵەیەک ڕوویدا');
+  }
+}
+
+// ================= ACTION BUTTON (@دوگمە) CHAT & ATTENDANCE FUNCTIONS =================
+async function handleActionButtonClick(messageId, event) {
+  if (event) event.stopPropagation();
+  const btn = document.getElementById(`action-btn-${messageId}`);
+  if (!btn) return;
+
+  try {
+    btn.disabled = true;
+    const res = await fetch(`/api/chat/messages/${messageId}/button-click`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      btn.className = 'action-chat-btn w-full px-5 py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 transition-all duration-300 active:scale-95 shadow-lg select-none cursor-pointer action-btn-green';
+      btn.setAttribute('data-clicked', 'true');
+      btn.innerHTML = '<i class="fa-solid fa-circle-check text-base animate-scale-up"></i><span>تۆمارکراوە (دەستت لێداوە) ✅</span>';
+
+      const countEl = document.querySelector(`#action-clicks-count-${messageId} .clicks-num`);
+      if (countEl) countEl.innerText = data.total_clicks;
+
+      playSound('correct');
+      showToastNotification('دەستت لێدا و تۆمارکرا! دوگمەکە سەوز بوو 🟢', 'emerald');
+    } else {
+      showToastNotification(data.error || 'هەڵە لە دەستلێدان', 'rose');
+    }
+  } catch (err) {
+    console.error('Action button click error:', err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+let currentButtonReportData = null;
+let currentButtonAttendanceTab = 'clicked';
+
+async function openButtonStatsModal(messageId, event) {
+  if (event) event.stopPropagation();
+  const modal = document.getElementById('buttonAttendanceModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  const listEl = document.getElementById('btnAttUsersList');
+  if (listEl) listEl.innerHTML = '<div class="text-center py-8 text-slate-500 text-xs"><i class="fa-solid fa-spinner fa-spin mr-1"></i> بارکردنی ئامار...</div>';
+
+  try {
+    const res = await fetch(`/api/chat/messages/${messageId}/button-stats`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      if (listEl) listEl.innerHTML = `<div class="text-center py-8 text-rose-400 text-xs">${escapeHtml(data.error || 'نەدۆزرایەوە')}</div>`;
+      return;
+    }
+    currentButtonReportData = data;
+    renderButtonAttendanceModalContent();
+  } catch (err) {
+    console.error('Error fetching button stats:', err);
+    if (listEl) listEl.innerHTML = '<div class="text-center py-8 text-rose-400 text-xs">هەڵە لە وەرگرتنی زانیارییەکان</div>';
+  }
+}
+
+async function openLatestButtonStatsModal() {
+  const modal = document.getElementById('buttonAttendanceModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  const listEl = document.getElementById('btnAttUsersList');
+  if (listEl) listEl.innerHTML = '<div class="text-center py-8 text-slate-500 text-xs"><i class="fa-solid fa-spinner fa-spin mr-1"></i> بارکردنی ئامار...</div>';
+
+  try {
+    const res = await fetch('/api/chat/button-latest-stats', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      if (listEl) listEl.innerHTML = `<div class="text-center py-8 text-rose-400 text-xs">${escapeHtml(data.error || 'هیچ دوگمەیەک نەدۆزرایەوە')}</div>`;
+      return;
+    }
+    currentButtonReportData = data;
+    renderButtonAttendanceModalContent();
+  } catch (err) {
+    console.error('Error fetching latest button stats:', err);
+    if (listEl) listEl.innerHTML = '<div class="text-center py-8 text-rose-400 text-xs">هەڵە لە وەرگرتنی زانیارییەکان</div>';
+  }
+}
+
+function closeButtonAttendanceModal() {
+  const modal = document.getElementById('buttonAttendanceModal');
+  if (modal) modal.classList.add('hidden');
+  const searchInput = document.getElementById('btnAttSearchInput');
+  if (searchInput) searchInput.value = '';
+}
+
+function switchButtonAttendanceTab(tab) {
+  currentButtonAttendanceTab = tab;
+  const tabClicked = document.getElementById('btnAttTabClicked');
+  const tabUnclicked = document.getElementById('btnAttTabUnclicked');
+
+  if (tab === 'clicked') {
+    if (tabClicked) tabClicked.className = 'py-2 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition bg-emerald-600/30 text-emerald-300 border border-emerald-500/50 shadow-sm';
+    if (tabUnclicked) tabUnclicked.className = 'py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition bg-slate-800/80 text-slate-400 hover:text-rose-300 border border-slate-700/60';
+  } else {
+    if (tabClicked) tabClicked.className = 'py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition bg-slate-800/80 text-slate-400 hover:text-emerald-300 border border-slate-700/60';
+    if (tabUnclicked) tabUnclicked.className = 'py-2 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition bg-rose-600/30 text-rose-300 border border-rose-500/50 shadow-sm';
+  }
+  filterButtonAttendanceList();
+}
+
+function renderButtonAttendanceModalContent() {
+  if (!currentButtonReportData) return;
+  const rep = currentButtonReportData;
+
+  const summaryEl = document.getElementById('btnAttMsgSummary');
+  if (summaryEl) {
+    summaryEl.innerText = rep.message ? `«${rep.message.content}» (${new Date(rep.message.created_at).toLocaleTimeString('ku-IQ')})` : '';
+  }
+
+  const clickedBadge = document.getElementById('btnAttClickedCountBadge');
+  if (clickedBadge) clickedBadge.innerText = rep.clicked_count || 0;
+
+  const unclickedBadge = document.getElementById('btnAttUnclickedCountBadge');
+  if (unclickedBadge) unclickedBadge.innerText = rep.unclicked_count || 0;
+
+  filterButtonAttendanceList();
+}
+
+function filterButtonAttendanceList() {
+  if (!currentButtonReportData) return;
+  const listEl = document.getElementById('btnAttUsersList');
+  if (!listEl) return;
+
+  const query = (document.getElementById('btnAttSearchInput')?.value || '').trim().toLowerCase();
+  const isClicked = currentButtonAttendanceTab === 'clicked';
+  const rawList = isClicked ? (currentButtonReportData.clicked_users || []) : (currentButtonReportData.unclicked_users || []);
+
+  const filtered = rawList.filter(u => {
+    if (!query) return true;
+    return (u.full_name && u.full_name.toLowerCase().includes(query)) || (u.username && u.username.toLowerCase().includes(query));
+  });
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `
+      <div class="text-center py-10 text-slate-500 text-xs">
+        <i class="fa-solid fa-user-slash text-2xl block mb-2 opacity-50"></i>
+        <span>${isClicked ? 'هیچ کەسێک دەستی لێنەداوە' : 'هیچ کەسێک نەدۆزرایەوە (هەمووان دەستیان لێداوە)'}</span>
+      </div>
+    `;
+    return;
+  }
+
+  listEl.innerHTML = filtered.map((u, idx) => {
+    const avatarHtml = u.avatar_url 
+      ? `<img src="${escapeHtml(u.avatar_url)}" class="w-8 h-8 rounded-xl object-cover border border-slate-700 pointer-events-none" draggable="false">`
+      : `<div class="w-8 h-8 rounded-xl bg-slate-800 text-slate-300 flex items-center justify-center text-xs font-bold border border-slate-700">${getGenderEmoji(u.gender)}</div>`;
+
+    const timeFormatted = u.clicked_at ? new Date(u.clicked_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
+    const roleBadgeHtml = renderRoleBadge(u.role, u.gender);
+    const specialBadgeHtml = u.special_badge ? renderSpecialBadgeHtml(u.special_badge) : '';
+
+    return `
+      <div class="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 flex items-center justify-between gap-2.5 transition">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="text-xs font-mono font-bold text-slate-500 w-5 text-center">${idx + 1}</span>
+          ${avatarHtml}
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-xs font-black text-white hover:underline cursor-pointer" onclick="closeButtonAttendanceModal(); openUserProfileModal(${u.id})">${escapeHtml(u.full_name)}</span>
+              ${roleBadgeHtml}
+              ${specialBadgeHtml}
+            </div>
+            <span class="text-[10px] text-slate-400 font-mono">@${escapeHtml(u.username)}</span>
+          </div>
+        </div>
+        <div class="shrink-0 text-left">
+          ${isClicked 
+            ? `<span class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black inline-flex items-center gap-1"><i class="fa-solid fa-check text-[9px]"></i> ${timeFormatted}</span>`
+            : `<span class="px-2 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] font-bold inline-flex items-center gap-1"><i class="fa-solid fa-xmark text-[9px]"></i> لێنەدراوە</span>`
+          }
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function copyButtonAttendanceList() {
+  if (!currentButtonReportData) return;
+  const isClicked = currentButtonAttendanceTab === 'clicked';
+  const rawList = isClicked ? (currentButtonReportData.clicked_users || []) : (currentButtonReportData.unclicked_users || []);
+  if (!rawList.length) {
+    showToastNotification('هیچ ناوێک نییە بۆ کۆپیکردن!', 'amber');
+    return;
+  }
+
+  const title = isClicked ? '🟢 لیستی ئەوانەی دەستیان لە دوگمەکە داوە:' : '🔴 لیستی ئەوانەی دەستیان لە دوگمەکە نەداوە:';
+  const text = `${title}\n` + rawList.map((u, i) => `${i + 1}. ${u.full_name} (@${u.username}) ${u.clicked_at ? '[' + new Date(u.clicked_at).toLocaleTimeString('ku-IQ') + ']' : ''}`).join('\n');
+
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToastNotification('تەواوی ناوەکان کۆپیکران! دەتوانیت پەیسی بکەیت ✅', 'emerald');
+    }).catch(() => {
+      showToastNotification('هەڵە لە کۆپیکردن', 'rose');
+    });
   }
 }
 
