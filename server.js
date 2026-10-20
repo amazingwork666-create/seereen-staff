@@ -2123,8 +2123,25 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
         if (!target) return { error: `خوێندکار «${args.username_or_id}» نەدۆزرایەوە` };
         const delta = parseInt(args.stars_delta) || 1;
         const newTotal = users.adjustStars(target.id, delta);
+        const now = Date.now();
         if (ioInstance) {
-          ioInstance.emit('user_updated', { id: target.id, correct_answers_count: newTotal });
+          ioInstance.emit('user_updated', { 
+            id: target.id, 
+            correct_answers_count: newTotal,
+            last_star_awarded_at: delta > 0 ? now : target.last_star_awarded_at,
+            is_star_glowing: delta > 0
+          });
+          if (delta > 0) {
+            ioInstance.emit('star_awarded', {
+              user_id: target.id,
+              student_name: target.full_name,
+              question_id: null,
+              new_count: newTotal,
+              last_star_awarded_at: now,
+              is_star_glowing: true,
+              starInfo: calculateStars(newTotal)
+            });
+          }
         }
         return {
           success: true,
@@ -3205,10 +3222,15 @@ app.post('/api/chat/upload-image', authMiddleware, requireAdmin, upload.single('
 
     const replyToId = req.body.reply_to_id ? parseInt(req.body.reply_to_id, 10) : null;
     const msg = messages.create(req.user.id, req.user.username, req.user.full_name, req.user.role, caption || defaultCaption, 'text', null, replyToId, attachmentType, fileUrl);
+    const freshUser = users.findById(req.user.id) || req.user;
+    const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
+    const isStarGlowing = Boolean(freshUser.last_star_awarded_at && (Date.now() - Number(freshUser.last_star_awarded_at) <= TWO_DAYS_MS));
     const broadcastMsg = { 
       ...msg, 
-      gender: req.user.gender || 'male', 
-      starInfo: calculateStars(req.user.correct_answers_count),
+      gender: freshUser.gender || 'male', 
+      starInfo: calculateStars(freshUser.correct_answers_count),
+      last_star_awarded_at: freshUser.last_star_awarded_at || null,
+      is_star_glowing: isStarGlowing,
       file_name: origName,
       file_size: req.file.size
     };
@@ -3232,7 +3254,16 @@ app.post('/api/chat/upload-voice', authMiddleware, requireAdmin, upload.single('
     const voiceUrl = `/uploads/${req.file.filename}`;
     const durationText = req.body.duration || '';
     const msg = messages.create(req.user.id, req.user.username, req.user.full_name, req.user.role, durationText ? `پەیامی دەنگی (${durationText})` : 'پەیامی دەنگی', 'text', null, null, 'voice', voiceUrl);
-    const broadcastMsg = { ...msg, gender: req.user.gender || 'male', starInfo: calculateStars(req.user.correct_answers_count) };
+    const freshUser = users.findById(req.user.id) || req.user;
+    const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
+    const isStarGlowing = Boolean(freshUser.last_star_awarded_at && (Date.now() - Number(freshUser.last_star_awarded_at) <= TWO_DAYS_MS));
+    const broadcastMsg = { 
+      ...msg, 
+      gender: freshUser.gender || 'male', 
+      starInfo: calculateStars(freshUser.correct_answers_count),
+      last_star_awarded_at: freshUser.last_star_awarded_at || null,
+      is_star_glowing: isStarGlowing
+    };
     io.emit('new_message', broadcastMsg);
     res.json({ success: true, message: broadcastMsg });
   } catch (err) {
@@ -3720,11 +3751,14 @@ app.post('/api/chat/award-star', authMiddleware, requireTeacherOrSuperAdmin, (re
     updateRevealedSubmissionEvaluationInMessages(question_id, user_id, 1);
   }
 
+  const now = Date.now();
   io.emit('star_awarded', {
     user_id: student.id,
     student_name: student.full_name,
     question_id: question_id || null,
     new_count: newCount,
+    last_star_awarded_at: now,
+    is_star_glowing: true,
     starInfo
   });
 
@@ -4008,8 +4042,11 @@ app.get('/api/chat/messages', authMiddleware, (req, res) => {
   const history = messages.getRecent(120);
   const msgIds = history.map(m => m.id);
   const reactionsMap = messageReactions.getForMessages(msgIds, req.user.id);
+  const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
+  const now = Date.now();
   const result = history.map(m => ({
     ...m,
+    is_star_glowing: Boolean(m.last_star_awarded_at && (now - Number(m.last_star_awarded_at) <= TWO_DAYS_MS)),
     starInfo: calculateStars(m.correct_answers_count),
     reactions: reactionsMap[m.id] || []
   }));
@@ -4030,7 +4067,7 @@ app.get('/api/chat/search', authMiddleware, (req, res) => {
     const wildcard = `%${cleanQ}%`;
 
     const stmt = db.prepare(`
-      SELECT m.*, u.gender, u.correct_answers_count,
+      SELECT m.*, u.gender, u.correct_answers_count, u.last_star_awarded_at,
         orig.full_name as reply_to_name,
         orig.content as reply_to_content
       FROM messages m
@@ -4049,7 +4086,14 @@ app.get('/api/chat/search', authMiddleware, (req, res) => {
     `);
 
     const results = stmt.all(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
-    res.json({ results: results.reverse() });
+    const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
+    const now = Date.now();
+    const mapped = results.reverse().map(m => ({
+      ...m,
+      is_star_glowing: Boolean(m.last_star_awarded_at && (now - Number(m.last_star_awarded_at) <= TWO_DAYS_MS)),
+      starInfo: calculateStars(m.correct_answers_count)
+    }));
+    res.json({ results: mapped });
   } catch (err) {
     console.error('Chat search error:', err);
     res.status(500).json({ error: 'Search failed' });
@@ -5378,10 +5422,14 @@ io.on('connection', (socket) => {
       }
 
       const starInfo = calculateStars(freshUser.correct_answers_count);
+      const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
+      const isStarGlowing = Boolean(freshUser.last_star_awarded_at && (Date.now() - Number(freshUser.last_star_awarded_at) <= TWO_DAYS_MS));
       const broadcastMsg = {
         ...savedMsg,
         gender: freshUser.gender || 'male',
         starInfo,
+        last_star_awarded_at: freshUser.last_star_awarded_at || null,
+        is_star_glowing: isStarGlowing,
         is_mention_all: !!isMentionAll
       };
 

@@ -39,6 +39,7 @@ function initDb() {
       is_blocked INTEGER NOT NULL DEFAULT 0,
       muted_until INTEGER DEFAULT 0,
       correct_answers_count INTEGER DEFAULT 0,
+      last_star_awarded_at INTEGER DEFAULT NULL,
       created_at INTEGER NOT NULL
     );
 
@@ -270,6 +271,18 @@ function initDb() {
   try { db.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE users ADD COLUMN special_badge TEXT DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE users ADD COLUMN last_read_message_id INTEGER DEFAULT 0"); } catch (e) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN last_star_awarded_at INTEGER DEFAULT NULL"); } catch (e) {}
+  try {
+    db.exec(`
+      UPDATE users 
+      SET last_star_awarded_at = (
+        SELECT MAX(created_at) FROM star_awards WHERE star_awards.user_id = users.id
+      )
+      WHERE last_star_awarded_at IS NULL AND EXISTS (
+        SELECT 1 FROM star_awards WHERE star_awards.user_id = users.id
+      )
+    `);
+  } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN attachment_type TEXT DEFAULT 'none'"); } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN attachment_url TEXT DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN is_deleted INTEGER DEFAULT 0"); } catch (e) {}
@@ -446,7 +459,7 @@ const users = {
     return stmt.all();
   },
   getAllUsers() {
-    const stmt = db.prepare("SELECT id, username, full_name, gender, role, status, is_blocked, muted_until, correct_answers_count, avatar_url, special_badge, created_at FROM users ORDER BY role = 'super_admin' DESC, role = 'admin' DESC, role = 'teacher' DESC, role = 'student' DESC, role = 'new_student' DESC, role = 'guest' DESC, correct_answers_count DESC, created_at DESC");
+    const stmt = db.prepare("SELECT id, username, full_name, gender, role, status, is_blocked, muted_until, correct_answers_count, last_star_awarded_at, avatar_url, special_badge, created_at FROM users ORDER BY role = 'super_admin' DESC, role = 'admin' DESC, role = 'teacher' DESC, role = 'student' DESC, role = 'new_student' DESC, role = 'guest' DESC, correct_answers_count DESC, created_at DESC");
     return stmt.all();
   },
   getAll() {
@@ -524,6 +537,8 @@ const users = {
       is_blocked: user.is_blocked,
       muted_until: user.muted_until,
       correct_answers_count: user.correct_answers_count,
+      last_star_awarded_at: user.last_star_awarded_at || null,
+      is_star_glowing: Boolean(user.last_star_awarded_at && (Date.now() - Number(user.last_star_awarded_at) <= 48 * 60 * 60 * 1000)),
       created_at: user.created_at,
       starInfo,
       roleHistory: history,
@@ -540,15 +555,24 @@ const users = {
     return stmt.run(mutedUntil, id);
   },
   incrementCorrectAnswers(id) {
-    const stmt = db.prepare('UPDATE users SET correct_answers_count = correct_answers_count + 1 WHERE id = ?');
-    stmt.run(id);
+    const now = Date.now();
+    const stmt = db.prepare('UPDATE users SET correct_answers_count = correct_answers_count + 1, last_star_awarded_at = ? WHERE id = ?');
+    stmt.run(now, id);
     const updated = db.prepare('SELECT correct_answers_count FROM users WHERE id = ?').get(id);
     return updated ? updated.correct_answers_count : 0;
   },
   adjustStars(id, delta) {
-    db.prepare('UPDATE users SET correct_answers_count = MAX(0, correct_answers_count + ?) WHERE id = ?').run(Number(delta) || 0, id);
+    const deltaNum = Number(delta) || 0;
+    if (deltaNum > 0) {
+      db.prepare('UPDATE users SET correct_answers_count = MAX(0, correct_answers_count + ?), last_star_awarded_at = ? WHERE id = ?').run(deltaNum, Date.now(), id);
+    } else {
+      db.prepare('UPDATE users SET correct_answers_count = MAX(0, correct_answers_count + ?) WHERE id = ?').run(deltaNum, id);
+    }
     const updated = db.prepare('SELECT correct_answers_count FROM users WHERE id = ?').get(id);
     return updated ? updated.correct_answers_count : 0;
+  },
+  recordStarAward(id, timestamp = Date.now()) {
+    db.prepare('UPDATE users SET last_star_awarded_at = ? WHERE id = ?').run(timestamp, id);
   },
   updateFullName(id, newName) {
     db.prepare('UPDATE users SET full_name = ? WHERE id = ?').run(newName.trim(), id);
@@ -692,7 +716,7 @@ const messages = {
   },
   findById(id) {
     const stmt = db.prepare(`
-      SELECT m.*, u.gender, u.correct_answers_count,
+      SELECT m.*, u.gender, u.correct_answers_count, u.last_star_awarded_at,
         orig.full_name as reply_to_name,
         orig.content as reply_to_content,
         orig.attachment_type as reply_to_attachment_type
@@ -705,7 +729,7 @@ const messages = {
   },
   getRecent(limit = 120) {
     const stmt = db.prepare(`
-      SELECT m.*, u.gender, u.correct_answers_count,
+      SELECT m.*, u.gender, u.correct_answers_count, u.last_star_awarded_at,
         orig.full_name as reply_to_name,
         orig.content as reply_to_content,
         orig.attachment_type as reply_to_attachment_type
@@ -740,7 +764,7 @@ const messages = {
   getDeleted(options = {}) {
     const { userId = null, limit = 50 } = options;
     let sql = `
-      SELECT m.*, u.gender, u.correct_answers_count,
+      SELECT m.*, u.gender, u.correct_answers_count, u.last_star_awarded_at,
         orig.full_name as reply_to_name,
         orig.content as reply_to_content
       FROM messages m
@@ -763,7 +787,7 @@ const messages = {
       const placeholders = messageIds.map(() => '?').join(',');
       db.prepare(`UPDATE messages SET is_deleted = 0, deleted_at = NULL WHERE id IN (${placeholders})`).run(...messageIds);
       return db.prepare(`
-        SELECT m.*, u.gender, u.correct_answers_count,
+        SELECT m.*, u.gender, u.correct_answers_count, u.last_star_awarded_at,
           orig.full_name as reply_to_name,
           orig.content as reply_to_content,
           orig.attachment_type as reply_to_attachment_type
@@ -795,7 +819,7 @@ const messages = {
     db.prepare(`UPDATE messages SET is_deleted = 0, deleted_at = NULL WHERE id IN (${placeholders})`).run(...ids);
 
     return db.prepare(`
-      SELECT m.*, u.gender, u.correct_answers_count,
+      SELECT m.*, u.gender, u.correct_answers_count, u.last_star_awarded_at,
         orig.full_name as reply_to_name,
         orig.content as reply_to_content,
         orig.attachment_type as reply_to_attachment_type
@@ -1011,10 +1035,14 @@ const questions = {
       INSERT INTO star_awards (question_id, user_id, awarded_by, created_at)
       VALUES (?, ?, ?, ?)
     `);
+    const now = Date.now();
     try {
       db.prepare('UPDATE question_submissions SET is_correct = 1 WHERE question_id = ? AND user_id = ?').run(questionId, userId);
     } catch (e) {}
-    return stmt.run(questionId, userId, awardedBy, Date.now());
+    try {
+      db.prepare('UPDATE users SET last_star_awarded_at = ? WHERE id = ?').run(now, userId);
+    } catch (e) {}
+    return stmt.run(questionId, userId, awardedBy, now);
   },
   recordWrongMark(questionId, userId) {
     const wasAwarded = db.prepare('SELECT id FROM star_awards WHERE question_id = ? AND user_id = ?').get(questionId, userId);

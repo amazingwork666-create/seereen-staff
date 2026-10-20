@@ -153,6 +153,55 @@ html, body {
 }
 
 /* Star Glow & Badges */
+/* Star Glowing Name Effect (Valid for 48 hours after receiving a star) */
+@keyframes starNameGlowPulse {
+  0%, 100% {
+    text-shadow: 
+      0 0 4px rgba(254, 240, 138, 0.95),
+      0 0 10px rgba(251, 191, 36, 0.8),
+      0 0 18px rgba(245, 158, 11, 0.65);
+    filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.75));
+  }
+  50% {
+    text-shadow: 
+      0 0 6px rgba(255, 255, 255, 1),
+      0 0 14px rgba(254, 240, 138, 0.95),
+      0 0 24px rgba(251, 191, 36, 0.9),
+      0 0 34px rgba(245, 158, 11, 0.8);
+    filter: drop-shadow(0 0 7px rgba(254, 240, 138, 0.95));
+  }
+}
+
+@keyframes starSparkleShimmer {
+  0% { transform: scale(0.9) rotate(0deg); opacity: 0.8; }
+  50% { transform: scale(1.25) rotate(15deg); opacity: 1; filter: drop-shadow(0 0 6px rgba(251, 191, 36, 1)); }
+  100% { transform: scale(0.9) rotate(0deg); opacity: 0.8; }
+}
+
+.user-name-star-glow {
+  position: relative !important;
+  color: #fef08a !important; /* Luminous Warm Star Gold */
+  font-weight: 900 !important;
+  animation: starNameGlowPulse 2.4s ease-in-out infinite alternate !important;
+  letter-spacing: 0.3px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+}
+
+.user-name-star-glow::after {
+  content: "✨";
+  font-size: 11px;
+  line-height: 1;
+  display: inline-block;
+  margin-right: 2px;
+  animation: starSparkleShimmer 2.5s ease-in-out infinite;
+}
+
+.user-star-glow-pill {
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.45);
+}
+
 .star-badge {
   background: linear-gradient(135deg, rgba(223, 170, 134, 0.2), rgba(199, 131, 97, 0.35));
   border: 1px solid rgba(223, 170, 134, 0.45);

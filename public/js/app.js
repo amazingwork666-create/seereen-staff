@@ -1696,8 +1696,16 @@ function initSocket() {
   socket.on('star_awarded', (data) => {
     if (currentUser && currentUser.id === data.user_id) {
       currentUser.correct_answers_count = data.new_count;
+      currentUser.last_star_awarded_at = data.last_star_awarded_at || Date.now();
       updateUserUI();
       triggerStarCelebration();
+    }
+
+    // Instantly add radiant star glow to all visible messages from this student in chat
+    if (data.user_id) {
+      document.querySelectorAll(`.msg-sender-name[data-sender-user-id="${data.user_id}"]`).forEach(nameEl => {
+        nameEl.classList.add('user-name-star-glow');
+      });
     }
 
     // Update any button in revealed submissions cards to awarded badge
@@ -2316,7 +2324,9 @@ function appendMessage(msg, scroll = true) {
         `;
       } else {
         submissionsHtml = subs.map((s, idx) => {
-          const sNameClass = getUserNameClass(s);
+          const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
+          const isStudentGlowing = Boolean(s.is_star_glowing || (s.last_star_awarded_at && (Date.now() - Number(s.last_star_awarded_at) <= TWO_DAYS_MS)));
+          const sNameClass = `${getUserNameClass(s)} ${isStudentGlowing ? 'user-name-star-glow' : ''}`;
           const timeFormatted = s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' }) : '';
           
           let cardBorderClass = 'border-slate-700/70 bg-slate-850/80 hover:border-slate-600 shadow';
@@ -2373,7 +2383,7 @@ function appendMessage(msg, scroll = true) {
               <div class="flex items-center justify-between gap-2 flex-wrap w-full border-b border-white/5 pb-2">
                 <div class="flex items-center gap-2 flex-wrap min-w-0">
                   <span class="text-xs font-mono font-bold text-slate-400">${idx + 1}.</span>
-                  <span class="text-xs sm:text-sm font-black cursor-pointer hover:underline ${sNameClass}" onclick="openUserProfileModal(${s.user_id})">${escapeHtml(s.full_name)}</span>
+                  <span data-sender-user-id="${s.user_id}" class="msg-sender-name text-xs sm:text-sm font-black cursor-pointer hover:underline ${sNameClass}" onclick="openUserProfileModal(${s.user_id})">${escapeHtml(s.full_name)}</span>
                   <span class="text-[10px] text-slate-400 font-mono">${timeFormatted}</span>
                   <span class="eval-badge-container-${payload.question_id}-${s.user_id}">
                     ${statusBadge}
@@ -2703,6 +2713,19 @@ function appendMessage(msg, scroll = true) {
   const starBadge = (msg.role === 'student' || msg.role === 'new_student') ? renderStarBadge(msg.correct_answers_count || 0) : '';
   const nameColorClass = getUserNameClass(msg);
 
+  const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
+  const isStarGlowing = Boolean(
+    msg.is_star_glowing || 
+    (msg.last_star_awarded_at && (Date.now() - Number(msg.last_star_awarded_at) <= TWO_DAYS_MS))
+  );
+
+  const starGlowPillBadge = isStarGlowing ? `
+    <span class="user-star-glow-pill inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-gradient-to-r from-amber-500/20 via-yellow-400/30 to-amber-500/20 text-amber-300 border border-amber-400/50 select-none animate-pulse" title="ئەم خوێندکارە لە ماوەی ٤٨ کاتژمێری ڕابردوودا ئەستێرەی پێبەخشراوە ⭐">
+      <i class="fa-solid fa-star text-amber-400 text-[8px]"></i>
+      <span>درەوشاوە</span>
+    </span>
+  ` : '';
+
   let attachmentHtml = '';
   const isDoc = msg.attachment_type === 'document' || (msg.attachment_url && (
     msg.attachment_url.toLowerCase().endsWith('.pdf') || 
@@ -2908,9 +2931,10 @@ function appendMessage(msg, scroll = true) {
 
   msgElem.innerHTML = `
     <div class="flex items-center gap-2 mb-1 px-1 flex-wrap">
-      <span onclick="openUserProfileModal(${msg.user_id})" class="text-xs cursor-pointer hover:underline ${nameColorClass}">${escapeHtml(msg.full_name)}</span>
+      <span onclick="openUserProfileModal(${msg.user_id})" data-sender-user-id="${msg.user_id}" class="msg-sender-name text-xs cursor-pointer hover:underline ${nameColorClass} ${isStarGlowing ? 'user-name-star-glow' : ''}">${escapeHtml(msg.full_name)}</span>
       ${roleBadge}
       ${starBadge}
+      ${starGlowPillBadge}
       ${mentionAllBadge}
       <span class="text-[10px] text-slate-500 font-mono">${dateStr}</span>
       <button type="button" onclick="toggleReactionPicker(${msg.id}, event)" class="text-slate-400 hover:text-amber-300 px-1 py-0.5 rounded text-[11px] hover:bg-slate-800 transition flex items-center gap-0.5" title="کارلێک بە ئیمۆجی">
@@ -5582,8 +5606,9 @@ async function openUserProfileModal(userId) {
       }
     }
 
+    const isProfStarGlowing = Boolean(prof.is_star_glowing || (prof.last_star_awarded_at && (Date.now() - Number(prof.last_star_awarded_at) <= 48 * 60 * 60 * 1000)));
     fullNameEl.innerText = prof.full_name;
-    fullNameEl.className = `font-black text-base ${getUserNameClass(prof)}`;
+    fullNameEl.className = `font-black text-base ${getUserNameClass(prof)} ${isProfStarGlowing ? 'user-name-star-glow' : ''}`;
     usernameEl.innerText = `@${prof.username}`;
     if (genderEl) {
       genderEl.innerHTML = '';
