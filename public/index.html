@@ -17,7 +17,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/css/style.css?v=13.4">
+  <link rel="stylesheet" href="/css/style.css?v=13.5">
   <style>
     body.light-theme .msg-text-student,
     body.light-theme [class*="msg-text-student"],
@@ -395,6 +395,19 @@
       </div>
     </header>
 
+    <!-- TOP CUSTOM GROUPS HEADER BAR (گروپ چاتە تایبەتەکان بە نوکتەی تیشک جوڵاو) -->
+    <div id="customGroupsHeaderBar" class="hidden px-2.5 sm:px-4 py-1.5 bg-slate-950/95 border-b border-indigo-500/20 backdrop-blur-md flex items-center justify-between gap-2 overflow-x-auto no-scrollbar z-25 shadow-inner">
+      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0" id="customGroupsPillsContainer">
+        <!-- Rendered dynamically by renderCustomGroupsHeader() -->
+      </div>
+      <div id="customGroupsAdminActions" class="shrink-0 hidden">
+        <button type="button" onclick="openCreateCustomGroupModal()" class="px-2.5 py-1 bg-gradient-to-r from-amber-500/20 to-amber-600/30 hover:from-amber-500/30 hover:to-amber-600/40 border border-amber-500/50 text-amber-300 text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow active:scale-95 shrink-0" title="دروستکردنی گروپ چاتی تایبەت">
+          <i class="fa-solid fa-plus text-[11px]"></i>
+          <span>گروپی نوێ</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Notification Permission Prompt Banner -->
     <div id="notificationPermissionBanner" class="hidden px-3.5 py-2.5 bg-gradient-to-r from-indigo-950/95 via-slate-900/95 to-purple-950/95 border-b border-indigo-500/30 flex items-center justify-between gap-3 text-xs z-30 transition-all shadow-md">
       <div class="flex items-center gap-2.5 min-w-0">
@@ -463,6 +476,23 @@
 
         <!-- Drawer Scrollable Content -->
         <div class="flex-1 overflow-y-auto p-3 space-y-4 text-xs font-bold">
+
+          <!-- Section: Custom Private Groups (گروپ چاتە تایبەتەکان) -->
+          <div id="drawerCustomGroupsSection" class="hidden space-y-1.5 pb-2 border-b border-slate-800/80">
+            <div class="flex items-center justify-between px-2 mb-1">
+              <span class="text-[10px] text-indigo-400 uppercase tracking-wider font-black flex items-center gap-1.5">
+                <i class="fa-solid fa-comments text-indigo-400"></i>
+                <span>گروپ چاتە تایبەتەکان</span>
+              </span>
+              <button id="drawerCreateGroupBtn" onclick="closeMainMenuDrawer(); openCreateCustomGroupModal();" class="hidden text-[10px] text-amber-400 hover:text-amber-300 font-black flex items-center gap-1 transition">
+                <i class="fa-solid fa-plus text-[9px]"></i>
+                <span>دروستکردنی گروپ</span>
+              </button>
+            </div>
+            <div id="drawerCustomGroupsList" class="space-y-1">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
 
           <!-- Section: General Services -->
           <div class="space-y-1.5">
@@ -2148,6 +2178,275 @@
     </div>
   </div>
 
+  <!-- ================= MODAL: CUSTOM PRIVATE GROUP CHAT ================= -->
+  <div id="customGroupChatModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-0 sm:p-4" onclick="if(event.target === this) closeCustomGroupChatModal()">
+    <div class="bg-slate-900 border border-indigo-500/30 sm:rounded-3xl w-full max-w-2xl h-full sm:h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-scale-up" onclick="event.stopPropagation()">
+      <!-- Chat Header -->
+      <div class="px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-slate-900 via-indigo-950/60 to-slate-900 border-b border-indigo-500/20 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="relative w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-700 text-white flex items-center justify-center text-base shadow-md shadow-indigo-950 shrink-0">
+            <i class="fa-solid fa-users-line"></i>
+            <span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-slate-900 animate-pulse"></span>
+          </div>
+          <div class="min-w-0">
+            <h3 id="customGroupModalTitle" class="font-black text-sm sm:text-base text-white truncate">ناوی گروپ چات</h3>
+            <p id="customGroupModalSubtitle" class="text-[11px] text-indigo-300/90 truncate flex items-center gap-1.5 font-bold">
+              <span id="customGroupMembersCountText">٠ ئەندام</span>
+              <span class="text-slate-500">•</span>
+              <span class="text-amber-300 flex items-center gap-1">
+                <i class="fa-solid fa-shield-halved text-[10px]"></i>
+                <span>ڕاوێژکار چاودێری دەکات</span>
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 shrink-0">
+          <!-- Super Admin Manage Button -->
+          <button type="button" id="customGroupManageBtn" onclick="openCustomGroupManageModal()" class="hidden px-2.5 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 hover:text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow active:scale-95" title="بەڕێوەبردنی ئەندامان و ناوی گروپ">
+            <i class="fa-solid fa-gear text-xs"></i>
+            <span class="hidden sm:inline">بەڕێوەبردن</span>
+          </button>
+          <!-- Close Button -->
+          <button type="button" onclick="closeCustomGroupChatModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-sm transition" title="داخستن">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Messages Scroll Area -->
+      <div id="customGroupMessagesContainer" class="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-radial from-slate-900/50 to-slate-950">
+        <div class="text-center py-12 text-slate-500 text-xs">
+          <i class="fa-solid fa-circle-notch fa-spin text-indigo-500 text-xl mb-2 block"></i>
+          <span>بارکردنی پەیامەکانی گروپ...</span>
+        </div>
+      </div>
+
+      <!-- Advisor Typing Indicator Banner -->
+      <div id="customGroupAdvisorTyping" class="hidden px-4 py-2 bg-gradient-to-r from-cyan-950/80 via-indigo-950/80 to-purple-950/80 border-t border-cyan-500/30 flex items-center gap-2.5 text-xs text-cyan-300 shrink-0 shadow-inner">
+        <div class="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-xs animate-bounce">
+          <i class="fa-solid fa-robot"></i>
+        </div>
+        <div class="flex items-center gap-1.5 font-bold">
+          <span>ڕاوێژکار لە پەیوەندیدایە و دەنووسێت</span>
+          <span class="flex gap-0.5">
+            <span class="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse"></span>
+            <span class="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse delay-150"></span>
+            <span class="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse delay-300"></span>
+          </span>
+        </div>
+      </div>
+
+      <!-- User Typing Indicator -->
+      <div id="customGroupUserTyping" class="hidden px-4 py-1 bg-slate-900/80 border-t border-slate-800 text-[11px] text-slate-400 shrink-0 font-medium">
+        <span id="customGroupUserTypingText">کەسێک دەنووسێت...</span>
+      </div>
+
+      <!-- Selected File Preview Tray -->
+      <div id="customGroupFilePreviewSection" class="hidden p-2.5 bg-slate-950 border-t border-indigo-500/20 flex items-center justify-between gap-2 shrink-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <span id="customGroupPreviewIcon" class="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center text-xs shrink-0">
+            <i class="fa-solid fa-paperclip"></i>
+          </span>
+          <div class="min-w-0">
+            <p id="customGroupPreviewName" class="text-xs font-black text-white truncate">فایلی هەڵبژێردراو</p>
+            <p id="customGroupPreviewSize" class="text-[10px] text-slate-400 font-mono">0 KB</p>
+          </div>
+        </div>
+        <button type="button" onclick="cancelCustomGroupFile()" class="p-1.5 text-slate-400 hover:text-rose-400 transition" title="لابردنی ئەم فایلە">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Voice Recording Review Tray -->
+      <div id="customGroupVoiceRecordSection" class="hidden p-3 bg-gradient-to-r from-slate-950 via-rose-950/40 to-slate-950 border-t border-rose-500/30 flex items-center justify-between gap-3 shrink-0">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="w-8 h-8 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center text-xs animate-pulse">
+            <i class="fa-solid fa-microphone-lines"></i>
+          </span>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+              <span class="text-xs font-black text-rose-300">تۆمارکردنی دەنگ...</span>
+            </div>
+            <span id="customGroupVoiceTimer" class="text-[11px] text-slate-300 font-mono font-bold">00:00</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" onclick="cancelCustomGroupVoiceRecord()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition active:scale-95">
+            هەڵوەشاندنەوە
+          </button>
+          <button type="button" onclick="finishAndSendCustomGroupVoiceRecord()" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-rose-950 active:scale-95">
+            <i class="fa-solid fa-paper-plane text-[11px]"></i>
+            <span>ناردنی دەنگ</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Input Toolbar & Form -->
+      <div class="p-2.5 sm:p-3 bg-slate-900/95 border-t border-slate-800 shrink-0">
+        <!-- Quick Tag Bar for Kak Hemn -->
+        <div id="customGroupQuickTagBar" class="hidden mb-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <button type="button" onclick="insertAdvisorTagIntoInput()" class="px-2.5 py-0.5 rounded-lg bg-gradient-to-r from-cyan-900/40 to-indigo-900/40 hover:from-cyan-900/60 hover:to-indigo-900/60 border border-cyan-500/40 text-cyan-300 text-[11px] font-black flex items-center gap-1.5 transition active:scale-95 shrink-0" title="بانگکردن و فەرماندان بە ڕاوێژکار">
+            <i class="fa-solid fa-robot text-cyan-400"></i>
+            <span>@ڕاوێژکار</span>
+          </button>
+          <span class="text-[10px] text-slate-500 hidden sm:inline">کلیک بکە بۆ بانگکردنی خێرای ڕاوێژکار</span>
+        </div>
+
+        <form id="customGroupChatForm" onsubmit="handleSendCustomGroupMessage(event)" class="flex items-end gap-1.5 sm:gap-2">
+          <!-- Hidden File Input -->
+          <input type="file" id="customGroupFileInput" class="hidden" onchange="handleCustomGroupFileSelect(this)">
+          
+          <!-- Attach File Button -->
+          <button type="button" onclick="document.getElementById('customGroupFileInput').click()" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-indigo-300 border border-slate-700/80 flex items-center justify-center text-sm shrink-0 transition active:scale-95" title="وێنە یان فایلی تر هاوپێچ بکە">
+            <i class="fa-solid fa-paperclip"></i>
+          </button>
+
+          <!-- Voice Record Button -->
+          <button type="button" id="customGroupMicBtn" onclick="toggleCustomGroupVoiceRecord()" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 border border-slate-700/80 flex items-center justify-center text-sm shrink-0 transition active:scale-95" title="تۆمارکردنی دەنگ (بێ داونلۆد)">
+            <i class="fa-solid fa-microphone"></i>
+          </button>
+
+          <!-- Message Textarea -->
+          <textarea id="customGroupTextInput" rows="1" placeholder="نامەکەت یان @ڕاوێژکار بنووسە..." class="flex-1 min-w-0 bg-slate-800/90 border border-slate-700/80 focus:border-indigo-500 rounded-2xl px-3 py-2 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32 transition leading-relaxed"></textarea>
+
+          <!-- Send Button -->
+          <button type="submit" id="customGroupSendBtn" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center text-sm shrink-0 transition shadow-md shadow-indigo-950 active:scale-95" title="ناردن">
+            <i class="fa-solid fa-paper-plane text-xs sm:text-sm"></i>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: CREATE CUSTOM GROUP (SUPER ADMIN) ================= -->
+  <div id="createCustomGroupModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onclick="if(event.target === this) closeCreateCustomGroupModal()">
+    <div class="bg-slate-900 border border-amber-500/40 rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scale-up" onclick="event.stopPropagation()">
+      <!-- Header -->
+      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-amber-950/40 to-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center justify-center text-sm shrink-0">
+            <i class="fa-solid fa-user-plus"></i>
+          </div>
+          <div class="min-w-0">
+            <h4 class="text-sm font-black text-white truncate">دروستکردنی گروپ چاتی تایبەت</h4>
+            <p class="text-[11px] text-amber-300/80 truncate">تەنها تۆ دەتوانیت دروستی بکەیت و ئەندام دیاری بکەیت</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeCreateCustomGroupModal()" class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Form Body -->
+      <form id="createCustomGroupForm" onsubmit="handleCreateCustomGroupSubmit(event)" class="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3">
+        <!-- Group Name -->
+        <div>
+          <label class="block text-xs font-black text-slate-200 mb-1">ناوی گروپ چاتەکە *</label>
+          <input type="text" id="newGroupNameInput" required placeholder="بۆ نموونە: تیمی بەڕێوەبەرایەتی، گروپی سەرپەرشتیاری..." class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-bold">
+        </div>
+
+        <!-- Member Search & Selection -->
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-xs font-black text-slate-200">هەڵبژاردنی ئەندامانی ناو گروپ</label>
+            <span id="selectedMembersCountBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold">٠ هەڵبژێردراو</span>
+          </div>
+          <div class="relative mb-2">
+            <i class="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+            <input type="text" id="newGroupMemberSearchInput" oninput="filterNewGroupMembersList()" placeholder="گەڕان بەدوای ئەندام..." class="w-full pl-3 pr-8 py-1.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+          </div>
+          <!-- Members Checklist Container -->
+          <div id="newGroupMembersChecklist" class="max-h-56 overflow-y-auto p-2 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-1.5">
+            <div class="text-center py-6 text-slate-500 text-xs">بارکردنی ئەندامان...</div>
+          </div>
+        </div>
+
+        <div class="p-2.5 rounded-2xl bg-indigo-950/40 border border-indigo-500/20 flex items-center gap-2 text-[11px] text-indigo-300">
+          <i class="fa-solid fa-robot text-cyan-400 text-sm shrink-0"></i>
+          <span>ڕاوێژکار بە شێوەی خۆکار لە ناو ئەم گروپەدا دەبێت و وەڵامی فەرمانەکانی تۆ دەداتەوە.</span>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="pt-2">
+          <button type="submit" id="createGroupSubmitBtn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-xl font-black text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-amber-950 active:scale-95">
+            <i class="fa-solid fa-rocket"></i>
+            <span>دروستکردنی گروپ چات</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: MANAGE CUSTOM GROUP (SUPER ADMIN) ================= -->
+  <div id="customGroupManageModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onclick="if(event.target === this) closeCustomGroupManageModal()">
+    <div class="bg-slate-900 border border-indigo-500/40 rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scale-up" onclick="event.stopPropagation()">
+      <!-- Header -->
+      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-indigo-950/50 to-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-9 h-9 rounded-2xl bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center text-sm shrink-0">
+            <i class="fa-solid fa-users-gear"></i>
+          </div>
+          <div class="min-w-0">
+            <h4 class="text-sm font-black text-white truncate">بەڕێوەبردنی گروپ چات</h4>
+            <p id="manageGroupHeaderSubtext" class="text-[11px] text-slate-400 truncate">گۆڕینی ناو و ئەندامان</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeCustomGroupManageModal()" class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Scrollable Settings -->
+      <div class="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-4">
+        <!-- 1. Rename Group -->
+        <div class="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2">
+          <label class="block text-xs font-black text-slate-300">گۆڕینی ناوی گروپ چاتەکە</label>
+          <div class="flex items-center gap-2">
+            <input type="text" id="manageGroupNameInput" class="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 font-bold">
+            <button type="button" onclick="saveCustomGroupRenamed()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition shrink-0 active:scale-95">
+              پاشەکەوت
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Current Members -->
+        <div class="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-black text-slate-300">ئەندامەکانی ناو گروپ</label>
+            <span id="manageGroupMembersBadge" class="text-[10px] text-indigo-400 font-mono font-bold">٠ ئەندام</span>
+          </div>
+          <div id="manageGroupMembersList" class="max-h-48 overflow-y-auto space-y-1.5 pr-0.5">
+            <div class="text-center py-4 text-slate-500 text-xs">بارکردن...</div>
+          </div>
+        </div>
+
+        <!-- 3. Add New Member -->
+        <div class="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2">
+          <label class="block text-xs font-black text-slate-300">زیادکردنی ئەندامی نوێ بۆ ئەم گروپە</label>
+          <div class="flex items-center gap-2">
+            <select id="manageGroupAddMemberSelect" class="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
+              <option value="">هەڵبژاردنی کەسێک...</option>
+            </select>
+            <button type="button" onclick="addSelectedMemberToCustomGroup()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black transition shrink-0 active:scale-95 flex items-center gap-1">
+              <i class="fa-solid fa-plus text-[10px]"></i>
+              <span>زیادکردن</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. Danger Zone: Delete Group -->
+        <div class="pt-2">
+          <button type="button" onclick="confirmDeleteCustomGroup()" class="w-full py-2 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 text-rose-300 hover:text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 active:scale-95 shadow">
+            <i class="fa-solid fa-trash-can"></i>
+            <span>سڕینەوەی تەواوەتی ئەم گروپ چاتە</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= MODAL: IMAGE ZOOM PREVIEW ================= -->
   <div id="imageZoomModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md" onclick="closeImageZoom()">
     <img id="imageZoomSrc" class="max-w-full max-h-[90vh] rounded-2xl shadow-2xl border border-slate-700" onclick="event.stopPropagation()">
@@ -3740,6 +4039,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=21.4"></script>
+  <script src="/js/app.js?v=21.5"></script>
 </body>
 </html>

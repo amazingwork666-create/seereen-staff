@@ -1705,6 +1705,50 @@ function initSocket() {
   socket.on('connect', () => {
     socket.emit('live_get_state');
     updatePrivateUnreadBadge();
+    if (typeof loadUserCustomGroups === 'function') loadUserCustomGroups();
+  });
+
+  // Custom Groups Socket Events
+  socket.on('new_group_message', (data) => {
+    if (typeof handleIncomingCustomGroupMessage === 'function') handleIncomingCustomGroupMessage(data);
+  });
+  socket.on('custom_group_activity', (data) => {
+    if (typeof handleCustomGroupActivity === 'function') handleCustomGroupActivity(data);
+  });
+  socket.on('group_advisor_typing', (data) => {
+    if (typeof handleGroupAdvisorTyping === 'function') handleGroupAdvisorTyping(data);
+  });
+  socket.on('custom_group_user_typing', (data) => {
+    if (typeof handleCustomGroupUserTyping === 'function') handleCustomGroupUserTyping(data);
+  });
+  socket.on('group_message_deleted', (data) => {
+    if (typeof handleGroupMessageDeleted === 'function') handleGroupMessageDeleted(data);
+  });
+  socket.on('custom_group_created', () => {
+    if (typeof loadUserCustomGroups === 'function') loadUserCustomGroups();
+  });
+  socket.on('custom_group_deleted', (data) => {
+    if (typeof activeCustomGroupId !== 'undefined' && activeCustomGroupId === data?.groupId) {
+      alert('ئەم گروپ چاتە سڕایەوە');
+      if (typeof closeCustomGroupChatModal === 'function') closeCustomGroupChatModal();
+    }
+    if (typeof loadUserCustomGroups === 'function') loadUserCustomGroups();
+  });
+  socket.on('custom_group_renamed', (data) => {
+    if (typeof activeCustomGroupId !== 'undefined' && activeCustomGroupId === data?.groupId) {
+      const titleEl = document.getElementById('customGroupModalTitle');
+      if (titleEl && data.name) titleEl.innerText = data.name;
+    }
+    if (typeof loadUserCustomGroups === 'function') loadUserCustomGroups();
+  });
+  socket.on('custom_group_members_updated', (data) => {
+    if (typeof activeCustomGroupId !== 'undefined' && activeCustomGroupId === data?.groupId) {
+      if (typeof updateCustomGroupMembersCount === 'function') updateCustomGroupMembersCount(data.members);
+    }
+    if (typeof loadUserCustomGroups === 'function') loadUserCustomGroups();
+  });
+  socket.on('custom_group_list_refresh', () => {
+    if (typeof loadUserCustomGroups === 'function') loadUserCustomGroups();
   });
 
   socket.on('online_users', (usersList) => {
@@ -15457,3 +15501,1051 @@ function copyButtonAttendanceList() {
 
 
 
+
+
+// =========================================================================
+// CUSTOM PRIVATE GROUP CHATS MODULE (گروپ چاتە تایبەتەکان بە سەرپەرشتی ڕاوێژکار)
+// =========================================================================
+
+let userCustomGroupsCache = [];
+let activeCustomGroupId = null;
+let activeCustomGroupData = null;
+let activeGroupMessages = [];
+let selectedGroupFile = null;
+let customGroupMediaRecorder = null;
+let customGroupAudioChunks = [];
+let customGroupVoiceInterval = null;
+let customGroupVoiceDurationSecs = 0;
+let customGroupVoiceBlob = null;
+let allUsersForGroupChecklistCache = [];
+let currentPlayingCustomGroupVoiceId = null;
+
+// 1. Load user custom groups from server
+async function loadUserCustomGroups() {
+  if (typeof token === 'undefined' || !token) return;
+  try {
+    const res = await fetch('/api/custom-groups', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    userCustomGroupsCache = data.groups || [];
+    renderCustomGroupsHeader();
+    renderDrawerCustomGroups();
+  } catch (err) {
+    console.error('Error loading custom groups:', err);
+  }
+}
+
+// 2. Render top header bar with glowing radiant dots for unread groups
+function renderCustomGroupsHeader() {
+  const bar = document.getElementById('customGroupsHeaderBar');
+  const container = document.getElementById('customGroupsPillsContainer');
+  const adminActions = document.getElementById('customGroupsAdminActions');
+  if (!bar || !container) return;
+
+  const isSuperAdmin = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'super_admin';
+
+  if (adminActions) {
+    if (isSuperAdmin) {
+      adminActions.classList.remove('hidden');
+    } else {
+      adminActions.classList.add('hidden');
+    }
+  }
+
+  if (userCustomGroupsCache.length === 0 && !isSuperAdmin) {
+    bar.classList.add('hidden');
+    container.innerHTML = '';
+    return;
+  }
+
+  bar.classList.remove('hidden');
+
+  if (userCustomGroupsCache.length === 0 && isSuperAdmin) {
+    container.innerHTML = `
+      <div class="text-[11px] text-amber-300/80 font-bold flex items-center gap-1.5 py-0.5">
+        <i class="fa-solid fa-users-viewfinder text-amber-400"></i>
+        <span>گروپ چاتی تایبەت نییە؛ دەتوانیت لە دوگمەی تەنیشتەوە دروستی بکەیت</span>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = userCustomGroupsCache.map(g => {
+    const hasUnread = (g.unread_count || 0) > 0;
+    return `
+      <button type="button" 
+        onclick="openCustomGroupChatModal(${g.id})" 
+        class="relative px-3 py-1 bg-gradient-to-r from-slate-900 to-indigo-950/80 hover:from-slate-800 hover:to-indigo-900 border ${hasUnread ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.35)]' : 'border-indigo-500/30 hover:border-indigo-500/60'} rounded-xl text-xs font-black text-slate-100 flex items-center gap-2 transition shrink-0 active:scale-95 group" 
+        title="${escapeHtml(g.name)} (${g.member_count || 0} ئەندام)">
+        
+        ${hasUnread 
+          ? `<span class="radiant-dot" title="قسەی نوێی تیاکراوە"></span>` 
+          : `<i class="fa-solid fa-comments text-indigo-400 text-xs"></i>`
+        }
+
+        <span class="truncate max-w-[130px] sm:max-w-[180px]">${escapeHtml(g.name)}</span>
+        
+        ${hasUnread 
+          ? `<span class="px-1.5 py-0.2 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold animate-pulse">نوێ ✨</span>` 
+          : `<span class="text-[10px] text-indigo-300/60 font-mono">(${g.member_count || 0})</span>`
+        }
+      </button>
+    `;
+  }).join('');
+}
+
+// 3. Render in Main Drawer Menu
+function renderDrawerCustomGroups() {
+  const section = document.getElementById('drawerCustomGroupsSection');
+  const list = document.getElementById('drawerCustomGroupsList');
+  const createBtn = document.getElementById('drawerCreateGroupBtn');
+  if (!section || !list) return;
+
+  const isSuperAdmin = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'super_admin';
+
+  if (createBtn) {
+    if (isSuperAdmin) {
+      createBtn.classList.remove('hidden');
+    } else {
+      createBtn.classList.add('hidden');
+    }
+  }
+
+  if (userCustomGroupsCache.length === 0 && !isSuperAdmin) {
+    section.classList.add('hidden');
+    list.innerHTML = '';
+    return;
+  }
+
+  section.classList.remove('hidden');
+
+  if (userCustomGroupsCache.length === 0 && isSuperAdmin) {
+    list.innerHTML = `
+      <p class="text-[11px] text-slate-400 py-1 px-2">هیچ گروپ چاتێک نییە؛ کلیک لە دوگمەی سەرەوە بکە بۆ دروستکردن.</p>
+    `;
+    return;
+  }
+
+  list.innerHTML = userCustomGroupsCache.map(g => {
+    const hasUnread = (g.unread_count || 0) > 0;
+    return `
+      <button type="button" 
+        onclick="closeMainMenuDrawer(); openCustomGroupChatModal(${g.id});" 
+        class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-200 hover:text-white bg-slate-800/60 hover:bg-slate-800 border ${hasUnread ? 'border-emerald-500/50 shadow-sm shadow-emerald-500/20' : 'border-slate-800 hover:border-slate-700'} transition text-xs font-bold">
+        <span class="flex items-center gap-2 min-w-0">
+          ${hasUnread 
+            ? `<span class="radiant-dot"></span>` 
+            : `<i class="fa-solid fa-users text-indigo-400 text-xs w-4 text-center"></i>`
+          }
+          <span class="truncate">${escapeHtml(g.name)}</span>
+        </span>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <span class="text-[10px] text-slate-400 font-mono">${g.member_count || 0} ئەندام</span>
+          ${hasUnread ? `<span class="px-1.5 py-0.2 rounded-md bg-emerald-500/20 text-emerald-300 text-[9px] font-bold animate-pulse">قسە کراوە</span>` : ''}
+        </div>
+      </button>
+    `;
+  }).join('');
+}
+
+// 4. Open Custom Group Chat Modal
+async function openCustomGroupChatModal(groupId) {
+  activeCustomGroupId = groupId;
+  const modal = document.getElementById('customGroupChatModal');
+  if (!modal) return;
+
+  const isSuperAdmin = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'super_admin';
+
+  // Toggle admin manage button and quick-tag bar
+  const manageBtn = document.getElementById('customGroupManageBtn');
+  if (manageBtn) {
+    if (isSuperAdmin) manageBtn.classList.remove('hidden');
+    else manageBtn.classList.add('hidden');
+  }
+  const quickTagBar = document.getElementById('customGroupQuickTagBar');
+  if (quickTagBar) {
+    if (isSuperAdmin) quickTagBar.classList.remove('hidden');
+    else quickTagBar.classList.add('hidden');
+  }
+
+  // Clear typing indicators & reset inputs
+  const advTyping = document.getElementById('customGroupAdvisorTyping');
+  if (advTyping) advTyping.classList.add('hidden');
+  const userTyping = document.getElementById('customGroupUserTyping');
+  if (userTyping) userTyping.classList.add('hidden');
+  cancelCustomGroupFile();
+  cancelCustomGroupVoiceRecord();
+
+  modal.classList.remove('hidden');
+
+  // Join socket room
+  if (typeof socket !== 'undefined' && socket && socket.connected) {
+    socket.emit('join_custom_group', { groupId });
+  }
+
+  // Clear unread in local cache
+  const cachedGroup = userCustomGroupsCache.find(g => g.id === groupId);
+  if (cachedGroup) {
+    cachedGroup.unread_count = 0;
+    renderCustomGroupsHeader();
+    renderDrawerCustomGroups();
+  }
+
+  // Fetch group details and messages
+  try {
+    const [groupRes, msgsRes] = await Promise.all([
+      fetch(`/api/custom-groups/${groupId}`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`/api/custom-groups/${groupId}/messages`, { headers: { 'Authorization': `Bearer ${token}` } })
+    ]);
+
+    if (groupRes.ok) {
+      const gData = await groupRes.json();
+      activeCustomGroupData = gData.group;
+      document.getElementById('customGroupModalTitle').innerText = activeCustomGroupData.name || 'گروپ چات';
+      const mCount = (activeCustomGroupData.members || []).length;
+      document.getElementById('customGroupMembersCountText').innerText = `${mCount} ئەندام`;
+    }
+
+    if (msgsRes.ok) {
+      const mData = await msgsRes.json();
+      activeGroupMessages = mData.messages || [];
+      renderCustomGroupMessages(activeGroupMessages);
+    }
+  } catch (err) {
+    console.error('Error loading group data:', err);
+  }
+}
+
+// 5. Close Custom Group Chat Modal
+function closeCustomGroupChatModal() {
+  const modal = document.getElementById('customGroupChatModal');
+  if (modal) modal.classList.add('hidden');
+
+  if (typeof socket !== 'undefined' && socket && socket.connected && activeCustomGroupId) {
+    socket.emit('leave_custom_group', { groupId: activeCustomGroupId });
+  }
+
+  cancelCustomGroupVoiceRecord();
+  cancelCustomGroupFile();
+
+  if (currentPlayingCustomGroupVoiceId) {
+    const audio = document.getElementById(`cg-voice-audio-${currentPlayingCustomGroupVoiceId}`);
+    if (audio) audio.pause();
+    currentPlayingCustomGroupVoiceId = null;
+  }
+
+  activeCustomGroupId = null;
+  activeCustomGroupData = null;
+  activeGroupMessages = [];
+}
+
+// 6. Render Group Messages
+function renderCustomGroupMessages(messagesList) {
+  const container = document.getElementById('customGroupMessagesContainer');
+  if (!container) return;
+
+  if (!messagesList || messagesList.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-16 text-slate-500">
+        <i class="fa-solid fa-comments text-4xl text-indigo-500/40 mb-3 block"></i>
+        <h4 class="text-sm font-black text-slate-300 mb-1">بەخێربێن بۆ ئەم گروپ چاتە تایبەتە</h4>
+        <p class="text-xs text-slate-400 max-w-xs mx-auto">دەتوانن دەنگ، وێنە، فایل و نوسین بنێرن. دەنگەکان پارێزراون لە داونلۆد و ڕاوێژکاریش ئامادەی وەڵامدانەوەیە.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const isSuperAdmin = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'super_admin';
+
+  container.innerHTML = messagesList.map(msg => {
+    return buildCustomGroupMessageHtml(msg, isSuperAdmin);
+  }).join('');
+
+  scrollCustomGroupToBottom();
+}
+
+// Helper: build HTML for a single custom group message
+function buildCustomGroupMessageHtml(msg, isSuperAdmin) {
+  const isMine = typeof currentUser !== 'undefined' && currentUser && msg.sender_id === currentUser.id;
+  const isAdvisor = !!msg.is_advisor || msg.sender_role === 'advisor';
+  const canDelete = isMine || isSuperAdmin;
+
+  const timeFormatted = new Date(msg.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
+  const dateFormatted = new Date(msg.created_at).toLocaleDateString('ku-IQ', { month: 'numeric', day: 'numeric' });
+
+  // Advisor luxury card style
+  if (isAdvisor) {
+    return `
+      <div id="cg-msg-${msg.id}" class="my-3 p-3.5 sm:p-4 rounded-3xl advisor-chat-card text-slate-100 max-w-xl mx-auto shadow-xl select-text transition">
+        <div class="flex items-center justify-between gap-2 border-b border-indigo-500/20 pb-2 mb-2.5">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-600 text-white flex items-center justify-center text-sm shadow-md shadow-cyan-950">
+              <i class="fa-solid fa-robot"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-black text-cyan-300">ڕاوێژکار</span>
+                <span class="px-1.5 py-0.2 rounded-md bg-cyan-500/20 text-cyan-300 text-[9px] font-bold border border-cyan-500/30">Executive AI</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">${dateFormatted} • ${timeFormatted}</span>
+            </div>
+          </div>
+          ${canDelete ? `
+            <button type="button" onclick="deleteCustomGroupMessage(${msg.group_id}, ${msg.id})" class="text-slate-500 hover:text-rose-400 p-1 rounded-lg transition" title="سڕینەوەی ئەم پەیامە">
+              <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
+          ` : ''}
+        </div>
+        <div class="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap text-slate-100 font-medium">${formatAdvisorMessageContent(msg.content)}</div>
+      </div>
+    `;
+  }
+
+  // Attachment HTML
+  let attachmentHtml = '';
+  if (msg.type === 'image' && msg.attachment_url) {
+    attachmentHtml = `
+      <div class="mt-2 rounded-2xl overflow-hidden border border-slate-700/80 max-w-xs cursor-pointer hover:opacity-95 transition" onclick="openImageZoom('${msg.attachment_url}')">
+        <img src="${msg.attachment_url}" class="w-full h-auto max-h-64 object-cover" loading="lazy">
+      </div>
+    `;
+  } else if (msg.type === 'audio' && msg.attachment_url) {
+    // CRITICAL REQUIREMENT: Audio cannot be downloaded! Custom in-app player with controlsList="nodownload" and contextmenu disabled
+    attachmentHtml = `
+      <div class="mt-2 p-2.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 max-w-xs select-none" oncontextmenu="return false;">
+        <div class="flex items-center gap-2.5">
+          <button type="button" id="cg-voice-btn-${msg.id}" onclick="toggleCustomGroupVoicePlay(${msg.id}, '${msg.attachment_url}')" class="w-9 h-9 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center text-xs shrink-0 shadow transition active:scale-95" title="لێدان">
+            <i class="fa-solid fa-play"></i>
+          </button>
+          <div class="flex-1 min-w-0">
+            <div class="h-2 bg-slate-800 rounded-full overflow-hidden cursor-pointer" onclick="seekCustomGroupVoice(${msg.id}, event)">
+              <div id="cg-voice-progress-${msg.id}" class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 w-0 transition-all duration-150"></div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono mt-1">
+              <span id="cg-voice-time-${msg.id}">00:00</span>
+              <span class="text-emerald-400 font-bold flex items-center gap-1">
+                <i class="fa-solid fa-lock text-[9px]"></i> دەنگی پارێزراو
+              </span>
+            </div>
+          </div>
+        </div>
+        <audio id="cg-voice-audio-${msg.id}" src="${msg.attachment_url}" preload="metadata" controlsList="nodownload noplaybackrate" oncontextmenu="return false;" ontimeupdate="updateCustomGroupVoiceProgress(${msg.id})" onended="onCustomGroupVoiceEnded(${msg.id})"></audio>
+      </div>
+    `;
+  } else if (msg.type === 'file' && msg.attachment_url) {
+    const rawFileName = msg.attachment_name || msg.attachment_url.split('/').pop() || 'file';
+    const isPdf = rawFileName.toLowerCase().endsWith('.pdf');
+    attachmentHtml = `
+      <div class="mt-2 p-2.5 rounded-2xl bg-slate-900/95 border border-slate-700/80 flex items-center justify-between gap-2.5 max-w-xs shadow">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-8 h-8 rounded-xl ${isPdf ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'} flex items-center justify-center text-xs shrink-0">
+            <i class="fa-solid ${isPdf ? 'fa-file-pdf' : 'fa-file'}"></i>
+          </div>
+          <div class="min-w-0">
+            <p class="text-xs font-black text-white truncate" title="${escapeHtml(rawFileName)}">${escapeHtml(rawFileName)}</p>
+            <span class="text-[10px] text-slate-400 font-mono">${isPdf ? 'PDF دۆکیومێنت' : 'فایل'}</span>
+          </div>
+        </div>
+        <a href="${msg.attachment_url}" download="${escapeHtml(rawFileName)}" class="px-2.5 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shrink-0 flex items-center gap-1 transition active:scale-95 shadow" title="داگرتن">
+          <i class="fa-solid fa-arrow-down-to-bracket text-[10px]"></i>
+          <span>داگرتن</span>
+        </a>
+      </div>
+    `;
+  }
+
+  const roleBadgeHtml = typeof renderRoleBadge === 'function' ? renderRoleBadge(msg.sender_role, 'male') : '';
+
+  return `
+    <div id="cg-msg-${msg.id}" class="flex flex-col ${isMine ? 'items-end' : 'items-start'} transition group">
+      <!-- Sender & Date header -->
+      <div class="flex items-center gap-1.5 px-1 mb-1 text-[10px] text-slate-400">
+        <span class="font-bold text-slate-300">${escapeHtml(msg.sender_name)}</span>
+        ${roleBadgeHtml}
+        <span class="text-slate-500 font-mono">${dateFormatted} • ${timeFormatted}</span>
+        ${canDelete ? `
+          <button type="button" onclick="deleteCustomGroupMessage(${msg.group_id}, ${msg.id})" class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 px-1 transition" title="سڕینەوەی ئەم پەیامە">
+            <i class="fa-solid fa-trash-can text-[10px]"></i>
+          </button>
+        ` : ''}
+      </div>
+
+      <!-- Bubble -->
+      <div class="px-3.5 py-2.5 rounded-2xl max-w-sm sm:max-w-md ${isMine ? 'bg-indigo-600 text-white rounded-tl-sm' : 'bg-slate-800 text-slate-100 border border-slate-700/80 rounded-tr-sm'} shadow-md">
+        ${msg.content ? `<div class="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">${highlightMentions(escapeHtml(msg.content))}</div>` : ''}
+        ${attachmentHtml}
+      </div>
+    </div>
+  `;
+}
+
+function formatAdvisorMessageContent(content) {
+  if (!content) return '';
+  return escapeHtml(content)
+    .replace(/\*\*(.*?)\*\*/g, '<b class="text-cyan-300 font-black">$1</b>')
+    .replace(/•/g, '<span class="text-cyan-400 font-black">•</span>');
+}
+
+function highlightMentions(text) {
+  if (!text) return '';
+  return text.replace(/(@ڕاوێژکار|@advisor|@rawêjkar)/g, '<span class="px-1.5 py-0.2 rounded-md bg-cyan-400/20 text-cyan-300 font-black">$1</span>');
+}
+
+function scrollCustomGroupToBottom() {
+  const container = document.getElementById('customGroupMessagesContainer');
+  if (container) {
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+// 7. Custom Group Voice Player (No Download Button!)
+function toggleCustomGroupVoicePlay(msgId, audioUrl) {
+  const audio = document.getElementById(`cg-voice-audio-${msgId}`);
+  const btn = document.getElementById(`cg-voice-btn-${msgId}`);
+  if (!audio || !btn) return;
+
+  if (currentPlayingCustomGroupVoiceId && currentPlayingCustomGroupVoiceId !== msgId) {
+    const prevAudio = document.getElementById(`cg-voice-audio-${currentPlayingCustomGroupVoiceId}`);
+    const prevBtn = document.getElementById(`cg-voice-btn-${currentPlayingCustomGroupVoiceId}`);
+    if (prevAudio) prevAudio.pause();
+    if (prevBtn) prevBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+  }
+
+  if (audio.paused) {
+    audio.play();
+    btn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+    currentPlayingCustomGroupVoiceId = msgId;
+  } else {
+    audio.pause();
+    btn.innerHTML = '<i class="fa-solid fa-play"></i>';
+    currentPlayingCustomGroupVoiceId = null;
+  }
+}
+
+function updateCustomGroupVoiceProgress(msgId) {
+  const audio = document.getElementById(`cg-voice-audio-${msgId}`);
+  const bar = document.getElementById(`cg-voice-progress-${msgId}`);
+  const time = document.getElementById(`cg-voice-time-${msgId}`);
+  if (!audio || !bar) return;
+
+  const cur = audio.currentTime || 0;
+  const dur = audio.duration || 1;
+  bar.style.width = ((cur / dur) * 100) + '%';
+  if (time && typeof formatAudioDuration === 'function') time.innerText = formatAudioDuration(cur);
+}
+
+function onCustomGroupVoiceEnded(msgId) {
+  const btn = document.getElementById(`cg-voice-btn-${msgId}`);
+  const bar = document.getElementById(`cg-voice-progress-${msgId}`);
+  if (btn) btn.innerHTML = '<i class="fa-solid fa-play"></i>';
+  if (bar) bar.style.width = '0%';
+  if (currentPlayingCustomGroupVoiceId === msgId) currentPlayingCustomGroupVoiceId = null;
+}
+
+function seekCustomGroupVoice(msgId, event) {
+  const audio = document.getElementById(`cg-voice-audio-${msgId}`);
+  if (!audio || !audio.duration) return;
+  const track = event.currentTarget;
+  const rect = track.getBoundingClientRect();
+  const clickX = event.clientX - rect.left;
+  const pct = Math.max(0, Math.min(1, clickX / rect.width));
+  audio.currentTime = pct * audio.duration;
+}
+
+// 8. File Handling for Custom Group
+function handleCustomGroupFileSelect(input) {
+  if (!input || !input.files || !input.files[0]) return;
+  selectedGroupFile = input.files[0];
+
+  const preview = document.getElementById('customGroupFilePreviewSection');
+  const nameEl = document.getElementById('customGroupPreviewName');
+  const sizeEl = document.getElementById('customGroupPreviewSize');
+  const iconEl = document.getElementById('customGroupPreviewIcon');
+
+  if (nameEl) nameEl.innerText = selectedGroupFile.name;
+  if (sizeEl) sizeEl.innerText = `${(selectedGroupFile.size / 1024).toFixed(1)} KB`;
+  if (iconEl) {
+    if (selectedGroupFile.type.startsWith('image/')) {
+      iconEl.innerHTML = '<i class="fa-solid fa-image"></i>';
+    } else if (selectedGroupFile.name.toLowerCase().endsWith('.pdf')) {
+      iconEl.innerHTML = '<i class="fa-solid fa-file-pdf"></i>';
+    } else {
+      iconEl.innerHTML = '<i class="fa-solid fa-file"></i>';
+    }
+  }
+  if (preview) preview.classList.remove('hidden');
+}
+
+function cancelCustomGroupFile() {
+  selectedGroupFile = null;
+  const fileInput = document.getElementById('customGroupFileInput');
+  if (fileInput) fileInput.value = '';
+  const preview = document.getElementById('customGroupFilePreviewSection');
+  if (preview) preview.classList.add('hidden');
+}
+
+// 9. Voice Recording in Custom Group
+async function toggleCustomGroupVoiceRecord() {
+  if (customGroupMediaRecorder && customGroupMediaRecorder.state === 'recording') {
+    finishAndSendCustomGroupVoiceRecord();
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    customGroupAudioChunks = [];
+    customGroupMediaRecorder = new MediaRecorder(stream);
+    customGroupMediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) customGroupAudioChunks.push(e.data);
+    };
+
+    customGroupVoiceDurationSecs = 0;
+    const timerEl = document.getElementById('customGroupVoiceTimer');
+    if (timerEl) timerEl.innerText = '00:00';
+    const section = document.getElementById('customGroupVoiceRecordSection');
+    if (section) section.classList.remove('hidden');
+
+    customGroupVoiceInterval = setInterval(() => {
+      customGroupVoiceDurationSecs++;
+      if (timerEl && typeof formatAudioDuration === 'function') {
+        timerEl.innerText = formatAudioDuration(customGroupVoiceDurationSecs);
+      }
+    }, 1000);
+
+    customGroupMediaRecorder.start();
+  } catch (err) {
+    alert('ڕێگەپێدانی مایکرۆفۆن پێویستە بۆ تۆمارکردنی دەنگ');
+  }
+}
+
+function cancelCustomGroupVoiceRecord() {
+  if (customGroupMediaRecorder && customGroupMediaRecorder.state !== 'inactive') {
+    customGroupMediaRecorder.stop();
+    customGroupMediaRecorder.stream.getTracks().forEach(t => t.stop());
+  }
+  clearInterval(customGroupVoiceInterval);
+  customGroupAudioChunks = [];
+  const section = document.getElementById('customGroupVoiceRecordSection');
+  if (section) section.classList.add('hidden');
+}
+
+function finishAndSendCustomGroupVoiceRecord() {
+  if (!customGroupMediaRecorder || customGroupMediaRecorder.state !== 'recording') return;
+
+  customGroupMediaRecorder.onstop = async () => {
+    customGroupVoiceBlob = new Blob(customGroupAudioChunks, { type: 'audio/webm' });
+    const section = document.getElementById('customGroupVoiceRecordSection');
+    if (section) section.classList.add('hidden');
+    clearInterval(customGroupVoiceInterval);
+
+    // Upload voice blob and send as group audio message
+    try {
+      const formData = new FormData();
+      formData.append('file', customGroupVoiceBlob, `voice_${Date.now()}.webm`);
+      formData.append('type', 'audio');
+
+      const uploadRes = await fetch(`/api/custom-groups/${activeCustomGroupId}/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error(uploadData.error || 'هەڵە لە بارکردنی دەنگ');
+
+      await fetch(`/api/custom-groups/${activeCustomGroupId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          content: '',
+          type: 'audio',
+          attachmentUrl: uploadData.fileUrl,
+          attachmentName: 'دەنگی تۆمارکراو',
+          attachmentSize: uploadData.fileSize
+        })
+      });
+    } catch (err) {
+      alert(err.message || 'هەڵە لە ناردنی دەنگ');
+    }
+  };
+
+  customGroupMediaRecorder.stop();
+  customGroupMediaRecorder.stream.getTracks().forEach(t => t.stop());
+}
+
+// 10. Send Message (Text & Attachment)
+async function handleSendCustomGroupMessage(e) {
+  if (e) e.preventDefault();
+  if (!activeCustomGroupId) return;
+
+  const textInput = document.getElementById('customGroupTextInput');
+  const content = textInput ? textInput.value.trim() : '';
+
+  if (!content && !selectedGroupFile) return;
+
+  const sendBtn = document.getElementById('customGroupSendBtn');
+  if (sendBtn) sendBtn.disabled = true;
+
+  try {
+    let attachmentUrl = null;
+    let attachmentName = null;
+    let attachmentSize = 0;
+    let msgType = 'text';
+
+    if (selectedGroupFile) {
+      const formData = new FormData();
+      formData.append('file', selectedGroupFile);
+      const isImg = selectedGroupFile.type.startsWith('image/');
+      formData.append('type', isImg ? 'image' : 'file');
+
+      const uploadRes = await fetch(`/api/custom-groups/${activeCustomGroupId}/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error(uploadData.error || 'هەڵە لە بارکردنی فایل');
+
+      attachmentUrl = uploadData.fileUrl;
+      attachmentName = uploadData.fileName;
+      attachmentSize = uploadData.fileSize;
+      msgType = isImg ? 'image' : 'file';
+    }
+
+    const res = await fetch(`/api/custom-groups/${activeCustomGroupId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        content,
+        type: msgType,
+        attachmentUrl,
+        attachmentName,
+        attachmentSize
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە ناردنی پەیام');
+
+    if (textInput) {
+      textInput.value = '';
+      textInput.style.height = 'auto';
+    }
+    cancelCustomGroupFile();
+  } catch (err) {
+    alert(err.message || 'هەڵە لە ناردن');
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+  }
+}
+
+// 11. Delete Message
+async function deleteCustomGroupMessage(groupId, messageId) {
+  if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم پەیامە؟')) return;
+  try {
+    const res = await fetch(`/api/custom-groups/${groupId}/messages/${messageId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) alert(data.error || 'هەڵە لە سڕینەوە');
+  } catch (err) {
+    alert('هەڵە لە پەیوەندی');
+  }
+}
+
+// 12. Quick Helper: Insert @ڕاوێژکار into input
+function insertAdvisorTagIntoInput() {
+  const input = document.getElementById('customGroupTextInput');
+  if (!input) return;
+  const current = input.value.trim();
+  if (!current.includes('@ڕاوێژکار')) {
+    input.value = `@ڕاوێژکار ${current}`.trim() + ' ';
+  }
+  input.focus();
+}
+
+// 13. Super Admin: Create Group Modal Logic
+async function openCreateCustomGroupModal() {
+  const modal = document.getElementById('createCustomGroupModal');
+  const nameInput = document.getElementById('newGroupNameInput');
+  const searchInput = document.getElementById('newGroupMemberSearchInput');
+  if (nameInput) nameInput.value = '';
+  if (searchInput) searchInput.value = '';
+  updateSelectedMembersBadge();
+
+  if (modal) modal.classList.remove('hidden');
+
+  const container = document.getElementById('newGroupMembersChecklist');
+  if (container) {
+    container.innerHTML = '<div class="text-center py-6 text-slate-500 text-xs">بارکردنی ئەندامان...</div>';
+  }
+
+  try {
+    const res = await fetch('/api/admin/users', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      allUsersForGroupChecklistCache = (data.users || []).filter(u => u.id !== currentUser.id && u.status === 'approved');
+      renderNewGroupMembersChecklist(allUsersForGroupChecklistCache);
+    }
+  } catch (e) {
+    if (container) container.innerHTML = '<p class="text-center text-rose-400 text-xs py-4">هەڵە لە هێنانی ئەندامان</p>';
+  }
+}
+
+function closeCreateCustomGroupModal() {
+  const modal = document.getElementById('createCustomGroupModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function renderNewGroupMembersChecklist(usersList) {
+  const container = document.getElementById('newGroupMembersChecklist');
+  if (!container) return;
+
+  if (!usersList.length) {
+    container.innerHTML = '<p class="text-xs text-slate-500 text-center py-4">هیچ ئەندامێک نەدۆزرایەوە.</p>';
+    return;
+  }
+
+  container.innerHTML = usersList.map(u => {
+    const roleHtml = typeof renderRoleBadge === 'function' ? renderRoleBadge(u.role, u.gender || 'male') : '';
+    return `
+      <label class="flex items-center justify-between p-2 rounded-xl bg-slate-900/90 hover:bg-slate-850 border border-slate-800 cursor-pointer transition select-none">
+        <div class="flex items-center gap-2 min-w-0">
+          <input type="checkbox" name="selectedGroupMembers" value="${u.id}" onchange="updateSelectedMembersBadge()" class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 bg-slate-800 border-slate-700">
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-xs font-black text-white truncate">${escapeHtml(u.full_name)}</span>
+              ${roleHtml}
+            </div>
+            <span class="text-[10px] text-slate-400 font-mono">@${escapeHtml(u.username)}</span>
+          </div>
+        </div>
+      </label>
+    `;
+  }).join('');
+}
+
+function filterNewGroupMembersList() {
+  const q = (document.getElementById('newGroupMemberSearchInput')?.value || '').toLowerCase().trim();
+  if (!q) {
+    renderNewGroupMembersChecklist(allUsersForGroupChecklistCache);
+    return;
+  }
+  const filtered = allUsersForGroupChecklistCache.filter(u => 
+    (u.full_name || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q)
+  );
+  renderNewGroupMembersChecklist(filtered);
+}
+
+function updateSelectedMembersBadge() {
+  const checkboxes = document.querySelectorAll('input[name="selectedGroupMembers"]:checked');
+  const badge = document.getElementById('selectedMembersCountBadge');
+  if (badge) badge.innerText = `${checkboxes.length} هەڵبژێردراو`;
+}
+
+async function handleCreateCustomGroupSubmit(e) {
+  e.preventDefault();
+  const name = document.getElementById('newGroupNameInput')?.value.trim();
+  if (!name) return alert('تکایە ناوی گروپ بنووسە');
+
+  const checkboxes = document.querySelectorAll('input[name="selectedGroupMembers"]:checked');
+  const memberIds = Array.from(checkboxes).map(cb => parseInt(cb.value, 10));
+
+  const btn = document.getElementById('createGroupSubmitBtn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/custom-groups', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ name, memberIds })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە دروستکردن');
+
+    closeCreateCustomGroupModal();
+    await loadUserCustomGroups();
+    if (data.group && data.group.id) {
+      openCustomGroupChatModal(data.group.id);
+    }
+  } catch (err) {
+    alert(err.message || 'هەڵە لە دروستکردنی گروپ');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// 14. Super Admin: Manage Group Modal Logic
+async function openCustomGroupManageModal() {
+  if (!activeCustomGroupId) return;
+  const modal = document.getElementById('customGroupManageModal');
+  if (modal) modal.classList.remove('hidden');
+
+  const nameInput = document.getElementById('manageGroupNameInput');
+  if (nameInput && activeCustomGroupData) {
+    nameInput.value = activeCustomGroupData.name || '';
+  }
+
+  await refreshManageGroupMembersUI();
+}
+
+function closeCustomGroupManageModal() {
+  const modal = document.getElementById('customGroupManageModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function refreshManageGroupMembersUI() {
+  if (!activeCustomGroupId) return;
+  const list = document.getElementById('manageGroupMembersList');
+  const select = document.getElementById('manageGroupAddMemberSelect');
+  const badge = document.getElementById('manageGroupMembersBadge');
+
+  try {
+    const [groupRes, allUsersRes] = await Promise.all([
+      fetch(`/api/custom-groups/${activeCustomGroupId}`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } })
+    ]);
+
+    if (groupRes.ok && allUsersRes.ok) {
+      const gData = await groupRes.json();
+      activeCustomGroupData = gData.group;
+      const members = activeCustomGroupData.members || [];
+      const allUsers = (await allUsersRes.json()).users || [];
+
+      if (badge) badge.innerText = `${members.length} ئەندام`;
+
+      if (list) {
+        list.innerHTML = members.map(m => {
+          const isCreator = m.id === activeCustomGroupData.created_by_id || m.role === 'super_admin';
+          const roleHtml = typeof renderRoleBadge === 'function' ? renderRoleBadge(m.role, 'male') : '';
+          return `
+            <div class="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <div class="w-7 h-7 rounded-lg bg-indigo-600/30 text-indigo-300 flex items-center justify-center text-xs font-bold shrink-0">
+                  ${m.full_name.charAt(0)}
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-xs font-black text-white truncate">${escapeHtml(m.full_name)}</span>
+                    ${roleHtml}
+                  </div>
+                  <span class="text-[10px] text-slate-400 font-mono">@${escapeHtml(m.username)}</span>
+                </div>
+              </div>
+              <div>
+                ${!isCreator ? `
+                  <button type="button" onclick="removeMemberFromCustomGroup(${m.id})" class="px-2 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500 hover:text-white text-[10px] font-bold transition" title="لابردن لە گروپ">
+                    لابردن ✕
+                  </button>
+                ` : `<span class="text-[10px] text-amber-400 font-black px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30">سەرپەرشتیار</span>`}
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      if (select) {
+        const memberIds = new Set(members.map(m => m.id));
+        const nonMembers = allUsers.filter(u => !memberIds.has(u.id) && u.status === 'approved');
+        select.innerHTML = `<option value="">هەڵبژاردنی کەسێک...</option>` + nonMembers.map(u => `
+          <option value="${u.id}">${escapeHtml(u.full_name)} (@${escapeHtml(u.username)})</option>
+        `).join('');
+      }
+    }
+  } catch (err) {
+    console.error('Error refreshing manage group members:', err);
+  }
+}
+
+async function saveCustomGroupRenamed() {
+  if (!activeCustomGroupId) return;
+  const name = document.getElementById('manageGroupNameInput')?.value.trim();
+  if (!name) return alert('تکایە ناو بنووسە');
+
+  try {
+    const res = await fetch(`/api/custom-groups/${activeCustomGroupId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە گۆڕینی ناو');
+
+    document.getElementById('customGroupModalTitle').innerText = name;
+    await loadUserCustomGroups();
+    alert('ناوی گروپەکە گۆڕدرا ✅');
+  } catch (err) {
+    alert(err.message || 'هەڵە لە نوێکردنەوە');
+  }
+}
+
+async function addSelectedMemberToCustomGroup() {
+  if (!activeCustomGroupId) return;
+  const select = document.getElementById('manageGroupAddMemberSelect');
+  const userId = select ? select.value : null;
+  if (!userId) return alert('تکایە کەسێک هەڵبژێرە');
+
+  try {
+    const res = await fetch(`/api/custom-groups/${activeCustomGroupId}/members`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ userId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە زیادکردن');
+
+    await refreshManageGroupMembersUI();
+    await loadUserCustomGroups();
+  } catch (err) {
+    alert(err.message || 'هەڵە لە زیادکردنی ئەندام');
+  }
+}
+
+async function removeMemberFromCustomGroup(userId) {
+  if (!activeCustomGroupId) return;
+  if (!confirm('ئایا دڵنیایت لە دەرهێنانی ئەم ئەندامە لە گروپ؟')) return;
+
+  try {
+    const res = await fetch(`/api/custom-groups/${activeCustomGroupId}/members/${userId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە لابردن');
+
+    await refreshManageGroupMembersUI();
+    await loadUserCustomGroups();
+  } catch (err) {
+    alert(err.message || 'هەڵە لە لابردنی ئەندام');
+  }
+}
+
+async function confirmDeleteCustomGroup() {
+  if (!activeCustomGroupId) return;
+  if (!confirm('⚠️ ئایا تەواو دڵنیایت لە سڕینەوەی ئەم گروپ چاتە و هەموو پەیامەکانی؟')) return;
+
+  try {
+    const res = await fetch(`/api/custom-groups/${activeCustomGroupId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە سڕینەوە');
+
+    closeCustomGroupManageModal();
+    closeCustomGroupChatModal();
+    await loadUserCustomGroups();
+    alert('گروپ چاتەکە بە سەرکەوتوویی سڕایەوە ✅');
+  } catch (err) {
+    alert(err.message || 'هەڵە لە سڕینەوەی گروپ');
+  }
+}
+
+// 15. Socket event handlers
+function handleIncomingCustomGroupMessage(data) {
+  if (!data || !data.message) return;
+  const msg = data.message;
+  if (activeCustomGroupId === data.groupId) {
+    activeGroupMessages.push(msg);
+    const container = document.getElementById('customGroupMessagesContainer');
+    if (container) {
+      const isSuperAdmin = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'super_admin';
+      const div = document.createElement('div');
+      div.innerHTML = buildCustomGroupMessageHtml(msg, isSuperAdmin);
+      container.appendChild(div.firstElementChild);
+      scrollCustomGroupToBottom();
+    }
+    // Mark read
+    fetch(`/api/custom-groups/${data.groupId}/mark-read`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).catch(() => {});
+  } else {
+    const grp = userCustomGroupsCache.find(g => g.id === data.groupId);
+    if (grp) {
+      grp.unread_count = (grp.unread_count || 0) + 1;
+      renderCustomGroupsHeader();
+      renderDrawerCustomGroups();
+    } else {
+      loadUserCustomGroups();
+    }
+    if (typeof playSound === 'function') playSound('message');
+  }
+}
+
+function handleCustomGroupActivity(data) {
+  if (!data) return;
+  if (data.groupId !== activeCustomGroupId) {
+    const grp = userCustomGroupsCache.find(g => g.id === data.groupId);
+    if (grp) {
+      grp.unread_count = (grp.unread_count || 0) + 1;
+      renderCustomGroupsHeader();
+      renderDrawerCustomGroups();
+    } else {
+      loadUserCustomGroups();
+    }
+  }
+}
+
+function handleGroupAdvisorTyping(data) {
+  if (!data || data.groupId !== activeCustomGroupId) return;
+  const banner = document.getElementById('customGroupAdvisorTyping');
+  if (banner) {
+    if (data.isTyping) {
+      banner.classList.remove('hidden');
+      scrollCustomGroupToBottom();
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
+}
+
+function handleCustomGroupUserTyping(data) {
+  if (!data || data.groupId !== activeCustomGroupId) return;
+  const indicator = document.getElementById('customGroupUserTyping');
+  const textEl = document.getElementById('customGroupUserTypingText');
+  if (indicator && textEl) {
+    if (data.isTyping) {
+      textEl.innerText = `${data.userName} دەنووسێت...`;
+      indicator.classList.remove('hidden');
+    } else {
+      indicator.classList.add('hidden');
+    }
+  }
+}
+
+function handleGroupMessageDeleted(data) {
+  if (!data || data.groupId !== activeCustomGroupId) return;
+  const el = document.getElementById(`cg-msg-${data.messageId}`);
+  if (el) {
+    el.style.opacity = '0';
+    el.style.transform = 'scale(0.9)';
+    setTimeout(() => el.remove(), 250);
+  }
+}
+
+function updateCustomGroupMembersCount(members) {
+  if (Array.isArray(members)) {
+    const countEl = document.getElementById('customGroupMembersCountText');
+    if (countEl) countEl.innerText = `${members.length} ئەندام`;
+  }
+}

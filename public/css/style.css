@@ -1753,6 +1753,38 @@ body.sepia-theme .msg-faint-time {
   scrollbar-width: none;
 }
 
+/* ================= CUSTOM PRIVATE GROUP CHATS & RADIANT DOT ================= */
+@keyframes radiant-pulse {
+  0% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.8), 0 0 10px rgba(52, 211, 153, 0.9);
+  }
+  60% {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 9px rgba(52, 211, 153, 0), 0 0 18px rgba(52, 211, 153, 0.6);
+  }
+  100% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0), 0 0 10px rgba(52, 211, 153, 0.9);
+  }
+}
+
+.radiant-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  background-color: #34d399;
+  animation: radiant-pulse 1.8s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+.advisor-chat-card {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 27, 75, 0.95) 100%);
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  box-shadow: 0 4px 20px -2px rgba(99, 102, 241, 0.25);
+}
+
 
 
 

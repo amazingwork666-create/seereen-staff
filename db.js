@@ -315,6 +315,52 @@ function initDb() {
   try { db.exec("ALTER TABLE messages ADD COLUMN is_deleted INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN deleted_at INTEGER DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE library_books ADD COLUMN files TEXT DEFAULT '[]'"); } catch (e) {}
+  
+  // --- CUSTOM PRIVATE GROUP CHATS ---
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS custom_group_chats (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        created_by_id INTEGER NOT NULL,
+        created_by_name TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS custom_group_members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        added_at INTEGER NOT NULL,
+        last_read_at INTEGER DEFAULT 0,
+        UNIQUE(group_id, user_id),
+        FOREIGN KEY (group_id) REFERENCES custom_group_chats(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS custom_group_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id INTEGER NOT NULL,
+        sender_id INTEGER NOT NULL,
+        sender_name TEXT NOT NULL,
+        sender_role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'text',
+        attachment_url TEXT DEFAULT NULL,
+        attachment_name TEXT DEFAULT NULL,
+        attachment_size INTEGER DEFAULT 0,
+        is_advisor INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (group_id) REFERENCES custom_group_chats(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_cgm_group ON custom_group_messages(group_id, created_at ASC);
+      CREATE INDEX IF NOT EXISTS idx_cgmem_user ON custom_group_members(user_id);
+    `);
+  } catch (e) {
+    console.error('Error creating custom_group_chats tables:', e);
+  }
   try { db.exec("ALTER TABLE questions ADD COLUMN duration_minutes INTEGER DEFAULT 5"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN expires_at INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN is_revealed INTEGER DEFAULT 0"); } catch (e) {}
@@ -1995,6 +2041,151 @@ const buttonClicks = {
   }
 };
 
+const customGroups = {
+  createGroup(name, creatorId, creatorName, initialMemberIds = []) {
+    const now = Date.now();
+    const stmt = db.prepare('INSERT INTO custom_group_chats (name, created_by_id, created_by_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)');
+    const res = stmt.run(name.trim(), creatorId, creatorName, now, now);
+    const groupId = res.lastInsertRowid;
+
+    // Always add creator
+    const addMemberStmt = db.prepare('INSERT OR IGNORE INTO custom_group_members (group_id, user_id, added_at, last_read_at) VALUES (?, ?, ?, ?)');
+    addMemberStmt.run(groupId, creatorId, now, now);
+
+    // Add selected initial members
+    if (Array.isArray(initialMemberIds)) {
+      for (const uId of initialMemberIds) {
+        if (Number(uId) && Number(uId) !== Number(creatorId)) {
+          addMemberStmt.run(groupId, Number(uId), now, 0);
+        }
+      }
+    }
+    return this.getGroupById(groupId);
+  },
+
+  getGroupById(groupId) {
+    const row = db.prepare('SELECT * FROM custom_group_chats WHERE id = ?').get(groupId);
+    if (!row) return null;
+    return {
+      ...row,
+      members: this.getGroupMembers(groupId)
+    };
+  },
+
+  updateGroupName(groupId, newName) {
+    db.prepare('UPDATE custom_group_chats SET name = ?, updated_at = ? WHERE id = ?').run(newName.trim(), Date.now(), groupId);
+    return this.getGroupById(groupId);
+  },
+
+  deleteGroup(groupId) {
+    db.prepare('DELETE FROM custom_group_messages WHERE group_id = ?').run(groupId);
+    db.prepare('DELETE FROM custom_group_members WHERE group_id = ?').run(groupId);
+    return db.prepare('DELETE FROM custom_group_chats WHERE id = ?').run(groupId);
+  },
+
+  addMember(groupId, userId) {
+    const now = Date.now();
+    db.prepare('INSERT OR IGNORE INTO custom_group_members (group_id, user_id, added_at, last_read_at) VALUES (?, ?, ?, ?)').run(groupId, Number(userId), now, 0);
+    return this.getGroupMembers(groupId);
+  },
+
+  removeMember(groupId, userId) {
+    db.prepare('DELETE FROM custom_group_members WHERE group_id = ? AND user_id = ?').run(groupId, Number(userId));
+    return this.getGroupMembers(groupId);
+  },
+
+  getGroupMembers(groupId) {
+    const rows = db.prepare(`
+      SELECT u.id, u.username, u.full_name, u.role, u.special_badge, u.avatar_url, m.added_at, m.last_read_at
+      FROM custom_group_members m
+      JOIN users u ON m.user_id = u.id
+      WHERE m.group_id = ?
+      ORDER BY (CASE WHEN u.role = 'super_admin' THEN 0 WHEN u.role = 'admin' THEN 1 WHEN u.role = 'teacher' THEN 2 ELSE 3 END), u.full_name ASC
+    `).all(groupId);
+    return rows;
+  },
+
+  isMember(groupId, userId, isSuperAdmin = false) {
+    if (isSuperAdmin) return true;
+    const row = db.prepare('SELECT 1 FROM custom_group_members WHERE group_id = ? AND user_id = ?').get(groupId, userId);
+    return !!row;
+  },
+
+  getUserGroups(userId, isSuperAdmin = false) {
+    let rows = [];
+    if (isSuperAdmin) {
+      rows = db.prepare('SELECT * FROM custom_group_chats ORDER BY updated_at DESC, id DESC').all();
+    } else {
+      rows = db.prepare(`
+        SELECT g.* 
+        FROM custom_group_chats g
+        JOIN custom_group_members m ON g.id = m.group_id
+        WHERE m.user_id = ?
+        ORDER BY g.updated_at DESC, g.id DESC
+      `).all(userId);
+    }
+
+    return rows.map(g => {
+      const memberCount = db.prepare('SELECT COUNT(*) as c FROM custom_group_members WHERE group_id = ?').get(g.id)?.c || 0;
+      const memRow = db.prepare('SELECT last_read_at FROM custom_group_members WHERE group_id = ? AND user_id = ?').get(g.id, userId);
+      const lastRead = memRow ? (memRow.last_read_at || 0) : 0;
+      
+      const unreadRow = db.prepare(`
+        SELECT COUNT(*) as c FROM custom_group_messages 
+        WHERE group_id = ? AND created_at > ? AND sender_id != ?
+      `).get(g.id, lastRead, userId);
+      const unreadCount = unreadRow ? unreadRow.c : 0;
+
+      const lastMsg = db.prepare(`
+        SELECT sender_name, content, type, created_at, is_advisor 
+        FROM custom_group_messages 
+        WHERE group_id = ? 
+        ORDER BY id DESC LIMIT 1
+      `).get(g.id);
+
+      return {
+        ...g,
+        member_count: memberCount,
+        unread_count: unreadCount,
+        last_message: lastMsg || null
+      };
+    });
+  },
+
+  markGroupRead(groupId, userId) {
+    return db.prepare('UPDATE custom_group_members SET last_read_at = ? WHERE group_id = ? AND user_id = ?').run(Date.now(), groupId, userId);
+  },
+
+  createMessage(groupId, senderId, senderName, senderRole, content, type = 'text', attachmentUrl = null, attachmentName = null, attachmentSize = 0, isAdvisor = 0) {
+    const now = Date.now();
+    const stmt = db.prepare(`
+      INSERT INTO custom_group_messages (group_id, sender_id, sender_name, sender_role, content, type, attachment_url, attachment_name, attachment_size, is_advisor, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const res = stmt.run(groupId, senderId, senderName, senderRole, content, type, attachmentUrl, attachmentName, attachmentSize || 0, isAdvisor || 0, now);
+    db.prepare('UPDATE custom_group_chats SET updated_at = ? WHERE id = ?').run(now, groupId);
+    return this.getMessageById(res.lastInsertRowid);
+  },
+
+  getMessageById(messageId) {
+    return db.prepare('SELECT * FROM custom_group_messages WHERE id = ?').get(messageId);
+  },
+
+  getMessages(groupId, limit = 100) {
+    return db.prepare('SELECT * FROM custom_group_messages WHERE group_id = ? ORDER BY id ASC LIMIT ?').all(groupId, limit);
+  },
+
+  deleteMessage(messageId, requesterId, isSuperAdmin = false) {
+    const msg = this.getMessageById(messageId);
+    if (!msg) return null;
+    if (!isSuperAdmin && Number(msg.sender_id) !== Number(requesterId)) {
+      return { forbidden: true };
+    }
+    db.prepare('DELETE FROM custom_group_messages WHERE id = ?').run(messageId);
+    return { success: true, deletedMessage: msg };
+  }
+};
+
 module.exports = {
   db,
   initDb,
@@ -2016,5 +2207,6 @@ module.exports = {
   getDreamTeacherAlias,
   aiSecurity,
   advisorDb,
-  buttonClicks
+  buttonClicks,
+  customGroups
 };
