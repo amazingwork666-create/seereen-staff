@@ -1690,25 +1690,35 @@ const aiSecurity = {
       const total = db.prepare(`SELECT COUNT(*) as c FROM ai_security_incidents`).get().c || 0;
       const badWords = db.prepare(`SELECT COUNT(*) as c FROM ai_security_incidents WHERE incident_type = 'bad_word'`).get().c || 0;
       const nsfw = db.prepare(`SELECT COUNT(*) as c FROM ai_security_incidents WHERE incident_type = 'nsfw_image'`).get().c || 0;
-      const flood = db.prepare(`SELECT COUNT(*) as c FROM ai_security_incidents WHERE incident_type = 'flood_attack'`).get().c || 0;
+      const flood = db.prepare(`SELECT COUNT(*) as c FROM ai_security_incidents WHERE incident_type IN ('flood_attack', 'flood_raid')`).get().c || 0;
       const links = db.prepare(`SELECT COUNT(*) as c FROM ai_security_incidents WHERE incident_type = 'malicious_link'`).get().c || 0;
       const impersonation = db.prepare(`SELECT COUNT(*) as c FROM ai_security_incidents WHERE incident_type = 'impersonation'`).get().c || 0;
       const starFraud = db.prepare(`SELECT COUNT(*) as c FROM ai_security_incidents WHERE incident_type = 'star_fraud'`).get().c || 0;
       const harassment = db.prepare(`SELECT COUNT(*) as c FROM ai_security_incidents WHERE incident_type = 'harassment'`).get().c || 0;
 
+      const dynamicSafetyRating = total === 0 ? '100%' : `${Math.max(94.5, 100 - (total * 0.15)).toFixed(1)}%`;
+
       return {
         totalBlocked: total,
+        total_incidents: total,
         badWords,
+        bad_words: badWords,
         nsfw,
+        nsfw_images: nsfw,
         flood,
+        flood_raids: flood,
         links,
+        malicious_links: links,
         impersonation,
+        impersonations: impersonation,
         starFraud,
+        star_frauds: starFraud,
         harassment,
-        safetyRating: '99.8%'
+        harassments: harassment,
+        safetyRating: dynamicSafetyRating
       };
     } catch (e) {
-      return { totalBlocked: 0, badWords: 0, nsfw: 0, flood: 0, links: 0, impersonation: 0, starFraud: 0, harassment: 0, safetyRating: '100%' };
+      return { totalBlocked: 0, total_incidents: 0, badWords: 0, bad_words: 0, nsfw: 0, nsfw_images: 0, flood: 0, flood_raids: 0, links: 0, malicious_links: 0, impersonation: 0, starFraud: 0, star_frauds: 0, harassment: 0, harassments: 0, safetyRating: '100%' };
     }
   },
   clearOld(days = 30) {
@@ -1716,6 +1726,15 @@ const aiSecurity = {
       const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
       db.prepare(`DELETE FROM ai_security_incidents WHERE created_at < ?`).run(cutoff);
     } catch (e) {}
+  },
+  clearAll() {
+    try {
+      db.prepare(`DELETE FROM ai_security_incidents`).run();
+      return true;
+    } catch (e) {
+      console.error('Error clearing security incidents:', e);
+      return false;
+    }
   }
 };
 

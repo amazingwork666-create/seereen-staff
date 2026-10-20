@@ -3273,7 +3273,13 @@
               <i class="fa-solid fa-list-check text-rose-400"></i>
               <span>تۆماری ڕووداوە پارێزراوەکانی دوایی (Live Incident Feed)</span>
             </h5>
-            <span id="aiSecIncidentCountBadge" class="text-[10px] text-slate-400">0 ڕووداو</span>
+            <div class="flex items-center gap-2">
+              <span id="aiSecIncidentCountBadge" class="text-[10px] text-slate-400">0 ڕووداو</span>
+              <button onclick="clearAiSecurityIncidents()" class="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 text-[10px] transition border border-slate-700/60 flex items-center gap-1" title="سڕینەوەی هەموو تۆمارەکان">
+                <i class="fa-solid fa-trash-can text-[9px]"></i>
+                <span>پاککردنەوە</span>
+              </button>
+            </div>
           </div>
 
           <!-- Incidents Container -->
@@ -3627,6 +3633,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=20.8"></script>
+  <script src="/js/app.js?v=21.0"></script>
 </body>
 </html>

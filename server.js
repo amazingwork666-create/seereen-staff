@@ -1103,6 +1103,15 @@ app.post('/api/admin/security/log-incident', authMiddleware, (req, res) => {
   }
 });
 
+app.post('/api/admin/security/clear-incidents', authMiddleware, requireSuperAdminPrivileges, (req, res) => {
+  try {
+    aiSecurity.clearAll();
+    res.json({ success: true, message: 'تۆمارەکانی ئاسایش بە سەرکەوتوویی پاککرانەوە' });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە پاککردنەوەی تۆمارەکان' });
+  }
+});
+
 // --- AI ADVISOR & COMPANION FOR MASTER SUPER ADMIN (ڕاوێژکاری زیرەکی هێمن) ---
 
 // 1. Get Live Overview & Proactive Scanner Suggestions
@@ -5466,7 +5475,7 @@ io.on('connection', (socket) => {
       }
 
       // 1. Red Alert Lockdown Check
-      if (isRedAlertActive && !['super_admin', 'teacher'].includes(freshUser.role)) {
+      if (isRedAlertActive && !['super_admin', 'admin', 'teacher'].includes(freshUser.role) && !hasSuperAdminPrivileges(freshUser) && !canManageMembers(freshUser)) {
         socket.emit('error_message', '🚨 دۆخی نائاسایی (Red Alert Lockdown) کارایە! چات بە شێوەی پارێزراو تەنها بۆ ستاف کراوەیە.');
         return;
       }
@@ -5479,7 +5488,10 @@ io.on('connection', (socket) => {
         aiSecurity.logIncident('flood_attack', freshUser.id, freshUser.full_name, `هەوڵی هێرشی لافاوی پەیام (سڕکرا بۆ ${freezeSecs} چـ)`, 'high', 'auto_muted');
         io.emit('security_incident_alert', {
           type: 'flood_attack',
+          user_id: freshUser.id,
+          user_name: freshUser.full_name,
           userName: freshUser.full_name,
+          details: `هێرشی لافاوی پەیام لەلایەن ${freshUser.full_name} تێکشکێنرا و بۆ ${Math.ceil(freezeSecs/60)} خولەک بێدەنگ کرا`,
           message: `🚨 هێرشی لافاوی پەیام لەلایەن ${freshUser.full_name} تێکشکێنرا و بۆ ${Math.ceil(freezeSecs/60)} خولەک بێدەنگ کرا.`
         });
         socket.emit('error_message', `🛑 هۆشداری ئاسایش: بەهۆی ناردنی خێرای پەیام، هەژمارەکەت بۆ ${Math.ceil(freezeSecs/60)} خولەک سڕکرا!`);
@@ -5496,13 +5508,16 @@ io.on('connection', (socket) => {
       if (!content) return;
 
       // 3. Smart Kurdish NLP Guard & Malicious Link Shield (For non-staff)
-      if (!['super_admin', 'teacher'].includes(freshUser.role)) {
+      if (!['super_admin', 'admin', 'teacher'].includes(freshUser.role) && !hasSuperAdminPrivileges(freshUser) && !hasAnyAdminPrivileges(freshUser)) {
         const nlpResult = scanKurdishSmartText(content);
         if (nlpResult.isBlocked) {
           aiSecurity.logIncident('bad_word', freshUser.id, freshUser.full_name, `وشەی قەدەغەکراو: "${nlpResult.matched}" لە دەقی: "${content.substring(0, 60)}"`, 'high', 'blocked');
           io.emit('security_incident_alert', {
             type: 'bad_word',
+            user_id: freshUser.id,
+            user_name: freshUser.full_name,
             userName: freshUser.full_name,
+            details: `فلتەری دەق ڕێگری لە دەستەواژەی نەشیاو کرد: "${nlpResult.matched}"`,
             message: `🛑 فلتەری دەق ڕێگری لە دەستەواژەی نەشیاو کرد لەلایەن ${freshUser.full_name}.`
           });
           socket.emit('error_message', '⚠️ قەڵغانی زیرەک: پەیامەکەت دەستەواژەی نەشیاو یان قەدەغەکراوی تێدایە و ڕێگری لێکرا.');
@@ -5514,7 +5529,10 @@ io.on('connection', (socket) => {
           aiSecurity.logIncident('malicious_link', freshUser.id, freshUser.full_name, `لینکی گوماناوی/فیشینگ: "${content.substring(0, 80)}"`, 'critical', 'blocked');
           io.emit('security_incident_alert', {
             type: 'malicious_link',
+            user_id: freshUser.id,
+            user_name: freshUser.full_name,
             userName: freshUser.full_name,
+            details: `بەستەری زیانبەخش/ڕاوکردن بلۆککرا: "${content.substring(0, 60)}"`,
             message: `🚫 بەستەری زیانبەخش/ڕاوکردن بلۆککرا لەلایەن ${freshUser.full_name}.`
           });
           socket.emit('error_message', '❌ قەڵغانی ئاسایش: ئەم بەستەرە زیانبەخشە و ڕێگەپێنەدراوە!');

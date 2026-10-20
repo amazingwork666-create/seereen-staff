@@ -1984,15 +1984,15 @@ function initSocket() {
   });
 
   socket.on('red_alert_state_changed', (data) => {
-    isRedAlertActiveGlobal = !!(data && data.active);
-    updateRedAlertUIState(data);
+    isRedAlertActiveGlobal = !!(data && (data.active !== undefined ? data.active : data.is_active));
+    updateRedAlertUIState({ active: isRedAlertActiveGlobal });
     if (typeof loadAiSecurityStats === 'function') {
       loadAiSecurityStats();
     }
   });
 
   socket.on('security_incident_alert', (incident) => {
-    if (currentUser && currentUser.role === 'super_admin') {
+    if (currentUser && (hasSuperAdminPrivileges(currentUser) || currentUser.role === 'super_admin')) {
       showSecurityIncidentToast(incident);
       if (typeof loadAiSecurityStats === 'function') {
         loadAiSecurityStats();
@@ -13880,7 +13880,7 @@ function closeAiSecurityModal() {
 }
 
 async function loadAiSecurityStats() {
-  if (!currentUser || currentUser.role !== 'super_admin') return;
+  if (!currentUser || (!hasSuperAdminPrivileges(currentUser) && currentUser.role !== 'super_admin')) return;
   try {
     const res = await fetch('/api/admin/security/stats', {
       headers: { 'Authorization': `Bearer ${token}` }
@@ -13893,13 +13893,13 @@ async function loadAiSecurityStats() {
     updateRedAlertUIState({ active: isRedAlertActiveGlobal });
 
     const stats = data.stats || {};
-    const totalThreats = Number(stats.total_incidents || 0);
+    const totalThreats = Number(stats.total_incidents ?? stats.totalBlocked ?? 0);
 
-    const badWords = Number(stats.bad_words || 0);
-    const nsfw = Number(stats.nsfw_images || 0);
-    const floods = Number(stats.flood_raids || 0);
-    const links = Number(stats.malicious_links || 0);
-    const frauds = Number(stats.star_frauds || 0) + Number(stats.harassments || 0);
+    const badWords = Number(stats.bad_words ?? stats.badWords ?? 0);
+    const nsfw = Number(stats.nsfw_images ?? stats.nsfw ?? 0);
+    const floods = Number(stats.flood_raids ?? stats.flood ?? 0);
+    const links = Number(stats.malicious_links ?? stats.links ?? 0);
+    const frauds = Number(stats.star_frauds ?? stats.starFraud ?? 0) + Number(stats.harassments ?? stats.harassment ?? 0);
 
     const badWordEl = document.getElementById('aiSecBadWordVal');
     if (badWordEl) badWordEl.innerText = `${badWords} ڕەتکراوە`;
@@ -13917,7 +13917,7 @@ async function loadAiSecurityStats() {
     if (fraudEl) fraudEl.innerText = `${frauds} تۆمار`;
 
     // Dynamic safety rating
-    const safetyRate = totalThreats === 0 ? '100%' : `${Math.max(94.5, 100 - (totalThreats * 0.15)).toFixed(1)}%`;
+    const safetyRate = stats.safetyRating || (totalThreats === 0 ? '100%' : `${Math.max(94.5, 100 - (totalThreats * 0.15)).toFixed(1)}%`);
     const ratingEl = document.getElementById('aiSecRatingVal');
     if (ratingEl) ratingEl.innerText = safetyRate;
 
@@ -13940,6 +13940,7 @@ async function loadAiSecurityStats() {
             bad_word: { label: 'دەقی فێڵاوی (NLP)', color: 'bg-purple-900/50 text-purple-300 border-purple-500/40', icon: 'fa-spell-check' },
             nsfw_image: { label: 'وێنەی نەشیاو (NSFW)', color: 'bg-pink-900/50 text-pink-300 border-pink-500/40', icon: 'fa-eye-slash' },
             flood_raid: { label: 'هێرشی لافاو (Flood)', color: 'bg-amber-900/50 text-amber-300 border-amber-500/40', icon: 'fa-bolt' },
+            flood_attack: { label: 'هێرشی لافاو (Flood)', color: 'bg-amber-900/50 text-amber-300 border-amber-500/40', icon: 'fa-bolt' },
             malicious_link: { label: 'لینکی زیانبەخش', color: 'bg-cyan-900/50 text-cyan-300 border-cyan-500/40', icon: 'fa-link-slash' },
             star_fraud: { label: 'فێڵی ئەستێرە', color: 'bg-indigo-900/50 text-indigo-300 border-indigo-500/40', icon: 'fa-star' },
             harassment: { label: 'هەراسانکاری / ژمارە', color: 'bg-rose-900/50 text-rose-300 border-rose-500/40', icon: 'fa-phone-slash' },
@@ -13949,6 +13950,7 @@ async function loadAiSecurityStats() {
           const tInfo = typeMap[inc.incident_type] || { label: inc.incident_type, color: 'bg-slate-800 text-slate-300 border-slate-700', icon: 'fa-shield' };
           const actionMap = {
             blocked: 'بلۆککرا (Blocked)',
+            auto_muted: 'بێدەنگکراوە',
             auto_muted_60s: 'بێدەنگکرا بۆ ٦٠ چرکە',
             auto_muted_300s: 'بێدەنگکرا بۆ ٥ خولەک',
             red_alert_active: 'بارودۆخی نائاسایی کارابوو',
@@ -13984,7 +13986,7 @@ async function loadAiSecurityStats() {
 }
 
 async function toggleRedAlertLockdown() {
-  if (!currentUser || currentUser.role !== 'super_admin') return;
+  if (!currentUser || (!hasSuperAdminPrivileges(currentUser) && currentUser.role !== 'super_admin')) return;
   const newActive = !isRedAlertActiveGlobal;
   const confirmMsg = newActive 
     ? '🚨 ئایا دڵنیایت لە چالاککردنی قەڵغانی پۆڵایین (Red Alert Lockdown)؟\nچاتی گشتی دەستبەجێ قفڵ دەبێت و تەنها سوپەر ئەدمین و مامۆستایان دەتوانن بنووسن.'
@@ -14041,6 +14043,29 @@ function updateRedAlertUIState(data) {
   }
 }
 
+async function clearAiSecurityIncidents() {
+  if (!currentUser || (!hasSuperAdminPrivileges(currentUser) && currentUser.role !== 'super_admin')) return;
+  if (!confirm('ئایا دڵنیایت لە سڕینەوە و پاککردنەوەی هەموو تۆمارەکانی ئاسایش؟')) return;
+
+  try {
+    const res = await fetch('/api/admin/security/clear-incidents', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    const data = await res.json();
+    if (data.success) {
+      loadAiSecurityStats();
+    } else {
+      alert(data.error || 'نەتوانرا تۆمارەکان پاکبکرێتەوە');
+    }
+  } catch (err) {
+    alert('هەڵەی پەیوەندی بە سێرڤەرەوە');
+  }
+}
+
 function showSecurityIncidentToast(incident) {
   if (!incident) return;
   const toast = document.createElement('div');
@@ -14051,7 +14076,7 @@ function showSecurityIncidentToast(incident) {
     </div>
     <div class="min-w-0 flex-1">
       <p class="font-black text-rose-200">ئاگاداری پاسەوانی AI 🛡️</p>
-      <p class="text-[11px] text-slate-200 truncate">${escapeHtml(incident.details || incident.user_name || 'هەڕەشەیەک ڕەتکرایەوە')}</p>
+      <p class="text-[11px] text-slate-200 truncate">${escapeHtml(incident.details || incident.message || incident.user_name || incident.userName || 'هەڕەشەیەک ڕەتکرایەوە')}</p>
     </div>
     <button onclick="this.parentElement.remove(); openAiSecurityModal();" class="px-2 py-1 bg-rose-800 hover:bg-rose-700 text-[10px] font-bold rounded-lg shrink-0">بینین</button>
   `;
