@@ -1722,7 +1722,7 @@ html[data-font-size="xxl"] {
   }
 }
 
-/* ================= DETAILED MESSAGE TIME & DATE INTERACTIVE BADGE ================= */
+/* ================= FAINT MESSAGE TIME & DATE BADGE (REVEALED ON TAP) ================= */
 .msg-faint-time {
   transition: all 0.2s ease;
   user-select: none;
@@ -1731,55 +1731,11 @@ html[data-font-size="xxl"] {
   opacity: 1 !important;
   text-shadow: 0 0 6px rgba(165, 180, 252, 0.4);
 }
-.msg-detailed-time-banner {
-  animation: detailedTimeSlideDown 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-@keyframes detailedTimeSlideDown {
-  0% {
-    opacity: 0;
-    transform: translateY(-6px) scale(0.97);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-body.light-theme .msg-detailed-time-banner {
-  background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1) !important;
-}
-body.light-theme .msg-detailed-time-banner span {
-  color: #1e293b !important;
-}
 body.light-theme .msg-faint-time {
   color: #64748b !important;
 }
-body.sepia-theme .msg-detailed-time-banner {
-  background-color: #fffaf0 !important;
-  border-color: #d8c7ad !important;
-  color: #24170c !important;
-}
-body.sepia-theme .msg-detailed-time-banner span {
-  color: #24170c !important;
-}
 body.sepia-theme .msg-faint-time {
   color: #78624f !important;
-}
-body.oled-theme .msg-detailed-time-banner {
-  background-color: #000000 !important;
-  border-color: rgba(255, 255, 255, 0.2) !important;
-}
-body.matte-theme .msg-detailed-time-banner {
-  background-color: #18181b !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
-}
-body.emerald-theme .msg-detailed-time-banner {
-  background-color: #05221b !important;
-  border-color: rgba(52, 211, 153, 0.3) !important;
 }
 
 
