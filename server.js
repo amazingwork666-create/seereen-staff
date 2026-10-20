@@ -536,9 +536,9 @@ function requireMasterSuperAdmin(req, res, next) {
   next();
 }
 
-// AI Advisor Access Middleware (Master Super Admin, role super_admin, or White Badge)
+// AI Advisor Access Middleware (Master Super Admin, role super_admin, Black Badge, or White Badge)
 function requireAiAdvisorAccess(req, res, next) {
-  if (!isMasterSuperAdmin(req.user) && req.user?.role !== 'super_admin' && req.user?.special_badge !== 'white') {
+  if (!isMasterSuperAdmin(req.user) && req.user?.role !== 'super_admin' && req.user?.special_badge !== 'white' && !hasSuperAdminPrivileges(req.user)) {
     return res.status(403).json({ error: 'تەنها سوپەر ئەدمین یان هەڵگری باجی سپی مۆڵەتی بەکارهێنانی ڕاوێژکاری زیرەکیان هەیە' });
   }
   next();
@@ -570,7 +570,7 @@ function requireSuperAdmin(req, res, next) {
 
 // Admin / Super Admin / Teacher Middleware
 function requireAdmin(req, res, next) {
-  if (req.user.role !== 'admin' && req.user.role !== 'super_admin' && req.user.role !== 'teacher') {
+  if (req.user.role !== 'admin' && req.user.role !== 'super_admin' && req.user.role !== 'teacher' && !hasSuperAdminPrivileges(req.user)) {
     return res.status(403).json({ error: 'تەنها ئەدمین و مامۆستا دەسەڵاتی ئەم کارەیان هەیە' });
   }
   next();
@@ -578,7 +578,7 @@ function requireAdmin(req, res, next) {
 
 // Super Admin or Teacher Middleware (Strictly excludes normal admin and student)
 function requireTeacherOrSuperAdmin(req, res, next) {
-  if (req.user.role !== 'super_admin' && req.user.role !== 'teacher') {
+  if (req.user.role !== 'super_admin' && req.user.role !== 'teacher' && !hasSuperAdminPrivileges(req.user)) {
     return res.status(403).json({ error: 'تەنها سوپەر ئەدمین و مامۆستا دەسەڵاتی ئەم کارەیان هەیە' });
   }
   next();
@@ -946,8 +946,8 @@ app.post('/api/admin/reject', authMiddleware, requireMemberManager, (req, res) =
   res.json({ success: true, message: 'داواکاری بەکارهێنەر ڕەتکرایەوە' });
 });
 
-// 6b. Get pending password reset requests (Super Admin only)
-app.get('/api/admin/password-resets', authMiddleware, requireSuperAdmin, (req, res) => {
+// 6b. Get pending password reset requests (Super Admin or Green Badge)
+app.get('/api/admin/password-resets', authMiddleware, requireMemberManager, (req, res) => {
   try {
     const list = passwordResets.getPending();
     res.json({ requests: list });
@@ -956,8 +956,8 @@ app.get('/api/admin/password-resets', authMiddleware, requireSuperAdmin, (req, r
   }
 });
 
-// 6c. Approve password reset request (Super Admin only)
-app.post('/api/admin/password-resets/:id/approve', authMiddleware, requireSuperAdmin, (req, res) => {
+// 6c. Approve password reset request (Super Admin or Green Badge)
+app.post('/api/admin/password-resets/:id/approve', authMiddleware, requireMemberManager, (req, res) => {
   try {
     const requestId = parseInt(req.params.id, 10);
     const approvedReq = passwordResets.approve(requestId);
@@ -977,8 +977,8 @@ app.post('/api/admin/password-resets/:id/approve', authMiddleware, requireSuperA
   }
 });
 
-// 6d. Reject password reset request (Super Admin only)
-app.post('/api/admin/password-resets/:id/reject', authMiddleware, requireSuperAdmin, (req, res) => {
+// 6d. Reject password reset request (Super Admin or Green Badge)
+app.post('/api/admin/password-resets/:id/reject', authMiddleware, requireMemberManager, (req, res) => {
   try {
     const requestId = parseInt(req.params.id, 10);
     passwordResets.reject(requestId);
@@ -2955,11 +2955,11 @@ app.get('/api/advisor/gemini-status', authMiddleware, requireAiAdvisorAccess, (r
   }
 });
 
-// 7. Get all users / members list (Super Admin, Teacher, and Admin ONLY)
+// 7. Get all users / members list (Super Admin, Teacher, Admin, Black Badge, or Green Badge)
 app.get('/api/admin/users', authMiddleware, (req, res) => {
-  const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher' || req.user.role === 'admin';
+  const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher' || req.user.role === 'admin' || canManageMembers(req.user) || hasSuperAdminPrivileges(req.user);
   if (!isStaff) {
-    return res.status(403).json({ error: 'قوتابیان ناتوانن لیستی ئەندامان ببینن' });
+    return res.status(403).json({ error: 'دەسەڵاتی بینینی لیستی ئەندامانت نییە' });
   }
   const all = users.getAllUsers().map(u => ({
     ...u,
@@ -3303,10 +3303,10 @@ app.post('/api/chat/upload-image', authMiddleware, requireAdmin, upload.single('
 app.post('/api/chat/upload-voice', authMiddleware, requireAdmin, upload.single('voice'), (req, res) => {
   try {
     const activeLockMode = settings.get('chat_lock_mode', 'none');
-    if (activeLockMode === 'total_lock' && req.user.role !== 'super_admin') {
+    if (activeLockMode === 'total_lock' && !hasSuperAdminPrivileges(req.user)) {
       return res.status(403).json({ error: '🔒 چات داخراوە' });
     }
-    if (activeLockMode === 'staff_only' && !['super_admin', 'admin', 'teacher'].includes(req.user.role)) {
+    if (activeLockMode === 'staff_only' && !['super_admin', 'admin', 'teacher'].includes(req.user.role) && !hasSuperAdminPrivileges(req.user) && !canManageMembers(req.user)) {
       return res.status(403).json({ error: '🔒 چات داخراوە' });
     }
     if (!req.file) return res.status(400).json({ error: 'هیچ دەنگێک نەدۆزرایەوە' });
@@ -5465,18 +5465,18 @@ io.on('connection', (socket) => {
 
       // --- CHAT LOCK PERMISSION ENFORCEMENT ---
       const activeLockMode = settings.get('chat_lock_mode', 'none');
-      if (activeLockMode === 'total_lock' && freshUser.role !== 'super_admin') {
+      if (activeLockMode === 'total_lock' && !hasSuperAdminPrivileges(freshUser)) {
         socket.emit('error_message', '🔒 چات داخراوە.');
         return;
       }
-      if (activeLockMode === 'staff_only' && !['super_admin', 'admin', 'teacher'].includes(freshUser.role)) {
+      if (activeLockMode === 'staff_only' && !['super_admin', 'admin', 'teacher'].includes(freshUser.role) && !hasSuperAdminPrivileges(freshUser) && !canManageMembers(freshUser)) {
         socket.emit('error_message', '🔒 چات داخراوە.');
         return;
       }
 
-      // Night Curfew (12:00 AM - 08:00 AM Iraq Time): Only Super Admin, Admin, and Teacher can send messages
+      // Night Curfew (12:00 AM - 08:00 AM Iraq Time): Only Super Admin, Admin, Teacher, Black Badge, or Green Badge
       const curfewExemptRoles = ['super_admin', 'admin', 'teacher'];
-      if (isNightCurfewActive() && !curfewExemptRoles.includes(freshUser.role)) {
+      if (isNightCurfewActive() && !curfewExemptRoles.includes(freshUser.role) && !hasSuperAdminPrivileges(freshUser) && !canManageMembers(freshUser)) {
         socket.emit('error_message', '🌙 چات داخراوە! لە کاتژمێر ١٢ی شەو تاوەکو ٨ی بەیانی تەنها ئەدمین، مامۆستا و سوپەر ئەدمین دەتوانن پەیام بنێرن.');
         return;
       }

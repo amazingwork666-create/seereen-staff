@@ -450,8 +450,10 @@ function showMainApp() {
   updatePrivateUnreadBadge();
   initQuranSurahsList();
 
-  if (currentUser && currentUser.role === 'super_admin') {
+  if (currentUser && (currentUser.role === 'super_admin' || hasSuperAdminPrivileges(currentUser) || canUserManageMembers(currentUser))) {
     checkPendingCount();
+  }
+  if (currentUser && (currentUser.role === 'super_admin' || hasSuperAdminPrivileges(currentUser) || canUserManageDreams(currentUser))) {
     fetchDreamAvailability();
   }
 }
@@ -763,7 +765,16 @@ function updateUserUI() {
 
   const isSuperAdmin = currentUser.role === 'super_admin';
   const isTeacher = currentUser.role === 'teacher';
-  const isAdmin = currentUser.role === 'admin' || isSuperAdmin || isTeacher;
+  const hasBlackBadge = hasSuperAdminPrivileges(currentUser);
+  const canManageMbrs = canUserManageMembers(currentUser); // Green Badge, Black Badge, or Super Admin
+  const canLive = canUserManageLive(currentUser); // Green, Red, Black, Super Admin
+  const canDream = canUserManageDreams(currentUser); // Purple, Super Admin, Teacher
+  const canMod = canUserModerateChat(currentUser); // Blue, Green, Black, Super Admin, Teacher, Admin
+  const hasAdvisorAccess = isMasterSuperAdmin(currentUser) || hasBlackBadge || (currentUser && currentUser.special_badge === 'white');
+
+  const isAdmin = currentUser.role === 'admin' || isSuperAdmin || isTeacher || hasBlackBadge;
+  const canViewMembers = isAdmin || canManageMbrs;
+  const canAccessSystemPanel = isSuperAdmin || hasBlackBadge || canManageMbrs;
 
   const adminPanelBtn = document.getElementById('adminPanelNavBtn');
   const postQuestionNavBtn = document.getElementById('postQuestionNavBtn');
@@ -781,28 +792,58 @@ function updateUserUI() {
   const drawerPostQuestionBtn = document.getElementById('drawerPostQuestionBtn');
   const drawerUnansweredBtn = document.getElementById('drawerUnansweredBtn');
   const drawerAdminPanelBtn = document.getElementById('drawerAdminPanelBtn');
+  const drawerAiAdvisorBtn = document.getElementById('drawerAiAdvisorBtn');
   const drawerAiSecurityBtn = document.getElementById('drawerAiSecurityBtn');
   const drawerDreamAdminBtn = document.getElementById('drawerDreamAdminBtn');
   const drawerMembersBtn = document.getElementById('drawerMembersBtn');
   const drawerLibraryBtn = document.getElementById('drawerLibraryBtn');
 
-  const canDream = canUserManageDreams(currentUser);
   if (drawerStaffSection) {
-    if (isAdmin || canDream) {
+    if (isAdmin || canDream || canManageMbrs || canLive || canMod || hasAdvisorAccess) {
       drawerStaffSection.classList.remove('hidden');
     } else {
       drawerStaffSection.classList.add('hidden');
     }
   }
 
-  if (isSuperAdmin) {
+  // System & Member Management Panel Button (Super Admin, Black Badge, Green Badge)
+  if (canAccessSystemPanel) {
     if (adminPanelBtn) adminPanelBtn.classList.remove('hidden');
-    if (drawerAdminPanelBtn) drawerAdminPanelBtn.classList.remove('hidden');
-    if (drawerAiSecurityBtn) drawerAiSecurityBtn.classList.remove('hidden');
+    if (drawerAdminPanelBtn) {
+      drawerAdminPanelBtn.classList.remove('hidden');
+      drawerAdminPanelBtn.classList.add('flex');
+    }
+    checkPendingCount();
   } else {
     if (adminPanelBtn) adminPanelBtn.classList.add('hidden');
-    if (drawerAdminPanelBtn) drawerAdminPanelBtn.classList.add('hidden');
-    if (drawerAiSecurityBtn) drawerAiSecurityBtn.classList.add('hidden');
+    if (drawerAdminPanelBtn) {
+      drawerAdminPanelBtn.classList.add('hidden');
+      drawerAdminPanelBtn.classList.remove('flex');
+    }
+  }
+
+  // AI Security Operations Center (Super Admin or Black Badge)
+  if (isSuperAdmin || hasBlackBadge) {
+    if (drawerAiSecurityBtn) {
+      drawerAiSecurityBtn.classList.remove('hidden');
+      drawerAiSecurityBtn.classList.add('flex');
+    }
+  } else {
+    if (drawerAiSecurityBtn) {
+      drawerAiSecurityBtn.classList.add('hidden');
+      drawerAiSecurityBtn.classList.remove('flex');
+    }
+  }
+
+  // AI Proactive Advisor Button in Drawer (Master Super Admin, Super Admin, Black Badge, or White Badge)
+  if (drawerAiAdvisorBtn) {
+    if (hasAdvisorAccess) {
+      drawerAiAdvisorBtn.classList.remove('hidden');
+      drawerAiAdvisorBtn.classList.add('flex');
+    } else {
+      drawerAiAdvisorBtn.classList.add('hidden');
+      drawerAiAdvisorBtn.classList.remove('flex');
+    }
   }
 
   const dreamAdminNavBtn = document.getElementById('dreamAdminNavBtn');
@@ -821,16 +862,8 @@ function updateUserUI() {
     }
   }
 
-  if (isAdmin) {
-    if (postQuestionNavBtn) postQuestionNavBtn.classList.remove('hidden');
-    if (drawerPostQuestionBtn) drawerPostQuestionBtn.classList.remove('hidden');
-    if (unansweredStatsNavBtn) unansweredStatsNavBtn.classList.remove('hidden');
-    if (drawerUnansweredBtn) drawerUnansweredBtn.classList.remove('hidden');
-    if (adminMediaTools) {
-      adminMediaTools.classList.remove('hidden');
-      adminMediaTools.classList.add('flex');
-    }
-    if (libraryUploadSection) libraryUploadSection.classList.remove('hidden');
+  // Member Management & Members List visibility (Admin, Super Admin, Teacher, Black Badge, Green Badge)
+  if (canViewMembers) {
     if (drawerMembersBtn) {
       drawerMembersBtn.classList.remove('hidden');
       drawerMembersBtn.classList.add('flex');
@@ -847,15 +880,6 @@ function updateUserUI() {
     }
     loadAllMembers();
   } else {
-    if (postQuestionNavBtn) postQuestionNavBtn.classList.add('hidden');
-    if (drawerPostQuestionBtn) drawerPostQuestionBtn.classList.add('hidden');
-    if (unansweredStatsNavBtn) unansweredStatsNavBtn.classList.add('hidden');
-    if (drawerUnansweredBtn) drawerUnansweredBtn.classList.add('hidden');
-    if (adminMediaTools) {
-      adminMediaTools.classList.add('hidden');
-      adminMediaTools.classList.remove('flex');
-    }
-    if (libraryUploadSection) libraryUploadSection.classList.add('hidden');
     if (drawerMembersBtn) {
       drawerMembersBtn.classList.add('hidden');
       drawerMembersBtn.classList.remove('flex');
@@ -868,6 +892,29 @@ function updateUserUI() {
     }
     const membersBackdrop = document.getElementById('membersBackdrop');
     if (membersBackdrop) membersBackdrop.classList.add('hidden');
+  }
+
+  // Questions and Admin Media Tools (Admin, Super Admin, Teacher, or Black Badge)
+  if (isAdmin) {
+    if (postQuestionNavBtn) postQuestionNavBtn.classList.remove('hidden');
+    if (drawerPostQuestionBtn) drawerPostQuestionBtn.classList.remove('hidden');
+    if (unansweredStatsNavBtn) unansweredStatsNavBtn.classList.remove('hidden');
+    if (drawerUnansweredBtn) drawerUnansweredBtn.classList.remove('hidden');
+    if (adminMediaTools) {
+      adminMediaTools.classList.remove('hidden');
+      adminMediaTools.classList.add('flex');
+    }
+    if (libraryUploadSection) libraryUploadSection.classList.remove('hidden');
+  } else {
+    if (postQuestionNavBtn) postQuestionNavBtn.classList.add('hidden');
+    if (drawerPostQuestionBtn) drawerPostQuestionBtn.classList.add('hidden');
+    if (unansweredStatsNavBtn) unansweredStatsNavBtn.classList.add('hidden');
+    if (drawerUnansweredBtn) drawerUnansweredBtn.classList.add('hidden');
+    if (adminMediaTools) {
+      adminMediaTools.classList.add('hidden');
+      adminMediaTools.classList.remove('flex');
+    }
+    if (libraryUploadSection) libraryUploadSection.classList.add('hidden');
   }
 
   // Dream Submission Button: Hidden for staff (Admin, Teacher, Super Admin)
@@ -900,7 +947,6 @@ function updateUserUI() {
   const liveRecordBtn = document.getElementById('liveRecordBtn');
 
   // Start/End Lesson & Screen share: Super Admin or Special Badge holders (strictly hidden from normal teachers/admins/students)
-  const canLive = canUserManageLive(currentUser);
   if (canLive) {
     if (liveStartEndBtn) {
       liveStartEndBtn.classList.remove('hidden');
@@ -1663,7 +1709,7 @@ function initSocket() {
   socket.on('user_special_badge_updated', (data) => {
     if (currentUser && currentUser.id === data.user_id) {
       currentUser.special_badge = data.special_badge;
-      setupUIForRole();
+      updateUserUI();
     }
     if (Array.isArray(allMembersCache)) {
       const u = allMembersCache.find(m => Number(m.id) === Number(data.user_id));
@@ -1672,13 +1718,20 @@ function initSocket() {
         renderMembersList();
       }
     }
+    if (Array.isArray(allUsersAdminCache)) {
+      const u = allUsersAdminCache.find(m => Number(m.id) === Number(data.user_id));
+      if (u) {
+        u.special_badge = data.special_badge;
+        renderAllUsersList();
+      }
+    }
     if (typeof currentProfileUserId !== 'undefined' && currentProfileUserId === data.user_id) {
       openUserProfileModal(data.user_id);
     }
   });
 
   socket.on('new_profile_change_request', () => {
-    if (currentUser && currentUser.role === 'super_admin') {
+    if (currentUser && (currentUser.role === 'super_admin' || hasSuperAdminPrivileges(currentUser) || canUserManageMembers(currentUser))) {
       loadPendingProfileChangesCount();
     }
   });
@@ -1767,22 +1820,22 @@ function initSocket() {
   });
 
   socket.on('new_pending_user', () => {
-    if (currentUser && currentUser.role === 'super_admin') {
+    if (currentUser && (currentUser.role === 'super_admin' || hasSuperAdminPrivileges(currentUser) || canUserManageMembers(currentUser))) {
       checkPendingCount();
     }
   });
 
   socket.on('new_dream_session', () => {
-    if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+    if (canUserManageDreams(currentUser)) {
       loadDreamSessionsCount();
       playSound('message');
       if (typeof loadDreamAdminSessions === 'function') loadDreamAdminSessions();
     }
   });
 
-  // Receive live dream messages for Super Admin & Teacher
+  // Receive live dream messages for Super Admin, Teacher, and Purple Badge
   socket.on('dream_new_message', (msg) => {
-    if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+    if (canUserManageDreams(currentUser)) {
       if (typeof activeDreamAdminSessionId !== 'undefined' && activeDreamAdminSessionId && (msg.session_id == activeDreamAdminSessionId || msg.sessionId == activeDreamAdminSessionId)) {
         appendDreamMessage(msg, true);
         scrollDreamMessagesToBottom(true);
@@ -1791,7 +1844,7 @@ function initSocket() {
   });
 
   socket.on('dream_admin_new_message', (data) => {
-    if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+    if (canUserManageDreams(currentUser)) {
       const msg = data.message || data;
       const sessId = data.sessionId || (msg && msg.session_id);
       if (typeof activeDreamAdminSessionId !== 'undefined' && activeDreamAdminSessionId && activeDreamAdminSessionId == sessId) {
@@ -3178,8 +3231,9 @@ function updateChatLockUI(data) {
   const adminActions = document.getElementById('chatLockAdminActions');
   const input = document.getElementById('messageInput');
   const sendBtn = document.getElementById('sendBtn');
-  const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
-  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.role === 'teacher');
+  const isSuperAdmin = hasSuperAdminPrivileges(currentUser);
+  const canLock = canUserLockChat(currentUser);
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.role === 'teacher' || hasSuperAdminPrivileges(currentUser) || canUserManageMembers(currentUser));
 
   if (!banner || !msgEl) return;
 
@@ -3219,11 +3273,11 @@ function updateChatLockUI(data) {
     banner.classList.add('bg-amber-950/80', 'border-amber-500/50', 'text-amber-200');
     if (icon) icon.innerText = '🛡️';
     msgEl.innerText = isStaff
-      ? 'ℹ️ چات تەنها بۆ مامۆستا و ئەدمین کراوەیە.'
+      ? 'ℹ️ چات تەنها بۆ مامۆستا، ئەدمین و بەڕێوەبەری ئەندامان کراوەیە.'
       : '🔒 چات داخراوە.';
 
     if (adminActions) {
-      if (isSuperAdmin) {
+      if (isSuperAdmin || canLock) {
         adminActions.classList.remove('hidden');
         adminActions.classList.add('flex');
       } else {
@@ -5434,8 +5488,10 @@ function renderMembersList() {
   const countBadge = document.getElementById('membersSidebarCount');
   container.innerHTML = '';
 
-  const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
-  const isPrivileged = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  const isSuperAdmin = currentUser && (currentUser.role === 'super_admin' || hasSuperAdminPrivileges(currentUser));
+  const canManageMbrs = canUserManageMembers(currentUser);
+  const canMod = canUserModerateChat(currentUser);
+  const isPrivileged = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.role === 'teacher' || canManageMbrs || canMod);
 
   let filtered = allMembersCache.filter(u => u.status === 'approved');
   if (memberFilter === 'student') filtered = filtered.filter(u => u.role === 'student');
@@ -5468,8 +5524,8 @@ function renderMembersList() {
     const isMuted = u.muted_until && u.muted_until > Date.now();
 
     let actionBtn = '';
-    if (isSuperAdmin && !isMe) {
-      if (u.role === 'student') {
+    if ((isSuperAdmin || canManageMbrs) && !isMe && !isMasterSuperAdmin(u)) {
+      if (u.role === 'student' || u.role === 'new_student') {
         actionBtn = `
           <button onclick="changeRole(${u.id}, 'admin')" class="px-2 py-1 bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white rounded-lg text-[10px] font-bold transition flex items-center gap-1 shrink-0" title="بەرزکردنەوە بۆ ئەدمین">
             <i class="fa-solid fa-arrow-up text-[9px]"></i> ئەدمین
@@ -5684,8 +5740,8 @@ async function openUserProfileModal(userId) {
 
     const profAdvisorBtn = document.getElementById('profAdvisorBtn');
     if (profAdvisorBtn) {
-      // Allowed if it's my profile AND (I am master super admin OR I have white badge)
-      const hasAdvisorAccess = isMe && (isMasterSuperAdmin(currentUser) || (currentUser && currentUser.special_badge === 'white'));
+      // Allowed if it's my profile AND (I am master super admin OR have super admin privileges OR I have white badge)
+      const hasAdvisorAccess = isMe && (isMasterSuperAdmin(currentUser) || hasSuperAdminPrivileges(currentUser) || (currentUser && currentUser.special_badge === 'white'));
       if (hasAdvisorAccess) {
         profAdvisorBtn.classList.remove('hidden');
         profAdvisorBtn.classList.add('inline-flex');
@@ -6148,9 +6204,26 @@ function openAdminModal() {
   if (mobileNavBadge) mobileNavBadge.classList.add('hidden');
   if (drawerPendingBadge) drawerPendingBadge.classList.add('hidden');
 
+  const titleEl = document.getElementById('adminModalTitle');
+  if (titleEl) {
+    titleEl.innerText = hasSuperAdminPrivileges(currentUser) ? 'بەشی بەڕێوەبردن (Super Admin)' : 'بەشی بەڕێوەبردنی ئەندامان و سیستم';
+  }
+
+  const isSuper = hasSuperAdminPrivileges(currentUser);
+  const tabBackups = document.getElementById('adminTabBackups');
+  const tabAiSecurity = document.getElementById('adminTabAiSecurity');
+  if (tabBackups) {
+    if (isSuper) tabBackups.classList.remove('hidden');
+    else tabBackups.classList.add('hidden');
+  }
+  if (tabAiSecurity) {
+    if (isSuper) tabAiSecurity.classList.remove('hidden');
+    else tabAiSecurity.classList.add('hidden');
+  }
+
   document.getElementById('adminModal').classList.remove('hidden');
   loadPendingProfileChangesCount();
-  switchAdminSubTab(currentAdminSubTab);
+  switchAdminSubTab(currentAdminSubTab || 'pending');
 }
 
 function closeAdminModal() {
@@ -13747,9 +13820,9 @@ let advisorTelemetryCache = null;
 let isAdvisorTyping = false;
 
 function openAiAdvisorModal() {
-  const hasAccess = isMasterSuperAdmin(currentUser) || (currentUser && currentUser.special_badge === 'white');
+  const hasAccess = isMasterSuperAdmin(currentUser) || hasSuperAdminPrivileges(currentUser) || (currentUser && currentUser.special_badge === 'white');
   if (!hasAccess) {
-    alert('ئەم بەشە تەنها بۆ کاک هێمن یان هەڵگرانی باجی سپی ڕێگەپێدراوە.');
+    alert('ئەم بەشە تەنها بۆ کاک هێمن، سوپەر ئەدمین یان هەڵگرانی باجی سپی ڕێگەپێدراوە.');
     return;
   }
   const modal = document.getElementById('aiAdvisorModal');

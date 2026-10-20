@@ -686,6 +686,15 @@
               <span id="drawerDreamUnreadBadge" class="hidden px-1.5 py-0.5 bg-purple-500 text-white text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
             </button>
 
+            <!-- AI Proactive Advisor & Companion (Super Admin, Black Badge, or White Badge) -->
+            <button id="drawerAiAdvisorBtn" onclick="closeMainMenuDrawer(); openAiAdvisorModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/40 text-purple-200 hover:text-white transition shadow-sm">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-wand-magic-sparkles text-purple-300 text-sm w-5 text-center"></i>
+                <span class="font-bold">ڕاوێژکاری زیرەکی ستاف (AI)</span>
+              </span>
+              <span class="px-2 py-0.5 bg-purple-500/80 text-white text-[10px] font-black rounded-full">زیرەک</span>
+            </button>
+
             <!-- System Admin Panel -->
             <button id="drawerAdminPanelBtn" onclick="closeMainMenuDrawer(); openAdminModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-indigo-900/30 hover:bg-indigo-900/50 border border-indigo-500/30 text-indigo-200 hover:text-white transition">
               <span class="flex items-center gap-2.5">
@@ -1597,7 +1606,7 @@
             <i class="fa-solid fa-shield-halved"></i>
           </div>
           <div>
-            <h3 class="font-black text-sm sm:text-base md:text-lg text-white">بەشی بەڕێوەبردن (Super Admin)</h3>
+            <h3 id="adminModalTitle" class="font-black text-sm sm:text-base md:text-lg text-white">بەشی بەڕێوەبردن (Super Admin)</h3>
             <p class="text-[11px] sm:text-xs text-slate-400">پەسەندکردنی خۆتۆمارکردنەکان و بەڕێوەبردنی بەکارهێنەران</p>
           </div>
         </div>
@@ -3595,6 +3604,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=20.6"></script>
+  <script src="/js/app.js?v=20.7"></script>
 </body>
 </html>
