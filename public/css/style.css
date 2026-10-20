@@ -1738,6 +1738,21 @@ body.sepia-theme .msg-faint-time {
   color: #78624f !important;
 }
 
+/* ================= LIBRARY COMPACT BOOKSHELF STYLES ================= */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 
 
 

@@ -7910,33 +7910,133 @@ function renderThemeCards() {
   }).join('');
 }
 
-// ================= LIBRARY (BOOKSHELF) LOGIC =================
+// ================= LIBRARY (BOOKSHELF & MULTI-PDF COLLECTIONS) LOGIC =================
 let allLibraryBooksCache = [];
+let currentLibraryView = 'grid'; // 'grid' | 'author'
+let currentLibraryCategory = 'all';
+let currentViewingBookId = null;
 
 function openLibraryModal() {
-  document.getElementById('libraryModal').classList.remove('hidden');
+  const modal = document.getElementById('libraryModal');
+  if (modal) modal.classList.remove('hidden');
+
+  // Show upload button for staff
+  const uploadBtn = document.getElementById('libOpenUploadBtn');
+  if (uploadBtn) {
+    const isStaff = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+    uploadBtn.classList.toggle('hidden', !isStaff);
+  }
+
   loadLibraryBooks();
 }
 
 function closeLibraryModal() {
-  document.getElementById('libraryModal').classList.add('hidden');
+  const modal = document.getElementById('libraryModal');
+  if (modal) modal.classList.add('hidden');
 }
 
 function toggleLibraryUploadForm() {
-  const form = document.getElementById('libraryUploadForm');
-  const icon = document.getElementById('uploadAccordionIcon');
-  if (form.classList.contains('hidden')) {
-    form.classList.remove('hidden');
-    if (icon) icon.className = 'fa-solid fa-chevron-up text-xs text-slate-400 transition-transform duration-200';
+  const sec = document.getElementById('libraryUploadSection');
+  if (!sec) return;
+  sec.classList.toggle('hidden');
+  if (!sec.classList.contains('hidden')) {
+    const titleInput = document.getElementById('libBookTitle');
+    if (titleInput) titleInput.focus();
+  }
+}
+
+function handleLibFilesSelect(input) {
+  const countEl = document.getElementById('libSelectedFilesCount');
+  const previewEl = document.getElementById('libSelectedFilesPreview');
+  if (!input || !input.files || input.files.length === 0) {
+    if (countEl) countEl.innerText = 'هیچ دیاری نەکراوە';
+    if (previewEl) {
+      previewEl.classList.add('hidden');
+      previewEl.innerHTML = '';
+    }
+    return;
+  }
+
+  const files = Array.from(input.files);
+  if (countEl) {
+    countEl.innerText = `(${files.length}) فایل هەڵبژێردراوە 📚`;
+  }
+
+  if (previewEl) {
+    previewEl.classList.remove('hidden');
+    previewEl.innerHTML = files.map((f, idx) => `
+      <div class="flex items-center justify-between text-[11px] p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+        <span class="truncate flex items-center gap-1.5">
+          <i class="fa-solid fa-file-pdf text-rose-400 text-xs"></i>
+          <span class="font-bold text-white">${idx + 1}.</span>
+          <span class="truncate">${escapeHtml(f.name)}</span>
+        </span>
+        <span class="text-teal-400 font-mono text-[10px] shrink-0">${formatFileSize(f.size)}</span>
+      </div>
+    `).join('');
+  }
+}
+
+function switchLibraryView(view) {
+  currentLibraryView = view;
+  const gridBtn = document.getElementById('libViewGridBtn');
+  const authorBtn = document.getElementById('libViewAuthorBtn');
+
+  if (view === 'grid') {
+    if (gridBtn) {
+      gridBtn.className = 'px-2 py-1 rounded-lg bg-teal-600 text-white font-bold transition flex items-center gap-1';
+    }
+    if (authorBtn) {
+      authorBtn.className = 'px-2 py-1 rounded-lg text-slate-400 hover:text-white font-bold transition flex items-center gap-1';
+    }
   } else {
-    form.classList.add('hidden');
-    if (icon) icon.className = 'fa-solid fa-chevron-down text-xs text-slate-400 transition-transform duration-200';
+    if (gridBtn) {
+      gridBtn.className = 'px-2 py-1 rounded-lg text-slate-400 hover:text-white font-bold transition flex items-center gap-1';
+    }
+    if (authorBtn) {
+      authorBtn.className = 'px-2 py-1 rounded-lg bg-teal-600 text-white font-bold transition flex items-center gap-1';
+    }
+  }
+
+  filterLibraryBooks();
+}
+
+function setLibraryCategoryFilter(cat) {
+  currentLibraryCategory = cat;
+
+  // Update chip styles
+  const chips = document.querySelectorAll('.lib-cat-chip');
+  chips.forEach(chip => {
+    const chipCat = chip.getAttribute('data-category');
+    if (chipCat === cat) {
+      chip.className = 'lib-cat-chip px-2.5 py-1 rounded-full text-[11px] font-bold bg-teal-600 text-white transition shrink-0 active:scale-95 shadow-sm';
+    } else {
+      chip.className = 'lib-cat-chip px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition shrink-0 border border-slate-700/60 active:scale-95';
+    }
+  });
+
+  filterLibraryBooks();
+}
+
+function clearLibrarySearch() {
+  const inp = document.getElementById('librarySearchInput');
+  if (inp) {
+    inp.value = '';
+    filterLibraryBooks();
+    inp.focus();
   }
 }
 
 async function loadLibraryBooks() {
   const container = document.getElementById('libraryBooksList');
-  container.innerHTML = `<div class="text-center py-12 text-slate-500"><i class="fa-solid fa-circle-notch fa-spin text-xl text-teal-500 mb-2"></i><p class="text-xs">بارکردنی کتێبخانە...</p></div>`;
+  if (container) {
+    container.innerHTML = `
+      <div class="text-center py-12 text-slate-500">
+        <i class="fa-solid fa-circle-notch fa-spin text-xl text-teal-500 mb-2"></i>
+        <p class="text-xs">بارکردنی کتێبخانە...</p>
+      </div>
+    `;
+  }
 
   try {
     const res = await fetch('/api/library/books', {
@@ -7944,32 +8044,45 @@ async function loadLibraryBooks() {
     });
     if (!res.ok) {
       if (res.status === 403) {
-        container.innerHTML = `<div class="text-center py-8 text-rose-400 font-bold text-xs">تۆ وەک میوان (چاودێر) ناتوانیت سەردانی کتێبخانە بکەیت 👁️</div>`;
+        if (container) container.innerHTML = `<div class="text-center py-8 text-rose-400 font-bold text-xs">تۆ وەک میوان ناتوانیت سەردانی کتێبخانە بکەیت 👁️</div>`;
         return;
       }
-      container.innerHTML = `<div class="text-center py-8 text-red-400 text-xs">هەڵەیەک ڕوویدا</div>`;
+      if (container) container.innerHTML = `<div class="text-center py-8 text-red-400 text-xs">هەڵەیەک ڕوویدا لە بارکردنی کتێبەکان</div>`;
       return;
     }
     const data = await res.json();
     allLibraryBooksCache = data.books || [];
-    renderLibraryBooks(allLibraryBooksCache);
+    filterLibraryBooks();
   } catch (err) {
-    container.innerHTML = `<div class="text-center py-8 text-red-400 text-xs">پەیوەندی لەگەڵ سێرڤەر ناتەواوە</div>`;
+    if (container) container.innerHTML = `<div class="text-center py-8 text-red-400 text-xs">پەیوەندی لەگەڵ سێرڤەر ناتەواوە</div>`;
   }
 }
 
 function filterLibraryBooks() {
-  const q = (document.getElementById('librarySearchInput').value || '').trim().toLowerCase();
-  if (!q) {
-    renderLibraryBooks(allLibraryBooksCache);
-    return;
+  const qInput = document.getElementById('librarySearchInput');
+  const q = (qInput ? qInput.value : '').trim().toLowerCase();
+  const clearBtn = document.getElementById('libClearSearchBtn');
+  if (clearBtn) clearBtn.classList.toggle('hidden', !q);
+
+  let filtered = allLibraryBooksCache;
+
+  // Category filter
+  if (currentLibraryCategory && currentLibraryCategory !== 'all') {
+    filtered = filtered.filter(b => b.category === currentLibraryCategory);
   }
-  const filtered = allLibraryBooksCache.filter(b => 
-    (b.title && b.title.toLowerCase().includes(q)) ||
-    (b.author && b.author.toLowerCase().includes(q)) ||
-    (b.category && b.category.toLowerCase().includes(q)) ||
-    (b.description && b.description.toLowerCase().includes(q))
-  );
+
+  // Text search
+  if (q) {
+    filtered = filtered.filter(b => {
+      const matchTitle = b.title && b.title.toLowerCase().includes(q);
+      const matchAuthor = b.author && b.author.toLowerCase().includes(q);
+      const matchDesc = b.description && b.description.toLowerCase().includes(q);
+      const matchCat = b.category && b.category.toLowerCase().includes(q);
+      const matchFiles = Array.isArray(b.files) && b.files.some(f => f.file_name && f.file_name.toLowerCase().includes(q));
+      return matchTitle || matchAuthor || matchDesc || matchCat || matchFiles;
+    });
+  }
+
   renderLibraryBooks(filtered);
 }
 
@@ -7983,14 +8096,29 @@ function formatFileSize(bytes) {
 
 function renderLibraryBooks(books) {
   const container = document.getElementById('libraryBooksList');
+  if (!container) return;
   container.innerHTML = '';
 
+  // Update Header Stats
+  const totalBooksCount = allLibraryBooksCache.length;
+  let totalFilesCount = 0;
+  allLibraryBooksCache.forEach(b => {
+    totalFilesCount += (Array.isArray(b.files) && b.files.length > 0) ? b.files.length : 1;
+  });
+  const statsBadge = document.getElementById('libStatsBadge');
+  if (statsBadge) {
+    statsBadge.innerText = `${totalBooksCount} ناونیشان • ${totalFilesCount} فایل`;
+  }
+
   if (!books || books.length === 0) {
+    container.className = 'w-full py-12';
     container.innerHTML = `
-      <div class="text-center py-12 text-slate-500">
-        <i class="fa-solid fa-book text-4xl mb-3 text-slate-600"></i>
-        <p class="font-bold text-sm">هیچ کتێب یان سەرچاوەیەک نەدۆزرایەوە</p>
-        <p class="text-xs text-slate-600 mt-1">ئەدمین و مامۆستایان دەتوانن کتێبی نوێ دابنێن</p>
+      <div class="text-center text-slate-500">
+        <div class="w-16 h-16 rounded-3xl bg-slate-800/80 border border-slate-700/60 mx-auto flex items-center justify-center text-2xl text-slate-400 mb-3 shadow-inner">
+          <i class="fa-solid fa-book"></i>
+        </div>
+        <p class="font-bold text-sm text-slate-300">هیچ کتێب یان سەرچاوەیەک نەدۆزرایەوە</p>
+        <p class="text-xs text-slate-500 mt-1">مامۆستایان و ئەدمین دەتوانن لە دوگمەی سەرەوە کتێب دابنێن</p>
       </div>
     `;
     return;
@@ -7998,89 +8126,374 @@ function renderLibraryBooks(books) {
 
   const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
 
-  books.forEach(book => {
-    const card = document.createElement('div');
-    card.className = 'p-4 rounded-2xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/70 transition flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md';
+  // VIEW 1: DENSE RESPONSIVE GRID (DEFAULT - MAXIMUM BOOKS VISIBLE WITHOUT SCROLLING)
+  if (currentLibraryView === 'grid') {
+    container.className = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3.5 pb-2';
 
-    const isPdf = book.file_type && book.file_type.includes('pdf');
-    const isDoc = book.file_type && (book.file_type.includes('word') || (book.file_name && (book.file_name.endsWith('.doc') || book.file_name.endsWith('.docx'))));
-    const isZip = book.file_type && (book.file_type.includes('zip') || (book.file_name && (book.file_name.endsWith('.zip') || book.file_name.endsWith('.rar'))));
+    books.forEach(book => {
+      const files = Array.isArray(book.files) && book.files.length > 0 ? book.files : [{
+        file_name: book.file_name || 'فایلی سەرەکی',
+        file_url: book.file_url,
+        file_size: book.file_size || 0,
+        file_type: book.file_type || 'pdf'
+      }];
+      const fileCount = files.length;
+      const totalSize = files.reduce((acc, f) => acc + (f.file_size || 0), 0);
 
-    let fileIconClass = 'fa-solid fa-file-lines text-slate-400';
-    let iconBgClass = 'bg-slate-700/50 text-slate-300';
-    if (isPdf) {
-      fileIconClass = 'fa-solid fa-file-pdf text-red-400';
-      iconBgClass = 'bg-red-500/15 text-red-400 border border-red-500/30';
-    } else if (isDoc) {
-      fileIconClass = 'fa-solid fa-file-word text-blue-400';
-      iconBgClass = 'bg-blue-500/15 text-blue-400 border border-blue-500/30';
-    } else if (isZip) {
-      fileIconClass = 'fa-solid fa-file-zipper text-amber-400';
-      iconBgClass = 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
-    }
+      const card = document.createElement('div');
+      card.className = 'group relative rounded-2xl bg-gradient-to-b from-slate-800/90 to-slate-900 border border-slate-700/70 hover:border-teal-500/50 transition-all duration-200 flex flex-col justify-between p-2.5 sm:p-3 shadow-md hover:shadow-xl hover:shadow-teal-950/20 overflow-hidden cursor-pointer';
+      card.onclick = (e) => {
+        if (e.target.closest('a') || e.target.closest('button')) return;
+        openBookVolumesModal(book.id);
+      };
 
-    const dateStr = new Date(book.created_at).toLocaleDateString('ku-IQ');
+      const hasMultiple = fileCount > 1;
+      const badgeHtml = hasMultiple
+        ? `<span class="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] sm:text-[10px] font-black flex items-center gap-1 shadow-sm">
+             <i class="fa-solid fa-layer-group text-[8px]"></i>
+             <span>${fileCount} بەرگ</span>
+           </span>`
+        : `<span class="px-1.5 py-0.5 rounded-md bg-slate-800/80 text-slate-400 text-[9px] sm:text-[10px] font-mono">
+             ١ فایل
+           </span>`;
 
-    card.innerHTML = `
-      <div class="flex items-start gap-3 flex-1">
-        <div class="w-12 h-12 rounded-2xl ${iconBgClass} flex items-center justify-center text-2xl shrink-0 shadow">
-          <i class="${fileIconClass}"></i>
-        </div>
-        <div class="flex-1">
-          <div class="flex items-center gap-2 flex-wrap mb-1">
-            <h4 class="font-black text-sm md:text-base text-white">${escapeHtml(book.title)}</h4>
-            <span class="px-2 py-0.5 rounded-md bg-teal-500/20 text-teal-300 border border-teal-500/30 text-[10px] font-bold">
+      card.innerHTML = `
+        <!-- Top Spine Accent & Category -->
+        <div>
+          <div class="flex items-center justify-between gap-1 mb-2">
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold truncate max-w-[85px]">
               ${escapeHtml(book.category || 'گشتی')}
             </span>
+            ${badgeHtml}
           </div>
 
-          ${book.author ? `<p class="text-xs text-amber-300/90 font-medium mb-1"><i class="fa-solid fa-pen-nib ml-1 text-[10px]"></i>نووسەر: <b>${escapeHtml(book.author)}</b></p>` : ''}
-          ${book.description ? `<p class="text-xs text-slate-300 leading-relaxed mb-2">${escapeHtml(book.description)}</p>` : ''}
+          <!-- 3D Book Cover Graphic -->
+          <div class="h-24 sm:h-28 rounded-xl bg-gradient-to-tr from-teal-950 via-slate-800 to-emerald-950/40 border border-slate-700/60 flex flex-col items-center justify-center p-2 text-center relative overflow-hidden group-hover:scale-[1.02] transition-transform">
+            <div class="absolute inset-y-0 right-0 w-1.5 bg-gradient-to-l from-black/40 to-transparent"></div>
+            <i class="fa-solid ${hasMultiple ? 'fa-book-journal-whills text-emerald-400' : 'fa-file-pdf text-rose-400'} text-2xl sm:text-3xl mb-1 drop-shadow"></i>
+            <span class="text-[9px] text-slate-400 font-mono">${formatFileSize(totalSize)}</span>
+          </div>
 
-          <div class="flex items-center gap-3 text-[11px] text-slate-400 font-mono flex-wrap">
-            <span><i class="fa-solid fa-hard-drive ml-1"></i>${formatFileSize(book.file_size)}</span>
-            <span>•</span>
-            <span><i class="fa-solid fa-user-check ml-1"></i>لەلایەن: ${escapeHtml(book.uploader_name)}</span>
-            <span>•</span>
-            <span><i class="fa-regular fa-clock ml-1"></i>${dateStr}</span>
+          <!-- Title & Author (Owner) -->
+          <div class="mt-2 min-w-0">
+            <h4 class="font-black text-xs sm:text-sm text-white line-clamp-2 leading-tight group-hover:text-teal-300 transition" title="${escapeHtml(book.title)}">
+              ${escapeHtml(book.title)}
+            </h4>
+            <p class="text-[10px] text-amber-300/90 font-medium truncate mt-1 flex items-center gap-1" title="${escapeHtml(book.author || 'خاوەن کتێبی گشتی')}">
+              <i class="fa-solid fa-feather-pointed text-[9px] text-amber-400 shrink-0"></i>
+              <span class="truncate">${escapeHtml(book.author || 'خاوەن کتێبی گشتی')}</span>
+            </p>
           </div>
         </div>
-      </div>
 
-      <div class="flex items-center gap-2 self-end md:self-center shrink-0">
-        <a 
-          href="${book.file_url}" 
-          target="_blank" 
-          download="${escapeHtml(book.file_name)}"
-          class="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 active:scale-95"
-          title="داگرتن و خوێندنەوەی ئەم کتێبە"
-        >
-          <i class="fa-solid fa-download"></i>
-          <span>داگرتن 📥</span>
-        </a>
-
-        ${isAdmin ? `
+        <!-- Bottom Action Pill -->
+        <div class="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between gap-1 shrink-0">
           <button 
-            onclick="deleteLibraryBook(${book.id})" 
-            class="p-2 text-rose-400 hover:text-white hover:bg-rose-600/30 rounded-xl transition text-xs border border-rose-500/30"
-            title="سڕینەوەی ئەم کتێبە لە کتێبخانە"
+            type="button" 
+            onclick="openBookVolumesModal(${book.id})" 
+            class="flex-1 py-1.5 px-2 rounded-xl bg-teal-600/20 hover:bg-teal-600 text-teal-200 hover:text-white font-bold text-[10px] sm:text-xs transition flex items-center justify-center gap-1 active:scale-95 border border-teal-500/30"
           >
-            <i class="fa-solid fa-trash-can"></i>
+            <i class="fa-solid fa-book-open text-[10px]"></i>
+            <span>${hasMultiple ? 'بینینی بەرگەکان' : 'خوێندنەوە'}</span>
           </button>
-        ` : ''}
-      </div>
-    `;
 
-    container.appendChild(card);
-  });
+          ${!hasMultiple ? `
+            <a 
+              href="${files[0].file_url}" 
+              target="_blank" 
+              download="${escapeHtml(files[0].file_name)}" 
+              onclick="event.stopPropagation()" 
+              class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-teal-600 text-slate-300 hover:text-white flex items-center justify-center text-xs transition border border-slate-700 shrink-0" 
+              title="داگرتنی فایل"
+            >
+              <i class="fa-solid fa-download text-[10px]"></i>
+            </a>
+          ` : ''}
+
+          ${isAdmin ? `
+            <button 
+              type="button" 
+              onclick="deleteLibraryBook(${book.id}); event.stopPropagation();" 
+              class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-200 flex items-center justify-center text-xs transition border border-slate-700 shrink-0" 
+              title="سڕینەوەی ئەم کتێبە"
+            >
+              <i class="fa-solid fa-trash-can text-[10px]"></i>
+            </button>
+          ` : ''}
+        </div>
+      `;
+
+      container.appendChild(card);
+    });
+    return;
+  }
+
+  // VIEW 2: GROUPED BY AUTHOR / BOOK OWNER
+  if (currentLibraryView === 'author') {
+    container.className = 'space-y-3.5 pb-2';
+
+    // Group books by author
+    const authorMap = new Map();
+    books.forEach(book => {
+      const authorKey = (book.author && book.author.trim()) ? book.author.trim() : 'خاوەن کتێبی گشتی / نەزانراو';
+      if (!authorMap.has(authorKey)) {
+        authorMap.set(authorKey, []);
+      }
+      authorMap.get(authorKey).push(book);
+    });
+
+    authorMap.forEach((authorBooks, authorName) => {
+      let totalPdfsInAuthor = 0;
+      authorBooks.forEach(b => {
+        totalPdfsInAuthor += (Array.isArray(b.files) && b.files.length > 0) ? b.files.length : 1;
+      });
+
+      const section = document.createElement('div');
+      section.className = 'rounded-2xl bg-slate-900/90 border border-slate-800 p-3 sm:p-4 space-y-2.5 shadow-md';
+
+      let booksHtml = authorBooks.map(book => {
+        const files = Array.isArray(book.files) && book.files.length > 0 ? book.files : [{
+          file_name: book.file_name || 'فایلی سەرەکی',
+          file_url: book.file_url,
+          file_size: book.file_size || 0,
+          file_type: book.file_type || 'pdf'
+        }];
+        const fileCount = files.length;
+        return `
+          <div onclick="openBookVolumesModal(${book.id})" class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition flex items-center justify-between gap-2 cursor-pointer group">
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+              <div class="w-8 h-8 rounded-lg bg-teal-600/20 text-teal-400 flex items-center justify-center text-sm shrink-0">
+                <i class="fa-solid ${fileCount > 1 ? 'fa-book-journal-whills text-emerald-400' : 'fa-file-pdf text-rose-400'}"></i>
+              </div>
+              <div class="min-w-0 flex-1">
+                <h5 class="text-xs font-black text-white truncate group-hover:text-teal-300 transition">${escapeHtml(book.title)}</h5>
+                <div class="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                  <span class="text-teal-300">${escapeHtml(book.category || 'گشتی')}</span>
+                  <span>•</span>
+                  <span class="font-bold ${fileCount > 1 ? 'text-emerald-300' : 'text-slate-400'}">${fileCount} فایل / بەرگ</span>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="px-2.5 py-1 rounded-lg bg-teal-600 text-white text-[10px] font-bold shrink-0">
+              کردنەوە
+            </button>
+          </div>
+        `;
+      }).join('');
+
+      section.innerHTML = `
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-user-pen"></i>
+            </div>
+            <div>
+              <h4 class="font-black text-xs sm:text-sm text-white">${escapeHtml(authorName)}</h4>
+              <p class="text-[10px] text-slate-400">${authorBooks.length} کتێب • ${totalPdfsInAuthor} بەرگی PDF</p>
+            </div>
+          </div>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/15 text-teal-300 border border-teal-500/30 font-bold">
+            ${authorBooks.length} ناونیشان
+          </span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+          ${booksHtml}
+        </div>
+      `;
+
+      container.appendChild(section);
+    });
+  }
+}
+
+function openBookVolumesModal(bookId) {
+  const book = allLibraryBooksCache.find(b => b.id === bookId);
+  if (!book) return;
+
+  currentViewingBookId = bookId;
+  const modal = document.getElementById('libraryVolumesModal');
+  if (!modal) return;
+
+  // Title & Author
+  const titleEl = document.getElementById('libVolModalTitle');
+  if (titleEl) titleEl.innerText = book.title;
+
+  const authorEl = document.getElementById('libVolModalAuthor');
+  if (authorEl) {
+    authorEl.innerText = `خاوەن کتێب: ${book.author || 'گشتی'} • پۆلێن: ${book.category || 'گشتی'}`;
+  }
+
+  // Description
+  const descWrap = document.getElementById('libVolModalDescWrap');
+  if (descWrap) {
+    if (book.description && book.description.trim()) {
+      descWrap.classList.remove('hidden');
+      descWrap.innerText = book.description;
+    } else {
+      descWrap.classList.add('hidden');
+    }
+  }
+
+  // Files List
+  const listEl = document.getElementById('libVolModalList');
+  const files = Array.isArray(book.files) && book.files.length > 0 ? book.files : [{
+    file_name: book.file_name || 'فایلی سەرەکی',
+    file_url: book.file_url,
+    file_size: book.file_size || 0,
+    file_type: book.file_type || 'pdf'
+  }];
+
+  const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+
+  if (listEl) {
+    listEl.innerHTML = files.map((f, idx) => {
+      const isPdf = f.file_type && f.file_type.includes('pdf');
+      const icon = isPdf ? 'fa-file-pdf text-rose-400' : 'fa-file-lines text-teal-400';
+
+      return `
+        <div class="p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-2 text-xs hover:border-teal-500/40 transition">
+          <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            <div class="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
+              <i class="fa-solid ${icon} text-sm"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="font-bold text-white text-xs truncate max-w-full">${escapeHtml(f.file_name)}</span>
+              </div>
+              <div class="flex items-center gap-2 text-[10px] text-slate-400 font-mono mt-0.5">
+                <span class="text-amber-400 font-bold">بەرگی ${idx + 1}</span>
+                <span>•</span>
+                <span>${formatFileSize(f.file_size)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1.5 shrink-0">
+            <a 
+              href="${f.file_url}" 
+              target="_blank" 
+              class="px-2.5 py-1.5 rounded-xl bg-teal-600/30 hover:bg-teal-600 text-teal-200 hover:text-white font-bold text-xs transition flex items-center gap-1"
+              title="خوێندنەوەی ڕاستەوخۆ"
+            >
+              <i class="fa-solid fa-eye text-xs"></i>
+              <span>خوێندنەوە</span>
+            </a>
+            <a 
+              href="${f.file_url}" 
+              target="_blank" 
+              download="${escapeHtml(f.file_name)}"
+              class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs transition border border-slate-700"
+              title="داگرتن"
+            >
+              <i class="fa-solid fa-download"></i>
+            </a>
+
+            ${isAdmin && files.length > 1 ? `
+              <button 
+                type="button" 
+                onclick="deleteLibraryVolumeFile(${book.id}, ${idx})" 
+                class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-200 flex items-center justify-center text-xs transition border border-slate-700" 
+                title="سڕینەوەی ئەم بەرگە بە تەنیا"
+              >
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Admin Section in Modal
+  const adminSec = document.getElementById('libVolModalAdminSection');
+  if (adminSec) {
+    adminSec.classList.toggle('hidden', !isAdmin);
+  }
+  const deleteBookBtn = document.getElementById('libVolDeleteBookBtn');
+  if (deleteBookBtn) {
+    deleteBookBtn.onclick = () => {
+      closeLibraryVolumesModal();
+      deleteLibraryBook(book.id);
+    };
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function closeLibraryVolumesModal() {
+  const modal = document.getElementById('libraryVolumesModal');
+  if (modal) modal.classList.add('hidden');
+  currentViewingBookId = null;
+}
+
+async function handleAppendFilesToCurrentBook() {
+  if (!currentViewingBookId) return;
+  const input = document.getElementById('libVolAppendFileInput');
+  if (!input || !input.files || input.files.length === 0) {
+    alert('تکایە لانیکەم فایلێک هەڵبژێرە بۆ زیادکردن');
+    return;
+  }
+
+  const btn = document.getElementById('libVolAppendSubmitBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> بارکردن...`;
+  }
+
+  const formData = new FormData();
+  for (let i = 0; i < input.files.length; i++) {
+    formData.append('files', input.files[i]);
+  }
+
+  try {
+    const res = await fetch(`/api/library/books/${currentViewingBookId}/add-files`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
+    });
+    const data = await res.json();
+    if (res.ok) {
+      input.value = '';
+      await loadLibraryBooks();
+      openBookVolumesModal(currentViewingBookId);
+      if (typeof triggerStarCelebration === 'function') triggerStarCelebration();
+    } else {
+      alert(data.error || 'هەڵەیەک ڕوویدا');
+    }
+  } catch (e) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-plus"></i> <span>زیادکردن</span>`;
+    }
+  }
+}
+
+async function deleteLibraryVolumeFile(bookId, fileIndex) {
+  if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم بەرگە؟')) return;
+  try {
+    const res = await fetch(`/api/library/books/${bookId}/files/${fileIndex}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (res.ok) {
+      await loadLibraryBooks();
+      openBookVolumesModal(bookId);
+    } else {
+      alert(data.error || 'هەڵە لە سڕینەوە');
+    }
+  } catch (e) {
+    alert('پەیوەندی ناتەواوە');
+  }
 }
 
 async function handleUploadLibraryBook(e) {
   e.preventDefault();
   const fileInput = document.getElementById('libBookFile');
-  const file = fileInput.files[0];
-  if (!file) {
-    alert('تکایە فایلی کتێب یان پەڕاوەکە هەڵبژێرە');
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+    alert('تکایە فایلی کتێب یان پێدی ئێفەکان هەڵبژێرە');
     return;
   }
 
@@ -8090,11 +8503,17 @@ async function handleUploadLibraryBook(e) {
   const description = document.getElementById('libBookDescription').value.trim();
   const btn = document.getElementById('libUploadSubmitBtn');
 
-  btn.disabled = true;
-  btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> بارکردن...`;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> بارکردن...`;
+  }
 
   const formData = new FormData();
-  formData.append('file', file);
+  for (let i = 0; i < fileInput.files.length; i++) {
+    formData.append('files', fileInput.files[i]);
+  }
+  // Also append first file for single-file handlers
+  formData.append('file', fileInput.files[0]);
   formData.append('title', title);
   formData.append('author', author);
   formData.append('category', category);
@@ -8109,22 +8528,25 @@ async function handleUploadLibraryBook(e) {
     const data = await res.json();
     if (res.ok) {
       document.getElementById('libraryUploadForm').reset();
+      handleLibFilesSelect(null);
       toggleLibraryUploadForm();
-      loadLibraryBooks();
-      triggerStarCelebration();
+      await loadLibraryBooks();
+      if (typeof triggerStarCelebration === 'function') triggerStarCelebration();
     } else {
       alert(data.error || 'هەڵەیەک ڕوویدا لە بارکردن');
     }
   } catch (err) {
     alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> <span>بارکردن بۆ کتێبخانە</span>`;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> <span>بارکردنی کتێب و بەرگەکان</span>`;
+    }
   }
 }
 
 async function deleteLibraryBook(bookId) {
-  if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم کتێبە لە کتێبخانە؟')) return;
+  if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم کتێبە و هەموو بەرگەکانی لە کتێبخانە؟')) return;
   try {
     const res = await fetch(`/api/library/books/${bookId}`, {
       method: 'DELETE',

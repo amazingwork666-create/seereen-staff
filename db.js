@@ -314,6 +314,7 @@ function initDb() {
   try { db.exec("ALTER TABLE messages ADD COLUMN attachment_url TEXT DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN is_deleted INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN deleted_at INTEGER DEFAULT NULL"); } catch (e) {}
+  try { db.exec("ALTER TABLE library_books ADD COLUMN files TEXT DEFAULT '[]'"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN duration_minutes INTEGER DEFAULT 5"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN expires_at INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN is_revealed INTEGER DEFAULT 0"); } catch (e) {}
@@ -1141,44 +1142,114 @@ const questions = {
   }
 };
 
-// Library helper methods (Books, PDFs, Files)
+function parseBookFiles(book) {
+  if (!book) return null;
+  let files = [];
+  try {
+    if (book.files && typeof book.files === 'string') {
+      files = JSON.parse(book.files);
+    } else if (Array.isArray(book.files)) {
+      files = book.files;
+    }
+  } catch (e) {
+    files = [];
+  }
+  if (!Array.isArray(files) || files.length === 0) {
+    if (book.file_url) {
+      files = [{
+        file_name: book.file_name || 'فایلی سەرەکی',
+        file_url: book.file_url,
+        file_size: book.file_size || 0,
+        file_type: book.file_type || 'pdf'
+      }];
+    }
+  }
+  return {
+    ...book,
+    files
+  };
+}
+
+// Library helper methods (Books, PDFs, Multi-File Collections)
 const library = {
-  create(title, author, description, category, fileUrl, fileName, fileSize, fileType, uploaderId, uploaderName) {
+  create(title, author, description, category, fileUrl, fileName, fileSize, fileType, uploaderId, uploaderName, files = []) {
+    let fileList = Array.isArray(files) && files.length > 0 ? files : [];
+    if (fileList.length === 0 && fileUrl) {
+      fileList.push({
+        file_name: fileName || 'فایلی سەرەکی',
+        file_url: fileUrl,
+        file_size: fileSize || 0,
+        file_type: fileType || 'pdf'
+      });
+    }
+    const primaryFile = fileList[0] || { file_url: fileUrl || '', file_name: fileName || '', file_size: fileSize || 0, file_type: fileType || 'pdf' };
+    const filesJson = JSON.stringify(fileList);
+
     const stmt = db.prepare(`
-      INSERT INTO library_books (title, author, description, category, file_url, file_name, file_size, file_type, uploader_id, uploader_name, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO library_books (title, author, description, category, file_url, file_name, file_size, file_type, uploader_id, uploader_name, files, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const result = stmt.run(
       title.trim(),
       author ? author.trim() : '',
       description ? description.trim() : '',
       category ? category.trim() : 'گشتی',
-      fileUrl,
-      fileName,
-      fileSize || 0,
-      fileType || 'pdf',
+      primaryFile.file_url,
+      primaryFile.file_name,
+      primaryFile.file_size || 0,
+      primaryFile.file_type || 'pdf',
       uploaderId,
       uploaderName,
+      filesJson,
       Date.now()
     );
     return this.findById(result.lastInsertRowid);
   },
   findById(id) {
     const stmt = db.prepare('SELECT * FROM library_books WHERE id = ?');
-    return stmt.get(id);
+    const row = stmt.get(id);
+    return parseBookFiles(row);
   },
   getAll(search = '') {
+    let rows = [];
     if (search && search.trim()) {
       const q = `%${search.trim().toLowerCase()}%`;
       const stmt = db.prepare(`
         SELECT * FROM library_books 
-        WHERE LOWER(title) LIKE ? OR LOWER(author) LIKE ? OR LOWER(description) LIKE ? OR LOWER(category) LIKE ?
+        WHERE LOWER(title) LIKE ? OR LOWER(author) LIKE ? OR LOWER(description) LIKE ? OR LOWER(category) LIKE ? OR LOWER(files) LIKE ?
         ORDER BY created_at DESC
       `);
-      return stmt.all(q, q, q, q);
+      rows = stmt.all(q, q, q, q, q);
+    } else {
+      const stmt = db.prepare('SELECT * FROM library_books ORDER BY created_at DESC');
+      rows = stmt.all();
     }
-    const stmt = db.prepare('SELECT * FROM library_books ORDER BY created_at DESC');
-    return stmt.all();
+    return rows.map(parseBookFiles);
+  },
+  addFiles(id, newFiles = []) {
+    const book = this.findById(id);
+    if (!book) return null;
+    const currentFiles = book.files || [];
+    const updatedFiles = [...currentFiles, ...newFiles];
+    db.prepare('UPDATE library_books SET files = ? WHERE id = ?').run(JSON.stringify(updatedFiles), id);
+    return this.findById(id);
+  },
+  removeFile(id, fileIndex) {
+    const book = this.findById(id);
+    if (!book || !book.files || fileIndex < 0 || fileIndex >= book.files.length) return null;
+    const removed = book.files[fileIndex];
+    const updatedFiles = book.files.filter((_, idx) => idx !== fileIndex);
+
+    const primary = updatedFiles[0] || { file_url: '', file_name: '', file_size: 0, file_type: 'pdf' };
+    db.prepare('UPDATE library_books SET files = ?, file_url = ?, file_name = ?, file_size = ?, file_type = ? WHERE id = ?').run(
+      JSON.stringify(updatedFiles),
+      primary.file_url,
+      primary.file_name,
+      primary.file_size,
+      primary.file_type,
+      id
+    );
+    return { book: this.findById(id), removedFile: removed };
   },
   delete(id) {
     const stmt = db.prepare('DELETE FROM library_books WHERE id = ?');

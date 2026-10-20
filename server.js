@@ -4083,50 +4083,127 @@ app.get('/api/library/books', authMiddleware, (req, res) => {
   res.json({ books });
 });
 
-// 22. Upload library book / file (Teacher, Admin, Super Admin)
-app.post('/api/library/upload', authMiddleware, requireAdmin, libraryUpload.single('file'), (req, res) => {
+// 22. Upload library book / multiple files (Teacher, Admin, Super Admin)
+app.post('/api/library/upload', authMiddleware, requireAdmin, libraryUpload.fields([{ name: 'files', maxCount: 50 }, { name: 'file', maxCount: 1 }]), (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'تکایە فایلێک دیاری بکە (PDF یان هەر جۆرێکی تر)' });
-    const { title, author = '', description = '', category = 'گشتی' } = req.body;
-    if (!title || !title.trim()) {
-      return res.status(400).json({ error: 'تکایە ناوی کتێب یان فایلەکە بنووسە' });
+    const rawFiles = (req.files && req.files.files) ? req.files.files : ((req.files && req.files.file) ? req.files.file : (req.file ? [req.file] : []));
+    if (!rawFiles || rawFiles.length === 0) {
+      return res.status(400).json({ error: 'تکایە لانیکەم فایلێکی PDF یان پەڕاو هەڵبژێرە' });
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
-    const fileExt = path.extname(req.file.originalname).replace('.', '').toLowerCase() || 'pdf';
+    const { title, author = '', description = '', category = 'گشتی' } = req.body;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'تکایە ناوی کتێب یان ناوی سەرەکی بنووسە' });
+    }
+
+    const parsedFiles = rawFiles.map(f => ({
+      file_name: f.originalname,
+      file_url: `/uploads/${f.filename}`,
+      file_size: f.size,
+      file_type: path.extname(f.originalname).replace('.', '').toLowerCase() || 'pdf'
+    }));
+
+    const primary = parsedFiles[0];
     const book = library.create(
       title,
       author,
       description,
       category,
-      fileUrl,
-      req.file.originalname,
-      req.file.size,
-      fileExt,
+      primary.file_url,
+      primary.file_name,
+      primary.file_size,
+      primary.file_type,
       req.user.id,
-      req.user.full_name
+      req.user.full_name,
+      parsedFiles
     );
 
-    res.status(201).json({ success: true, message: 'کتێبەکە بە سەرکەوتوویی لە کتێبخانە دانرا', book });
+    res.status(201).json({
+      success: true,
+      message: `کتێبەکە لەگەڵ (${parsedFiles.length}) بەرگ/فایل بە سەرکەوتوویی دانرا 📚`,
+      book
+    });
   } catch (err) {
     console.error('Library upload error:', err);
     res.status(500).json({ error: 'هەڵەیەک ڕوویدا لە بارکردنی پەڕتووک' });
   }
 });
 
+// 22b. Append additional PDFs / volumes to existing book
+app.post('/api/library/books/:id/add-files', authMiddleware, requireAdmin, libraryUpload.fields([{ name: 'files', maxCount: 50 }, { name: 'file', maxCount: 1 }]), (req, res) => {
+  try {
+    const bookId = parseInt(req.params.id, 10);
+    const book = library.findById(bookId);
+    if (!book) return res.status(404).json({ error: 'کتێبەکە نەدۆزرایەوە' });
+
+    const rawFiles = (req.files && req.files.files) ? req.files.files : ((req.files && req.files.file) ? req.files.file : (req.file ? [req.file] : []));
+    if (!rawFiles || rawFiles.length === 0) {
+      return res.status(400).json({ error: 'تکایە فایلە نوێیەکان دیاری بکە' });
+    }
+
+    const newParsed = rawFiles.map(f => ({
+      file_name: f.originalname,
+      file_url: `/uploads/${f.filename}`,
+      file_size: f.size,
+      file_type: path.extname(f.originalname).replace('.', '').toLowerCase() || 'pdf'
+    }));
+
+    const updated = library.addFiles(bookId, newParsed);
+    res.json({
+      success: true,
+      message: `(${newParsed.length}) فایلی نوێ بۆ ئەم کتێبە زیادکرا`,
+      book: updated
+    });
+  } catch (err) {
+    console.error('Add library files error:', err);
+    res.status(500).json({ error: 'هەڵە لە زیادکردنی فایلەکان' });
+  }
+});
+
+// 22c. Remove a specific PDF volume from a book
+app.delete('/api/library/books/:id/files/:fileIndex', authMiddleware, requireAdmin, (req, res) => {
+  try {
+    const bookId = parseInt(req.params.id, 10);
+    const fileIndex = parseInt(req.params.fileIndex, 10);
+    const result = library.removeFile(bookId, fileIndex);
+    if (!result) return res.status(404).json({ error: 'فایل یان کتێبەکە نەدۆزرایەوە' });
+
+    if (result.removedFile && result.removedFile.file_url) {
+      try {
+        const filePath = path.join(__dirname, 'public', result.removedFile.file_url);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } catch (e) {}
+    }
+
+    res.json({
+      success: true,
+      message: 'فایلەکە بە سەرکەوتوویی سڕایەوە',
+      book: result.book
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە سڕینەوەی فایل' });
+  }
+});
+
 // 23. Delete library book (Teacher, Admin, Super Admin)
 app.delete('/api/library/books/:id', authMiddleware, requireAdmin, (req, res) => {
-  const bookId = parseInt(req.params.id);
+  const bookId = parseInt(req.params.id, 10);
   const book = library.findById(bookId);
   if (!book) return res.status(404).json({ error: 'کتێبەکە نەدۆزرایەوە' });
 
   library.delete(bookId);
   try {
-    const filePath = path.join(__dirname, 'public', book.file_url);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    const allFiles = Array.isArray(book.files) ? book.files : [];
+    if (book.file_url) allFiles.push({ file_url: book.file_url });
+    for (const f of allFiles) {
+      if (f && f.file_url) {
+        const filePath = path.join(__dirname, 'public', f.file_url);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+    }
   } catch (e) {}
 
-  res.json({ success: true, message: 'کتێبەکە لە کتێبخانە سڕایەوە' });
+  res.json({ success: true, message: 'کتێبەکە لەگەڵ هەموو بەرگەکانیدا لە کتێبخانە سڕایەوە' });
 });
 
 // Delete Message (Admins, Teachers, or Message Author) - Soft Delete to allow restoration
