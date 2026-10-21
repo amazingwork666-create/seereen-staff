@@ -4210,11 +4210,11 @@
 
 
           <!-- Chat Input Bar -->
-          <div class="p-3 bg-slate-950 border-t border-slate-800 flex items-center gap-2 shrink-0">
-            <input type="text" id="advisorChatInput" placeholder="پەیامەکەت بۆ ڕاوێژکار بنووسە..." class="flex-1 bg-slate-900 border border-slate-700 focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition shadow-inner" onkeydown="if(event.key==='Enter') sendAdvisorMessage()">
-            <button onclick="sendAdvisorMessage()" id="advisorSendBtn" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-1.5 transition shadow-md shadow-purple-900/30 active:scale-95">
+          <div class="p-2.5 sm:p-3 bg-slate-950/95 border-t border-purple-500/20 flex items-center gap-2 shrink-0">
+            <input type="text" id="advisorChatInput" placeholder="پەیامەکەت بۆ ڕاوێژکار بنووسە..." class="flex-1 min-w-0 bg-slate-900/90 border border-slate-700/80 focus:border-purple-500 rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none transition shadow-inner" onkeydown="if(event.key==='Enter') sendAdvisorMessage()">
+            <button onclick="sendAdvisorMessage()" id="advisorSendBtn" class="h-10 px-4 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition shadow-lg shadow-purple-950/50 active:scale-95 shrink-0" title="ناردن">
               <span>ناردن</span>
-              <i class="fa-solid fa-paper-plane text-[10px]"></i>
+              <i class="fa-solid fa-paper-plane text-xs"></i>
             </button>
           </div>
 
@@ -4273,12 +4273,8 @@
       </div>
 
       <!-- Footer -->
-      <div class="p-2.5 sm:p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs shrink-0">
-        <span class="text-slate-400 text-[10px] sm:text-[11px] flex items-center gap-1.5">
-          <i class="fa-solid fa-lock text-purple-400 text-xs"></i>
-          <span>تەنها بۆ کاک هێمن و هەڵگرانی باجی سپی 🔒</span>
-        </span>
-        <button onclick="closeAiAdvisorModal()" class="px-3.5 py-1.5 sm:px-4 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700 transition">
+      <div class="p-2.5 sm:p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-end text-xs shrink-0">
+        <button onclick="closeAiAdvisorModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700 transition active:scale-95">
           داخستن
         </button>
       </div>
@@ -4294,6 +4290,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=21.9"></script>
+  <script src="/js/app.js?v=22.0"></script>
 </body>
 </html>

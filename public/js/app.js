@@ -17039,13 +17039,11 @@ function renderPollCardHtml(poll, { canClose = false } = {}) {
             ` : `
               <button type="button" onclick="togglePollStatusDirect(${poll.id}, true)" class="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white text-[9px] font-black border border-amber-500/30 transition shadow-sm" title="داخستنی ڕاپرسی">داخستن 🔒</button>
             `}
-            <button type="button" onclick="openEditPollModal(${poll.id})" class="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 flex items-center gap-1 text-[9px] font-black transition active:scale-95 shadow-sm" title="دەستکاریکردنی ڕاپرسی">
-              <i class="fa-solid fa-pen-to-square text-[9px]"></i>
-              <span>ئیدیت</span>
+            <button type="button" onclick="openEditPollModal(${poll.id})" class="w-7 h-7 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 flex items-center justify-center transition active:scale-90 shadow-sm" title="دەستکاریکردنی ڕاپرسی">
+              <i class="fa-solid fa-pen-to-square text-[10px]"></i>
             </button>
-            <button type="button" onclick="deletePollDirect(${poll.id})" class="px-2 py-0.5 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/40 flex items-center gap-1 text-[9px] font-black transition active:scale-95 shadow-sm" title="سڕینەوەی ڕاپرسی">
-              <i class="fa-solid fa-trash-can text-[9px]"></i>
-              <span>سڕینەوە</span>
+            <button type="button" onclick="deletePollDirect(${poll.id})" class="w-7 h-7 rounded-lg bg-rose-500/15 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 flex items-center justify-center transition active:scale-90 shadow-sm" title="سڕینەوەی ڕاپرسی">
+              <i class="fa-solid fa-trash-can text-[10px]"></i>
             </button>
           ` : ''}
         </div>
@@ -17460,13 +17458,11 @@ function renderAlarmCardHtml(alarm, { canManage = false, canDelete = false } = {
         </div>
         ${allowEditDelete ? `
           <div class="flex items-center gap-1.5 shrink-0">
-            <button type="button" onclick="openEditAlarmModal(${alarmId})" class="px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 flex items-center gap-1.5 text-xs font-black transition active:scale-95 shadow-sm" title="دەستکاریکردنی ئەم زەنگە">
-              <i class="fa-solid fa-pen-to-square text-[11px]"></i>
-              <span>ئیدیت</span>
+            <button type="button" onclick="openEditAlarmModal(${alarmId})" class="w-8 h-8 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 flex items-center justify-center transition active:scale-90 shadow-sm" title="دەستکاریکردنی زەنگ">
+              <i class="fa-solid fa-pen-to-square text-xs"></i>
             </button>
-            <button type="button" onclick="deleteAlarmDirect(${alarmId})" class="px-2.5 py-1 rounded-xl bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 flex items-center gap-1.5 text-xs font-black transition active:scale-95 shadow-sm" title="سڕینەوەی ئەم زەنگە">
-              <i class="fa-solid fa-trash-can text-[11px]"></i>
-              <span>سڕینەوە</span>
+            <button type="button" onclick="deleteAlarmDirect(${alarmId})" class="w-8 h-8 rounded-xl bg-rose-500/15 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 flex items-center justify-center transition active:scale-90 shadow-sm" title="سڕینەوەی زەنگ">
+              <i class="fa-solid fa-trash-can text-xs"></i>
             </button>
           </div>
         ` : ''}
