@@ -48,6 +48,28 @@ html, body {
   background: rgba(223, 170, 134, 0.6);
 }
 
+/* Live Lesson Discord-Style Grid Scrollbar */
+#liveParticipantsList {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain !important;
+  scroll-behavior: smooth !important;
+}
+#liveParticipantsList::-webkit-scrollbar {
+  width: 6px;
+}
+#liveParticipantsList::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 9999px;
+}
+#liveParticipantsList::-webkit-scrollbar-thumb {
+  background: rgba(225, 29, 72, 0.4);
+  border-radius: 9999px;
+}
+#liveParticipantsList::-webkit-scrollbar-thumb:hover {
+  background: rgba(225, 29, 72, 0.8);
+}
+
 /* Metallic & Gold Text Accents */
 .text-gold-gradient {
   background: linear-gradient(135deg, #ffffff 0%, #fae2cc 30%, #dfaa86 65%, #c48364 100%);

@@ -17,7 +17,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/css/style.css?v=13.5">
+  <link rel="stylesheet" href="/css/style.css?v=13.6">
   <style>
     body.light-theme .msg-text-student,
     body.light-theme [class*="msg-text-student"],
@@ -3217,14 +3217,12 @@
         </div>
       </div>
 
-      <!-- Main Body: Two Columns (Video & Quran / Participants) -->
-      <div class="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden bg-slate-950/50">
+      <!-- Main Body: Unified Discord-Style Live Stage -->
+      <div class="flex-1 min-h-0 flex flex-col overflow-hidden bg-slate-950/95 relative">
         
-        <!-- Left / Top Column: Screen Share & Quran Player -->
-        <div class="flex-1 flex flex-col p-3 md:p-4 min-h-0 overflow-y-auto space-y-3">
-          
-          <!-- Screen Share Viewport -->
-          <div id="liveScreenContainer" class="hidden relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center">
+        <!-- Screen Share Viewport (Pinned at top when active) -->
+        <div id="liveScreenContainer" class="hidden shrink-0 w-full p-2 md:p-3 bg-black/60 flex justify-center border-b border-slate-800">
+          <div class="relative w-full max-w-4xl aspect-video max-h-[36vh] md:max-h-[46vh] bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center">
             <video id="liveScreenVideo" autoplay playsinline webkit-playsinline class="w-full h-full object-contain"></video>
             
             <div class="absolute top-2 right-2 px-2.5 py-1 bg-slate-900/80 backdrop-blur-md rounded-xl text-[11px] font-bold text-slate-200 border border-slate-700/60 flex items-center gap-1.5 z-10 shadow">
@@ -3243,34 +3241,29 @@
               </button>
             </div>
           </div>
+        </div>
 
-          <!-- Standby Screen (When Screen Share is inactive) -->
-          <div id="liveStandbyBox" class="w-full py-8 md:py-12 bg-slate-900/80 rounded-2xl border border-slate-800/80 text-center flex flex-col items-center justify-center p-4">
-            <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-rose-500/20 via-purple-500/10 to-slate-950 border border-rose-500/30 flex items-center justify-center text-rose-400 text-3xl mb-3 shadow-inner">
-              <i class="fa-solid fa-headphones-simple"></i>
-            </div>
-            <h4 id="liveStandbyTitle" class="text-base font-black text-white">ژووری پەخشی دەنگی و وانەی مامۆستا</h4>
-            <p id="liveStandbySub" class="text-xs text-slate-400 mt-1 max-w-sm">گوێ لە وانەکە بگرە. دەتوانیت لەسەر لایڤەکەش لابچیت و هەر گوێت لە دەنگەکە بێت!</p>
-          </div>
+        <!-- Standby box (hidden placeholder for app.js references) -->
+        <div id="liveStandbyBox" class="hidden"></div>
 
-          <!-- BUILT-IN QURAN PLAYER SECTION -->
-          <div class="bg-slate-900/90 border border-amber-500/30 rounded-2xl p-3.5 shadow-lg">
-            <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-3">
+        <!-- Collapsible Quran Panel (Toggleable for Admin) -->
+        <div id="liveQuranPanel" class="hidden shrink-0 bg-slate-900/95 border-b border-amber-500/30 p-3 shadow-xl backdrop-blur-md">
+          <div class="max-w-2xl mx-auto space-y-2.5">
+            <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <i class="fa-solid fa-quran text-amber-400 text-base"></i>
-                <span class="text-xs font-black text-amber-200">قورئانی پیرۆز (پەخشی ڕاستەوخۆ بۆ وانە)</span>
+                <i class="fa-solid fa-quran text-amber-400"></i>
+                <span class="text-xs font-black text-amber-300">پەخشی قورئانی پیرۆز لەناو وانە</span>
               </div>
               <span id="liveQuranNowPlayingBadge" class="hidden px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold animate-pulse">
                 پەخش دەکرێت 🎶
               </span>
             </div>
-
-            <!-- Quran Controls for Teacher / Admin -->
-            <div id="liveQuranAdminControls" class="space-y-3 mb-2">
+            
+            <div id="liveQuranAdminControls" class="space-y-2">
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 <div>
-                  <label class="block text-[11px] font-bold text-slate-400 mb-1">دەنگی قاریء:</label>
-                  <select id="liveQuranReciterSelect" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-2 text-white font-bold focus:outline-none focus:border-amber-500 text-xs">
+                  <label class="block text-[11px] font-bold text-slate-400 mb-1">قاریء:</label>
+                  <select id="liveQuranReciterSelect" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-bold focus:outline-none focus:border-amber-500 text-xs">
                     <option value="AbdulBaset_Murattal">عبدالباسط عبدالصمد (مورەتەل)</option>
                     <option value="Alafasy">مشاري راشد العفاسي</option>
                     <option value="Maher_AlMuaiqly">ماهر المعيقلي</option>
@@ -3280,9 +3273,9 @@
                   </select>
                 </div>
                 <div>
-                  <label class="block text-[11px] font-bold text-slate-400 mb-1">سوورەتی پیرۆز:</label>
-                  <select id="liveQuranSurahSelect" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-2 text-white font-bold focus:outline-none focus:border-amber-500 text-xs">
-                    <!-- Generated dynamically in JS: 1 to 114 -->
+                  <label class="block text-[11px] font-bold text-slate-400 mb-1">سوورەت:</label>
+                  <select id="liveQuranSurahSelect" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-bold focus:outline-none focus:border-amber-500 text-xs">
+                    <!-- Generated in JS -->
                   </select>
                 </div>
               </div>
@@ -3292,27 +3285,34 @@
               </button>
             </div>
             <div id="liveQuranStudentNotice" class="hidden text-[11px] text-amber-300/80 italic text-center py-1">
-              قورئانی پیرۆز لەلایەن مامۆستاوە پەخش دەکرێت تا دەستپێکردنی وانەکە
+              قورئانی پیرۆز لەلایەن مامۆستاوە پەخش دەکرێت
             </div>
           </div>
-
         </div>
 
-        <!-- Right / Bottom Column: Participant List & Moderation -->
-        <div class="w-full lg:w-80 border-t lg:border-t-0 lg:border-r border-slate-800 flex flex-col bg-slate-950/80">
-          <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+        <!-- Participants Stage Header Bar -->
+        <div class="px-3.5 py-2.5 bg-slate-900/90 border-b border-slate-800/80 flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
             <span class="text-xs font-black text-white flex items-center gap-1.5">
-              <i class="fa-solid fa-users text-indigo-400"></i>
-              <span>بەشداربووان</span>
-              <span id="liveParticipantsCountBadge" class="px-1.5 py-0.2 rounded-md bg-slate-800 text-slate-300 font-mono text-[11px]">0</span>
+              <span>ئەندامانی ژوور</span>
+              <span id="liveParticipantsCountBadge" class="px-2 py-0.5 rounded-full bg-rose-600/20 text-rose-300 border border-rose-500/30 font-mono text-[11px] font-bold">0</span>
             </span>
-            <span class="text-[10px] text-slate-400">تەنها ئەدمین قسە دەکات</span>
           </div>
 
-          <!-- Participants Scrollable List -->
-          <div id="liveParticipantsList" class="flex-1 overflow-y-auto p-2 space-y-1.5 text-xs">
-            <!-- Rendered in JS -->
+          <div class="flex items-center gap-2">
+            <!-- Quran Toggle Button for Host / Staff -->
+            <button type="button" id="liveQuranToggleBtn" onclick="toggleLiveQuranPanel()" class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm" title="قورئانی پیرۆز">
+              <i class="fa-solid fa-quran"></i>
+              <span class="hidden sm:inline">قورئان</span>
+            </button>
+            <span class="text-[10px] text-slate-400 font-bold hidden md:inline">🎤 سەردەمییانە وەک دیسکۆرد</span>
           </div>
+        </div>
+
+        <!-- Scrollable Participants Grid (Discord Style Voice Stage) -->
+        <div id="liveParticipantsList" class="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 md:p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5 md:gap-4 content-start overscroll-contain">
+          <!-- Rendered in JS as Discord-style square cards -->
         </div>
 
       </div>
@@ -4293,6 +4293,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=22.2"></script>
+  <script src="/js/app.js?v=22.3"></script>
 </body>
 </html>

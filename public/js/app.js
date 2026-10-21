@@ -11865,6 +11865,11 @@ function getQuranAudioUrl(reciter, surahNum) {
   }
 }
 
+function toggleLiveQuranPanel() {
+  const panel = document.getElementById('liveQuranPanel');
+  if (panel) panel.classList.toggle('hidden');
+}
+
 function toggleBroadcastQuran() {
   const isStaff = canUserManageLive(currentUser);
   if (!isStaff) return;
@@ -13011,77 +13016,135 @@ function handleLiveLessonStateUpdate(state) {
 
   if (listEl) {
     if (sortedParticipants.length === 0) {
-      listEl.innerHTML = '<div class="p-3 text-center text-slate-500 text-xs">هیچ کەسێک لە ژوورەکەدا نییە</div>';
+      listEl.innerHTML = `
+        <div class="col-span-full py-16 text-center text-slate-500 flex flex-col items-center justify-center">
+          <div class="w-16 h-16 rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-600 text-2xl mb-3 shadow-inner">
+            <i class="fa-solid fa-users"></i>
+          </div>
+          <p class="text-xs font-bold text-slate-400">هیچ ئەندامێک لە ژوورەکەدا نییە</p>
+        </div>
+      `;
     } else {
-      listEl.innerHTML = sortedParticipants.map(p => {
-        const isMe = currentUser && p.userId === currentUser.id;
-        const roleLabel = (p.role === 'super_admin' || p.role === 'admin') ? 'ئەدمین' : (p.role === 'teacher' ? 'مامۆستا' : 'قوتابی');
-        const roleColor = (p.role === 'super_admin' || p.role === 'admin') ? 'text-indigo-400' : (p.role === 'teacher' ? 'text-amber-400' : 'text-slate-400');
-        const isSpeaking = !p.isMuted && p.hasMicPermission;
+      const discordGradients = [
+        'from-pink-600 to-rose-700',
+        'from-amber-600 to-orange-700',
+        'from-emerald-600 to-teal-800',
+        'from-indigo-600 to-blue-800',
+        'from-purple-600 to-indigo-900',
+        'from-sky-600 to-cyan-800',
+        'from-teal-600 to-emerald-800',
+        'from-fuchsia-600 to-pink-800'
+      ];
 
-        // Network Quality Ring & Warning Badge
+      listEl.innerHTML = sortedParticipants.map(p => {
+        const isMe = currentUser && Number(p.userId) === Number(currentUser.id);
+        const roleLabel = (p.role === 'super_admin' || p.role === 'admin') ? 'ئەدمین' : (p.role === 'teacher' ? 'مامۆستا' : 'قوتابی');
+        const roleColor = (p.role === 'super_admin' || p.role === 'admin') 
+          ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/40' 
+          : (p.role === 'teacher' ? 'bg-amber-600/30 text-amber-300 border-amber-500/40' : 'bg-slate-800/80 text-slate-400 border-slate-700/60');
+        const isSpeaking = !p.isMuted && p.hasMicPermission;
         const q = p.networkQuality || 'good';
-        let netColorClass = 'border-slate-700';
-        let netBadgeHtml = '';
-        if (q === 'poor') {
-          netColorClass = 'border-rose-500 ring-2 ring-rose-500';
-          netBadgeHtml = `<span class="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-black border border-rose-500/30 flex items-center gap-1">⚠️ خەتەکەی خراپە</span>`;
-        } else if (q === 'fair') {
-          netColorClass = 'border-amber-500 ring-1 ring-amber-500';
-          netBadgeHtml = `<span class="px-1 py-0.5 text-amber-400 text-[10px] font-bold">خەت مامناوەند</span>`;
-        } else {
-          netColorClass = isSpeaking ? 'border-emerald-500 ring-2 ring-emerald-400' : 'border-slate-700';
+
+        const colIndex = Math.abs(Number(p.userId) || 0) % discordGradients.length;
+        const avatarGrad = discordGradients[colIndex];
+
+        // Discord tile state styling
+        let cardBorderClass = 'border-slate-800/90 hover:border-slate-700 bg-slate-900/85';
+        let avatarRingClass = 'ring-2 ring-slate-800/90';
+
+        if (p.handRaised) {
+          cardBorderClass = 'border-indigo-500 bg-indigo-950/25 shadow-xl shadow-indigo-950/50 ring-1 ring-indigo-500/50';
+          avatarRingClass = 'ring-4 ring-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.6)]';
+        } else if (isSpeaking) {
+          cardBorderClass = 'border-emerald-500 bg-emerald-950/20 shadow-xl shadow-emerald-950/50 ring-1 ring-emerald-500/50';
+          avatarRingClass = 'ring-4 ring-emerald-500 shadow-[0_0_22px_rgba(16,185,129,0.7)] animate-pulse';
+        } else if (q === 'poor') {
+          cardBorderClass = 'border-rose-500/60 bg-rose-950/15';
         }
 
+        // Mod buttons (for host/admin looking at other users)
         let modButtonsHtml = '';
         if (isAdmin && !isMe) {
           modButtonsHtml = `
-            <div class="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-slate-800">
+            <div class="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-slate-800/90 w-full justify-center">
               ${p.hasMicPermission ? `
-                <button onclick="revokeLiveMicPermission(${p.userId})" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-rose-300 rounded text-[10px] font-bold">
-                  سەندنەوەی مایک 🔇
+                <button onclick="revokeLiveMicPermission(${p.userId})" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-rose-300 rounded-lg text-[10px] font-bold border border-slate-700 transition active:scale-95 shadow-sm" title="سەندنەوەی مایک">
+                  سەندنەوە 🔇
                 </button>
               ` : `
-                <button onclick="grantLiveMicPermission(${p.userId})" class="px-2 py-0.5 bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded text-[10px] font-bold">
-                  مۆڵەتدان بە مایک 🎙️
+                <button onclick="grantLiveMicPermission(${p.userId})" class="px-2 py-0.5 bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded-lg text-[10px] font-bold border border-emerald-500/40 transition active:scale-95 shadow-sm" title="مۆڵەتدان بە مایک">
+                  مۆڵەت 🎙️
                 </button>
               `}
-              <button onclick="kickUserFromLive(${p.userId}, '${escapeHtml(p.fullName)}')" class="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded text-[10px] font-bold" title="دەرکردن لە وانە">
-                دەرکردن 🚫
+              <button onclick="kickUserFromLive(${p.userId}, '${escapeHtml(p.fullName)}')" class="px-2 py-0.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-lg text-[10px] font-bold border border-rose-500/40 transition active:scale-95 shadow-sm" title="دەرکردن لە وانە">
+                🚫
               </button>
             </div>
           `;
         }
 
+        // Avatar inner (image or colored gradient)
+        const avatarContent = p.avatar_url ? `
+          <img src="${escapeHtml(p.avatar_url)}" alt="${escapeHtml(p.fullName)}" class="w-full h-full object-cover rounded-full pointer-events-none select-none no-zoom-avatar" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+          <div class="hidden w-full h-full rounded-full bg-gradient-to-br ${avatarGrad} items-center justify-center text-white text-2xl font-black">
+            ${getGenderEmoji(p.gender)}
+          </div>
+        ` : `
+          <div class="w-full h-full rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white text-2xl sm:text-3xl font-black shadow-inner">
+            ${getGenderEmoji(p.gender)}
+          </div>
+        `;
+
         return `
-          <div class="p-2.5 rounded-2xl bg-slate-900 border ${p.handRaised ? 'border-indigo-500 shadow-md shadow-indigo-950/40 bg-indigo-950/20' : (q === 'poor' ? 'border-rose-500/80 bg-rose-950/20' : (isSpeaking ? 'border-emerald-500/60 shadow-md' : 'border-slate-800'))} transition">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="w-8 h-8 rounded-full bg-slate-800 border-2 ${netColorClass} flex items-center justify-center text-xs relative shrink-0">
-                  ${getGenderEmoji(p.gender)}
-                  ${p.handRaised ? '<span class="absolute -top-1 -right-1 text-xs">✋</span>' : ''}
-                </span>
-                <div>
-                  <div class="font-black text-white text-xs flex items-center gap-1.5">
-                    <span>${escapeHtml(p.fullName)}</span>
-                    ${isMe ? '<span class="text-[9px] text-sky-400 font-bold">(خۆت)</span>' : ''}
-                  </div>
-                  <div class="flex items-center gap-1.5">
-                    <span class="text-[10px] ${roleColor} font-bold">${roleLabel}</span>
-                    ${netBadgeHtml}
-                  </div>
-                </div>
+          <div class="relative rounded-2xl sm:rounded-3xl ${cardBorderClass} p-3 sm:p-4 flex flex-col items-center justify-between text-center transition-all duration-300 aspect-[4/3] sm:aspect-square min-h-[150px] sm:min-h-[175px] shadow-lg group select-none">
+            
+            <!-- Top Badges Row -->
+            <div class="w-full flex items-center justify-between pointer-events-none shrink-0 z-10">
+              <div class="flex items-center gap-1">
+                ${p.handRaised ? `
+                  <span class="px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-black border border-indigo-400 shadow animate-pulse flex items-center gap-1">
+                    <span>✋</span><span class="hidden sm:inline">دەست</span>
+                  </span>
+                ` : `
+                  <span class="px-1.5 py-0.5 rounded-full ${roleColor} text-[9px] font-bold border">
+                    ${roleLabel}
+                  </span>
+                `}
               </div>
 
-              <div class="flex items-center gap-1.5">
-                ${p.handRaised ? '<span class="px-2 py-0.5 rounded-md bg-indigo-600/30 text-indigo-300 text-[10px] font-black border border-indigo-500/40 animate-pulse">دەست بەرزکراوە ✋</span>' : ''}
-                ${isSpeaking 
-                  ? '<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-black flex items-center gap-1"><i class="fa-solid fa-microphone text-xs animate-pulse"></i> قسە دەکات</span>' 
-                  : '<i class="fa-solid fa-microphone-slash text-slate-600 text-xs" title="مایک داخراوە"></i>'
-                }
+              <div class="flex items-center gap-1">
+                ${q === 'poor' ? `
+                  <span class="px-1 py-0.2 rounded bg-rose-500/20 text-rose-400 text-[10px] font-black border border-rose-500/30" title="خەتی لاوازە">⚠️</span>
+                ` : (q === 'fair' ? `
+                  <span class="w-2 h-2 rounded-full bg-amber-400" title="خەت مامناوەند"></span>
+                ` : '')}
               </div>
             </div>
-            ${modButtonsHtml}
+
+            <!-- Center Avatar (Discord Style circle) -->
+            <div class="relative my-auto flex items-center justify-center shrink-0">
+              <div class="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-full ${avatarRingClass} bg-slate-800 flex items-center justify-center overflow-hidden transition-all duration-300 shadow-xl">
+                ${avatarContent}
+              </div>
+              ${p.handRaised ? `
+                <span class="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-black flex items-center justify-center shadow-lg border-2 border-slate-900 animate-bounce">✋</span>
+              ` : ''}
+            </div>
+
+            <!-- Bottom Pill: Mic Status & Name (Discord Style) -->
+            <div class="w-full flex flex-col items-center shrink-0 mt-1">
+              <div class="bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-full text-xs font-black text-white flex items-center gap-1.5 shadow-md border border-white/10 max-w-[95%] truncate">
+                ${isSpeaking ? `
+                  <i class="fa-solid fa-microphone text-emerald-400 text-xs animate-pulse"></i>
+                ` : `
+                  <i class="fa-solid fa-microphone-slash text-slate-400 text-[10px]"></i>
+                `}
+                <span class="truncate">${escapeHtml(p.fullName)}</span>
+                ${isMe ? '<span class="text-[9px] text-sky-400 font-bold shrink-0">(خۆت)</span>' : ''}
+              </div>
+              ${modButtonsHtml}
+            </div>
+
           </div>
         `;
       }).join('');
