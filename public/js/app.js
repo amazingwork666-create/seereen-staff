@@ -11959,6 +11959,7 @@ const rtcLiveIceConfig = {
 
 // Unlimited Two-Way Audio Recording state
 let liveMediaRecorder = null;
+let isLiveRecording = false;
 let liveRecordedAudioChunks = [];
 let liveRecordingStartTime = null;
 let liveRecordingTimer = null;
@@ -12058,8 +12059,14 @@ function stopLivePingReporting() {
 function openLiveLessonModal() {
   const modal = document.getElementById('liveLessonModal');
   const floatingBar = document.getElementById('floatingLiveBar');
-  if (modal) modal.classList.remove('hidden');
-  if (floatingBar) floatingBar.classList.add('hidden');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.style.display = '';
+  }
+  if (floatingBar) {
+    floatingBar.classList.add('hidden');
+    floatingBar.style.display = 'none';
+  }
 
   const isStaff = canUserManageLive(currentUser);
   const startEndBtn = document.getElementById('liveStartEndBtn');
@@ -12088,10 +12095,16 @@ function openLiveLessonModal() {
 function minimizeLiveLessonModal() {
   const modal = document.getElementById('liveLessonModal');
   const floatingBar = document.getElementById('floatingLiveBar');
-  if (modal) modal.classList.add('hidden');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+  }
 
   if (currentLiveLessonState && currentLiveLessonState.isActive) {
-    if (floatingBar) floatingBar.classList.remove('hidden');
+    if (floatingBar) {
+      floatingBar.classList.remove('hidden');
+      floatingBar.style.display = '';
+    }
   }
 }
 
@@ -12099,56 +12112,129 @@ function expandLiveLessonModal() {
   openLiveLessonModal();
 }
 
-function leaveLiveLessonRoom() {
+// Complete & unconditional cleanup of live room for all participants
+function closeAndCleanLiveRoom(toastNotice) {
   stopLivePingReporting();
-  if (currentLiveLessonState && currentLiveLessonState.isActive) {
-    const isStaff = canUserManageLive(currentUser);
-    if (isStaff) {
-      const choice = confirm('ئایا دەتەوێت لە ژوورەکە دەرچیت؟ (بۆ کۆتاییهێنان بە تەواوی وانەکە دوگمەی کۆتاییهێنان داگرە)');
-      if (!choice) return;
-    }
+
+  // 1. Stop recording cleanly if active
+  if (typeof stopLiveRecording === 'function') {
+    stopLiveRecording();
   }
 
-  socket.emit('live_leave');
-
-  // Close and clean up all WebRTC peer connections
+  // 2. Close and clean up all WebRTC peer connections
   livePeerConnections.forEach(pc => {
     try { pc.close(); } catch (e) {}
   });
   livePeerConnections.clear();
+  pendingLiveCandidates.clear();
 
-  // Remove remote audio elements
-  document.querySelectorAll('audio[id^="live_audio_"]').forEach(el => el.remove());
+  // 3. Remove remote audio elements & clear stream map
+  document.querySelectorAll('audio[id^="live_audio_"]').forEach(el => {
+    try {
+      el.pause();
+      el.srcObject = null;
+      el.remove();
+    } catch (e) {}
+  });
+  liveRemoteAudioStreams.clear();
 
+  // 4. Stop local audio mic tracks
   if (localLiveAudioStream) {
-    localLiveAudioStream.getTracks().forEach(t => t.stop());
+    try {
+      localLiveAudioStream.getTracks().forEach(t => t.stop());
+    } catch (e) {}
     localLiveAudioStream = null;
   }
+
+  // 5. Stop local screen share tracks
   if (localLiveScreenStream) {
-    localLiveScreenStream.getTracks().forEach(t => t.stop());
+    try {
+      localLiveScreenStream.getTracks().forEach(t => t.stop());
+    } catch (e) {}
     localLiveScreenStream = null;
-  }
-  isLocalScreenSharing = false;
-
-  if (liveMediaRecorder && liveMediaRecorder.state !== 'inactive') {
-    liveMediaRecorder.stop();
+    isLocalScreenSharing = false;
+    try { socket.emit('live_screen_stop'); } catch (e) {}
   }
 
+  // 6. Pause & clear audio elements
   const liveAudio = document.getElementById('liveRoomAudio');
   const quranAudio = document.getElementById('liveQuranAudio');
-  if (liveAudio) { liveAudio.pause(); liveAudio.srcObject = null; }
-  if (quranAudio) { quranAudio.pause(); }
+  if (liveAudio) {
+    try {
+      liveAudio.pause();
+      liveAudio.srcObject = null;
+    } catch (e) {}
+  }
+  if (quranAudio) {
+    try {
+      quranAudio.pause();
+    } catch (e) {}
+  }
 
+  // 7. Reset video and screen containers
+  const video = document.getElementById('liveScreenVideo');
+  if (video) {
+    try {
+      video.pause();
+      video.srcObject = null;
+    } catch (e) {}
+  }
+  const screenContainer = document.getElementById('liveScreenContainer');
+  const standbyBox = document.getElementById('liveStandbyBox');
+  if (screenContainer) screenContainer.classList.add('hidden');
+  if (standbyBox) standbyBox.classList.remove('hidden');
+
+  // 8. UNCONDITIONALLY HIDE MODAL & FLOATING BAR FOR EVERYONE
   const modal = document.getElementById('liveLessonModal');
   const floatingBar = document.getElementById('floatingLiveBar');
-  if (modal) modal.classList.add('hidden');
-  if (floatingBar) floatingBar.classList.add('hidden');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+  }
+  if (floatingBar) {
+    floatingBar.classList.add('hidden');
+    floatingBar.style.display = 'none';
+  }
 
+  // 9. Reset local mic states
   isLocalMicMuted = true;
   localMicPermissionGranted = false;
   isTogglingMic = false;
-  pendingLiveCandidates.clear();
   updateLiveMicUI(true);
+
+  // 10. Clear duration timer
+  if (liveLessonDurationTimer) {
+    clearInterval(liveLessonDurationTimer);
+    liveLessonDurationTimer = null;
+  }
+  const timerText = document.getElementById('liveDurationText');
+  if (timerText) timerText.innerText = '00:00:00';
+
+  // 11. Reset screen orientation if locked
+  try {
+    if (screen.orientation && screen.orientation.unlock) {
+      screen.orientation.unlock();
+    }
+  } catch (e) {}
+
+  if (toastNotice) {
+    showLiveToastNotification(toastNotice, 'rose');
+  }
+}
+
+function leaveLiveLessonRoom() {
+  const isStaff = canUserManageLive(currentUser);
+  if (currentLiveLessonState && currentLiveLessonState.isActive && isStaff) {
+    const wantToEndForAll = confirm('ئایا دەتەوێت وانەکە بۆ هەمووان کۆتایی پێبهێنیت و دابخرێت؟\n\n- داگرتنی (OK / بەڵێ): داخستنی وانەکە بۆ هەموان ⏹️\n- داگرتنی (Cancel / نەخێر): تەنها دەرچوونی خۆت لە ژوورەکە 🚪');
+    if (wantToEndForAll) {
+      socket.emit('live_end');
+      closeAndCleanLiveRoom('وانەی ڕاستەوخۆت کۆتایی پێهێنا ⏹️');
+      return;
+    }
+  }
+
+  socket.emit('live_leave');
+  closeAndCleanLiveRoom();
 }
 
 function toggleFloatingMute() {
@@ -12179,8 +12265,9 @@ function toggleLiveStartEnd() {
   if (!isStaff) return;
 
   if (currentLiveLessonState && currentLiveLessonState.isActive) {
-    if (!confirm('ئایا دڵنیایت لە کۆتاییهێنان بە وانەی ڕاستەوخۆ؟')) return;
+    if (!confirm('ئایا دڵنیایت لە کۆتاییهێنان بە وانەی ڕاستەوخۆ بۆ هەمووان؟')) return;
     socket.emit('live_end');
+    closeAndCleanLiveRoom('وانەی ڕاستەوخۆت کۆتایی پێهێنا ⏹️');
   } else {
     const title = prompt('ناوی بابەت یان ناونیشانی وانەکە بنووسە:', 'وانەی ڕاستەوخۆ') || 'وانەی ڕاستەوخۆ';
     socket.emit('live_start', { title });
@@ -12422,24 +12509,63 @@ function toggleScreenShareFullscreen() {
   }
 }
 
-// Unlimited Two-Way Recording (تۆمارکردنی دەنگی وانە لە هەردوولا بێ سنوور: مامۆستا + هەموو قوتابیان)
-async function toggleLiveRecording() {
+function resetLiveRecordingUI() {
   const recordBtn = document.getElementById('liveRecordBtn');
   const recordDot = document.getElementById('liveRecordDot');
   const recordText = document.getElementById('liveRecordText');
 
-  if (liveMediaRecorder && liveMediaRecorder.state !== 'inactive') {
-    try {
-      liveMediaRecorder.stop();
-    } catch (e) {}
-    if (liveRecordingTimer) clearInterval(liveRecordingTimer);
-    liveRecordingTimer = null;
+  if (recordBtn) {
+    recordBtn.className = 'px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow active:scale-95';
+  }
+  if (recordDot) {
+    recordDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+  }
+  if (recordText) {
+    recordText.innerText = 'تۆمارکردنی دەنگ';
+  }
+}
 
-    if (recordBtn) recordBtn.className = 'px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow';
-    if (recordDot) recordDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
-    if (recordText) recordText.innerText = 'تۆمارکردنی دەنگ';
+function stopLiveRecording() {
+  isLiveRecording = false;
+  if (liveRecordingTimer) {
+    clearInterval(liveRecordingTimer);
+    liveRecordingTimer = null;
+  }
+  resetLiveRecordingUI();
+
+  if (liveMediaRecorder) {
+    try {
+      if (liveMediaRecorder.state !== 'inactive') {
+        liveMediaRecorder.stop();
+      }
+    } catch (e) {
+      console.warn('Error stopping liveMediaRecorder:', e);
+    }
+  }
+}
+
+// Unlimited Two-Way Recording (تۆمارکردنی دەنگی وانە لە هەردوولا بێ سنوور: مامۆستا + هەموو قوتابیان)
+async function toggleLiveRecording() {
+  // If already recording, stop immediately on click
+  if (isLiveRecording) {
+    stopLiveRecording();
     return;
   }
+
+  if (typeof MediaRecorder === 'undefined') {
+    showLiveToastNotification('تۆمارکردنی دەنگ لەلایەن ئەم ئامێرە یان وێبگەڕەوە پشتگیری ناکرێت', 'rose');
+    return;
+  }
+
+  const recordBtn = document.getElementById('liveRecordBtn');
+  const recordDot = document.getElementById('liveRecordDot');
+  const recordText = document.getElementById('liveRecordText');
+
+  isLiveRecording = true;
+  liveRecordingStartTime = Date.now();
+  if (recordBtn) recordBtn.className = 'px-3 py-2 bg-rose-600 hover:bg-rose-500 border border-rose-400 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-lg animate-pulse active:scale-95';
+  if (recordDot) recordDot.className = 'w-2.5 h-2.5 rounded-full bg-white animate-ping';
+  if (recordText) recordText.innerText = 'تۆمار دەکرێت (00:00:00)';
 
   try {
     const { incomingBus } = getLiveAudioMasterGain();
@@ -12449,6 +12575,17 @@ async function toggleLiveRecording() {
 
     // Destination stream that will mix both Host Microphone + ALL Remote Students/Members Voices + Quran
     liveRecordingDestination = liveAudioContext.createMediaStreamDestination();
+
+    // Attach inaudible carrier oscillator so destination stream ALWAYS has active audio tracks even when room is silent
+    try {
+      const carrierGain = liveAudioContext.createGain();
+      carrierGain.gain.value = 0.00001;
+      const carrierOsc = liveAudioContext.createOscillator();
+      carrierOsc.frequency.value = 440;
+      carrierOsc.connect(carrierGain);
+      carrierGain.connect(liveRecordingDestination);
+      carrierOsc.start();
+    } catch (e) {}
 
     // 1. Connect remote participants bus directly to recording destination
     if (incomingBus) {
@@ -12511,16 +12648,25 @@ async function toggleLiveRecording() {
     }
 
     liveRecordedAudioChunks = [];
-    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+    const mimeType = (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))
       ? 'audio/webm;codecs=opus' 
-      : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4');
+      : ((typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm'))
+        ? 'audio/webm' 
+        : ((typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/mp4')) ? 'audio/mp4' : ''));
 
-    liveMediaRecorder = new MediaRecorder(liveRecordingDestination.stream, { mimeType });
+    const options = mimeType ? { mimeType } : undefined;
+    liveMediaRecorder = new MediaRecorder(liveRecordingDestination.stream, options);
 
     liveMediaRecorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) {
         liveRecordedAudioChunks.push(e.data);
       }
+    };
+
+    liveMediaRecorder.onerror = (err) => {
+      console.error('liveMediaRecorder error:', err);
+      stopLiveRecording();
+      showLiveToastNotification('هەڵەیەک لە تۆمارکردنی دەنگ ڕوویدا', 'rose');
     };
 
     liveMediaRecorder.onstop = () => {
@@ -12542,19 +12688,38 @@ async function toggleLiveRecording() {
       } catch (e) {}
       liveRecordingDestination = null;
 
-      const blob = new Blob(liveRecordedAudioChunks, { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      stopLiveRecording();
+
+      if (!liveRecordedAudioChunks || liveRecordedAudioChunks.length === 0) {
+        return;
+      }
+
+      const actualMime = mimeType || 'audio/webm';
+      const blob = new Blob(liveRecordedAudioChunks, { type: actualMime });
+      liveRecordedAudioChunks = [];
+
       const now = new Date();
       const dateStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}_${now.getHours()}-${now.getMinutes()}`;
-      a.href = url;
-      a.download = `وانەی_ستافی_سیرین_${dateStr}.webm`;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 100);
+      const fileName = `وانەی_ستافی_سیرین_${dateStr}.${actualMime.includes('mp4') ? 'mp4' : 'webm'}`;
+
+      // Safely download on desktop (avoid mobile popup exceptions)
+      try {
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (!isMobile) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 500);
+        }
+      } catch (dlErr) {
+        console.log('Local download note:', dlErr);
+      }
 
       // Auto archive to server live recordings list
       try {
@@ -12562,7 +12727,7 @@ async function toggleLiveRecording() {
           const totalSecs = Math.max(1, Math.floor((Date.now() - (liveRecordingStartTime || Date.now())) / 1000));
           const durStr = `${String(Math.floor(totalSecs / 60)).padStart(2, '0')}:${String(totalSecs % 60).padStart(2, '0')}`;
           const formData = new FormData();
-          formData.append('audio', blob, `live_lesson_${Date.now()}.${mimeType.includes('mp4') ? 'mp4' : 'webm'}`);
+          formData.append('audio', blob, fileName);
           formData.append('duration', durStr);
           formData.append('title', `وانەی لایڤ (${now.toLocaleDateString('ku-IQ')})`);
           fetch('/api/live-recordings/upload', {
@@ -12571,7 +12736,7 @@ async function toggleLiveRecording() {
             body: formData
           }).then(r => r.json()).then(data => {
             if (data && data.success) {
-              showLiveToastNotification('وانەکە بە سەرکەوتوویی لە بەشی تۆماری وانەکان پاشەکەوت کرا 🎙️', 'emerald');
+              showLiveToastNotification('وانەکە بە سەرکەوتوویی لە بەشی تۆماری وانەکان پاشەکەوت کرا 🎙️💾', 'emerald');
             }
           }).catch(e => console.error('Failed to auto-archive live lesson:', e));
         }
@@ -12579,16 +12744,16 @@ async function toggleLiveRecording() {
         console.error('Archive error:', archErr);
       }
 
-      alert('تۆمارکردنی دەنگ تەواو بوو و دەنگی (مامۆستا + هەموو ئەندامەکان) بە سەرکەوتوویی داگیرا و لە بەشی تۆماری وانەکان ئەرشیڤ کرا! 🎙️📥');
+      showLiveToastNotification('تۆمارکردنی دەنگ کۆتایی هات و بە سەرکەوتوویی پاشەکەوت کرا 🎙️✅', 'emerald');
     };
 
-    liveMediaRecorder.start(2000);
-    liveRecordingStartTime = Date.now();
-
-    if (recordBtn) recordBtn.className = 'px-3 py-2 bg-rose-600 hover:bg-rose-500 border border-rose-400 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-lg animate-pulse';
-    if (recordDot) recordDot.className = 'w-2.5 h-2.5 rounded-full bg-white animate-ping';
+    liveMediaRecorder.start(1000);
 
     liveRecordingTimer = setInterval(() => {
+      if (!isLiveRecording) {
+        clearInterval(liveRecordingTimer);
+        return;
+      }
       const elapsed = Math.floor((Date.now() - liveRecordingStartTime) / 1000);
       const hrs = String(Math.floor(elapsed / 3600)).padStart(2, '0');
       const mins = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
@@ -12597,7 +12762,9 @@ async function toggleLiveRecording() {
     }, 1000);
 
   } catch (err) {
-    alert('نەتوانرا تۆمارکردنی دەنگ دەستپێبکرێت: ' + err.message);
+    console.error('Start live recording error:', err);
+    stopLiveRecording();
+    showLiveToastNotification('نەتوانرا تۆمارکردنی دەنگ دەستپێبکرێت: ' + (err.message || 'هەڵەیەک ڕوویدا'), 'rose');
   }
 }
 
@@ -12779,6 +12946,17 @@ function handleLiveLessonStateUpdate(state) {
       }, 1000);
     }
   } else {
+    // If live is inactive, unconditionally close and clean room for ANY user still having modal or audio open
+    const modal = document.getElementById('liveLessonModal');
+    const floatingBar = document.getElementById('floatingLiveBar');
+    const isModalOpen = modal && !modal.classList.contains('hidden') && modal.style.display !== 'none';
+    const isFloatingOpen = floatingBar && !floatingBar.classList.contains('hidden') && floatingBar.style.display !== 'none';
+    const hasActiveStreams = (localLiveAudioStream !== null || localLiveScreenStream !== null || livePeerConnections.size > 0);
+
+    if (isModalOpen || isFloatingOpen || hasActiveStreams) {
+      closeAndCleanLiveRoom('وانەی ڕاستەوخۆ کۆتایی پێهات و ژوورەکە داخرا ⏹️');
+    }
+
     if (deskDot) deskDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-950 border border-rose-900/60';
     if (mobDot) mobDot.className = 'w-2 h-2 rounded-full bg-rose-950 border border-rose-900/60';
     if (deskNavBtn) {
@@ -12946,14 +13124,13 @@ function handleLiveStartedAlert(data) {
 }
 
 function handleLiveEndedNotice() {
-  alert('وانەی ڕاستەوخۆ کۆتایی پێهات.');
-  leaveLiveLessonRoom();
+  closeAndCleanLiveRoom('وانەی ڕاستەوخۆ لەلایەن بەڕێوەبەرەوە کۆتایی پێهات و بۆ هەمووان داخرا ⏹️');
 }
 
 function handleLiveMicGranted() {
   localMicPermissionGranted = true;
   playSound('star');
-  alert('مۆڵەتی مایکت پێبەخشرا لەلایەن مامۆستاوە! دەتوانیت مایک بکەیتەوە و قسە بکەیت 🎙️');
+  showLiveToastNotification('مۆڵەتی مایکت پێبەخشرا لەلایەن مامۆستاوە! دەتوانیت مایک بکەیتەوە و قسە بکەیت 🎙️', 'emerald');
   const myParticipant = currentLiveLessonState && currentLiveLessonState.participants 
     ? currentLiveLessonState.participants.find(p => Number(p.userId) === (currentUser ? Number(currentUser.id) : null))
     : null;
@@ -12962,7 +13139,7 @@ function handleLiveMicGranted() {
 
 function handleLiveMicRevoked() {
   localMicPermissionGranted = false;
-  alert('مۆڵەتی مایکت لێسەندرایەوە لەلایەن بەڕێوەبەرەوە.');
+  showLiveToastNotification('مۆڵەتی مایکت لێسەندرایەوە لەلایەن بەڕێوەبەرەوە 🔇', 'amber');
   isLocalMicMuted = true;
   if (localLiveAudioStream) {
     localLiveAudioStream.getAudioTracks().forEach(t => t.enabled = false);
@@ -12971,8 +13148,7 @@ function handleLiveMicRevoked() {
 }
 
 function handleLiveKicked(reason) {
-  alert(reason || 'تۆ لەم وانەیە دەرکرایت.');
-  leaveLiveLessonRoom();
+  closeAndCleanLiveRoom(reason || 'تۆ لەم وانەیە دەرکرایت 🚫');
 }
 
 function handleLiveScreenStarted(sharer) {

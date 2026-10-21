@@ -7397,7 +7397,7 @@ io.on('connection', (socket) => {
     liveLessonState.quranState = { isPlaying: false, reciter: '', surahName: '', audioUrl: '' };
     liveLessonState.screenSharingBy = null;
     liveLessonState.participants.clear();
-    io.to('live_lesson_room').emit('live_lesson_ended_notice');
+    io.emit('live_lesson_ended_notice');
     broadcastLiveLessonState();
   });
 

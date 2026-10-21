@@ -3401,12 +3401,15 @@
       </div>
     </div>
     <div class="flex items-center gap-1.5">
-      <button onclick="toggleFloatingMute()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs border border-slate-700">
+      <button onclick="toggleFloatingMute()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs border border-slate-700" title="بێدەنگکردن">
         <i id="floatingMuteIcon" class="fa-solid fa-volume-high text-emerald-400"></i>
       </button>
       <button onclick="expandLiveLessonModal()" class="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow">
         <i class="fa-solid fa-expand"></i>
         <span>گەڕانەوە</span>
+      </button>
+      <button onclick="leaveLiveLessonRoom()" class="p-2 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl text-xs border border-rose-500/40 transition" title="دەرچوون لە وانە">
+        <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
   </div>
@@ -4290,6 +4293,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=22.0"></script>
+  <script src="/js/app.js?v=22.1"></script>
 </body>
 </html>
