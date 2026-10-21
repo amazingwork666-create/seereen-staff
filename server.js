@@ -5421,13 +5421,31 @@ app.post('/api/polls', authMiddleware, (req, res) => {
   }
 });
 
+// Helper to strip voter identities from polls for non-super-admins
+function stripVotersFromPoll(poll) {
+  if (!poll) return poll;
+  const clone = JSON.parse(JSON.stringify(poll));
+  if (Array.isArray(clone.options)) {
+    clone.options = clone.options.map(o => {
+      const { voters, ...rest } = o;
+      return rest;
+    });
+  }
+  return clone;
+}
+
 // Get Poll details
 app.get('/api/polls/:id', authMiddleware, (req, res) => {
   try {
     const pollId = parseInt(req.params.id, 10);
     const poll = pollsDb.getPollById(pollId, req.user.id);
     if (!poll) return res.status(404).json({ error: 'ڕاپرسی نەدۆزرایەوە' });
-    res.json({ success: true, poll });
+
+    // Privacy: Only Super Admin (Kak Hemn) can see who voted for what
+    const isSuper = isMasterSuperAdmin(req.user) || req.user.role === 'super_admin';
+    const finalPoll = isSuper ? poll : stripVotersFromPoll(poll);
+
+    res.json({ success: true, poll: finalPoll, canManage: isSuper || req.user.id === poll.creator_id });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە هێنانی ڕاپرسی' });
   }
@@ -5442,38 +5460,124 @@ app.post('/api/polls/:id/vote', authMiddleware, (req, res) => {
     if (result.error) return res.status(400).json({ error: result.error });
 
     const updatedPoll = pollsDb.getPollById(pollId);
+    const sanitizedPoll = stripVotersFromPoll(updatedPoll);
     if (updatedPoll.chat_type === 'public') {
-      io.emit('poll_updated', { pollId, poll: updatedPoll });
+      io.emit('poll_updated', { pollId, poll: sanitizedPoll });
     } else if (updatedPoll.group_id) {
-      io.to(`group_${updatedPoll.group_id}`).emit('poll_updated', { pollId, poll: updatedPoll });
+      io.to(`group_${updatedPoll.group_id}`).emit('poll_updated', { pollId, poll: sanitizedPoll });
     }
 
-    res.json({ success: true, poll: result.poll });
+    const isSuper = isMasterSuperAdmin(req.user) || req.user.role === 'super_admin';
+    const userPoll = isSuper ? result.poll : stripVotersFromPoll(result.poll);
+    res.json({ success: true, poll: userPoll });
   } catch (err) {
     console.error('Error voting on poll:', err);
     res.status(500).json({ error: 'هەڵە لە دەنگدان' });
   }
 });
 
-// Close Poll
+// Close / Reopen Poll (Super Admin & Creator)
 app.post('/api/polls/:id/close', authMiddleware, (req, res) => {
   try {
     const pollId = parseInt(req.params.id, 10);
     const poll = pollsDb.getPollById(pollId);
     if (!poll) return res.status(404).json({ error: 'ڕاپرسی نەدۆزرایەوە' });
 
-    const canClose = req.user.id === poll.creator_id || req.user.role === 'super_admin' || req.user.role === 'teacher';
+    const isSuper = isMasterSuperAdmin(req.user) || req.user.role === 'super_admin';
+    const canClose = isSuper || req.user.id === poll.creator_id || req.user.role === 'teacher';
     if (!canClose) return res.status(403).json({ error: 'مۆڵەتی داخستنی ئەم ڕاپرسییەت نییە' });
 
     const closedPoll = pollsDb.closePoll(pollId);
+    const sanitizedClosed = stripVotersFromPoll(closedPoll);
     if (closedPoll.chat_type === 'public') {
-      io.emit('poll_updated', { pollId, poll: closedPoll });
+      io.emit('poll_updated', { pollId, poll: sanitizedClosed });
     } else if (closedPoll.group_id) {
-      io.to(`group_${closedPoll.group_id}`).emit('poll_updated', { pollId, poll: closedPoll });
+      io.to(`group_${closedPoll.group_id}`).emit('poll_updated', { pollId, poll: sanitizedClosed });
     }
-    res.json({ success: true, poll: closedPoll });
+    res.json({ success: true, poll: isSuper ? closedPoll : sanitizedClosed });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە داخستنی ڕاپرسی' });
+  }
+});
+
+// Toggle Poll Open/Close Status (Super Admin & Creator)
+app.post('/api/polls/:id/toggle-status', authMiddleware, (req, res) => {
+  try {
+    const pollId = parseInt(req.params.id, 10);
+    const poll = pollsDb.getPollById(pollId);
+    if (!poll) return res.status(404).json({ error: 'ڕاپرسی نەدۆزرایەوە' });
+
+    const isSuper = isMasterSuperAdmin(req.user) || req.user.role === 'super_admin';
+    const canManage = isSuper || req.user.id === poll.creator_id;
+    if (!canManage) return res.status(403).json({ error: 'مۆڵەتی دەستکاریکردنی ئەم ڕاپرسییەت نییە' });
+
+    const forced = typeof req.body.isClosed === 'boolean' ? req.body.isClosed : null;
+    const updated = pollsDb.togglePollStatus(pollId, forced);
+    const sanitizedUpdated = stripVotersFromPoll(updated);
+
+    if (updated.chat_type === 'public') {
+      io.emit('poll_updated', { pollId, poll: sanitizedUpdated });
+    } else if (updated.group_id) {
+      io.to(`group_${updated.group_id}`).emit('poll_updated', { pollId, poll: sanitizedUpdated });
+    }
+    res.json({ success: true, poll: isSuper ? updated : sanitizedUpdated });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە گۆڕینی دۆخی ڕاپرسی' });
+  }
+});
+
+// Edit Poll (Super Admin & Creator)
+app.put('/api/polls/:id', authMiddleware, (req, res) => {
+  try {
+    const pollId = parseInt(req.params.id, 10);
+    const poll = pollsDb.getPollById(pollId);
+    if (!poll) return res.status(404).json({ error: 'ڕاپرسی نەدۆزرایەوە' });
+
+    const isSuper = isMasterSuperAdmin(req.user) || req.user.role === 'super_admin';
+    const canManage = isSuper || req.user.id === poll.creator_id;
+    if (!canManage) return res.status(403).json({ error: 'مۆڵەتی دەستکاریکردنی ئەم ڕاپرسییەت نییە' });
+
+    const question = String(req.body.question || '').trim();
+    const rawOptions = Array.isArray(req.body.options) ? req.body.options : [];
+    const options = rawOptions.map(o => String(o || '').trim()).filter(Boolean);
+
+    if (!question || options.length < 2) {
+      return res.status(400).json({ error: 'پێویستە پرسیار و لانی کەم دوو بژاردە هەبێت' });
+    }
+
+    const updated = pollsDb.updatePoll(pollId, { question, options });
+    const sanitizedUpdated = stripVotersFromPoll(updated);
+
+    if (updated.chat_type === 'public') {
+      io.emit('poll_updated', { pollId, poll: sanitizedUpdated });
+    } else if (updated.group_id) {
+      io.to(`group_${updated.group_id}`).emit('poll_updated', { pollId, poll: sanitizedUpdated });
+    }
+    res.json({ success: true, poll: isSuper ? updated : sanitizedUpdated });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە دەستکاریکردنی ڕاپرسی' });
+  }
+});
+
+// Delete Poll (Super Admin & Creator)
+app.delete('/api/polls/:id', authMiddleware, (req, res) => {
+  try {
+    const pollId = parseInt(req.params.id, 10);
+    const poll = pollsDb.getPollById(pollId);
+    if (!poll) return res.status(404).json({ error: 'ڕاپرسی نەدۆزرایەوە' });
+
+    const isSuper = isMasterSuperAdmin(req.user) || req.user.role === 'super_admin';
+    const canManage = isSuper || req.user.id === poll.creator_id;
+    if (!canManage) return res.status(403).json({ error: 'مۆڵەتی سڕینەوەی ئەم ڕاپرسییەت نییە' });
+
+    pollsDb.deletePoll(pollId);
+    db.prepare("DELETE FROM messages WHERE type = 'poll' AND content LIKE ?").run(`%"poll_id":${pollId}%`);
+    db.prepare("DELETE FROM custom_group_messages WHERE type = 'poll' AND content LIKE ?").run(`%"poll_id":${pollId}%`);
+
+    io.emit('poll_deleted', { pollId });
+    res.json({ success: true, message: 'ڕاپرسی بە سەرکەوتوویی سڕایەوە' });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە سڕینەوەی ڕاپرسی' });
   }
 });
 
@@ -5560,6 +5664,62 @@ app.get('/api/alarms/active', authMiddleware, (req, res) => {
   }
 });
 
+// Get Single Alarm
+app.get('/api/alarms/:id', authMiddleware, (req, res) => {
+  try {
+    const alarmId = parseInt(req.params.id, 10);
+    const alarm = alarmsDb.getAlarmById(alarmId);
+    if (!alarm) return res.status(404).json({ error: 'زەنگەکە نەدۆزرایەوە' });
+    res.json({ success: true, alarm });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە هێنانی زەنگ' });
+  }
+});
+
+// Edit Alarm (Super Admin, Teacher, Admin, or Creator)
+app.put('/api/alarms/:id', authMiddleware, (req, res) => {
+  try {
+    const alarmId = parseInt(req.params.id, 10);
+    const alarm = alarmsDb.getAlarmById(alarmId);
+    if (!alarm) return res.status(404).json({ error: 'زەنگەکە نەدۆزرایەوە' });
+
+    const isSuper = isMasterSuperAdmin(req.user) || req.user.role === 'super_admin';
+    const canManage = isSuper || req.user.id === alarm.creator_id || req.user.role === 'teacher' || req.user.role === 'admin';
+    if (!canManage) return res.status(403).json({ error: 'مۆڵەتی دەستکاریکردنی ئەم زەنگەت نییە' });
+
+    const title = String(req.body.title || '').trim();
+    const targetTime = parseInt(req.body.targetTime, 10);
+
+    if (!title) return res.status(400).json({ error: 'تکایە نوسینی ئاگاداری بنووسە' });
+    if (!targetTime || isNaN(targetTime)) return res.status(400).json({ error: 'تکایە کاتێکی دروست دیاری بکە' });
+
+    const updated = alarmsDb.updateAlarm(alarmId, { title, targetTime });
+
+    // Also update any message content that has this alarm_id
+    const contentPayload = JSON.stringify({
+      alarm_id: updated.id,
+      title: updated.title,
+      target_time: updated.target_time,
+      creator_name: updated.creator_name,
+      creator_role: updated.creator_role
+    });
+
+    db.prepare("UPDATE messages SET content = ? WHERE type = 'countdown_alarm' AND content LIKE ?").run(contentPayload, `%"alarm_id":${alarmId}%`);
+    db.prepare("UPDATE custom_group_messages SET content = ? WHERE type = 'countdown_alarm' AND content LIKE ?").run(contentPayload, `%"alarm_id":${alarmId}%`);
+
+    if (updated.chat_type === 'public') {
+      io.emit('alarm_updated', { alarmId, alarm: updated });
+    } else if (updated.group_id) {
+      io.to(`group_${updated.group_id}`).emit('alarm_updated', { alarmId, alarm: updated });
+    }
+
+    res.json({ success: true, alarm: updated });
+  } catch (err) {
+    console.error('Error updating alarm:', err);
+    res.status(500).json({ error: 'هەڵە لە دەستکاریکردنی زەنگ' });
+  }
+});
+
 // Delete Alarm
 app.delete('/api/alarms/:id', authMiddleware, (req, res) => {
   try {
@@ -5571,6 +5731,9 @@ app.delete('/api/alarms/:id', authMiddleware, (req, res) => {
     if (!canDelete) return res.status(403).json({ error: 'مۆڵەتی سڕینەوەی ئەم زەنگەت نییە' });
 
     alarmsDb.deleteAlarm(alarmId);
+    db.prepare("DELETE FROM messages WHERE type = 'countdown_alarm' AND content LIKE ?").run(`%"alarm_id":${alarmId}%`);
+    db.prepare("DELETE FROM custom_group_messages WHERE type = 'countdown_alarm' AND content LIKE ?").run(`%"alarm_id":${alarmId}%`);
+
     io.emit('alarm_deleted', { alarmId });
     res.json({ success: true });
   } catch (err) {

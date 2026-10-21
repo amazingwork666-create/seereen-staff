@@ -2330,6 +2330,25 @@ const pollsDb = {
   closePoll(pollId) {
     db.prepare('UPDATE polls SET is_closed = 1 WHERE id = ?').run(pollId);
     return this.getPollById(pollId);
+  },
+
+  togglePollStatus(pollId, forcedClosed = null) {
+    const poll = db.prepare('SELECT is_closed FROM polls WHERE id = ?').get(pollId);
+    if (!poll) return null;
+    const newStatus = forcedClosed !== null ? (forcedClosed ? 1 : 0) : (poll.is_closed ? 0 : 1);
+    db.prepare('UPDATE polls SET is_closed = ? WHERE id = ?').run(newStatus, pollId);
+    return this.getPollById(pollId);
+  },
+
+  updatePoll(pollId, { question, options }) {
+    const optsJson = JSON.stringify(options);
+    db.prepare('UPDATE polls SET question = ?, options = ? WHERE id = ?').run(question.trim(), optsJson, pollId);
+    return this.getPollById(pollId);
+  },
+
+  deletePoll(pollId) {
+    db.prepare('DELETE FROM poll_votes WHERE poll_id = ?').run(pollId);
+    return db.prepare('DELETE FROM polls WHERE id = ?').run(pollId);
   }
 };
 
@@ -2354,6 +2373,11 @@ const alarmsDb = {
 
   markTriggered(alarmId) {
     return db.prepare('UPDATE event_alarms SET is_triggered = 1 WHERE id = ?').run(alarmId);
+  },
+
+  updateAlarm(alarmId, { title, targetTime }) {
+    db.prepare('UPDATE event_alarms SET title = ?, target_time = ? WHERE id = ?').run(title.trim(), targetTime, alarmId);
+    return this.getAlarmById(alarmId);
   },
 
   deleteAlarm(alarmId) {

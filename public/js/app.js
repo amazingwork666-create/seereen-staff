@@ -16938,25 +16938,46 @@ function renderPollCardHtml(poll, { canClose = false } = {}) {
   const totalVotes = poll.total_votes || 0;
   const isClosed = Boolean(poll.is_closed);
   const myVote = poll.my_vote;
+  const isSuper = currentUser && (currentUser.role === 'super_admin' || currentUser.is_master_admin || currentUser.username === 'hemn' || currentUser.username === 'admin');
+  const canManage = isSuper || (currentUser && currentUser.id === poll.creator_id) || canClose;
 
   const optionsHtml = (poll.options || []).map((opt, idx) => {
     const isMyChoice = myVote === idx;
     const pct = opt.percentage || 0;
+    const voters = Array.isArray(opt.voters) ? opt.voters : [];
+
+    // Privacy requirement: Strictly only Super Admin (Kak Hemn) can see who voted for what!
+    const votersHtml = isSuper && voters.length > 0 ? `
+      <div class="mt-2 pt-1.5 border-t border-slate-700/60 flex flex-wrap items-center gap-1.5 select-text" onclick="event.stopPropagation()">
+        <span class="text-[10px] text-amber-400 font-black flex items-center gap-1">
+          <i class="fa-solid fa-eye text-[9px]"></i> دەنگدەران:
+        </span>
+        ${voters.map(name => `
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-200 border border-amber-500/30 text-[10px] font-bold">
+            <i class="fa-solid fa-user text-[8px] text-amber-400"></i> ${escapeHtml(name)}
+          </span>
+        `).join('')}
+      </div>
+    ` : '';
+
     return `
-      <div class="relative overflow-hidden rounded-xl border ${isMyChoice ? 'border-amber-400 bg-amber-500/10 shadow-sm' : 'border-slate-700/80 bg-slate-800/80 hover:bg-slate-800'} transition cursor-pointer select-none group/opt" onclick="${isClosed ? '' : `castPollVote(${poll.id}, ${idx})`}">
+      <div class="relative overflow-hidden rounded-2xl border ${isMyChoice ? 'border-amber-400 bg-amber-500/10 shadow-sm' : 'border-slate-700/80 bg-slate-800/80 hover:bg-slate-800'} transition cursor-pointer select-none group/opt" onclick="${isClosed ? '' : `castPollVote(${poll.id}, ${idx})`}">
         <div class="absolute inset-y-0 right-0 ${isMyChoice ? 'bg-amber-500/25' : 'bg-slate-700/50'} transition-all duration-500" style="width: ${pct}%;"></div>
         
-        <div class="relative z-10 px-3 py-2.5 flex items-center justify-between gap-2">
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="w-5 h-5 rounded-full border ${isMyChoice ? 'border-amber-400 bg-amber-400 text-slate-950' : 'border-slate-500 bg-slate-900 text-transparent'} flex items-center justify-center text-[10px] font-black shrink-0 transition">
-              <i class="fa-solid fa-check"></i>
-            </span>
-            <span class="text-xs font-black ${isMyChoice ? 'text-amber-200' : 'text-slate-100'} truncate">${escapeHtml(opt.text)}</span>
+        <div class="relative z-10 px-3 py-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-5 h-5 rounded-full border ${isMyChoice ? 'border-amber-400 bg-amber-400 text-slate-950' : 'border-slate-500 bg-slate-900 text-transparent'} flex items-center justify-center text-[10px] font-black shrink-0 transition">
+                <i class="fa-solid fa-check"></i>
+              </span>
+              <span class="text-xs font-black ${isMyChoice ? 'text-amber-200' : 'text-slate-100'} truncate">${escapeHtml(opt.text)}</span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+              <span class="text-slate-400 text-[10px]">(${opt.count || 0})</span>
+              <span class="font-black ${isMyChoice ? 'text-amber-300' : 'text-slate-300'}">${pct}%</span>
+            </div>
           </div>
-          <div class="flex items-center gap-2 shrink-0 font-mono text-[11px]">
-            <span class="text-slate-400 text-[10px]">(${opt.count || 0})</span>
-            <span class="font-black ${isMyChoice ? 'text-amber-300' : 'text-slate-300'}">${pct}%</span>
-          </div>
+          ${votersHtml}
         </div>
       </div>
     `;
@@ -16980,8 +17001,18 @@ function renderPollCardHtml(poll, { canClose = false } = {}) {
           ` : `
             <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-black border border-emerald-500/30 animate-pulse">دەنگدان کراوەیە</span>
           `}
-          ${canClose && !isClosed ? `
-            <button type="button" onclick="closePollDirect(${poll.id})" class="px-2 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500 hover:text-white text-[9px] font-bold border border-rose-500/30 transition" title="داخستنی ڕاپرسی">داخستن ✕</button>
+          ${canManage ? `
+            ${isClosed ? `
+              <button type="button" onclick="togglePollStatusDirect(${poll.id}, false)" class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500 hover:text-white text-[9px] font-bold border border-emerald-500/30 transition shadow-sm" title="کردنەوەی ڕاپرسی">کردنەوە 🔓</button>
+            ` : `
+              <button type="button" onclick="togglePollStatusDirect(${poll.id}, true)" class="px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-white text-[9px] font-bold border border-amber-500/30 transition shadow-sm" title="داخستنی ڕاپرسی">داخستن 🔒</button>
+            `}
+            <button type="button" onclick="openEditPollModal(${poll.id})" class="text-slate-400 hover:text-amber-400 p-1 rounded-lg transition" title="دەستکاریکردنی ڕاپرسی">
+              <i class="fa-solid fa-pen-to-square text-xs"></i>
+            </button>
+            <button type="button" onclick="deletePollDirect(${poll.id})" class="text-slate-400 hover:text-rose-400 p-1 rounded-lg transition" title="سڕینەوەی ڕاپرسی">
+              <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
           ` : ''}
         </div>
       </div>
@@ -17014,7 +17045,7 @@ async function loadAndRenderPollSlot(pollId, slotId) {
 
     const slot = document.getElementById(slotId);
     if (slot) {
-      const canClose = currentUser && (currentUser.id === poll.creator_id || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+      const canClose = Boolean(data.canManage);
       slot.innerHTML = renderPollCardHtml(poll, { canClose });
     }
   } catch (e) {
@@ -17044,25 +17075,140 @@ async function castPollVote(pollId, optionIndex) {
 }
 
 async function closePollDirect(pollId) {
-  if (!confirm('ئایا دڵنیایت لە داخستنی ئەم ڕاپرسییە؟')) return;
+  return togglePollStatusDirect(pollId, true);
+}
+
+async function togglePollStatusDirect(pollId, isClosed) {
   try {
-    const res = await fetch(`/api/polls/${pollId}/close`, {
+    const res = await fetch(`/api/polls/${pollId}/toggle-status`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ isClosed })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە گۆڕینی دۆخی ڕاپرسی');
+    updatePollDomCards(pollId, data.poll);
+    showToastNotification(isClosed ? 'ڕاپرسی بە سەرکەوتوویی داخرا 🔒' : 'ڕاپرسی بۆ دەنگدان کرایەوە 🔓', 'amber');
+  } catch (err) {
+    alert(err.message || 'هەڵە لە گۆڕینی دۆخی ڕاپرسی');
+  }
+}
+
+async function deletePollDirect(pollId) {
+  if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم ڕاپرسییە بە تەواوی؟')) return;
+  try {
+    const res = await fetch(`/api/polls/${pollId}`, {
+      method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'هەڵە لە داخستن');
-    updatePollDomCards(pollId, data.poll);
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە سڕینەوەی ڕاپرسی');
+
+    document.querySelectorAll(`[data-poll-id="${pollId}"]`).forEach(el => el.remove());
+    showToastNotification('ڕاپرسی بە سەرکەوتوویی سڕایەوە', 'rose');
   } catch (err) {
-    alert(err.message || 'هەڵە لە داخستنی ڕاپرسی');
+    alert(err.message || 'هەڵە لە سڕینەوەی ڕاپرسی');
+  }
+}
+
+async function openEditPollModal(pollId) {
+  let poll = pollCacheMap.get(Number(pollId));
+  if (!poll) {
+    try {
+      const res = await fetch(`/api/polls/${pollId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (data && data.poll) poll = data.poll;
+    } catch (e) {}
+  }
+  if (!poll) return alert('زانیاری ڕاپرسی نەدۆزرایەوە');
+
+  document.getElementById('editPollIdInput').value = poll.id;
+  document.getElementById('editPollQuestionInput').value = poll.question || '';
+
+  const container = document.getElementById('editPollOptionsContainer');
+  if (container) {
+    container.innerHTML = '';
+    const opts = Array.isArray(poll.options) ? poll.options : [];
+    opts.forEach(opt => {
+      const text = typeof opt === 'string' ? opt : (opt.text || '');
+      addEditPollOptionField(text);
+    });
+    while (container.querySelectorAll('input[name="editPollOption"]').length < 2) {
+      addEditPollOptionField();
+    }
+  }
+
+  const modal = document.getElementById('editPollModal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeEditPollModal() {
+  const modal = document.getElementById('editPollModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function addEditPollOptionField(val = '') {
+  const container = document.getElementById('editPollOptionsContainer');
+  if (!container) return;
+  const count = container.querySelectorAll('.edit-poll-option-row').length + 1;
+  const row = document.createElement('div');
+  row.className = 'edit-poll-option-row flex items-center gap-2';
+  row.innerHTML = `
+    <span class="w-6 text-center text-xs text-amber-400 font-bold font-mono">${count}</span>
+    <input type="text" name="editPollOption" value="${escapeHtml(val)}" placeholder="بژاردەی ${count}..." required class="flex-1 bg-slate-800/90 border border-slate-700/80 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition">
+    ${count > 2 ? `
+      <button type="button" onclick="this.closest('.edit-poll-option-row').remove()" class="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white flex items-center justify-center text-xs transition">
+        <i class="fa-solid fa-trash-can"></i>
+      </button>
+    ` : ''}
+  `;
+  container.appendChild(row);
+}
+
+async function handleEditPollSubmit(e) {
+  e.preventDefault();
+  const pollId = document.getElementById('editPollIdInput')?.value;
+  const question = document.getElementById('editPollQuestionInput')?.value.trim();
+  const optionInputs = Array.from(document.querySelectorAll('#editPollOptionsContainer input[name="editPollOption"]'));
+  const options = optionInputs.map(i => i.value.trim()).filter(Boolean);
+
+  if (!question) return alert('تکایە پرسیاری ڕاپرسی بنووسە');
+  if (options.length < 2) return alert('پێویستە لانی کەم دوو بژاردە هەبێت');
+
+  const btn = document.getElementById('editPollSubmitBtn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(`/api/polls/${pollId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ question, options })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە دەستکاریکردنی ڕاپرسی');
+
+    closeEditPollModal();
+    updatePollDomCards(Number(pollId), data.poll);
+    showToastNotification('ڕاپرسی بە سەرکەوتوویی نوێکرایەوە ✨', 'emerald');
+  } catch (err) {
+    alert(err.message || 'هەڵە لە دەستکاریکردنی ڕاپرسی');
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
 function updatePollDomCards(pollId, updatedPoll) {
   if (!pollId || !updatedPoll) return;
-  pollCacheMap.set(pollId, updatedPoll);
+  pollCacheMap.set(Number(pollId), updatedPoll);
 
-  const canClose = currentUser && (currentUser.id === updatedPoll.creator_id || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  const isSuper = currentUser && (currentUser.role === 'super_admin' || currentUser.is_master_admin);
+  const canClose = isSuper || (currentUser && (currentUser.id === updatedPoll.creator_id || currentUser.role === 'teacher'));
   const rendered = renderPollCardHtml(updatedPoll, { canClose });
 
   const pubSlot = document.getElementById(`poll-msg-slot-${pollId}`);
@@ -17085,13 +17231,14 @@ function updatePollDomCards(pollId, updatedPoll) {
 // EVENT COUNTDOWN ALARMS (زەنگی ئاگاداری)
 // =========================================================================
 let currentAlarmTargetChatType = 'public';
+const alarmCacheMap = new Map();
 
 function openCreateAlarmModal(chatType = 'public') {
   currentAlarmTargetChatType = chatType;
   const modal = document.getElementById('createAlarmModal');
   const targetText = document.getElementById('createAlarmTargetText');
   if (targetText) {
-    targetText.innerText = chatType === 'custom_group' ? `لە ناو گروپی «${activeCustomGroupData?.name || 'تایبەت'}»` : 'لە چاتی گشتی بۆ هەمووان';
+    targetText.innerText = chatType === 'custom_group' ? `لە ناو گروپی «${activeCustomGroupData?.name || 'تایبەت'}»` : 'لە کاتی دیاریکراودا جەڕەس لێدەدات و ئاگادارتان دەکاتەوە 🔔';
   }
 
   const dtInput = document.getElementById('alarmDateTimeInput');
@@ -17144,6 +17291,7 @@ async function handleCreateAlarmSubmit(e) {
 
     closeCreateAlarmModal();
     document.getElementById('createAlarmForm')?.reset();
+    showToastNotification('زەنگی ئاگاداری دانرا 🔔', 'amber');
   } catch (err) {
     alert(err.message || 'هەڵە لە دانانی زەنگی ئاگاداری');
   } finally {
@@ -17151,9 +17299,109 @@ async function handleCreateAlarmSubmit(e) {
   }
 }
 
-function renderAlarmCardHtml(alarm, { canDelete = false } = {}) {
+async function openEditAlarmModal(alarmId) {
+  let alarm = alarmCacheMap.get(Number(alarmId));
+  if (!alarm) {
+    try {
+      const res = await fetch(`/api/alarms/${alarmId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (data && data.alarm) alarm = data.alarm;
+    } catch (e) {}
+  }
+  if (!alarm) {
+    const card = document.getElementById(`alarm-card-${alarmId}`);
+    if (card) {
+      const title = card.querySelector('h4')?.innerText || '';
+      const targetTime = Number(card.getAttribute('data-target-time')) || Date.now();
+      alarm = { id: alarmId, title, target_time: targetTime };
+    }
+  }
+  if (!alarm) return alert('زانیاری زەنگ نەدۆزرایەوە');
+
+  document.getElementById('editAlarmIdInput').value = alarm.id || alarmId;
+  document.getElementById('editAlarmTitleInput').value = alarm.title || '';
+
+  const dtInput = document.getElementById('editAlarmDateTimeInput');
+  if (dtInput) {
+    const d = new Date(Number(alarm.target_time) || Date.now());
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    dtInput.value = d.toISOString().slice(0, 16);
+  }
+
+  const modal = document.getElementById('editAlarmModal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeEditAlarmModal() {
+  const modal = document.getElementById('editAlarmModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function handleEditAlarmSubmit(e) {
+  e.preventDefault();
+  const alarmId = document.getElementById('editAlarmIdInput')?.value;
+  const title = document.getElementById('editAlarmTitleInput')?.value.trim();
+  const dtVal = document.getElementById('editAlarmDateTimeInput')?.value;
+
+  if (!title) return alert('تکایە نوسینی ئاگاداری بنووسە');
+  if (!dtVal) return alert('تکایە بەروار و کات دیاری بکە');
+
+  const targetTime = new Date(dtVal).getTime();
+  if (isNaN(targetTime)) return alert('کاتی دیاریکراو دروست نییە');
+
+  const btn = document.getElementById('editAlarmSubmitBtn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(`/api/alarms/${alarmId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ title, targetTime })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە دەستکاریکردنی زەنگ');
+
+    closeEditAlarmModal();
+    updateAlarmDomCards(Number(alarmId), data.alarm);
+    showToastNotification('زەنگی ئاگاداری بە سەرکەوتوویی نوێکرایەوە ✨', 'emerald');
+  } catch (err) {
+    alert(err.message || 'هەڵە لە دەستکاریکردنی زەنگ');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function updateAlarmDomCards(alarmId, updatedAlarm) {
+  if (!alarmId || !updatedAlarm) return;
+  alarmCacheMap.set(Number(alarmId), updatedAlarm);
+
+  const isSuper = currentUser && (currentUser.role === 'super_admin' || currentUser.is_master_admin);
+  const canManage = isSuper || (currentUser && (currentUser.id === updatedAlarm.creator_id || currentUser.role === 'teacher' || currentUser.role === 'admin'));
+  const rendered = renderAlarmCardHtml(updatedAlarm, { canManage, canDelete: canManage });
+
+  document.querySelectorAll(`[data-alarm-id="${alarmId}"]`).forEach(el => {
+    if (el.id === `alarm-card-${alarmId}`) {
+      const temp = document.createElement('div');
+      temp.innerHTML = rendered;
+      const newCard = temp.firstElementChild;
+      if (newCard) el.replaceWith(newCard);
+    }
+  });
+}
+
+function renderAlarmCardHtml(alarm, { canManage = false, canDelete = false } = {}) {
   if (!alarm) return '';
   const now = Date.now();
+  const alarmId = alarm.id || alarm.alarm_id;
+  alarmCacheMap.set(Number(alarmId), alarm);
+
+  const isSuper = currentUser && (currentUser.role === 'super_admin' || currentUser.is_master_admin);
+  const isPrivileged = isSuper || (currentUser && (currentUser.id === alarm.creator_id || currentUser.role === 'teacher' || currentUser.role === 'admin'));
+  const allowEditDelete = canManage || canDelete || isPrivileged;
+
   const targetTime = Number(alarm.target_time);
   const isTriggered = alarm.is_triggered || targetTime <= now;
   const diffSec = Math.max(0, Math.floor((targetTime - now) / 1000));
@@ -17167,7 +17415,7 @@ function renderAlarmCardHtml(alarm, { canDelete = false } = {}) {
   const formattedTimeStr = targetDateObj.toLocaleDateString('ku-IQ') + ' • ' + targetDateObj.toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
 
   return `
-    <div id="alarm-card-${alarm.id || alarm.alarm_id}" class="w-full max-w-lg my-2 mx-auto rounded-3xl bg-gradient-to-br from-slate-900 via-rose-950/20 to-slate-900 border-2 border-rose-500/40 p-4 shadow-2xl space-y-3.5 relative overflow-hidden group" data-alarm-id="${alarm.id || alarm.alarm_id}" data-target-time="${targetTime}">
+    <div id="alarm-card-${alarmId}" class="w-full max-w-lg my-2 mx-auto rounded-3xl bg-gradient-to-br from-slate-900 via-rose-950/20 to-slate-900 border-2 border-rose-500/40 p-4 shadow-2xl space-y-3.5 relative overflow-hidden group" data-alarm-id="${alarmId}" data-target-time="${targetTime}">
       <!-- Notice Title at Top Prominently Displayed -->
       <div class="flex items-start justify-between gap-2 border-b border-rose-500/20 pb-2.5">
         <div class="flex items-start gap-2.5 min-w-0">
@@ -17179,15 +17427,20 @@ function renderAlarmCardHtml(alarm, { canDelete = false } = {}) {
             <span class="text-[10px] text-slate-400 mt-0.5 block font-mono">${formattedTimeStr}</span>
           </div>
         </div>
-        ${canDelete ? `
-          <button type="button" onclick="deleteAlarmDirect(${alarm.id || alarm.alarm_id})" class="text-slate-500 hover:text-rose-400 p-1 rounded-lg transition shrink-0" title="سڕینەوەی ئەم زەنگە">
-            <i class="fa-solid fa-trash-can text-xs"></i>
-          </button>
+        ${allowEditDelete ? `
+          <div class="flex items-center gap-1 shrink-0">
+            <button type="button" onclick="openEditAlarmModal(${alarmId})" class="text-slate-400 hover:text-amber-400 p-1 rounded-lg transition" title="دەستکاریکردنی ئەم زەنگە">
+              <i class="fa-solid fa-pen-to-square text-xs"></i>
+            </button>
+            <button type="button" onclick="deleteAlarmDirect(${alarmId})" class="text-slate-500 hover:text-rose-400 p-1 rounded-lg transition" title="سڕینەوەی ئەم زەنگە">
+              <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
+          </div>
         ` : ''}
       </div>
 
       <!-- Stunning Digital Countdown Clock Display -->
-      <div id="alarm-timer-box-${alarm.id || alarm.alarm_id}" class="grid grid-cols-4 gap-2 text-center select-none font-mono">
+      <div id="alarm-timer-box-${alarmId}" class="grid grid-cols-4 gap-2 text-center select-none font-mono">
         <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-2 shadow-inner">
           <span class="text-base sm:text-xl font-black text-white block alarm-digit-days">${days}</span>
           <span class="text-[9px] text-slate-400 font-bold block mt-0.5">ڕۆژ</span>
@@ -17209,8 +17462,8 @@ function renderAlarmCardHtml(alarm, { canDelete = false } = {}) {
       <!-- Status Footer -->
       <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
         <span class="text-slate-500 font-medium">لەلایەن: ${escapeHtml(alarm.creator_name || 'ستاف')}</span>
-        <span id="alarm-status-badge-${alarm.id || alarm.alarm_id}" class="font-bold ${isTriggered ? 'text-rose-400 font-black flex items-center gap-1 animate-pulse' : 'text-emerald-400 flex items-center gap-1'}">
-          ${isTriggered ? '<i class="fa-solid fa-bell text-[9px]"></i> کاتەکەی هاتووە / جەڕەس لێیدا!' : '<i class="fa-regular fa-clock text-[9px]"></i> کاتەکەی کەم دەبێتەوە'}
+        <span id="alarm-status-badge-${alarmId}" class="font-bold ${isTriggered ? 'text-rose-400 font-black flex items-center gap-1 animate-pulse' : 'text-emerald-400 flex items-center gap-1'}">
+          ${isTriggered ? '<i class="fa-solid fa-bell text-[9px]"></i> کاتەکەی هاتووە / جەڕەس لێیدا!' : '<i class="fa-solid fa-bell text-[9px]"></i> زەنگ چالاکە'}
         </span>
       </div>
     </div>
@@ -17226,6 +17479,7 @@ async function deleteAlarmDirect(alarmId) {
     });
     if (!res.ok) throw new Error('هەڵە لە سڕینەوە');
     document.querySelectorAll(`[data-alarm-id="${alarmId}"]`).forEach(el => el.remove());
+    showToastNotification('زەنگ بە سەرکەوتوویی سڕایەوە', 'rose');
   } catch (err) {
     alert(err.message || 'هەڵە لە سڕینەوەی زەنگ');
   }
@@ -17272,7 +17526,27 @@ setInterval(() => {
 // Global Socket Listeners for Polls, Alarms & Group Clear
 if (typeof socket !== 'undefined' && socket) {
   socket.on('poll_updated', ({ pollId, poll }) => {
-    updatePollDomCards(pollId, poll);
+    // If Super Admin, fetch enriched poll with secret voters!
+    const isSuper = currentUser && (currentUser.role === 'super_admin' || currentUser.is_master_admin);
+    if (isSuper) {
+      fetch(`/api/polls/${pollId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(d => { if (d && d.poll) updatePollDomCards(pollId, d.poll); else updatePollDomCards(pollId, poll); })
+        .catch(() => updatePollDomCards(pollId, poll));
+    } else {
+      updatePollDomCards(pollId, poll);
+    }
+  });
+
+  socket.on('poll_deleted', ({ pollId }) => {
+    document.querySelectorAll(`[data-poll-id="${pollId}"]`).forEach(el => el.remove());
+    document.querySelectorAll('[data-message-id]').forEach(msgEl => {
+      if (msgEl.querySelector(`[data-poll-id="${pollId}"]`)) msgEl.remove();
+    });
+  });
+
+  socket.on('alarm_updated', ({ alarmId, alarm }) => {
+    updateAlarmDomCards(alarmId, alarm);
   });
 
   socket.on('alarm_triggered', ({ alarmId, title, chatType, groupId }) => {
@@ -17291,6 +17565,9 @@ if (typeof socket !== 'undefined' && socket) {
 
   socket.on('alarm_deleted', ({ alarmId }) => {
     document.querySelectorAll(`[data-alarm-id="${alarmId}"]`).forEach(el => el.remove());
+    document.querySelectorAll('[data-message-id]').forEach(msgEl => {
+      if (msgEl.querySelector(`[data-alarm-id="${alarmId}"]`)) msgEl.remove();
+    });
   });
 
   socket.on('custom_group_messages_cleared', ({ groupId }) => {

@@ -2582,7 +2582,7 @@
           </div>
           <div class="min-w-0">
             <h4 class="text-sm font-black text-white truncate">دانانی زەنگی ئاگاداری</h4>
-            <p id="createAlarmTargetText" class="text-[11px] text-rose-300/80 truncate">لە کاتی دیاریکراودا جەڕەس لێدەدات و کاتەکەی کەم دەبێتەوە</p>
+            <p id="createAlarmTargetText" class="text-[11px] text-rose-300/80 truncate">لە کاتی دیاریکراودا جەڕەس لێدەدات و ئاگادارتان دەکاتەوە 🔔</p>
           </div>
         </div>
         <button type="button" onclick="closeCreateAlarmModal()" class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
@@ -2602,7 +2602,6 @@
         <div>
           <label class="block text-xs font-black text-slate-200 mb-1">بەروار و کاتژمێری لێدانی جەڕەس</label>
           <input type="datetime-local" id="alarmDateTimeInput" required class="w-full bg-slate-800/90 border border-slate-700/80 focus:border-rose-500 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none transition [color-scheme:dark]">
-          <p class="text-[10px] text-slate-400 mt-1">کاتژمێرەکە چرکە بە چرکە کەم دەبێتەوە و لەو ساتەدا زەنگ لێدەدات 🔔</p>
         </div>
 
         <!-- Submit Button -->
@@ -2610,6 +2609,93 @@
           <button type="submit" id="createAlarmSubmitBtn" class="w-full py-2.5 bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white font-black text-xs rounded-2xl transition shadow-lg flex items-center justify-center gap-1.5 active:scale-95">
             <i class="fa-solid fa-bell text-xs"></i>
             <span>چالاککردن و دانانی زەنگ</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: EDIT POLL (دەستکاریکردنی ڕاپرسی) ================= -->
+  <div id="editPollModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onclick="if(event.target === this) closeEditPollModal()">
+    <div class="bg-slate-900 border border-amber-500/40 rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scale-up" onclick="event.stopPropagation()">
+      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-amber-950/40 to-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-sm shrink-0">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </div>
+          <div class="min-w-0">
+            <h4 class="text-sm font-black text-white truncate">دەستکاریکردنی ڕاپرسی</h4>
+            <p class="text-[11px] text-amber-300/80 truncate">گۆڕینی پرسیار و بژاردەکان</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeEditPollModal()" class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="editPollForm" onsubmit="handleEditPollSubmit(event)" class="p-3.5 sm:p-4 space-y-3.5 overflow-y-auto flex-1">
+        <input type="hidden" id="editPollIdInput">
+        <div>
+          <label class="block text-xs font-black text-slate-200 mb-1">پرسیار یان بابەتی ڕاپرسی</label>
+          <textarea id="editPollQuestionInput" rows="2" placeholder="پرسیارەکەت بنووسە..." required class="w-full bg-slate-800/90 border border-slate-700/80 focus:border-amber-500 rounded-2xl p-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none resize-none transition leading-relaxed"></textarea>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-xs font-black text-slate-200">بژاردەکانی دەنگدان</label>
+            <span class="text-[10px] text-slate-400">لانی کەم ٢ بژاردە</span>
+          </div>
+          <div id="editPollOptionsContainer" class="space-y-2"></div>
+          <button type="button" onclick="addEditPollOptionField()" class="mt-2 text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 transition">
+            <i class="fa-solid fa-plus text-[10px]"></i>
+            <span>+ زیادکردنی بژاردەی تر</span>
+          </button>
+        </div>
+
+        <div class="pt-2">
+          <button type="submit" id="editPollSubmitBtn" class="w-full py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-black text-xs rounded-2xl transition shadow-lg flex items-center justify-center gap-1.5 active:scale-95">
+            <i class="fa-solid fa-check text-xs"></i>
+            <span>پاشەکەوتکردنی گۆڕانکارییەکان</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: EDIT ALARM (دەستکاریکردنی زەنگی ئاگاداری) ================= -->
+  <div id="editAlarmModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onclick="if(event.target === this) closeEditAlarmModal()">
+    <div class="bg-slate-900 border border-rose-500/40 rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scale-up" onclick="event.stopPropagation()">
+      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-rose-950/40 to-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-9 h-9 rounded-2xl bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center justify-center text-sm shrink-0">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </div>
+          <div class="min-w-0">
+            <h4 class="text-sm font-black text-white truncate">دەستکاریکردنی زەنگی ئاگاداری</h4>
+            <p class="text-[11px] text-rose-300/80 truncate">گۆڕینی ناونیشان و کات</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeEditAlarmModal()" class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="editAlarmForm" onsubmit="handleEditAlarmSubmit(event)" class="p-3.5 sm:p-4 space-y-3.5 overflow-y-auto flex-1">
+        <input type="hidden" id="editAlarmIdInput">
+        <div>
+          <label class="block text-xs font-black text-slate-200 mb-1">نوسینی ئاگاداری (لەسەرووی سەعاتەکە دەرکەوێت)</label>
+          <input type="text" id="editAlarmTitleInput" required class="w-full bg-slate-800/90 border border-slate-700/80 focus:border-rose-500 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none transition font-bold">
+        </div>
+
+        <div>
+          <label class="block text-xs font-black text-slate-200 mb-1">بەروار و کاتژمێری لێدانی جەڕەس</label>
+          <input type="datetime-local" id="editAlarmDateTimeInput" required class="w-full bg-slate-800/90 border border-slate-700/80 focus:border-rose-500 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none transition [color-scheme:dark]">
+        </div>
+
+        <div class="pt-2">
+          <button type="submit" id="editAlarmSubmitBtn" class="w-full py-2.5 bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white font-black text-xs rounded-2xl transition shadow-lg flex items-center justify-center gap-1.5 active:scale-95">
+            <i class="fa-solid fa-check text-xs"></i>
+            <span>پاشەکەوتکردنی گۆڕانکارییەکان</span>
           </button>
         </div>
       </form>
@@ -4208,6 +4294,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=21.7"></script>
+  <script src="/js/app.js?v=21.8"></script>
 </body>
 </html>
