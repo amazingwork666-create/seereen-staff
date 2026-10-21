@@ -979,6 +979,14 @@
               <button type="button" onclick="startVoiceRecording()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 flex items-center justify-center transition border border-slate-700/60" title="ناردنی دەنگ (تایبەت بە ئەدمین و مامۆستا)">
                 <i class="fa-solid fa-microphone text-sm"></i>
               </button>
+
+              <button type="button" id="publicChatPollBtn" onclick="openCreatePollModal('public')" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 flex items-center justify-center transition border border-slate-700/60" title="دروستکردنی ڕاپرسی (تایبەت بە ئەدمین و مامۆستا)">
+                <i class="fa-solid fa-square-poll-vertical text-sm"></i>
+              </button>
+
+              <button type="button" id="publicChatAlarmBtn" onclick="openCreateAlarmModal('public')" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 flex items-center justify-center transition border border-slate-700/60" title="دانانی زەنگی ئاگاداری / کاتژمێری وانە">
+                <i class="fa-solid fa-bell text-sm"></i>
+              </button>
             </div>
 
             <div class="relative flex-1">
@@ -1137,6 +1145,51 @@
               </span>
             </div>
           </div>
+        </div>
+
+        <!-- Course Participation Display Card (Visible to Everyone if enrolled) -->
+        <div id="profCoursesViewCard" class="hidden p-3 rounded-2xl bg-gradient-to-r from-emerald-950/30 via-slate-900 to-indigo-950/30 border border-emerald-500/30 space-y-2">
+          <div class="flex items-center justify-between border-b border-emerald-500/20 pb-1.5">
+            <span class="text-xs font-black text-emerald-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-graduation-cap text-emerald-400"></i>
+              <span>خولە بەشداربووەکان</span>
+            </span>
+            <span id="profCoursesCountBadge" class="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">١ خول</span>
+          </div>
+          <div id="profCoursesBadgesList" class="flex items-center gap-2 flex-wrap">
+            <!-- Badges rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Course Participation Edit Card (Eligible Users on Own Profile or Super Admin) -->
+        <div id="profCoursesEditCard" class="hidden p-3 rounded-2xl bg-slate-800/80 border border-slate-700/80 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-black text-slate-200 flex items-center gap-1.5">
+              <i class="fa-solid fa-book-open-reader text-indigo-400"></i>
+              <span>بەشداریکردنی خولەکان 🎓</span>
+            </label>
+            <span class="text-[10px] text-slate-400">هەڵبژاردنی یەکێک یان هەردووک</span>
+          </div>
+          <div class="space-y-1.5">
+            <label class="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 hover:bg-slate-900 border border-slate-700/60 cursor-pointer select-none transition">
+              <div class="flex items-center gap-2">
+                <input type="checkbox" id="courseCheckZana" value="خولی مامۆستا زانا" class="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-800 border-slate-600">
+                <span class="text-xs font-black text-slate-200">خولی مامۆستا زانا</span>
+              </div>
+              <span class="text-[10px] text-emerald-400 font-bold px-1.5 py-0.5 rounded bg-emerald-500/10">🎓 زانا</span>
+            </label>
+            <label class="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 hover:bg-slate-900 border border-slate-700/60 cursor-pointer select-none transition">
+              <div class="flex items-center gap-2">
+                <input type="checkbox" id="courseCheckIbnSirin" value="خولی ئیبن سیرین" class="w-4 h-4 rounded text-indigo-500 focus:ring-indigo-500 bg-slate-800 border-slate-600">
+                <span class="text-xs font-black text-slate-200">خولی ئیبن سیرین</span>
+              </div>
+              <span class="text-[10px] text-indigo-400 font-bold px-1.5 py-0.5 rounded bg-indigo-500/10">📖 ئیبن سیرین</span>
+            </label>
+          </div>
+          <button type="button" onclick="saveMyCourseEnrollments()" id="saveCoursesBtn" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 active:scale-95 shadow">
+            <i class="fa-solid fa-floppy-disk text-[11px]"></i>
+            <span>پاشەکەوتکردنی خولەکان</span>
+          </button>
         </div>
 
         <!-- Private Message Action Button -->
@@ -2303,6 +2356,16 @@
             <i class="fa-solid fa-microphone"></i>
           </button>
 
+          <!-- Group Poll Button (Super Admin & Teacher) -->
+          <button type="button" id="customGroupPollBtn" onclick="openCreatePollModal('custom_group')" class="hidden w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700/80 flex items-center justify-center text-sm shrink-0 transition active:scale-95" title="دروستکردنی ڕاپرسی لەم گروپەدا">
+            <i class="fa-solid fa-square-poll-vertical"></i>
+          </button>
+
+          <!-- Group Alarm Button (Super Admin, Teacher & Admin) -->
+          <button type="button" id="customGroupAlarmBtn" onclick="openCreateAlarmModal('custom_group')" class="hidden w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 border border-slate-700/80 flex items-center justify-center text-sm shrink-0 transition active:scale-95" title="دانانی زەنگی ئاگاداری لەم گروپەدا">
+            <i class="fa-solid fa-bell"></i>
+          </button>
+
           <!-- Message Textarea -->
           <textarea id="customGroupTextInput" rows="1" placeholder="" class="flex-1 min-w-0 bg-slate-800/90 border border-slate-700/80 focus:border-indigo-500 rounded-2xl px-3 py-2 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32 transition leading-relaxed"></textarea>
 
@@ -2375,17 +2438,17 @@
   </div>
 
   <!-- ================= MODAL: MANAGE CUSTOM GROUP (SUPER ADMIN) ================= -->
-  <div id="customGroupManageModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onclick="if(event.target === this) closeCustomGroupManageModal()">
+  <div id="customGroupManageModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-x-hidden" onclick="if(event.target === this) closeCustomGroupManageModal()">
     <div class="bg-slate-900 border border-indigo-500/40 rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-scale-up" onclick="event.stopPropagation()">
       <!-- Header -->
-      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-indigo-950/50 to-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
+      <div class="p-3 sm:p-4 bg-gradient-to-r from-slate-900 via-indigo-950/50 to-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2.5 min-w-0">
-          <div class="w-9 h-9 rounded-2xl bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center text-sm shrink-0">
+          <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center text-sm shrink-0">
             <i class="fa-solid fa-users-gear"></i>
           </div>
           <div class="min-w-0">
-            <h4 class="text-sm font-black text-white truncate">بەڕێوەبردنی گروپ چات</h4>
-            <p id="manageGroupHeaderSubtext" class="text-[11px] text-slate-400 truncate">گۆڕینی ناو و ئەندامان</p>
+            <h4 class="text-xs sm:text-sm font-black text-white truncate">بەڕێوەبردنی گروپ چات</h4>
+            <p id="manageGroupHeaderSubtext" class="text-[10px] sm:text-[11px] text-slate-400 truncate">گۆڕینی ناو و ئەندامان</p>
           </div>
         </div>
         <button type="button" onclick="closeCustomGroupManageModal()" class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
@@ -2393,32 +2456,33 @@
         </button>
       </div>
 
-      <!-- Scrollable Settings -->
-      <div class="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-4">
+      <!-- Scrollable Settings (Strict overflow-x-hidden, compact mobile padding) -->
+      <div class="flex-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-4 space-y-3">
         <!-- 1. Rename Group -->
-        <div class="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2">
+        <div class="p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-1.5">
           <label class="block text-xs font-black text-slate-300">گۆڕینی ناوی گروپ چاتەکە</label>
           <div class="flex items-center gap-2">
-            <input type="text" id="manageGroupNameInput" class="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 font-bold">
-            <button type="button" onclick="saveCustomGroupRenamed()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition shrink-0 active:scale-95">
-              پاشەکەوت
+            <input type="text" id="manageGroupNameInput" class="flex-1 min-w-0 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 font-bold" placeholder="ناوی گروپ...">
+            <button type="button" onclick="saveCustomGroupRenamed()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition shrink-0 active:scale-95 whitespace-nowrap shadow flex items-center gap-1.5">
+              <i class="fa-solid fa-floppy-disk text-[11px]"></i>
+              <span>پاشەکەوت</span>
             </button>
           </div>
         </div>
 
         <!-- 2. Current Members -->
-        <div class="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2">
+        <div class="p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2">
           <div class="flex items-center justify-between">
             <label class="block text-xs font-black text-slate-300">ئەندامەکانی ناو گروپ</label>
             <span id="manageGroupMembersBadge" class="text-[10px] text-indigo-400 font-mono font-bold">٠ ئەندام</span>
           </div>
-          <div id="manageGroupMembersList" class="max-h-60 overflow-y-auto space-y-2 pr-0.5">
+          <div id="manageGroupMembersList" class="max-h-56 overflow-y-auto overflow-x-hidden space-y-2 pr-0.5">
             <div class="text-center py-4 text-slate-500 text-xs">بارکردنی ئەندامان...</div>
           </div>
         </div>
 
         <!-- 3. Add New Member (Professional Search & Member Cards as in Image) -->
-        <div class="p-3 sm:p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2.5">
+        <div class="p-2.5 sm:p-3 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2">
           <div class="flex items-center justify-between">
             <label class="block text-xs font-black text-slate-200">زیادکردنی ئەندامی نوێ بۆ ئەم گروپە</label>
             <span id="manageGroupAvailableBadge" class="text-[10px] text-emerald-400 font-mono font-bold">٠ ئەندام</span>
@@ -2431,19 +2495,124 @@
           </div>
 
           <!-- Available Members Cards Container -->
-          <div id="manageGroupAvailableMembersList" class="max-h-64 overflow-y-auto space-y-2 pr-0.5">
+          <div id="manageGroupAvailableMembersList" class="max-h-56 overflow-y-auto overflow-x-hidden space-y-2 pr-0.5">
             <div class="text-center py-6 text-slate-500 text-xs">بارکردنی ئەندامان...</div>
           </div>
         </div>
 
         <!-- 4. Danger Zone: Delete Group -->
-        <div class="pt-2">
+        <div class="pt-1">
           <button type="button" onclick="confirmDeleteCustomGroup()" class="w-full py-2 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 text-rose-300 hover:text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 active:scale-95 shadow">
             <i class="fa-solid fa-trash-can"></i>
             <span>سڕینەوەی تەواوەتی ئەم گروپ چاتە</span>
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: CREATE POLL (ڕاپرسی) ================= -->
+  <div id="createPollModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onclick="if(event.target === this) closeCreatePollModal()">
+    <div class="bg-slate-900 border border-amber-500/40 rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scale-up" onclick="event.stopPropagation()">
+      <!-- Header -->
+      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-amber-950/40 to-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center justify-center text-sm shrink-0">
+            <i class="fa-solid fa-square-poll-vertical"></i>
+          </div>
+          <div class="min-w-0">
+            <h4 class="text-sm font-black text-white truncate">دروستکردنی ڕاپرسی نوێ</h4>
+            <p id="createPollTargetText" class="text-[11px] text-amber-300/80 truncate">لە چاتی گشتی</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeCreatePollModal()" class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Form Body -->
+      <form id="createPollForm" onsubmit="handleCreatePollSubmit(event)" class="p-3.5 sm:p-4 space-y-3.5 overflow-y-auto flex-1">
+        <!-- Question -->
+        <div>
+          <label class="block text-xs font-black text-slate-200 mb-1">پرسیار یان بابەتی ڕاپرسی</label>
+          <textarea id="pollQuestionInput" rows="2" placeholder="پرسیارەکەت بنووسە..." required class="w-full bg-slate-800/90 border border-slate-700/80 focus:border-amber-500 rounded-2xl p-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none resize-none transition leading-relaxed"></textarea>
+        </div>
+
+        <!-- Options Container -->
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-xs font-black text-slate-200">بژاردەکانی دەنگدان</label>
+            <span class="text-[10px] text-slate-400">لانی کەم ٢ بژاردە</span>
+          </div>
+          <div id="pollOptionsContainer" class="space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="w-6 text-center text-xs text-amber-400 font-bold font-mono">١</span>
+              <input type="text" name="pollOption" placeholder="بژاردەی یەکەم..." required class="flex-1 bg-slate-800/90 border border-slate-700/80 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition">
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-6 text-center text-xs text-amber-400 font-bold font-mono">٢</span>
+              <input type="text" name="pollOption" placeholder="بژاردەی دووەم..." required class="flex-1 bg-slate-800/90 border border-slate-700/80 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition">
+            </div>
+          </div>
+          <button type="button" onclick="addPollOptionField()" class="mt-2 text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 transition">
+            <i class="fa-solid fa-plus text-[10px]"></i>
+            <span>+ زیادکردنی بژاردەی تر</span>
+          </button>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="pt-2">
+          <button type="submit" id="createPollSubmitBtn" class="w-full py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-black text-xs rounded-2xl transition shadow-lg flex items-center justify-center gap-1.5 active:scale-95">
+            <i class="fa-solid fa-paper-plane text-xs"></i>
+            <span>بڵاوکردنەوەی ڕاپرسی</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: CREATE ALARM (زەنگی ئاگاداری) ================= -->
+  <div id="createAlarmModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onclick="if(event.target === this) closeCreateAlarmModal()">
+    <div class="bg-slate-900 border border-rose-500/40 rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scale-up" onclick="event.stopPropagation()">
+      <!-- Header -->
+      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-rose-950/40 to-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-9 h-9 rounded-2xl bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center justify-center text-sm shrink-0">
+            <i class="fa-solid fa-bell"></i>
+          </div>
+          <div class="min-w-0">
+            <h4 class="text-sm font-black text-white truncate">دانانی زەنگی ئاگاداری</h4>
+            <p id="createAlarmTargetText" class="text-[11px] text-rose-300/80 truncate">لە کاتی دیاریکراودا جەڕەس لێدەدات و کاتەکەی کەم دەبێتەوە</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeCreateAlarmModal()" class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Form Body -->
+      <form id="createAlarmForm" onsubmit="handleCreateAlarmSubmit(event)" class="p-3.5 sm:p-4 space-y-3.5 overflow-y-auto flex-1">
+        <!-- Notice Title -->
+        <div>
+          <label class="block text-xs font-black text-slate-200 mb-1">نوسینی ئاگاداری (لەسەرووی سەعاتەکە دەرکەوێت)</label>
+          <input type="text" id="alarmTitleInput" placeholder="بۆ نموونە: وانەی مامۆستا ئازادمان هەیە" required class="w-full bg-slate-800/90 border border-slate-700/80 focus:border-rose-500 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none transition font-bold">
+        </div>
+
+        <!-- Target Date & Time -->
+        <div>
+          <label class="block text-xs font-black text-slate-200 mb-1">بەروار و کاتژمێری لێدانی جەڕەس</label>
+          <input type="datetime-local" id="alarmDateTimeInput" required class="w-full bg-slate-800/90 border border-slate-700/80 focus:border-rose-500 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none transition [color-scheme:dark]">
+          <p class="text-[10px] text-slate-400 mt-1">کاتژمێرەکە چرکە بە چرکە کەم دەبێتەوە و لەو ساتەدا زەنگ لێدەدات 🔔</p>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="pt-2">
+          <button type="submit" id="createAlarmSubmitBtn" class="w-full py-2.5 bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white font-black text-xs rounded-2xl transition shadow-lg flex items-center justify-center gap-1.5 active:scale-95">
+            <i class="fa-solid fa-bell text-xs"></i>
+            <span>چالاککردن و دانانی زەنگ</span>
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -4039,6 +4208,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=21.6"></script>
+  <script src="/js/app.js?v=21.7"></script>
 </body>
 </html>

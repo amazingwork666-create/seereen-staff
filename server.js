@@ -11,7 +11,7 @@ let archiver;
 try { archiver = require('archiver'); } catch (e) {}
 let DatabaseSync;
 try { DatabaseSync = require('node:sqlite').DatabaseSync; } catch (e) {}
-const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb, buttonClicks, customGroups } = require('./db');
+const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb, buttonClicks, customGroups, pollsDb, alarmsDb } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 4000;
@@ -974,6 +974,37 @@ app.post('/api/users/profile/avatar', authMiddleware, upload.single('avatar'), (
   }
 });
 
+// Update user course enrollments (Eligible: Super Admin, Teachers, Admins, Students)
+app.put('/api/users/:id/courses', authMiddleware, (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    const isSelf = req.user.id === targetId;
+    const isSuper = isMasterSuperAdmin(req.user);
+    if (!isSelf && !isSuper) {
+      return res.status(403).json({ error: 'دەسەڵاتی دەستکاریکردنی ئەم پرۆفایلەت نییە' });
+    }
+
+    const eligibleRoles = ['super_admin', 'teacher', 'admin', 'student', 'new_student'];
+    const targetUser = users.findById(targetId);
+    if (!targetUser) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
+
+    if (!eligibleRoles.includes(targetUser.role) && !isSuper) {
+      return res.status(403).json({ error: 'تەنها مامۆستا، ئەدمین، خوێندکار یان سەرپەرشتیار دەتوانن بەشداریکردنی خول لە پڕۆفایل بنووسن' });
+    }
+
+    const allowedCourses = ['خولی مامۆستا زانا', 'خولی ئیبن سیرین'];
+    const rawCourses = Array.isArray(req.body.courses) ? req.body.courses : [];
+    const sanitizedCourses = rawCourses.map(c => String(c).trim()).filter(c => allowedCourses.includes(c));
+
+    users.updateCourseEnrollments(targetId, sanitizedCourses);
+    io.emit('user_profile_updated', { userId: targetId, course_enrollments: sanitizedCourses });
+    res.json({ success: true, courses: sanitizedCourses });
+  } catch (err) {
+    console.error('Error updating course enrollments:', err);
+    res.status(500).json({ error: 'هەڵە لە پاشەکەوتکردنی خولەکان' });
+  }
+});
+
 // --- SUPER ADMIN MANAGEMENT ROUTES ---
 
 // 4. Get pending users (Super Admin or Green Badge)
@@ -1791,6 +1822,16 @@ const advisorTools = [
             username_or_id: { type: 'STRING', description: 'ناو، یوزەرنەیم، یان ئایدی بەکارهێنەرەکە' }
           },
           required: ['username_or_id']
+        }
+      },
+      {
+        name: 'clear_custom_group_messages',
+        description: 'سڕینەوە و پاککردنەوەی تەواوی پەیام و چاتەکانی ناو گروپ چات بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            group_id: { type: 'INTEGER', description: 'ئایدی گروپ ئەگەر دیاریکراو بێت' }
+          }
         }
       },
       {
@@ -2854,6 +2895,16 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
             time: new Date(e.created_at).toLocaleString('ku')
           }))
         };
+      }
+
+      case 'clear_custom_group_messages': {
+        const gId = parseInt(args.group_id, 10) || (args._current_group_id ? parseInt(args._current_group_id, 10) : null);
+        if (!gId) return { error: 'ئایدی گروپ دیاری نەکراوە.' };
+        customGroups.clearGroupMessages(gId);
+        if (ioInstance) {
+          ioInstance.to(`group_${gId}`).emit('custom_group_messages_cleared', { groupId: gId });
+        }
+        return { success: true, message: `تەواوی چاتەکانی گروپی ژمارە ${gId} بە سەرکەوتوویی سڕانەوە و پاککرانەوە.` };
       }
 
       case 'manage_custom_group': {
@@ -4454,6 +4505,7 @@ async function handleAdvisorGroupChatReply(groupId, reqUser, userPrompt, ioInsta
     const liveContext = {
       user_name: reqUser.full_name,
       current_group: group.name,
+      current_group_id: groupId,
       group_members: memberNames,
       total_platform_members: totalUsers,
       online_now: onlineCount,
@@ -4461,6 +4513,16 @@ async function handleAdvisorGroupChatReply(groupId, reqUser, userPrompt, ioInsta
     };
 
     let reply = null;
+
+    // Direct command execution: clear custom group chat messages
+    const lowerPrompt = (userPrompt || '').toLowerCase();
+    if (lowerPrompt.includes('سڕینەوەی چات') || lowerPrompt.includes('چاتەکان بسڕەوە') || lowerPrompt.includes('پەیامەکان بسڕەوە') || lowerPrompt.includes('چاتەکانی ئەم گروپە بسڕەوە') || lowerPrompt.includes('پەیامەکانی ئەم گروپە بسڕەوە') || (lowerPrompt.includes('بسڕەوە') && (lowerPrompt.includes('چات') || lowerPrompt.includes('گروپ')))) {
+      customGroups.clearGroupMessages(groupId);
+      if (ioInstance) {
+        ioInstance.to(`group_${groupId}`).emit('custom_group_messages_cleared', { groupId });
+      }
+      reply = `کاک هێمن گیان، فەرمانت دەستبەجێ جێبەجێکرا! تەواوی چات و پەیامەکانی ناو ئەم گروپە بە سەرکەوتوویی سڕانەوە و پاککرانەوە 🧹✨`;
+    }
 
     let geminiKey = null;
     try {
@@ -4519,9 +4581,10 @@ ${JSON.stringify(liveContext, null, 2)}`;
 
               if (funcPart && funcPart.functionCall) {
                 console.log(`[Advisor Group AI] Invoking tool: ${funcPart.functionCall.name} in group ${groupId}`);
+                const actionArgs = Object.assign({}, funcPart.functionCall.args || {}, { _current_group_id: groupId });
                 const toolResult = await executeAdvisorAction(
                   funcPart.functionCall.name,
-                  funcPart.functionCall.args || {},
+                  actionArgs,
                   reqUser,
                   ioInstance
                 );
@@ -4897,6 +4960,275 @@ app.delete('/api/custom-groups/:id/messages/:messageId', authMiddleware, (req, r
     res.status(500).json({ error: 'هەڵە لە سڕینەوەی پەیام' });
   }
 });
+
+// =========================================================================
+// POLLS SYSTEM (ڕاپرسی لە چاتی گشتی و گروپ چاتە تایبەتەکان)
+// =========================================================================
+
+// Create Poll (Super Admin & Teachers)
+app.post('/api/polls', authMiddleware, (req, res) => {
+  try {
+    const isStaff = req.user.role === 'super_admin' || req.user.role === 'teacher';
+    if (!isStaff) {
+      return res.status(403).json({ error: 'تەنها مامۆستایان و سەرپەرشتیار دەتوانن ڕاپرسی دروست بکەن' });
+    }
+
+    const chatType = req.body.chatType === 'custom_group' ? 'custom_group' : 'public';
+    const groupId = req.body.groupId ? parseInt(req.body.groupId, 10) : null;
+    const question = String(req.body.question || '').trim();
+    const rawOptions = Array.isArray(req.body.options) ? req.body.options : [];
+    const options = rawOptions.map(o => String(o || '').trim()).filter(Boolean);
+
+    if (!question) {
+      return res.status(400).json({ error: 'تکایە پرسیاری ڕاپرسی بنووسە' });
+    }
+    if (options.length < 2) {
+      return res.status(400).json({ error: 'پێویستە لانی کەم دوو بژاردە دابنێیت' });
+    }
+
+    if (chatType === 'custom_group') {
+      if (!groupId || !customGroups.isMember(groupId, req.user.id, isMasterSuperAdmin(req.user))) {
+        return res.status(403).json({ error: 'دەسەڵاتی ئەم گروپەت نییە' });
+      }
+    }
+
+    const poll = pollsDb.createPoll({
+      chatType,
+      groupId,
+      creatorId: req.user.id,
+      creatorName: req.user.full_name,
+      creatorRole: req.user.role,
+      question,
+      options
+    });
+
+    const contentPayload = JSON.stringify({ poll_id: poll.id, question: poll.question });
+
+    if (chatType === 'public') {
+      const newMsg = messages.create({
+        user_id: req.user.id,
+        username: req.user.username,
+        full_name: req.user.full_name,
+        role: req.user.role,
+        content: contentPayload,
+        type: 'poll'
+      });
+      io.emit('new_message', newMsg);
+    } else {
+      const groupMsg = customGroups.createMessage(
+        groupId,
+        req.user.id,
+        req.user.full_name,
+        req.user.role,
+        contentPayload,
+        'poll'
+      );
+      io.to(`group_${groupId}`).emit('new_group_message', { message: groupMsg, groupId });
+    }
+
+    res.json({ success: true, poll });
+  } catch (err) {
+    console.error('Error creating poll:', err);
+    res.status(500).json({ error: 'هەڵە لە دروستکردنی ڕاپرسی' });
+  }
+});
+
+// Get Poll details
+app.get('/api/polls/:id', authMiddleware, (req, res) => {
+  try {
+    const pollId = parseInt(req.params.id, 10);
+    const poll = pollsDb.getPollById(pollId, req.user.id);
+    if (!poll) return res.status(404).json({ error: 'ڕاپرسی نەدۆزرایەوە' });
+    res.json({ success: true, poll });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە هێنانی ڕاپرسی' });
+  }
+});
+
+// Vote on Poll
+app.post('/api/polls/:id/vote', authMiddleware, (req, res) => {
+  try {
+    const pollId = parseInt(req.params.id, 10);
+    const optionIndex = parseInt(req.body.optionIndex, 10);
+    const result = pollsDb.vote(pollId, req.user.id, req.user.full_name, optionIndex);
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    const updatedPoll = pollsDb.getPollById(pollId);
+    if (updatedPoll.chat_type === 'public') {
+      io.emit('poll_updated', { pollId, poll: updatedPoll });
+    } else if (updatedPoll.group_id) {
+      io.to(`group_${updatedPoll.group_id}`).emit('poll_updated', { pollId, poll: updatedPoll });
+    }
+
+    res.json({ success: true, poll: result.poll });
+  } catch (err) {
+    console.error('Error voting on poll:', err);
+    res.status(500).json({ error: 'هەڵە لە دەنگدان' });
+  }
+});
+
+// Close Poll
+app.post('/api/polls/:id/close', authMiddleware, (req, res) => {
+  try {
+    const pollId = parseInt(req.params.id, 10);
+    const poll = pollsDb.getPollById(pollId);
+    if (!poll) return res.status(404).json({ error: 'ڕاپرسی نەدۆزرایەوە' });
+
+    const canClose = req.user.id === poll.creator_id || req.user.role === 'super_admin' || req.user.role === 'teacher';
+    if (!canClose) return res.status(403).json({ error: 'مۆڵەتی داخستنی ئەم ڕاپرسییەت نییە' });
+
+    const closedPoll = pollsDb.closePoll(pollId);
+    if (closedPoll.chat_type === 'public') {
+      io.emit('poll_updated', { pollId, poll: closedPoll });
+    } else if (closedPoll.group_id) {
+      io.to(`group_${closedPoll.group_id}`).emit('poll_updated', { pollId, poll: closedPoll });
+    }
+    res.json({ success: true, poll: closedPoll });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە داخستنی ڕاپرسی' });
+  }
+});
+
+// =========================================================================
+// EVENT COUNTDOWN ALARMS (زەنگی ئاگاداری)
+// =========================================================================
+
+// Create Alarm (Super Admin, Teacher, Admin)
+app.post('/api/alarms', authMiddleware, (req, res) => {
+  try {
+    const canSet = req.user.role === 'super_admin' || req.user.role === 'teacher' || req.user.role === 'admin';
+    if (!canSet) {
+      return res.status(403).json({ error: 'تەنها سەرپەرشتیار، مامۆستا و ئەدمین دەتوانن زەنگی ئاگاداری دابنێن' });
+    }
+
+    const chatType = req.body.chatType === 'custom_group' ? 'custom_group' : 'public';
+    const groupId = req.body.groupId ? parseInt(req.body.groupId, 10) : null;
+    const title = String(req.body.title || '').trim();
+    const targetTime = parseInt(req.body.targetTime, 10);
+
+    if (!title) return res.status(400).json({ error: 'تکایە نوسینی ئاگاداری دیاری بکە' });
+    if (!targetTime || isNaN(targetTime)) return res.status(400).json({ error: 'تکایە بەروار و کات دیاری بکە' });
+
+    if (chatType === 'custom_group') {
+      if (!groupId || !customGroups.isMember(groupId, req.user.id, isMasterSuperAdmin(req.user))) {
+        return res.status(403).json({ error: 'دەسەڵاتی ئەم گروپەت نییە' });
+      }
+    }
+
+    const alarm = alarmsDb.createAlarm({
+      chatType,
+      groupId,
+      creatorId: req.user.id,
+      creatorName: req.user.full_name,
+      creatorRole: req.user.role,
+      title,
+      targetTime
+    });
+
+    const contentPayload = JSON.stringify({
+      alarm_id: alarm.id,
+      title: alarm.title,
+      target_time: alarm.target_time,
+      creator_name: alarm.creator_name,
+      creator_role: alarm.creator_role
+    });
+
+    if (chatType === 'public') {
+      const newMsg = messages.create({
+        user_id: req.user.id,
+        username: req.user.username,
+        full_name: req.user.full_name,
+        role: req.user.role,
+        content: contentPayload,
+        type: 'countdown_alarm'
+      });
+      io.emit('new_message', newMsg);
+    } else {
+      const groupMsg = customGroups.createMessage(
+        groupId,
+        req.user.id,
+        req.user.full_name,
+        req.user.role,
+        contentPayload,
+        'countdown_alarm'
+      );
+      io.to(`group_${groupId}`).emit('new_group_message', { message: groupMsg, groupId });
+    }
+
+    res.json({ success: true, alarm });
+  } catch (err) {
+    console.error('Error creating alarm:', err);
+    res.status(500).json({ error: 'هەڵە لە دانانی زەنگی ئاگاداری' });
+  }
+});
+
+// Active Alarms
+app.get('/api/alarms/active', authMiddleware, (req, res) => {
+  try {
+    const alarms = alarmsDb.getActiveAlarms();
+    res.json({ success: true, alarms });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە هێنانی زەنگەکان' });
+  }
+});
+
+// Delete Alarm
+app.delete('/api/alarms/:id', authMiddleware, (req, res) => {
+  try {
+    const alarmId = parseInt(req.params.id, 10);
+    const alarm = alarmsDb.getAlarmById(alarmId);
+    if (!alarm) return res.status(404).json({ error: 'زەنگەکە نەدۆزرایەوە' });
+
+    const canDelete = req.user.id === alarm.creator_id || req.user.role === 'super_admin' || req.user.role === 'teacher' || req.user.role === 'admin';
+    if (!canDelete) return res.status(403).json({ error: 'مۆڵەتی سڕینەوەی ئەم زەنگەت نییە' });
+
+    alarmsDb.deleteAlarm(alarmId);
+    io.emit('alarm_deleted', { alarmId });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە سڕینەوەی زەنگ' });
+  }
+});
+
+// Background Alarm Checker (Every 5 seconds)
+setInterval(async () => {
+  try {
+    const now = Date.now();
+    const dueAlarms = db.prepare('SELECT * FROM event_alarms WHERE is_triggered = 0 AND target_time <= ?').all(now);
+    for (const a of dueAlarms) {
+      alarmsDb.markTriggered(a.id);
+      console.log(`[ALARM TRIGGERED] #${a.id}: ${a.title}`);
+
+      if (a.chat_type === 'public') {
+        io.emit('alarm_triggered', {
+          alarmId: a.id,
+          title: a.title,
+          targetTime: a.target_time,
+          chatType: 'public'
+        });
+      } else if (a.group_id) {
+        io.to(`group_${a.group_id}`).emit('alarm_triggered', {
+          alarmId: a.id,
+          title: a.title,
+          targetTime: a.target_time,
+          chatType: 'custom_group',
+          groupId: a.group_id
+        });
+      }
+
+      if (typeof sendPushNotificationToAll === 'function') {
+        sendPushNotificationToAll({
+          title: '🔔 زەنگی ئاگاداری!',
+          body: `${a.title} - ئێستا کاتەکەی هاتووە!`,
+          tag: `alarm_${a.id}`,
+          data: { url: '/' }
+        }).catch(e => console.warn('Alarm push note:', e.message));
+      }
+    }
+  } catch (e) {
+    console.error('Error in alarm timer checker:', e);
+  }
+}, 5000);
 
 // Delete Message (Admins, Teachers, or Message Author) - Soft Delete to allow restoration
 app.delete('/api/chat/messages/:id', authMiddleware, (req, res) => {

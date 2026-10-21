@@ -434,6 +434,55 @@ function initDb() {
     `);
   } catch (e) {}
 
+  // Course enrollments migration
+  try { db.exec("ALTER TABLE users ADD COLUMN course_enrollments TEXT DEFAULT '[]'"); } catch (e) {}
+
+  // Polls & Event Alarms tables
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS polls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chat_type TEXT NOT NULL,
+        group_id INTEGER DEFAULT NULL,
+        creator_id INTEGER NOT NULL,
+        creator_name TEXT NOT NULL,
+        creator_role TEXT NOT NULL,
+        question TEXT NOT NULL,
+        options TEXT NOT NULL,
+        is_closed INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS poll_votes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        poll_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        user_name TEXT NOT NULL,
+        option_index INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        UNIQUE(poll_id, user_id),
+        FOREIGN KEY (poll_id) REFERENCES polls(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS event_alarms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chat_type TEXT NOT NULL,
+        group_id INTEGER DEFAULT NULL,
+        creator_id INTEGER NOT NULL,
+        creator_name TEXT NOT NULL,
+        creator_role TEXT NOT NULL,
+        title TEXT NOT NULL,
+        target_time INTEGER NOT NULL,
+        is_triggered INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_alarms_target ON event_alarms(target_time ASC);
+    `);
+  } catch (e) {
+    console.error('Error creating polls or event_alarms tables:', e);
+  }
+
   // Backfill question_number sequentially for any unnumbered questions
   try {
     const unnumbered = db.prepare('SELECT id FROM questions WHERE question_number = 0 OR question_number IS NULL ORDER BY created_at ASC').all();
@@ -661,8 +710,15 @@ const users = {
       starInfo,
       roleHistory: history,
       promotionsCount: history.filter(h => h.new_role === 'admin').length,
-      answeredQuestions: answered
+      answeredQuestions: answered,
+      course_enrollments: (() => {
+        try { return JSON.parse(user.course_enrollments || '[]'); } catch(e) { return []; }
+      })()
     };
+  },
+  updateCourseEnrollments(id, courses) {
+    const json = JSON.stringify(Array.isArray(courses) ? courses : []);
+    return db.prepare('UPDATE users SET course_enrollments = ? WHERE id = ?').run(json, id);
   },
   setBlocked(id, isBlocked) {
     const stmt = db.prepare('UPDATE users SET is_blocked = ? WHERE id = ?');
@@ -2083,6 +2139,10 @@ const customGroups = {
     return db.prepare('DELETE FROM custom_group_chats WHERE id = ?').run(groupId);
   },
 
+  clearGroupMessages(groupId) {
+    return db.prepare('DELETE FROM custom_group_messages WHERE group_id = ?').run(groupId);
+  },
+
   addMember(groupId, userId) {
     const now = Date.now();
     db.prepare('INSERT OR IGNORE INTO custom_group_members (group_id, user_id, added_at, last_read_at) VALUES (?, ?, ?, ?)').run(groupId, Number(userId), now, 0);
@@ -2186,6 +2246,108 @@ const customGroups = {
   }
 };
 
+const pollsDb = {
+  createPoll({ chatType, groupId, creatorId, creatorName, creatorRole, question, options }) {
+    const now = Date.now();
+    const optsJson = JSON.stringify(options);
+    const stmt = db.prepare(`
+      INSERT INTO polls (chat_type, group_id, creator_id, creator_name, creator_role, question, options, is_closed, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+    `);
+    const res = stmt.run(chatType, groupId || null, creatorId, creatorName, creatorRole, question.trim(), optsJson, now);
+    return this.getPollById(res.lastInsertRowid, creatorId);
+  },
+
+  getPollById(pollId, currentUserId = null) {
+    const poll = db.prepare('SELECT * FROM polls WHERE id = ?').get(pollId);
+    if (!poll) return null;
+    let options = [];
+    try { options = JSON.parse(poll.options); } catch (e) { options = []; }
+
+    const votes = db.prepare('SELECT option_index, user_id, user_name FROM poll_votes WHERE poll_id = ?').all(pollId);
+    const totalVotes = votes.length;
+
+    let myVote = null;
+    if (currentUserId) {
+      const v = votes.find(v => Number(v.user_id) === Number(currentUserId));
+      if (v) myVote = v.option_index;
+    }
+
+    const optionsWithStats = options.map((optText, idx) => {
+      const optVotes = votes.filter(v => v.option_index === idx);
+      const count = optVotes.length;
+      const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+      return {
+        index: idx,
+        text: optText,
+        count,
+        percentage,
+        voters: optVotes.map(v => v.user_name)
+      };
+    });
+
+    return {
+      ...poll,
+      options: optionsWithStats,
+      total_votes: totalVotes,
+      my_vote: myVote
+    };
+  },
+
+  vote(pollId, userId, userName, optionIndex) {
+    const poll = db.prepare('SELECT * FROM polls WHERE id = ?').get(pollId);
+    if (!poll || poll.is_closed) return { error: 'ڕاپرسی داخراوە یان بوونی نییە' };
+
+    let options = [];
+    try { options = JSON.parse(poll.options); } catch (e) {}
+    if (optionIndex < 0 || optionIndex >= options.length) {
+      return { error: 'بژاردەی هەڵە دیاریکراوە' };
+    }
+
+    const now = Date.now();
+    db.prepare(`
+      INSERT INTO poll_votes (poll_id, user_id, user_name, option_index, created_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(poll_id, user_id) DO UPDATE SET option_index = excluded.option_index, created_at = excluded.created_at
+    `).run(pollId, userId, userName, optionIndex, now);
+
+    return { success: true, poll: this.getPollById(pollId, userId) };
+  },
+
+  closePoll(pollId) {
+    db.prepare('UPDATE polls SET is_closed = 1 WHERE id = ?').run(pollId);
+    return this.getPollById(pollId);
+  }
+};
+
+const alarmsDb = {
+  createAlarm({ chatType, groupId, creatorId, creatorName, creatorRole, title, targetTime }) {
+    const now = Date.now();
+    const stmt = db.prepare(`
+      INSERT INTO event_alarms (chat_type, group_id, creator_id, creator_name, creator_role, title, target_time, is_triggered, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+    `);
+    const res = stmt.run(chatType, groupId || null, creatorId, creatorName, creatorRole, title.trim(), targetTime, now);
+    return this.getAlarmById(res.lastInsertRowid);
+  },
+
+  getAlarmById(alarmId) {
+    return db.prepare('SELECT * FROM event_alarms WHERE id = ?').get(alarmId);
+  },
+
+  getActiveAlarms() {
+    return db.prepare('SELECT * FROM event_alarms WHERE is_triggered = 0 ORDER BY target_time ASC').all();
+  },
+
+  markTriggered(alarmId) {
+    return db.prepare('UPDATE event_alarms SET is_triggered = 1 WHERE id = ?').run(alarmId);
+  },
+
+  deleteAlarm(alarmId) {
+    return db.prepare('DELETE FROM event_alarms WHERE id = ?').run(alarmId);
+  }
+};
+
 module.exports = {
   db,
   initDb,
@@ -2208,5 +2370,7 @@ module.exports = {
   aiSecurity,
   advisorDb,
   buttonClicks,
-  customGroups
+  customGroups,
+  pollsDb,
+  alarmsDb
 };

@@ -1023,6 +1023,21 @@ function updateUserUI() {
       adminMediaTools.classList.add('flex');
     }
     if (libraryUploadSection) libraryUploadSection.classList.remove('hidden');
+
+    const canPoll = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+    const canAlarm = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+
+    const pubPollBtn = document.getElementById('publicChatPollBtn');
+    if (pubPollBtn) pubPollBtn.classList.toggle('hidden', !canPoll);
+
+    const pubAlarmBtn = document.getElementById('publicChatAlarmBtn');
+    if (pubAlarmBtn) pubAlarmBtn.classList.toggle('hidden', !canAlarm);
+
+    const cgPollBtn = document.getElementById('customGroupPollBtn');
+    if (cgPollBtn) cgPollBtn.classList.toggle('hidden', !canPoll);
+
+    const cgAlarmBtn = document.getElementById('customGroupAlarmBtn');
+    if (cgAlarmBtn) cgAlarmBtn.classList.toggle('hidden', !canAlarm);
   } else {
     if (postQuestionNavBtn) postQuestionNavBtn.classList.add('hidden');
     if (drawerPostQuestionBtn) drawerPostQuestionBtn.classList.add('hidden');
@@ -2954,6 +2969,36 @@ function appendMessage(msg, scroll = true) {
       if (scroll && !isUserScrolledUp) scrollToBottom();
       return;
     }
+  }
+
+  // 1.5. POLL MESSAGES (ڕاپرسی)
+  if (msg.type === 'poll') {
+    let pollData = {};
+    try { pollData = JSON.parse(msg.content); } catch (e) { pollData = { poll_id: parseInt(msg.content, 10) }; }
+    const pollId = pollData.poll_id || parseInt(msg.content, 10);
+
+    msgElem.className = 'chat-msg-item w-full my-3';
+    msgElem.setAttribute('data-poll-id', pollId);
+    msgElem.innerHTML = `<div id="poll-msg-slot-${pollId}" class="w-full flex justify-center"><div class="text-xs text-slate-500 py-3 font-mono">بارکردنی ڕاپرسی...</div></div>`;
+    container.appendChild(msgElem);
+
+    loadAndRenderPollSlot(pollId, `poll-msg-slot-${pollId}`);
+    if (scroll && !isUserScrolledUp) scrollToBottom();
+    return;
+  }
+
+  // 1.6. EVENT COUNTDOWN ALARM MESSAGES (زەنگی ئاگاداری)
+  if (msg.type === 'countdown_alarm') {
+    let alarmData = {};
+    try { alarmData = JSON.parse(msg.content); } catch (e) { alarmData = { title: msg.content, target_time: Date.now() + 3600000 }; }
+
+    const isAuthorOrStaff = currentUser && (currentUser.id === msg.user_id || currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+
+    msgElem.className = 'chat-msg-item w-full my-3';
+    msgElem.innerHTML = renderAlarmCardHtml(alarmData, { canDelete: isAuthorOrStaff });
+    container.appendChild(msgElem);
+    if (scroll && !isUserScrolledUp) scrollToBottom();
+    return;
   }
 
   // 2. QUESTION MESSAGES
@@ -6046,6 +6091,59 @@ async function openUserProfileModal(userId) {
       } else {
         profAdvisorBtn.classList.add('hidden');
         profAdvisorBtn.classList.remove('inline-flex');
+      }
+    }
+
+    // Course Participation Display & Edit Cards
+    const courses = Array.isArray(prof.course_enrollments) ? prof.course_enrollments : [];
+    const coursesViewCard = document.getElementById('profCoursesViewCard');
+    const coursesBadgesList = document.getElementById('profCoursesBadgesList');
+    const coursesCountBadge = document.getElementById('profCoursesCountBadge');
+    const coursesEditCard = document.getElementById('profCoursesEditCard');
+
+    // 1. Display View Card (Visible to Everyone if enrolled)
+    if (coursesViewCard && coursesBadgesList) {
+      if (courses.length > 0) {
+        coursesViewCard.classList.remove('hidden');
+        if (coursesCountBadge) {
+          coursesCountBadge.innerText = courses.length === 2 ? '٢ خول (هەردووکی)' : '١ خول';
+        }
+        let badgesHtml = '';
+        if (courses.includes('خولی مامۆستا زانا')) {
+          badgesHtml += `
+            <span class="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-black flex items-center gap-1.5 shadow-sm">
+              <i class="fa-solid fa-graduation-cap text-emerald-400"></i>
+              <span>خولی مامۆستا زانا</span>
+            </span>
+          `;
+        }
+        if (courses.includes('خولی ئیبن سیرین')) {
+          badgesHtml += `
+            <span class="px-3 py-1.5 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-black flex items-center gap-1.5 shadow-sm">
+              <i class="fa-solid fa-book-quran text-indigo-400"></i>
+              <span>خولی ئیبن سیرین</span>
+            </span>
+          `;
+        }
+        coursesBadgesList.innerHTML = badgesHtml;
+      } else {
+        coursesViewCard.classList.add('hidden');
+        coursesBadgesList.innerHTML = '';
+      }
+    }
+
+    // 2. Edit Card (Only for eligible roles: super_admin, teacher, admin, student on own profile, or Super Admin viewing)
+    if (coursesEditCard) {
+      const isEligibleRole = ['super_admin', 'teacher', 'admin', 'student', 'new_student'].includes(prof.role);
+      const canEdit = (isMe || (typeof isMasterSuperAdmin === 'function' && isMasterSuperAdmin(currentUser))) && isEligibleRole;
+      if (canEdit) {
+        coursesEditCard.classList.remove('hidden');
+        const checkZana = document.getElementById('courseCheckZana');
+        const checkIbnSirin = document.getElementById('courseCheckIbnSirin');
+        if (checkZana) checkZana.checked = courses.includes('خولی مامۆستا زانا');
+        if (checkIbnSirin) checkIbnSirin.checked = courses.includes('خولی ئیبن سیرین');
+      } else {
+        coursesEditCard.classList.add('hidden');
       }
     }
 
@@ -15670,6 +15768,14 @@ async function openCustomGroupChatModal(groupId) {
     else quickTagBar.classList.add('hidden');
   }
 
+  // Poll & Alarm buttons in group chat
+  const canGroupPoll = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  const canGroupAlarm = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+  const cgPollBtn = document.getElementById('customGroupPollBtn');
+  if (cgPollBtn) cgPollBtn.classList.toggle('hidden', !canGroupPoll);
+  const cgAlarmBtn = document.getElementById('customGroupAlarmBtn');
+  if (cgAlarmBtn) cgAlarmBtn.classList.toggle('hidden', !canGroupAlarm);
+
   // Clear typing indicators & reset inputs
   const advTyping = document.getElementById('customGroupAdvisorTyping');
   if (advTyping) advTyping.classList.add('hidden');
@@ -15799,6 +15905,33 @@ function buildCustomGroupMessageHtml(msg, isSuperAdmin) {
           ` : ''}
         </div>
         <div class="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap text-slate-100 font-medium">${formatAdvisorMessageContent(msg.content)}</div>
+      </div>
+    `;
+  }
+
+  // Poll in Custom Group
+  if (msg.type === 'poll') {
+    let pollData = {};
+    try { pollData = JSON.parse(msg.content); } catch (e) { pollData = { poll_id: parseInt(msg.content, 10) }; }
+    const pollId = pollData.poll_id || parseInt(msg.content, 10);
+    loadAndRenderPollSlot(pollId, `cg-poll-msg-slot-${pollId}`);
+    return `
+      <div id="cg-msg-${msg.id}" class="w-full my-2 transition">
+        <div id="cg-poll-msg-slot-${pollId}" class="w-full flex justify-center">
+          <div class="text-xs text-slate-500 py-3 font-mono">بارکردنی ڕاپرسی...</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Countdown Alarm in Custom Group
+  if (msg.type === 'countdown_alarm') {
+    let alarmData = {};
+    try { alarmData = JSON.parse(msg.content); } catch (e) { alarmData = { title: msg.content, target_time: Date.now() + 3600000 }; }
+    const isAuthorOrStaff = currentUser && (currentUser.id === msg.sender_id || currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+    return `
+      <div id="cg-msg-${msg.id}" class="w-full my-2 transition">
+        ${renderAlarmCardHtml(alarmData, { canDelete: isAuthorOrStaff })}
       </div>
     `;
   }
@@ -16651,4 +16784,518 @@ function updateCustomGroupMembersCount(members) {
     const countEl = document.getElementById('customGroupMembersCountText');
     if (countEl) countEl.innerText = `${members.length} ئەندام`;
   }
+}
+
+
+// =========================================================================
+// COURSE ENROLLMENTS (بەشداریکردنی خولەکان لە پڕۆفایل)
+// =========================================================================
+async function saveMyCourseEnrollments() {
+  if (!currentProfileUserId) return;
+  const checkZana = document.getElementById('courseCheckZana')?.checked;
+  const checkIbnSirin = document.getElementById('courseCheckIbnSirin')?.checked;
+  const selectedCourses = [];
+  if (checkZana) selectedCourses.push('خولی مامۆستا زانا');
+  if (checkIbnSirin) selectedCourses.push('خولی ئیبن سیرین');
+
+  const btn = document.getElementById('saveCoursesBtn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(`/api/users/${currentProfileUserId}/courses`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ courses: selectedCourses })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە پاشەکەوتکردن');
+
+    alert('زانیاری خولەکان بە سەرکەوتوویی پاشەکەوت کران ✅');
+    openUserProfileModal(currentProfileUserId);
+  } catch (err) {
+    alert(err.message || 'هەڵە لە پاشەکەوتکردنی خولەکان');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// =========================================================================
+// REALISTIC BELL CHIME (جەڕەس بۆ زەنگی ئاگاداری)
+// =========================================================================
+function playBellChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const bellFrequencies = [587.33, 880, 1174.66, 1760];
+    function strikeBell(offsetSec) {
+      bellFrequencies.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = idx === 0 ? 'sine' : 'triangle';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + offsetSec);
+
+        const initialGain = 0.22 / (idx + 1);
+        gain.gain.setValueAtTime(initialGain, ctx.currentTime + offsetSec);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + offsetSec + 2.4);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + offsetSec);
+        osc.stop(ctx.currentTime + offsetSec + 2.5);
+      });
+    }
+
+    strikeBell(0);
+    strikeBell(0.45);
+  } catch (e) {
+    console.warn('playBellChime error:', e);
+  }
+}
+
+// =========================================================================
+// POLLS SYSTEM (ڕاپرسی)
+// =========================================================================
+let currentPollTargetChatType = 'public';
+let pollCacheMap = new Map();
+
+function openCreatePollModal(chatType = 'public') {
+  currentPollTargetChatType = chatType;
+  const modal = document.getElementById('createPollModal');
+  const targetText = document.getElementById('createPollTargetText');
+  if (targetText) {
+    targetText.innerText = chatType === 'custom_group' ? `لە ناو گروپی «${activeCustomGroupData?.name || 'تایبەت'}»` : 'لە چاتی گشتی بۆ هەمووان';
+  }
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeCreatePollModal() {
+  const modal = document.getElementById('createPollModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function addPollOptionField() {
+  const container = document.getElementById('pollOptionsContainer');
+  if (!container) return;
+  const count = container.querySelectorAll('input[name="pollOption"]').length + 1;
+  const div = document.createElement('div');
+  div.className = 'flex items-center gap-2';
+  div.innerHTML = `
+    <span class="w-6 text-center text-xs text-amber-400 font-bold font-mono">${count}</span>
+    <input type="text" name="pollOption" placeholder="بژاردەی ${count}..." required class="flex-1 bg-slate-800/90 border border-slate-700/80 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition">
+    <button type="button" onclick="this.parentElement.remove()" class="w-7 h-7 text-slate-500 hover:text-rose-400 flex items-center justify-center text-xs rounded-lg transition" title="لابردن">✕</button>
+  `;
+  container.appendChild(div);
+}
+
+async function handleCreatePollSubmit(e) {
+  e.preventDefault();
+  const question = document.getElementById('pollQuestionInput')?.value.trim();
+  if (!question) return alert('تکایە پرسیاری ڕاپرسی بنووسە');
+
+  const optionInputs = document.querySelectorAll('input[name="pollOption"]');
+  const options = Array.from(optionInputs).map(inp => inp.value.trim()).filter(Boolean);
+  if (options.length < 2) return alert('تکایە لانی کەم دوو بژاردە بنووسە');
+
+  const btn = document.getElementById('createPollSubmitBtn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const payload = {
+      chatType: currentPollTargetChatType,
+      groupId: currentPollTargetChatType === 'custom_group' ? activeCustomGroupId : null,
+      question,
+      options
+    };
+
+    const res = await fetch('/api/polls', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە دروستکردنی ڕاپرسی');
+
+    closeCreatePollModal();
+    document.getElementById('createPollForm')?.reset();
+  } catch (err) {
+    alert(err.message || 'هەڵە لە دروستکردنی ڕاپرسی');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderPollCardHtml(poll, { canClose = false } = {}) {
+  if (!poll) return '';
+  const totalVotes = poll.total_votes || 0;
+  const isClosed = Boolean(poll.is_closed);
+  const myVote = poll.my_vote;
+
+  const optionsHtml = (poll.options || []).map((opt, idx) => {
+    const isMyChoice = myVote === idx;
+    const pct = opt.percentage || 0;
+    return `
+      <div class="relative overflow-hidden rounded-xl border ${isMyChoice ? 'border-amber-400 bg-amber-500/10 shadow-sm' : 'border-slate-700/80 bg-slate-800/80 hover:bg-slate-800'} transition cursor-pointer select-none group/opt" onclick="${isClosed ? '' : `castPollVote(${poll.id}, ${idx})`}">
+        <div class="absolute inset-y-0 right-0 ${isMyChoice ? 'bg-amber-500/25' : 'bg-slate-700/50'} transition-all duration-500" style="width: ${pct}%;"></div>
+        
+        <div class="relative z-10 px-3 py-2.5 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-5 h-5 rounded-full border ${isMyChoice ? 'border-amber-400 bg-amber-400 text-slate-950' : 'border-slate-500 bg-slate-900 text-transparent'} flex items-center justify-center text-[10px] font-black shrink-0 transition">
+              <i class="fa-solid fa-check"></i>
+            </span>
+            <span class="text-xs font-black ${isMyChoice ? 'text-amber-200' : 'text-slate-100'} truncate">${escapeHtml(opt.text)}</span>
+          </div>
+          <div class="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+            <span class="text-slate-400 text-[10px]">(${opt.count || 0})</span>
+            <span class="font-black ${isMyChoice ? 'text-amber-300' : 'text-slate-300'}">${pct}%</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div id="poll-card-${poll.id}" class="w-full max-w-lg my-2 mx-auto rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/20 border-2 border-amber-500/40 p-3.5 sm:p-4 shadow-xl space-y-3" data-poll-id="${poll.id}">
+      <div class="flex items-center justify-between border-b border-amber-500/20 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-square-poll-vertical"></i>
+          </span>
+          <div>
+            <span class="text-[10px] font-black text-amber-400/90 block">ڕاپرسی</span>
+            <span class="text-[9px] text-slate-400">لەلایەن: ${escapeHtml(poll.creator_name)}</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          ${isClosed ? `
+            <span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[9px] font-black border border-slate-700">داخراوە 🔒</span>
+          ` : `
+            <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-black border border-emerald-500/30 animate-pulse">دەنگدان کراوەیە</span>
+          `}
+          ${canClose && !isClosed ? `
+            <button type="button" onclick="closePollDirect(${poll.id})" class="px-2 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500 hover:text-white text-[9px] font-bold border border-rose-500/30 transition" title="داخستنی ڕاپرسی">داخستن ✕</button>
+          ` : ''}
+        </div>
+      </div>
+
+      <h4 class="text-xs sm:text-sm font-black text-white leading-relaxed">${escapeHtml(poll.question)}</h4>
+
+      <div class="space-y-2">
+        ${optionsHtml}
+      </div>
+
+      <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800">
+        <span class="font-bold text-amber-300/80">کۆی گشتی: ${totalVotes} دەنگ</span>
+        <span class="text-slate-500 font-mono">${myVote !== null ? 'دەنگت تۆمارکراوە ✓' : 'کلیک بکە بۆ دەنگدان'}</span>
+      </div>
+    </div>
+  `;
+}
+
+async function loadAndRenderPollSlot(pollId, slotId) {
+  if (!pollId) return;
+  try {
+    const res = await fetch(`/api/polls/${pollId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const poll = data.poll;
+    if (!poll) return;
+    pollCacheMap.set(poll.id, poll);
+
+    const slot = document.getElementById(slotId);
+    if (slot) {
+      const canClose = currentUser && (currentUser.id === poll.creator_id || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+      slot.innerHTML = renderPollCardHtml(poll, { canClose });
+    }
+  } catch (e) {
+    console.error('Error loading poll slot:', e);
+  }
+}
+
+async function castPollVote(pollId, optionIndex) {
+  if (!pollId || typeof optionIndex !== 'number') return;
+  try {
+    const res = await fetch(`/api/polls/${pollId}/vote`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ optionIndex })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە دەنگدان');
+
+    updatePollDomCards(pollId, data.poll);
+    playSound('message');
+  } catch (err) {
+    alert(err.message || 'هەڵە لە دەنگدان');
+  }
+}
+
+async function closePollDirect(pollId) {
+  if (!confirm('ئایا دڵنیایت لە داخستنی ئەم ڕاپرسییە؟')) return;
+  try {
+    const res = await fetch(`/api/polls/${pollId}/close`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە داخستن');
+    updatePollDomCards(pollId, data.poll);
+  } catch (err) {
+    alert(err.message || 'هەڵە لە داخستنی ڕاپرسی');
+  }
+}
+
+function updatePollDomCards(pollId, updatedPoll) {
+  if (!pollId || !updatedPoll) return;
+  pollCacheMap.set(pollId, updatedPoll);
+
+  const canClose = currentUser && (currentUser.id === updatedPoll.creator_id || currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  const rendered = renderPollCardHtml(updatedPoll, { canClose });
+
+  const pubSlot = document.getElementById(`poll-msg-slot-${pollId}`);
+  if (pubSlot) pubSlot.innerHTML = rendered;
+
+  const cgSlot = document.getElementById(`cg-poll-msg-slot-${pollId}`);
+  if (cgSlot) cgSlot.innerHTML = rendered;
+
+  document.querySelectorAll(`[data-poll-id="${pollId}"]`).forEach(el => {
+    if (el.id === `poll-card-${pollId}`) {
+      const temp = document.createElement('div');
+      temp.innerHTML = rendered;
+      const newCard = temp.firstElementChild;
+      if (newCard) el.replaceWith(newCard);
+    }
+  });
+}
+
+// =========================================================================
+// EVENT COUNTDOWN ALARMS (زەنگی ئاگاداری)
+// =========================================================================
+let currentAlarmTargetChatType = 'public';
+
+function openCreateAlarmModal(chatType = 'public') {
+  currentAlarmTargetChatType = chatType;
+  const modal = document.getElementById('createAlarmModal');
+  const targetText = document.getElementById('createAlarmTargetText');
+  if (targetText) {
+    targetText.innerText = chatType === 'custom_group' ? `لە ناو گروپی «${activeCustomGroupData?.name || 'تایبەت'}»` : 'لە چاتی گشتی بۆ هەمووان';
+  }
+
+  const dtInput = document.getElementById('alarmDateTimeInput');
+  if (dtInput) {
+    const d = new Date(Date.now() + 60 * 60 * 1000);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    dtInput.value = d.toISOString().slice(0, 16);
+  }
+
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeCreateAlarmModal() {
+  const modal = document.getElementById('createAlarmModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function handleCreateAlarmSubmit(e) {
+  e.preventDefault();
+  const title = document.getElementById('alarmTitleInput')?.value.trim();
+  const dtVal = document.getElementById('alarmDateTimeInput')?.value;
+
+  if (!title) return alert('تکایە نوسینی ئاگاداری بنووسە');
+  if (!dtVal) return alert('تکایە بەروار و کات دیاری بکە');
+
+  const targetTime = new Date(dtVal).getTime();
+  if (isNaN(targetTime)) return alert('کاتی دیاریکراو دروست نییە');
+
+  const btn = document.getElementById('createAlarmSubmitBtn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const payload = {
+      chatType: currentAlarmTargetChatType,
+      groupId: currentAlarmTargetChatType === 'custom_group' ? activeCustomGroupId : null,
+      title,
+      targetTime
+    };
+
+    const res = await fetch('/api/alarms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە دانانی زەنگ');
+
+    closeCreateAlarmModal();
+    document.getElementById('createAlarmForm')?.reset();
+  } catch (err) {
+    alert(err.message || 'هەڵە لە دانانی زەنگی ئاگاداری');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderAlarmCardHtml(alarm, { canDelete = false } = {}) {
+  if (!alarm) return '';
+  const now = Date.now();
+  const targetTime = Number(alarm.target_time);
+  const isTriggered = alarm.is_triggered || targetTime <= now;
+  const diffSec = Math.max(0, Math.floor((targetTime - now) / 1000));
+
+  const days = Math.floor(diffSec / 86400);
+  const hours = Math.floor((diffSec % 86400) / 3600);
+  const minutes = Math.floor((diffSec % 3600) / 60);
+  const seconds = diffSec % 60;
+
+  const targetDateObj = new Date(targetTime);
+  const formattedTimeStr = targetDateObj.toLocaleDateString('ku-IQ') + ' • ' + targetDateObj.toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
+
+  return `
+    <div id="alarm-card-${alarm.id || alarm.alarm_id}" class="w-full max-w-lg my-2 mx-auto rounded-3xl bg-gradient-to-br from-slate-900 via-rose-950/20 to-slate-900 border-2 border-rose-500/40 p-4 shadow-2xl space-y-3.5 relative overflow-hidden group" data-alarm-id="${alarm.id || alarm.alarm_id}" data-target-time="${targetTime}">
+      <!-- Notice Title at Top Prominently Displayed -->
+      <div class="flex items-start justify-between gap-2 border-b border-rose-500/20 pb-2.5">
+        <div class="flex items-start gap-2.5 min-w-0">
+          <span class="w-9 h-9 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center justify-center text-sm shrink-0 shadow-inner ${isTriggered ? 'animate-bounce' : ''}">
+            <i class="fa-solid fa-bell"></i>
+          </span>
+          <div class="min-w-0">
+            <h4 class="text-xs sm:text-sm font-black text-rose-200 leading-snug break-words">${escapeHtml(alarm.title)}</h4>
+            <span class="text-[10px] text-slate-400 mt-0.5 block font-mono">${formattedTimeStr}</span>
+          </div>
+        </div>
+        ${canDelete ? `
+          <button type="button" onclick="deleteAlarmDirect(${alarm.id || alarm.alarm_id})" class="text-slate-500 hover:text-rose-400 p-1 rounded-lg transition shrink-0" title="سڕینەوەی ئەم زەنگە">
+            <i class="fa-solid fa-trash-can text-xs"></i>
+          </button>
+        ` : ''}
+      </div>
+
+      <!-- Stunning Digital Countdown Clock Display -->
+      <div id="alarm-timer-box-${alarm.id || alarm.alarm_id}" class="grid grid-cols-4 gap-2 text-center select-none font-mono">
+        <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-2 shadow-inner">
+          <span class="text-base sm:text-xl font-black text-white block alarm-digit-days">${days}</span>
+          <span class="text-[9px] text-slate-400 font-bold block mt-0.5">ڕۆژ</span>
+        </div>
+        <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-2 shadow-inner">
+          <span class="text-base sm:text-xl font-black text-rose-300 block alarm-digit-hours">${String(hours).padStart(2, '0')}</span>
+          <span class="text-[9px] text-slate-400 font-bold block mt-0.5">کاتژمێر</span>
+        </div>
+        <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-2 shadow-inner">
+          <span class="text-base sm:text-xl font-black text-amber-300 block alarm-digit-minutes">${String(minutes).padStart(2, '0')}</span>
+          <span class="text-[9px] text-slate-400 font-bold block mt-0.5">خولەک</span>
+        </div>
+        <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-2 shadow-inner">
+          <span class="text-base sm:text-xl font-black text-emerald-400 block alarm-digit-seconds">${String(seconds).padStart(2, '0')}</span>
+          <span class="text-[9px] text-slate-400 font-bold block mt-0.5">چرکە</span>
+        </div>
+      </div>
+
+      <!-- Status Footer -->
+      <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
+        <span class="text-slate-500 font-medium">لەلایەن: ${escapeHtml(alarm.creator_name || 'ستاف')}</span>
+        <span id="alarm-status-badge-${alarm.id || alarm.alarm_id}" class="font-bold ${isTriggered ? 'text-rose-400 font-black flex items-center gap-1 animate-pulse' : 'text-emerald-400 flex items-center gap-1'}">
+          ${isTriggered ? '<i class="fa-solid fa-bell text-[9px]"></i> کاتەکەی هاتووە / جەڕەس لێیدا!' : '<i class="fa-regular fa-clock text-[9px]"></i> کاتەکەی کەم دەبێتەوە'}
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+async function deleteAlarmDirect(alarmId) {
+  if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم زەنگە؟')) return;
+  try {
+    const res = await fetch(`/api/alarms/${alarmId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error('هەڵە لە سڕینەوە');
+    document.querySelectorAll(`[data-alarm-id="${alarmId}"]`).forEach(el => el.remove());
+  } catch (err) {
+    alert(err.message || 'هەڵە لە سڕینەوەی زەنگ');
+  }
+}
+
+// Global live countdown ticker (ticks every second)
+setInterval(() => {
+  const cards = document.querySelectorAll('[data-target-time]');
+  if (!cards.length) return;
+  const now = Date.now();
+  cards.forEach(card => {
+    const target = Number(card.getAttribute('data-target-time'));
+    if (!target) return;
+    const diffSec = Math.max(0, Math.floor((target - now) / 1000));
+
+    const dEl = card.querySelector('.alarm-digit-days');
+    const hEl = card.querySelector('.alarm-digit-hours');
+    const mEl = card.querySelector('.alarm-digit-minutes');
+    const sEl = card.querySelector('.alarm-digit-seconds');
+
+    if (dEl && hEl && mEl && sEl) {
+      const days = Math.floor(diffSec / 86400);
+      const hours = Math.floor((diffSec % 86400) / 3600);
+      const minutes = Math.floor((diffSec % 3600) / 60);
+      const seconds = diffSec % 60;
+
+      dEl.innerText = days;
+      hEl.innerText = String(hours).padStart(2, '0');
+      mEl.innerText = String(minutes).padStart(2, '0');
+      sEl.innerText = String(seconds).padStart(2, '0');
+    }
+
+    if (diffSec <= 0) {
+      const id = card.getAttribute('data-alarm-id');
+      const badge = document.getElementById(`alarm-status-badge-${id}`);
+      if (badge && !badge.innerText.includes('هاتووە')) {
+        badge.className = 'font-bold text-rose-400 font-black flex items-center gap-1 animate-pulse';
+        badge.innerHTML = '<i class="fa-solid fa-bell text-[9px]"></i> کاتەکەی هاتووە / جەڕەس لێیدا!';
+      }
+    }
+  });
+}, 1000);
+
+// Global Socket Listeners for Polls, Alarms & Group Clear
+if (typeof socket !== 'undefined' && socket) {
+  socket.on('poll_updated', ({ pollId, poll }) => {
+    updatePollDomCards(pollId, poll);
+  });
+
+  socket.on('alarm_triggered', ({ alarmId, title, chatType, groupId }) => {
+    playBellChime();
+    showLiveToastNotification(`🔔 زەنگی ئاگاداری لێیدا: ${title}`, 'amber');
+
+    const card = document.getElementById(`alarm-card-${alarmId}`);
+    if (card) {
+      const badge = document.getElementById(`alarm-status-badge-${alarmId}`);
+      if (badge) {
+        badge.className = 'font-bold text-rose-400 font-black flex items-center gap-1 animate-pulse';
+        badge.innerHTML = '<i class="fa-solid fa-bell text-[9px]"></i> کاتەکەی هاتووە / جەڕەس لێیدا!';
+      }
+    }
+  });
+
+  socket.on('alarm_deleted', ({ alarmId }) => {
+    document.querySelectorAll(`[data-alarm-id="${alarmId}"]`).forEach(el => el.remove());
+  });
+
+  socket.on('custom_group_messages_cleared', ({ groupId }) => {
+    if (typeof activeCustomGroupId !== 'undefined' && activeCustomGroupId === groupId) {
+      loadCustomGroupMessages(groupId);
+    }
+  });
 }
