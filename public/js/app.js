@@ -2992,10 +2992,15 @@ function appendMessage(msg, scroll = true) {
     let alarmData = {};
     try { alarmData = JSON.parse(msg.content); } catch (e) { alarmData = { title: msg.content, target_time: Date.now() + 3600000 }; }
 
-    const isAuthorOrStaff = currentUser && (currentUser.id === msg.user_id || currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+    alarmData.id = alarmData.id || alarmData.alarm_id;
+    alarmData.alarm_id = alarmData.alarm_id || alarmData.id;
+    alarmData.creator_id = alarmData.creator_id || msg.user_id;
+
+    const isAuthorOrStaff = canManageAlarm(alarmData);
 
     msgElem.className = 'chat-msg-item w-full my-3';
-    msgElem.innerHTML = renderAlarmCardHtml(alarmData, { canDelete: isAuthorOrStaff });
+    msgElem.setAttribute('data-alarm-id', alarmData.id);
+    msgElem.innerHTML = renderAlarmCardHtml(alarmData, { canManage: isAuthorOrStaff, canDelete: isAuthorOrStaff });
     container.appendChild(msgElem);
     if (scroll && !isUserScrolledUp) scrollToBottom();
     return;
@@ -15928,10 +15933,15 @@ function buildCustomGroupMessageHtml(msg, isSuperAdmin) {
   if (msg.type === 'countdown_alarm') {
     let alarmData = {};
     try { alarmData = JSON.parse(msg.content); } catch (e) { alarmData = { title: msg.content, target_time: Date.now() + 3600000 }; }
-    const isAuthorOrStaff = currentUser && (currentUser.id === msg.sender_id || currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+
+    alarmData.id = alarmData.id || alarmData.alarm_id;
+    alarmData.alarm_id = alarmData.alarm_id || alarmData.id;
+    alarmData.creator_id = alarmData.creator_id || msg.sender_id;
+
+    const isAuthorOrStaff = canManageAlarm(alarmData);
     return `
-      <div id="cg-msg-${msg.id}" class="w-full my-2 transition">
-        ${renderAlarmCardHtml(alarmData, { canDelete: isAuthorOrStaff })}
+      <div id="cg-msg-${msg.id}" class="w-full my-2 transition" data-alarm-id="${alarmData.id}">
+        ${renderAlarmCardHtml(alarmData, { canManage: isAuthorOrStaff, canDelete: isAuthorOrStaff })}
       </div>
     `;
   }
@@ -16933,13 +16943,35 @@ async function handleCreatePollSubmit(e) {
   }
 }
 
+function canManagePoll(poll) {
+  if (!currentUser) return false;
+  if (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin') return true;
+  if (typeof isMasterSuperAdmin === 'function' && isMasterSuperAdmin(currentUser)) return true;
+  if (typeof hasSuperAdminPrivileges === 'function' && hasSuperAdminPrivileges(currentUser)) return true;
+  if (currentUser.username === 'hemntjabar' || currentUser.username === 'hemn' || currentUser.id === 1) return true;
+  const creatorId = poll && (poll.creator_id || poll.creatorId);
+  if (creatorId && Number(currentUser.id) === Number(creatorId)) return true;
+  return false;
+}
+
+function canManageAlarm(alarm) {
+  if (!currentUser) return false;
+  if (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin') return true;
+  if (typeof isMasterSuperAdmin === 'function' && isMasterSuperAdmin(currentUser)) return true;
+  if (typeof hasSuperAdminPrivileges === 'function' && hasSuperAdminPrivileges(currentUser)) return true;
+  if (currentUser.username === 'hemntjabar' || currentUser.username === 'hemn' || currentUser.id === 1) return true;
+  const creatorId = alarm && (alarm.creator_id || alarm.creatorId);
+  if (creatorId && Number(currentUser.id) === Number(creatorId)) return true;
+  return false;
+}
+
 function renderPollCardHtml(poll, { canClose = false } = {}) {
   if (!poll) return '';
   const totalVotes = poll.total_votes || 0;
   const isClosed = Boolean(poll.is_closed);
   const myVote = poll.my_vote;
-  const isSuper = currentUser && (currentUser.role === 'super_admin' || currentUser.is_master_admin || currentUser.username === 'hemn' || currentUser.username === 'admin');
-  const canManage = isSuper || (currentUser && currentUser.id === poll.creator_id) || canClose;
+  const isSuper = currentUser && (currentUser.role === 'super_admin' || (typeof isMasterSuperAdmin === 'function' && isMasterSuperAdmin(currentUser)) || currentUser.username === 'hemntjabar' || currentUser.id === 1);
+  const canManage = canClose || canManagePoll(poll);
 
   const optionsHtml = (poll.options || []).map((opt, idx) => {
     const isMyChoice = myVote === idx;
@@ -17003,15 +17035,17 @@ function renderPollCardHtml(poll, { canClose = false } = {}) {
           `}
           ${canManage ? `
             ${isClosed ? `
-              <button type="button" onclick="togglePollStatusDirect(${poll.id}, false)" class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500 hover:text-white text-[9px] font-bold border border-emerald-500/30 transition shadow-sm" title="کردنەوەی ڕاپرسی">کردنەوە 🔓</button>
+              <button type="button" onclick="togglePollStatusDirect(${poll.id}, false)" class="px-2 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-white text-[9px] font-black border border-emerald-500/30 transition shadow-sm" title="کردنەوەی ڕاپرسی">کردنەوە 🔓</button>
             ` : `
-              <button type="button" onclick="togglePollStatusDirect(${poll.id}, true)" class="px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500 hover:text-white text-[9px] font-bold border border-amber-500/30 transition shadow-sm" title="داخستنی ڕاپرسی">داخستن 🔒</button>
+              <button type="button" onclick="togglePollStatusDirect(${poll.id}, true)" class="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white text-[9px] font-black border border-amber-500/30 transition shadow-sm" title="داخستنی ڕاپرسی">داخستن 🔒</button>
             `}
-            <button type="button" onclick="openEditPollModal(${poll.id})" class="text-slate-400 hover:text-amber-400 p-1 rounded-lg transition" title="دەستکاریکردنی ڕاپرسی">
-              <i class="fa-solid fa-pen-to-square text-xs"></i>
+            <button type="button" onclick="openEditPollModal(${poll.id})" class="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 flex items-center gap-1 text-[9px] font-black transition active:scale-95 shadow-sm" title="دەستکاریکردنی ڕاپرسی">
+              <i class="fa-solid fa-pen-to-square text-[9px]"></i>
+              <span>ئیدیت</span>
             </button>
-            <button type="button" onclick="deletePollDirect(${poll.id})" class="text-slate-400 hover:text-rose-400 p-1 rounded-lg transition" title="سڕینەوەی ڕاپرسی">
-              <i class="fa-solid fa-trash-can text-xs"></i>
+            <button type="button" onclick="deletePollDirect(${poll.id})" class="px-2 py-0.5 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/40 flex items-center gap-1 text-[9px] font-black transition active:scale-95 shadow-sm" title="سڕینەوەی ڕاپرسی">
+              <i class="fa-solid fa-trash-can text-[9px]"></i>
+              <span>سڕینەوە</span>
             </button>
           ` : ''}
         </div>
@@ -17378,8 +17412,7 @@ function updateAlarmDomCards(alarmId, updatedAlarm) {
   if (!alarmId || !updatedAlarm) return;
   alarmCacheMap.set(Number(alarmId), updatedAlarm);
 
-  const isSuper = currentUser && (currentUser.role === 'super_admin' || currentUser.is_master_admin);
-  const canManage = isSuper || (currentUser && (currentUser.id === updatedAlarm.creator_id || currentUser.role === 'teacher' || currentUser.role === 'admin'));
+  const canManage = canManageAlarm(updatedAlarm);
   const rendered = renderAlarmCardHtml(updatedAlarm, { canManage, canDelete: canManage });
 
   document.querySelectorAll(`[data-alarm-id="${alarmId}"]`).forEach(el => {
@@ -17398,9 +17431,7 @@ function renderAlarmCardHtml(alarm, { canManage = false, canDelete = false } = {
   const alarmId = alarm.id || alarm.alarm_id;
   alarmCacheMap.set(Number(alarmId), alarm);
 
-  const isSuper = currentUser && (currentUser.role === 'super_admin' || currentUser.is_master_admin);
-  const isPrivileged = isSuper || (currentUser && (currentUser.id === alarm.creator_id || currentUser.role === 'teacher' || currentUser.role === 'admin'));
-  const allowEditDelete = canManage || canDelete || isPrivileged;
+  const allowEditDelete = canManage || canDelete || canManageAlarm(alarm);
 
   const targetTime = Number(alarm.target_time);
   const isTriggered = alarm.is_triggered || targetTime <= now;
@@ -17428,12 +17459,14 @@ function renderAlarmCardHtml(alarm, { canManage = false, canDelete = false } = {
           </div>
         </div>
         ${allowEditDelete ? `
-          <div class="flex items-center gap-1 shrink-0">
-            <button type="button" onclick="openEditAlarmModal(${alarmId})" class="text-slate-400 hover:text-amber-400 p-1 rounded-lg transition" title="دەستکاریکردنی ئەم زەنگە">
-              <i class="fa-solid fa-pen-to-square text-xs"></i>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button type="button" onclick="openEditAlarmModal(${alarmId})" class="px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 flex items-center gap-1.5 text-xs font-black transition active:scale-95 shadow-sm" title="دەستکاریکردنی ئەم زەنگە">
+              <i class="fa-solid fa-pen-to-square text-[11px]"></i>
+              <span>ئیدیت</span>
             </button>
-            <button type="button" onclick="deleteAlarmDirect(${alarmId})" class="text-slate-500 hover:text-rose-400 p-1 rounded-lg transition" title="سڕینەوەی ئەم زەنگە">
-              <i class="fa-solid fa-trash-can text-xs"></i>
+            <button type="button" onclick="deleteAlarmDirect(${alarmId})" class="px-2.5 py-1 rounded-xl bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 flex items-center gap-1.5 text-xs font-black transition active:scale-95 shadow-sm" title="سڕینەوەی ئەم زەنگە">
+              <i class="fa-solid fa-trash-can text-[11px]"></i>
+              <span>سڕینەوە</span>
             </button>
           </div>
         ` : ''}

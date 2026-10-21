@@ -5619,6 +5619,7 @@ app.post('/api/alarms', authMiddleware, (req, res) => {
 
     const contentPayload = JSON.stringify({
       alarm_id: alarm.id,
+      creator_id: alarm.creator_id,
       title: alarm.title,
       target_time: alarm.target_time,
       creator_name: alarm.creator_name,
@@ -5698,6 +5699,7 @@ app.put('/api/alarms/:id', authMiddleware, (req, res) => {
     // Also update any message content that has this alarm_id
     const contentPayload = JSON.stringify({
       alarm_id: updated.id,
+      creator_id: updated.creator_id,
       title: updated.title,
       target_time: updated.target_time,
       creator_name: updated.creator_name,
