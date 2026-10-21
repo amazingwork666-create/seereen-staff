@@ -11960,6 +11960,7 @@ const rtcLiveIceConfig = {
 // Unlimited Two-Way Audio Recording state
 let liveMediaRecorder = null;
 let isLiveRecording = false;
+let wasLiveLessonActive = false;
 let liveRecordedAudioChunks = [];
 let liveRecordingStartTime = null;
 let liveRecordingTimer = null;
@@ -12057,6 +12058,12 @@ function stopLivePingReporting() {
 }
 
 function openLiveLessonModal() {
+  const isStaff = canUserManageLive(currentUser);
+  if (!isStaff && currentLiveLessonState && !currentLiveLessonState.isActive) {
+    showLiveToastNotification('لە ئێستادا هیچ وانەیەکی ڕاستەوخۆ چالاک نییە. کاتێک مامۆستا دەستیپێکرد ڕاستەوخۆ بۆت دەکرێتەوە 🔴', 'amber');
+    return;
+  }
+
   const modal = document.getElementById('liveLessonModal');
   const floatingBar = document.getElementById('floatingLiveBar');
   if (modal) {
@@ -12068,7 +12075,6 @@ function openLiveLessonModal() {
     floatingBar.style.display = 'none';
   }
 
-  const isStaff = canUserManageLive(currentUser);
   const startEndBtn = document.getElementById('liveStartEndBtn');
   if (startEndBtn) {
     if (!isStaff) {
@@ -12887,7 +12893,15 @@ function kickUserFromLive(targetUserId, targetName) {
 
 // Live Socket Event Handlers
 function handleLiveLessonStateUpdate(state) {
+  const previouslyActive = (currentLiveLessonState && currentLiveLessonState.isActive) || wasLiveLessonActive;
   currentLiveLessonState = state;
+  const isNowActive = !!(state && state.isActive);
+  wasLiveLessonActive = isNowActive;
+
+  // ONLY auto-close if the lesson WAS ACTIVE and now TRANSITIONED to inactive!
+  if (previouslyActive && !isNowActive) {
+    closeAndCleanLiveRoom('وانەی ڕاستەوخۆ کۆتایی پێهات و ژوورەکە بۆ هەمووان داخرا ⏹️');
+  }
 
   const isAdmin = canUserManageLive(currentUser);
 
@@ -12946,16 +12960,6 @@ function handleLiveLessonStateUpdate(state) {
       }, 1000);
     }
   } else {
-    // If live is inactive, unconditionally close and clean room for ANY user still having modal or audio open
-    const modal = document.getElementById('liveLessonModal');
-    const floatingBar = document.getElementById('floatingLiveBar');
-    const isModalOpen = modal && !modal.classList.contains('hidden') && modal.style.display !== 'none';
-    const isFloatingOpen = floatingBar && !floatingBar.classList.contains('hidden') && floatingBar.style.display !== 'none';
-    const hasActiveStreams = (localLiveAudioStream !== null || localLiveScreenStream !== null || livePeerConnections.size > 0);
-
-    if (isModalOpen || isFloatingOpen || hasActiveStreams) {
-      closeAndCleanLiveRoom('وانەی ڕاستەوخۆ کۆتایی پێهات و ژوورەکە داخرا ⏹️');
-    }
 
     if (deskDot) deskDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-950 border border-rose-900/60';
     if (mobDot) mobDot.className = 'w-2 h-2 rounded-full bg-rose-950 border border-rose-900/60';
@@ -13119,8 +13123,14 @@ function handleLiveLessonStateUpdate(state) {
 }
 
 function handleLiveStartedAlert(data) {
-  playSound('question');
-  alert(`🔴 وانەی نوێ دەستیپێکرد: ${data.title || 'وانەی ڕاستەوخۆ'}\nلەلایەن: ${data.startedBy || 'مامۆستا'}`);
+  playSound('star');
+  showLiveToastNotification(`🔴 وانەی ڕاستەوخۆ دەستیپێکرد: ${data.title || 'وانەی ڕاستەوخۆ'} (${data.startedBy || 'مامۆستا'})`, 'emerald');
+
+  // Automatically open the live lesson room for everyone so they enter seamlessly!
+  const modal = document.getElementById('liveLessonModal');
+  if (!modal || modal.classList.contains('hidden') || modal.style.display === 'none') {
+    openLiveLessonModal();
+  }
 }
 
 function handleLiveEndedNotice() {
