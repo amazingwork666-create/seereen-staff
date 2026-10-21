@@ -227,6 +227,9 @@ app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
     "default-src 'self' blob: data:; " +
+    "base-uri 'self'; " +
+    "object-src 'none'; " +
+    "form-action 'self'; " +
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://cdn.socket.io https://cdn.jsdelivr.net; " +
     "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; " +
     "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com; " +
