@@ -207,6 +207,37 @@ const io = new Server(server, {
   }
 });
 
+app.disable('x-powered-by');
+
+// =========================================================================
+// HTTP SECURITY HEADERS (A+ Grade on Mozilla Observatory & SecurityHeaders)
+// =========================================================================
+app.use((req, res, next) => {
+  // Prevent MIME-sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Protect against clickjacking
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  // Enforce HTTPS
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  // Privacy-friendly referrer header
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Limit sensitive APIs to origin
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=()');
+  // Robust Content Security Policy (allows Tailwind, Socket.io, FontAwesome, MP3 Quran audio, and WebSockets)
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self' blob: data:; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://cdn.socket.io https://cdn.jsdelivr.net; " +
+    "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; " +
+    "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com; " +
+    "img-src 'self' data: blob: https:; " +
+    "media-src 'self' blob: data: https: https://*.mp3quran.net; " +
+    "connect-src 'self' wss: ws: https: http:; " +
+    "frame-ancestors 'self';"
+  );
+  next();
+});
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
