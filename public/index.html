@@ -4286,22 +4286,47 @@
               </button>
             </div>
 
-            <!-- Gemini API Key configuration -->
-            <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl space-y-2">
+            <!-- Gemini Dual API Engine configuration -->
+            <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
               <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-                  <i class="fa-solid fa-key text-amber-400"></i>
-                  <span>کلیلی Google Gemini API (ئارەزوومەندانە)</span>
+                  <i class="fa-solid fa-bolt text-amber-400"></i>
+                  <span>بزوێنەری دووانی Gemini API (Dual Power)</span>
                 </span>
-                <span id="advisorGeminiStatusBadge" class="text-[9px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-400">سیستەمی کوردی چالاکە</span>
+                <span id="advisorGeminiStatusBadge" class="text-[9px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 font-bold">پشکنین...</span>
               </div>
               <p class="text-[10px] text-slate-400 leading-relaxed">
-                ئەگەر کلیلی تایبەتی Gemini ی خۆت دابنێیت، ڕاوێژکار بە بەهێزترین مۆدێلی ژیری دەستکرد وەڵامت دەداتەوە. ئەگەر بەتاڵی بکەیت، سیستەمی خۆماڵی کوردی پلاتفۆرمەکە بەکاردێت.
+                دەتوانیت دوو کلیلی جیاواز لە دوو ئیمەیڵی جیاوازی گووگڵ ستۆدیۆ دابنێیت؛ بەمەش هێز و لیمیتی ڕاوێژکارەکە دوو هێندە دەبێت و گەر کلیلێک لۆد کرا، ئەوی تر بە خودکاری دەستبەکار دەبێت.
               </p>
-              <div class="flex items-center gap-2">
-                <input type="password" id="advisorGeminiKeyInput" placeholder="AIzaSy..." class="min-w-0 flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono">
-                <button onclick="saveAdvisorGeminiKey()" class="shrink-0 px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow">
-                  پاشەکەوت
+              
+              <!-- Key 1 -->
+              <div class="space-y-1">
+                <div class="flex items-center justify-between text-[10px]">
+                  <span class="text-slate-300 font-semibold flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    <span>کلیلی سەرەکی (API Key 1):</span>
+                  </span>
+                  <span id="advisorKey1Indicator" class="text-slate-500 font-mono text-[9px]">بەتاڵ</span>
+                </div>
+                <input type="password" id="advisorGeminiKeyInput" placeholder="کلیلی یەکەم لێرە بنووسە..." class="w-full bg-slate-950 border border-slate-700 focus:border-purple-500 rounded-xl px-3 py-2 text-xs text-white focus:outline-none font-mono transition">
+              </div>
+
+              <!-- Key 2 -->
+              <div class="space-y-1">
+                <div class="flex items-center justify-between text-[10px]">
+                  <span class="text-slate-300 font-semibold flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                    <span>کلیلی دووەم / یەدەگ (API Key 2):</span>
+                  </span>
+                  <span id="advisorKey2Indicator" class="text-slate-500 font-mono text-[9px]">بەتاڵ</span>
+                </div>
+                <input type="password" id="advisorGeminiKeyInput2" placeholder="کلیلی دووەم لێرە بنووسە..." class="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-white focus:outline-none font-mono transition">
+              </div>
+
+              <div class="pt-1">
+                <button onclick="saveAdvisorGeminiKey()" class="w-full py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-purple-950 active:scale-95 flex items-center justify-center gap-1.5">
+                  <i class="fa-solid fa-floppy-disk text-xs"></i>
+                  <span>پاشەکەوتکردنی کلیلەکان</span>
                 </button>
               </div>
             </div>
@@ -4343,6 +4368,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=22.4"></script>
+  <script src="/js/app.js?v=22.5"></script>
 </body>
 </html>

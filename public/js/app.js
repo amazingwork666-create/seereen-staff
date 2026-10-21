@@ -15687,9 +15687,24 @@ async function checkAdvisorGeminiStatus() {
     if (!res.ok) return;
     const data = await res.json();
     const badge = document.getElementById('advisorGeminiStatusBadge');
+    const ind1 = document.getElementById('advisorKey1Indicator');
+    const ind2 = document.getElementById('advisorKey2Indicator');
+
+    if (ind1) {
+      ind1.innerText = data.hasKey1 ? (data.maskedKey1 || 'چالاکە ✓') : 'بەتاڵ';
+      ind1.className = data.hasKey1 ? 'text-emerald-400 font-mono text-[9px] font-bold' : 'text-slate-500 font-mono text-[9px]';
+    }
+    if (ind2) {
+      ind2.innerText = data.hasKey2 ? (data.maskedKey2 || 'چالاکە ✓') : 'بەتاڵ';
+      ind2.className = data.hasKey2 ? 'text-indigo-400 font-mono text-[9px] font-bold' : 'text-slate-500 font-mono text-[9px]';
+    }
+
     if (badge) {
-      if (data.hasKey) {
-        badge.innerText = data.isCustom ? 'Gemini تایبەت چالاکە 🤖' : 'Gemini سێرڤەر چالاکە 🤖';
+      if (data.keyCount >= 2) {
+        badge.innerText = 'دوو کلیل چالاکە (Double Power) ⚡';
+        badge.className = 'text-[9px] px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold';
+      } else if (data.keyCount === 1 || data.hasKey) {
+        badge.innerText = 'یەک کلیل چالاکە 🤖';
         badge.className = 'text-[9px] px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold';
       } else {
         badge.innerText = 'سیستەمی کوردی چالاکە 🧠';
@@ -15700,9 +15715,23 @@ async function checkAdvisorGeminiStatus() {
 }
 
 async function saveAdvisorGeminiKey() {
-  const input = document.getElementById('advisorGeminiKeyInput');
-  if (!input) return;
-  const key = input.value.trim();
+  const input1 = document.getElementById('advisorGeminiKeyInput');
+  const input2 = document.getElementById('advisorGeminiKeyInput2');
+  const key1 = input1 ? input1.value.trim() : '';
+  const key2 = input2 ? input2.value.trim() : '';
+
+  const payload = {};
+  if (key1) payload.apiKey = key1;
+  if (key2) payload.apiKey2 = key2;
+
+  // If user left both inputs empty and clicked save, confirm if they want to clear
+  if (!key1 && !key2) {
+    if (!confirm('ئایا دەتەوێت هەردوو کلیلەکە بسڕیتەوە و بگەڕێیتەوە سەر سیستەمی خۆماڵی؟\nبۆ سڕینەوە OK دابگرە، ئەگینا Cancel.')) {
+      return;
+    }
+    payload.apiKey = '';
+    payload.apiKey2 = '';
+  }
 
   try {
     const res = await fetch('/api/advisor/gemini-key', {
@@ -15711,12 +15740,13 @@ async function saveAdvisorGeminiKey() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ apiKey: key })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'هەڵە لە تۆمارکردن');
     alert(data.message || 'سەرکەوتوو بوو');
-    input.value = '';
+    if (input1) input1.value = '';
+    if (input2) input2.value = '';
     checkAdvisorGeminiStatus();
   } catch (e) {
     alert(e.message || 'هەڵەیەک ڕوویدا');

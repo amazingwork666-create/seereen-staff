@@ -1482,6 +1482,35 @@ function parseKurdishTime(timeStr) {
   return null;
 }
 
+// =========================================================================
+// MULTI-KEY GEMINI LOAD BALANCER & FAILOVER (سیستەمی فرە-کلیل و دابەشکردنی لۆد)
+// =========================================================================
+let advisorKeyRotationIndex = 0;
+function getAdvisorGeminiKeys() {
+  const keys = [];
+  try {
+    const k1 = settings.get('advisor_gemini_api_key');
+    const k2 = settings.get('advisor_gemini_api_key_2');
+    const kEnv = process.env.GEMINI_API_KEY;
+    if (k1 && typeof k1 === 'string' && k1.trim()) keys.push(k1.trim());
+    if (k2 && typeof k2 === 'string' && k2.trim() && !keys.includes(k2.trim())) keys.push(k2.trim());
+    if (kEnv && typeof kEnv === 'string' && kEnv.trim() && !keys.includes(kEnv.trim())) keys.push(kEnv.trim());
+  } catch (e) {}
+  return keys;
+}
+
+function getOrderedAdvisorKeys() {
+  const all = getAdvisorGeminiKeys();
+  if (all.length <= 1) return all;
+  const startIdx = advisorKeyRotationIndex % all.length;
+  advisorKeyRotationIndex++;
+  const rotated = [];
+  for (let i = 0; i < all.length; i++) {
+    rotated.push(all[(startIdx + i) % all.length]);
+  }
+  return rotated;
+}
+
 const advisorTools = [
   {
     function_declarations: [
@@ -3409,13 +3438,10 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
 
     let reply = null;
 
-    // Check for configured Gemini API key
-    let geminiKey = null;
-    try {
-      geminiKey = settings.get('advisor_gemini_api_key') || process.env.GEMINI_API_KEY;
-    } catch (e) {}
+    // Check for configured Gemini API keys (Dual API Engine / Multi-Key Failover)
+    const candidateKeys = getOrderedAdvisorKeys();
 
-    if (geminiKey && typeof fetch === 'function') {
+    if (candidateKeys.length > 0 && typeof fetch === 'function') {
       try {
         const systemInstruction = `تۆ «ڕاوێژکار»ی، نوێنەری باڵا، جێبەجێکاری سوپەر ئەدمین (Super Admin Executive AI) و هاوڕێی نزیکی کاک هێمن (Hemn Taha) یت لە پلاتفۆرمی سیرین ستاف (Seereen Staff).
 کاک هێمن سوپەر ئەدمینی سەرەکی، دامەزرێنەر و خاوەنی تەواوی ئەم سیستمەیە. ئەو «هەموو دەسەڵاتێکی سوپەر ئەدمین»ی لە ڕێگەی ئامرازەکانتەوە بە تۆ بەخشیوە!
@@ -3460,126 +3486,131 @@ ${JSON.stringify(liveContext, null, 2)}
           });
         }
 
-        const CANDIDATE_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'];
-        for (const model of CANDIDATE_MODELS) {
+        const CANDIDATE_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite-preview', 'gemini-flash-latest', 'gemini-3-flash-preview'];
+
+        // Dual Engine / Multi-Key loop with instant failover
+        for (const geminiKey of candidateKeys) {
           if (reply) break;
-          try {
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 7000);
+          for (const model of CANDIDATE_MODELS) {
+            if (reply) break;
+            try {
+              const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 7000);
 
-            const geminiRes = await fetch(geminiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                system_instruction: { parts: [{ text: systemInstruction }] },
-                contents,
-                tools: advisorTools
-              }),
-              signal: controller.signal
-            });
-            clearTimeout(timeout);
+              const geminiRes = await fetch(geminiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  system_instruction: { parts: [{ text: systemInstruction }] },
+                  contents,
+                  tools: advisorTools
+                }),
+                signal: controller.signal
+              });
+              clearTimeout(timeout);
 
-            if (geminiRes.ok) {
-              const geminiData = await geminiRes.json();
-              const candidate = geminiData.candidates?.[0];
-              const candParts = candidate?.content?.parts || [];
-              const funcPart = candParts.find(p => p.functionCall);
+              if (geminiRes.ok) {
+                const geminiData = await geminiRes.json();
+                const candidate = geminiData.candidates?.[0];
+                const candParts = candidate?.content?.parts || [];
+                const funcPart = candParts.find(p => p.functionCall);
 
-              if (funcPart && funcPart.functionCall) {
-                // Execute the requested tool/action
-                console.log(`[Advisor AI] Invoking tool: ${funcPart.functionCall.name} with args:`, funcPart.functionCall.args);
-                const toolResult = await executeAdvisorAction(
-                  funcPart.functionCall.name,
-                  funcPart.functionCall.args || {},
-                  req.user,
-                  io
-                );
+                if (funcPart && funcPart.functionCall) {
+                  // Execute the requested tool/action
+                  console.log(`[Advisor AI] Invoking tool: ${funcPart.functionCall.name} with args:`, funcPart.functionCall.args);
+                  const toolResult = await executeAdvisorAction(
+                    funcPart.functionCall.name,
+                    funcPart.functionCall.args || {},
+                    req.user,
+                    io
+                  );
 
-                // Add model's tool call turn (retaining thoughtSignature if present)
-                contents.push({
-                  role: 'model',
-                  parts: [funcPart]
-                });
+                  // Add model's tool call turn
+                  contents.push({
+                    role: 'model',
+                    parts: [funcPart]
+                  });
 
-                // Add tool response turn
-                contents.push({
-                  role: 'user',
-                  parts: [{
-                    functionResponse: {
-                      name: funcPart.functionCall.name,
-                      response: { result: toolResult }
+                  // Add tool response turn
+                  contents.push({
+                    role: 'user',
+                    parts: [{
+                      functionResponse: {
+                        name: funcPart.functionCall.name,
+                        response: { result: toolResult }
+                      }
+                    }]
+                  });
+
+                  // Follow-up request to get final natural Kurdish response
+                  const followController = new AbortController();
+                  const followTimeout = setTimeout(() => followController.abort(), 7000);
+                  const followRes = await fetch(geminiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      system_instruction: { parts: [{ text: systemInstruction }] },
+                      contents,
+                      tools: advisorTools
+                    }),
+                    signal: followController.signal
+                  });
+                  clearTimeout(followTimeout);
+
+                  if (followRes.ok) {
+                    const followData = await followRes.json();
+                    const followCandidate = followData.candidates?.[0];
+                    const followText = (followCandidate?.content?.parts || [])
+                      .filter(p => p.text)
+                      .map(p => p.text)
+                      .join('\n')
+                      .trim();
+
+                    if (followText) {
+                      if (toolResult && toolResult.error) {
+                        reply = `کاک هێمن گیان، لە ئەنجامدانی کارەکەدا ئەم کێشەیە ڕوویدا: ${toolResult.error}`;
+                      } else {
+                        reply = followText;
+                      }
+                      console.log(`[Advisor AI] Completed tool call with model: ${model}`);
+                      break;
                     }
-                  }]
-                });
+                  }
 
-                // Follow-up request to get final natural Kurdish response
-                const followController = new AbortController();
-                const followTimeout = setTimeout(() => followController.abort(), 7000);
-                const followRes = await fetch(geminiUrl, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    system_instruction: { parts: [{ text: systemInstruction }] },
-                    contents,
-                    tools: advisorTools
-                  }),
-                  signal: followController.signal
-                });
-                clearTimeout(followTimeout);
-
-                if (followRes.ok) {
-                  const followData = await followRes.json();
-                  const followCandidate = followData.candidates?.[0];
-                  const followText = (followCandidate?.content?.parts || [])
-                    .filter(p => p.text)
-                    .map(p => p.text)
-                    .join('\n')
-                    .trim();
-
-                  if (followText) {
-                    if (toolResult && toolResult.error) {
-                      reply = `کاک هێمن گیان، لە ئەنجامدانی کارەکەدا ئەم کێشەیە ڕوویدا: ${toolResult.error}`;
+                  // If follow-up didn't produce text, use direct tool result summary
+                  if (!reply && toolResult) {
+                    if (toolResult.error) {
+                      reply = `کاک هێمن گیان، نەمتوانی جێبەجێی بکەم بەهۆی: ${toolResult.error}`;
+                    } else if (toolResult.message) {
+                      reply = toolResult.message;
+                    } else if (toolResult.summary) {
+                      reply = toolResult.summary;
                     } else {
-                      reply = followText;
+                      reply = 'فەرمانت بە سەرکەوتوویی جێبەجێکرا کاک هێمن گیان ✨';
                     }
-                    console.log(`[Advisor AI] Completed tool call with model: ${model}`);
+                    break;
+                  }
+                } else {
+                  // Normal conversational text reply
+                  const candidateText = candParts.filter(p => p.text).map(p => p.text).join('\n').trim();
+                  if (candidateText) {
+                    reply = candidateText;
+                    console.log(`[Advisor AI] Generated dynamic reply with model: ${model}`);
                     break;
                   }
                 }
-
-                // If follow-up didn't produce text, use direct tool result summary
-                if (!reply && toolResult) {
-                  if (toolResult.error) {
-                    reply = `کاک هێمن گیان، نەمتوانی جێبەجێی بکەم بەهۆی: ${toolResult.error}`;
-                  } else if (toolResult.message) {
-                    reply = toolResult.message;
-                  } else if (toolResult.summary) {
-                    reply = toolResult.summary;
-                  } else {
-                    reply = 'فەرمانت بە سەرکەوتوویی جێبەجێکرا کاک هێمن گیان ✨';
-                  }
-                  break;
-                }
               } else {
-                // Normal conversational text reply
-                const candidateText = candParts.filter(p => p.text).map(p => p.text).join('\n').trim();
-                if (candidateText) {
-                  reply = candidateText;
-                  console.log(`[Advisor AI] Generated dynamic reply with model: ${model}`);
-                  break;
-                }
+                const errBody = await geminiRes.json().catch(() => ({}));
+                console.warn(`[Advisor AI] Model ${model} returned status ${geminiRes.status}:`, errBody.error?.message || 'error');
               }
-            } else {
-              const errBody = await geminiRes.json().catch(() => ({}));
-              console.warn(`[Advisor AI] Model ${model} returned status ${geminiRes.status}:`, errBody.error?.message || 'error');
+            } catch (modelErr) {
+              console.warn(`[Advisor AI] Gemini candidate ${model} error:`, modelErr.message);
             }
-          } catch (modelErr) {
-            console.warn(`[Advisor AI] Model ${model} error:`, modelErr.message);
           }
         }
-      } catch (geminiErr) {
-        console.log('Gemini API call skipped or errored:', geminiErr.message);
+      } catch (geminiOuterErr) {
+        console.error('Advisor AI Gemini outer error:', geminiOuterErr);
       }
     }
 
@@ -3625,24 +3656,48 @@ app.post('/api/advisor/clear-history', authMiddleware, requireAiAdvisorAccess, (
   }
 });
 
-// 5. Save Gemini API Key (Optional)
+// 5. Save Gemini API Keys (Dual API Engine Support)
 app.post('/api/advisor/gemini-key', authMiddleware, requireAiAdvisorAccess, (req, res) => {
   try {
-    const { apiKey } = req.body;
-    const cleanKey = (apiKey || '').trim();
-    settings.set('advisor_gemini_api_key', cleanKey);
-    res.json({ success: true, hasKey: Boolean(cleanKey), message: cleanKey ? 'کلیلی Gemini بە سەرکەوتوویی تۆمارکرا' : 'کلیلی Gemini لابردرا (سیستەمی خۆماڵی کوردی بەکاردێت)' });
+    const { apiKey, apiKey2 } = req.body;
+    if (apiKey !== undefined) {
+      const cleanKey1 = (apiKey || '').trim();
+      settings.set('advisor_gemini_api_key', cleanKey1);
+    }
+    if (apiKey2 !== undefined) {
+      const cleanKey2 = (apiKey2 || '').trim();
+      settings.set('advisor_gemini_api_key_2', cleanKey2);
+    }
+    const keys = getAdvisorGeminiKeys();
+    res.json({
+      success: true,
+      hasKey: keys.length > 0,
+      keyCount: keys.length,
+      message: keys.length >= 2 
+        ? 'هەردوو کلیلی زیرەکی دەستکرد بە سەرکەوتوویی تۆمارکران (سیستەمی هێزی دووانە و دابەشکردنی لۆد ⚡)'
+        : keys.length === 1 
+          ? 'کلیلی Gemini بە سەرکەوتوویی تۆمارکرا 🤖'
+          : 'کلیلەکان لابران (سیستەمی خۆماڵی کوردی بەکاردێت)'
+    });
   } catch (err) {
-    res.status(500).json({ error: 'هەڵە لە تۆمارکردنی کلیلی زیرەکی دەستکرد' });
+    res.status(500).json({ error: 'هەڵە لە تۆمارکردنی کلیلەکانی زیرەکی دەستکرد' });
   }
 });
 
-// 6. Get Gemini Key Status
+// 6. Get Gemini Key Status (Dual Engine)
 app.get('/api/advisor/gemini-status', authMiddleware, requireAiAdvisorAccess, (req, res) => {
   try {
-    const hasCustomKey = Boolean(settings.get('advisor_gemini_api_key'));
-    const hasEnvKey = Boolean(process.env.GEMINI_API_KEY);
-    res.json({ hasKey: hasCustomKey || hasEnvKey, isCustom: hasCustomKey });
+    const k1 = settings.get('advisor_gemini_api_key') || '';
+    const k2 = settings.get('advisor_gemini_api_key_2') || '';
+    const keys = getAdvisorGeminiKeys();
+    res.json({
+      hasKey: keys.length > 0,
+      keyCount: keys.length,
+      hasKey1: Boolean(k1 && k1.trim()),
+      hasKey2: Boolean(k2 && k2.trim()),
+      maskedKey1: k1 ? `${k1.slice(0, 8)}...${k1.slice(-4)}` : '',
+      maskedKey2: k2 ? `${k2.slice(0, 8)}...${k2.slice(-4)}` : ''
+    });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە وەرگرتنی دۆخی کلیل' });
   }
@@ -4958,12 +5013,9 @@ async function handleAdvisorGroupChatReply(groupId, reqUser, userPrompt, ioInsta
       }
     }
 
-    let geminiKey = null;
-    try {
-      geminiKey = settings.get('advisor_gemini_api_key') || process.env.GEMINI_API_KEY;
-    } catch (e) {}
+    const candidateKeys = getOrderedAdvisorKeys();
 
-    if (!reply && geminiKey && typeof fetch === 'function') {
+    if (!reply && candidateKeys.length > 0 && typeof fetch === 'function') {
       try {
         const systemInstruction = `تۆ «ڕاوێژکار»ی، نوێنەری باڵا و جێبەجێکاری سەرەکی کاک هێمن (Hemn Taha - Super Admin) لە پلاتفۆرمی سیرین ستاف.
 کاک هێمن لە ناو گروپ چاتی تایبەتی «${group.name}» (ئایدی: ${groupId}) تاگی کردوویت و قسەت لەگەڵ دەکات.
@@ -4989,109 +5041,114 @@ ${JSON.stringify(platformAnalytics, null, 2)}
           }
         ];
 
-        const CANDIDATE_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'];
-        for (const model of CANDIDATE_MODELS) {
+        const CANDIDATE_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite-preview', 'gemini-flash-latest', 'gemini-3-flash-preview'];
+
+        // Dual Engine / Multi-Key loop with instant failover
+        for (const geminiKey of candidateKeys) {
           if (reply) break;
-          try {
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 7000);
+          for (const model of CANDIDATE_MODELS) {
+            if (reply) break;
+            try {
+              const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 7000);
 
-            const geminiRes = await fetch(geminiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                system_instruction: { parts: [{ text: systemInstruction }] },
-                contents,
-                tools: advisorTools
-              }),
-              signal: controller.signal
-            });
-            clearTimeout(timeout);
+              const geminiRes = await fetch(geminiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  system_instruction: { parts: [{ text: systemInstruction }] },
+                  contents,
+                  tools: advisorTools
+                }),
+                signal: controller.signal
+              });
+              clearTimeout(timeout);
 
-            if (geminiRes.ok) {
-              const geminiData = await geminiRes.json();
-              const candidate = geminiData.candidates?.[0];
-              const candParts = candidate?.content?.parts || [];
-              const funcPart = candParts.find(p => p.functionCall);
+              if (geminiRes.ok) {
+                const geminiData = await geminiRes.json();
+                const candidate = geminiData.candidates?.[0];
+                const candParts = candidate?.content?.parts || [];
+                const funcPart = candParts.find(p => p.functionCall);
 
-              if (funcPart && funcPart.functionCall) {
-                console.log(`[Advisor Group AI] Invoking tool: ${funcPart.functionCall.name} in group ${groupId}`);
-                const actionArgs = Object.assign({}, funcPart.functionCall.args || {}, { _current_group_id: groupId });
-                const toolResult = await executeAdvisorAction(
-                  funcPart.functionCall.name,
-                  actionArgs,
-                  reqUser,
-                  ioInstance
-                );
+                if (funcPart && funcPart.functionCall) {
+                  console.log(`[Advisor Group AI] Invoking tool: ${funcPart.functionCall.name} in group ${groupId}`);
+                  const actionArgs = Object.assign({}, funcPart.functionCall.args || {}, { _current_group_id: groupId });
+                  const toolResult = await executeAdvisorAction(
+                    funcPart.functionCall.name,
+                    actionArgs,
+                    reqUser,
+                    ioInstance
+                  );
 
-                contents.push({
-                  role: 'model',
-                  parts: [funcPart]
-                });
+                  contents.push({
+                    role: 'model',
+                    parts: [funcPart]
+                  });
 
-                contents.push({
-                  role: 'user',
-                  parts: [{
-                    functionResponse: {
-                      name: funcPart.functionCall.name,
-                      response: { result: toolResult }
+                  contents.push({
+                    role: 'user',
+                    parts: [{
+                      functionResponse: {
+                        name: funcPart.functionCall.name,
+                        response: { result: toolResult }
+                      }
+                    }]
+                  });
+
+                  const followController = new AbortController();
+                  const followTimeout = setTimeout(() => followController.abort(), 7000);
+
+                  const followRes = await fetch(geminiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      system_instruction: { parts: [{ text: systemInstruction }] },
+                      contents,
+                      tools: advisorTools
+                    }),
+                    signal: followController.signal
+                  });
+                  clearTimeout(followTimeout);
+
+                  if (followRes.ok) {
+                    const followData = await followRes.json();
+                    const followParts = followData.candidates?.[0]?.content?.parts || [];
+                    const followText = followParts.filter(p => p.text).map(p => p.text).join('\n').trim();
+                    if (followText) {
+                      if (toolResult && toolResult.error) {
+                        reply = `کاک هێمن گیان، لە ئەنجامدانی کارەکەدا ئەم کێشەیە ڕوویدا: ${toolResult.error}`;
+                      } else {
+                        reply = followText;
+                      }
+                      break;
                     }
-                  }]
-                });
+                  }
 
-                const followController = new AbortController();
-                const followTimeout = setTimeout(() => followController.abort(), 7000);
-
-                const followRes = await fetch(geminiUrl, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    system_instruction: { parts: [{ text: systemInstruction }] },
-                    contents,
-                    tools: advisorTools
-                  }),
-                  signal: followController.signal
-                });
-                clearTimeout(followTimeout);
-
-                if (followRes.ok) {
-                  const followData = await followRes.json();
-                  const followParts = followData.candidates?.[0]?.content?.parts || [];
-                  const followText = followParts.filter(p => p.text).map(p => p.text).join('\n').trim();
-                  if (followText) {
-                    if (toolResult && toolResult.error) {
-                      reply = `کاک هێمن گیان، لە ئەنجامدانی کارەکەدا ئەم کێشەیە ڕوویدا: ${toolResult.error}`;
+                  // If follow-up didn't produce text, use direct tool result summary
+                  if (!reply && toolResult) {
+                    if (toolResult.error) {
+                      reply = `کاک هێمن گیان، نەمتوانی جێبەجێی بکەم بەهۆی: ${toolResult.error}`;
+                    } else if (toolResult.message) {
+                      reply = toolResult.message;
+                    } else if (toolResult.summary) {
+                      reply = toolResult.summary;
                     } else {
-                      reply = followText;
+                      reply = 'فەرمانت بە سەرکەوتوویی جێبەجێکرا کاک هێمن گیان ✨';
                     }
                     break;
                   }
-                }
-
-                // If follow-up didn't produce text, use direct tool result summary
-                if (!reply && toolResult) {
-                  if (toolResult.error) {
-                    reply = `کاک هێمن گیان، نەمتوانی جێبەجێی بکەم بەهۆی: ${toolResult.error}`;
-                  } else if (toolResult.message) {
-                    reply = toolResult.message;
-                  } else if (toolResult.summary) {
-                    reply = toolResult.summary;
-                  } else {
-                    reply = 'فەرمانت بە سەرکەوتوویی جێبەجێکرا کاک هێمن گیان ✨';
+                } else {
+                  const candidateText = candParts.filter(p => p.text).map(p => p.text).join('\n').trim();
+                  if (candidateText) {
+                    reply = candidateText;
+                    break;
                   }
-                  break;
-                }
-              } else {
-                const candidateText = candParts.filter(p => p.text).map(p => p.text).join('\n').trim();
-                if (candidateText) {
-                  reply = candidateText;
-                  break;
                 }
               }
+            } catch (modelErr) {
+              console.warn(`[Advisor Group AI] Model ${model} error:`, modelErr.message);
             }
-          } catch (modelErr) {
-            console.warn(`[Advisor Group AI] Model ${model} error:`, modelErr.message);
           }
         }
       } catch (geminiErr) {
