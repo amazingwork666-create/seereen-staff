@@ -1854,6 +1854,32 @@ const advisorTools = [
           type: 'OBJECT',
           properties: {}
         }
+      },
+      {
+        name: 'create_poll',
+        description: 'دروستکردن و بڵاوکردنەوەی ڕاپرسی نوێ لە چاتی گشتی یان گروپ چاتی ئێستا بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            question: { type: 'STRING', description: 'دەقی پرسیار یان بابەتی ڕاپرسی' },
+            options: { type: 'ARRAY', items: { type: 'STRING' }, description: 'لیستی بژاردەکان (لانی کەم ٢ بژاردە)' },
+            chat_type: { type: 'STRING', description: "'public' بۆ چاتی گشتی، 'custom_group' بۆ گروپی ئێستا" }
+          },
+          required: ['question', 'options']
+        }
+      },
+      {
+        name: 'create_countdown_alarm',
+        description: 'دانانی زەنگی ئاگاداری و کاتژمێری لێدانی جەڕەس بە فەرمانی کاک هێمن لە چاتی گشتی یان گروپی ئێستا',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            title: { type: 'STRING', description: 'نوسینی ئاگاداری سەرووی سەعاتەکە' },
+            time_expression: { type: 'STRING', description: 'کاتی لێدانی زەنگ وەک: ئەمشەو سەعات 7:30، یان سبەی سەعات ٩ی شەو، یان ماوە بە خولەک' },
+            chat_type: { type: 'STRING', description: "'public' بۆ چاتی گشتی، 'custom_group' بۆ گروپی ئێستا" }
+          },
+          required: ['title']
+        }
       }
     ]
   }
@@ -3074,8 +3100,12 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
       }
 
       case 'clear_custom_group_messages': {
-        const gId = parseInt(args.group_id, 10) || (args._current_group_id ? parseInt(args._current_group_id, 10) : null);
-        if (!gId) return { error: 'ئایدی گروپ دیاری نەکراوە.' };
+        let gId = parseInt(args.group_id, 10) || (args._current_group_id ? parseInt(args._current_group_id, 10) : null);
+        if (!gId && args.group_name) {
+          const match = db.prepare('SELECT id FROM custom_group_chats WHERE name LIKE ? LIMIT 1').get(`%${args.group_name}%`);
+          if (match) gId = match.id;
+        }
+        if (!gId) return { error: 'ئایدی یان ناوی گروپ دیاری نەکراوە.' };
         customGroups.clearGroupMessages(gId);
         if (ioInstance) {
           ioInstance.to(`group_${gId}`).emit('custom_group_messages_cleared', { groupId: gId });
@@ -3085,6 +3115,13 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
 
       case 'manage_custom_group': {
         const action = String(args.action || 'list').toLowerCase();
+        let gId = parseInt(args.group_name_or_id, 10);
+        if (!gId && args._current_group_id) gId = parseInt(args._current_group_id, 10);
+        if (!gId && args.group_name_or_id) {
+          const match = db.prepare('SELECT id, name FROM custom_group_chats WHERE name LIKE ? LIMIT 1').get(`%${args.group_name_or_id}%`);
+          if (match) gId = match.id;
+        }
+
         if (action === 'list') {
           const allGroups = customGroups.getUserGroups(reqUser.id, true);
           return {
@@ -3106,38 +3143,154 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
           return { success: true, message: `گروپی «${gName}» بە سەرکەوتوویی دروستکرا.`, group: grp };
         }
         if (action === 'delete') {
-          const gId = parseInt(args.group_name_or_id, 10);
-          if (!gId) return { error: 'ئایدی گروپ دیاری نەکراوە.' };
+          if (!gId) return { error: 'ئایدی یان ناوی گروپ دیاری نەکراوە.' };
           customGroups.deleteGroup(gId);
           if (ioInstance) {
             ioInstance.to(`group_${gId}`).emit('custom_group_deleted', { groupId: gId });
             ioInstance.emit('custom_group_list_refresh');
           }
-          return { success: true, message: `گروپی ژمارە ${gId} سڕایەوە.` };
+          return { success: true, message: `گروپی ژمارە ${gId} بە سەرکەوتوویی سڕایەوە.` };
         }
         if (action === 'add_member') {
-          const gId = parseInt(args.group_name_or_id, 10);
+          if (!gId) return { error: 'گروپ دیاری نەکراوە.' };
           const target = findTargetUser(args.username_or_id);
-          if (!gId || !target) return { error: 'گروپ یان بەکارهێنەر نەدۆزرایەوە.' };
+          if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە بۆ زیادکردن.` };
           const members = customGroups.addMember(gId, target.id);
           if (ioInstance) {
             ioInstance.to(`group_${gId}`).emit('custom_group_members_updated', { groupId: gId, members });
             ioInstance.emit('custom_group_list_refresh');
           }
-          return { success: true, message: `[${target.full_name}] خرایە ناو گروپی ژمارە ${gId}.` };
+          return { success: true, message: `بەکارهێنەر [${target.full_name}] خرایە ناو گروپەکە بە سەرکەوتوویی.` };
         }
         if (action === 'remove_member') {
-          const gId = parseInt(args.group_name_or_id, 10);
+          if (!gId) return { error: 'گروپ دیاری نەکراوە.' };
           const target = findTargetUser(args.username_or_id);
-          if (!gId || !target) return { error: 'گروپ یان بەکارهێنەر نەدۆزرایەوە.' };
+          if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە بۆ دەرکردن.` };
           const members = customGroups.removeMember(gId, target.id);
           if (ioInstance) {
             ioInstance.to(`group_${gId}`).emit('custom_group_members_updated', { groupId: gId, members });
             ioInstance.emit('custom_group_list_refresh');
           }
-          return { success: true, message: `[${target.full_name}] لە گروپی ژمارە ${gId} دەرهێنرا.` };
+          return { success: true, message: `بەکارهێنەر [${target.full_name}] لە گروپەکە دەرهێنرا بە سەرکەوتوویی.` };
         }
         return { error: 'کرداری نادیار.' };
+      }
+
+      case 'create_poll': {
+        const question = String(args.question || '').trim();
+        const rawOptions = Array.isArray(args.options) ? args.options : [];
+        const options = rawOptions.map(o => String(o).trim()).filter(Boolean);
+        if (!question || options.length < 2) {
+          return { error: 'پێویستە پرسیار و لانی کەم دوو بژاردە دیاری بکرێت بۆ ڕاپرسی.' };
+        }
+
+        const isGroup = args.chat_type === 'custom_group' || Boolean(args._current_group_id);
+        const chatType = isGroup ? 'custom_group' : 'public';
+        const groupId = isGroup ? (parseInt(args._current_group_id, 10) || null) : null;
+
+        const poll = pollsDb.createPoll({
+          chatType,
+          groupId,
+          creatorId: reqUser.id,
+          creatorName: reqUser.full_name,
+          creatorRole: reqUser.role,
+          question,
+          options
+        });
+
+        const contentPayload = JSON.stringify({ poll_id: poll.id, question: poll.question });
+
+        if (chatType === 'public') {
+          const newMsg = messages.create(
+            reqUser.id,
+            reqUser.username,
+            reqUser.full_name,
+            reqUser.role,
+            contentPayload,
+            'poll'
+          );
+          if (ioInstance) ioInstance.emit('new_message', newMsg);
+        } else if (groupId) {
+          const groupMsg = customGroups.createMessage(
+            groupId,
+            reqUser.id,
+            reqUser.full_name,
+            reqUser.role,
+            contentPayload,
+            'poll'
+          );
+          if (ioInstance) ioInstance.to(`group_${groupId}`).emit('new_group_message', { message: groupMsg, groupId });
+        }
+
+        return {
+          success: true,
+          message: `ڕاپرسی نوێ بە سەرکەوتوویی دروستکرا و بڵاوکرایەوە: «${question}» بە فەرمانی کاک هێمن ✨`,
+          poll_id: poll.id
+        };
+      }
+
+      case 'create_countdown_alarm': {
+        const title = String(args.title || '').trim();
+        if (!title) return { error: 'نوسینی ئاگاداری زەنگ دیاری نەکراوە.' };
+
+        let targetTime = null;
+        if (args.time_expression) {
+          targetTime = parseKurdishTime(args.time_expression);
+        }
+        if (!targetTime || targetTime <= Date.now()) {
+          targetTime = Date.now() + 60 * 60 * 1000;
+        }
+
+        const isGroup = args.chat_type === 'custom_group' || Boolean(args._current_group_id);
+        const chatType = isGroup ? 'custom_group' : 'public';
+        const groupId = isGroup ? (parseInt(args._current_group_id, 10) || null) : null;
+
+        const alarm = alarmsDb.createAlarm({
+          chatType,
+          groupId,
+          creatorId: reqUser.id,
+          creatorName: reqUser.full_name,
+          creatorRole: reqUser.role,
+          title,
+          targetTime
+        });
+
+        const contentPayload = JSON.stringify({
+          alarm_id: alarm.id,
+          title: alarm.title,
+          target_time: alarm.target_time,
+          creator_name: alarm.creator_name,
+          creator_role: alarm.creator_role
+        });
+
+        if (chatType === 'public') {
+          const newMsg = messages.create(
+            reqUser.id,
+            reqUser.username,
+            reqUser.full_name,
+            reqUser.role,
+            contentPayload,
+            'countdown_alarm'
+          );
+          if (ioInstance) ioInstance.emit('new_message', newMsg);
+        } else if (groupId) {
+          const groupMsg = customGroups.createMessage(
+            groupId,
+            reqUser.id,
+            reqUser.full_name,
+            reqUser.role,
+            contentPayload,
+            'countdown_alarm'
+          );
+          if (ioInstance) ioInstance.to(`group_${groupId}`).emit('new_group_message', { message: groupMsg, groupId });
+        }
+
+        const timeStr = new Date(targetTime).toLocaleTimeString('ku');
+        return {
+          success: true,
+          message: `زەنگی ئاگاداری «${title}» بۆ کاتژمێر (${timeStr}) بە سەرکەوتوویی دانرا بە فەرمانی کاک هێمن 🔔✨`,
+          alarm_id: alarm.id
+        };
       }
 
       default:
@@ -3233,7 +3386,7 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
         const systemInstruction = `تۆ «ڕاوێژکار»ی، نوێنەری باڵا، جێبەجێکاری سوپەر ئەدمین (Super Admin Executive AI) و هاوڕێی نزیکی کاک هێمن (Hemn Taha) یت لە پلاتفۆرمی سیرین ستاف (Seereen Staff).
 کاک هێمن سوپەر ئەدمینی سەرەکی، دامەزرێنەر و خاوەنی تەواوی ئەم سیستمەیە. ئەو «هەموو دەسەڵاتێکی سوپەر ئەدمین»ی لە ڕێگەی ئامرازەکانتەوە بە تۆ بەخشیوە!
 وەک هاوڕێیەکی زیندوو، دڵسۆز، گوێڕایەڵ، خێرا و بەتوانا بە زمانی کوردی سۆرانی ڕێزدار قسەی لەگەڵدا بکە ("کاک هێمن گیان"، "براکەم").
-تۆ دەسەڵاتت هەیە:
+تۆ دەسەڵاتت هەیە لە ڕێگەی ئامرازەکانتەوە (Tools):
 - ڕۆڵ و پلەی هەر ئەندامێک بگۆڕیت (مامۆستا teacher، ئەدمین admin، خوێندکار student، میوان guest) بە change_user_role.
 - باجەکان ببەخشیت و بسڕیتەوە (شین blue بۆ پاسەوانی چات، سپی white بۆ ڕاوێژکار، مۆر purple، سەوز green، ڕەش black، سور red) بە assign_badge.
 - ئەندامان پەسەند بکەیت، بسڕیتەوە، بلۆک بکەیت (block_user)، یان لە چات میوتیان بکەیت (mute_user).
@@ -3242,11 +3395,16 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
 - نامە سڕاوەکانی چات بە تەواوی و وردی بگەڕێنیتەوە بە restore_deleted_messages (وەک گەڕاندنەوەی چاتی یەک کەس، یان دوو دانە یان ١٠ دانەی کۆتایی کە سڕاونەتەوە، یان هەموو چاتە سڕاوەکان).
 - پشکنین و بینینی لیستی نامە سڕاوەکان پێش گەڕاندنەوە بە get_deleted_messages.
 - دۆخی فریاگوزاری (Red Alert Lockdown) کارا بکەیت یان کۆتایی پێبهێنیت (toggle_red_alert).
-- پرسیاری کاتدار دروستبکەیت، میقاتی بکەیت بۆ سبەی، دابخەیت، یان پرسیار بسڕیتەوە.
+- پرسیاری کاتدار دروستبکەیت (create_question).
+- ڕاپرسی نوێ دروستبکەیت و بڵاویبکەیتەوە بە create_poll.
+- زەنگی ئاگاداری و کاتژمێری جەڕەس دابنێیت بە create_countdown_alarm.
 - ئەستێرە و خاڵ ببەخشیت یان کەم بکەیتەوە (award_student_stars).
 - ئاماری دوگمەی چات (@دوگمە) پیشان بدەیت بە get_button_attendance (ناوی هەموو ئەو کەسانەی دوگمەکەیان دەست لێداوە و سەوز بووە و ناوی هەموو ئەوانەی هێشتا دەستیان لێنەداوە بە وردی).
 - هەر فەرمان یان ئامارێکی تایبەتی تری داتابەیس جێبەجێ بکەیت لە ڕێگەی super_admin_sql_action.
-هەرگیز بە کاک هێمن مەڵێ "ئەم دەسەڵاتەم نییە" یان "ناتوانم"؛ چونکە تۆ هەموو ئامرازێکت پێدراوە و هەر فەرمانێک ئەو بیدات یەکسەر بە ئامرازی گونجاو جێبەجێی دەکەیت!
+⚠️ یاسای زۆر توند بۆ جێبەجێکردنی فەرمانەکان:
+کاتێک کاک هێمن داوای هەر کردارێک دەکات (سڕینەوەی چات، پاککردنەوە، گۆڕینی ڕۆڵ، باج، دروستکردنی ڕاپرسی، دانانی زەنگ، بلۆک، میوت، و هتد):
+١. هەرگیز لە خۆتەوە بە تەنها لە دەقدا مەڵێ "کردوومە" یان "جێبەجێم کرد"!
+٢. هەمیشە و بێ بەخشین پێویستە ئامرازی تایبەت (Function Call) بانگ بکەیت تا کردارەکە بە کردار لە سیستمدا ئەنجام بدرێت.
 یاسای بنەڕەتی: هەژماری کاک هێمن هەمیشە وەک سەرپەرشتیاری باڵا بە تەواوی پارێزراوە لە دەستکاری.
 ئامار و زانیاری ڕاستەوخۆ و شیکاری تەواوی ئێستا:
 ${JSON.stringify(liveContext, null, 2)}
@@ -3346,7 +3504,11 @@ ${JSON.stringify(liveContext, null, 2)}
                     .trim();
 
                   if (followText) {
-                    reply = followText;
+                    if (toolResult && toolResult.error) {
+                      reply = `کاک هێمن گیان، لە ئەنجامدانی کارەکەدا ئەم کێشەیە ڕوویدا: ${toolResult.error}`;
+                    } else {
+                      reply = followText;
+                    }
                     console.log(`[Advisor AI] Completed tool call with model: ${model}`);
                     break;
                   }
@@ -3354,7 +3516,15 @@ ${JSON.stringify(liveContext, null, 2)}
 
                 // If follow-up didn't produce text, use direct tool result summary
                 if (!reply && toolResult) {
-                  reply = (typeof toolResult === 'string' ? toolResult : (toolResult.message || toolResult.summary)) || 'فەرمانت بە سەرکەوتوویی جێبەجێکرا کاک هێمن گیان ✨';
+                  if (toolResult.error) {
+                    reply = `کاک هێمن گیان، نەمتوانی جێبەجێی بکەم بەهۆی: ${toolResult.error}`;
+                  } else if (toolResult.message) {
+                    reply = toolResult.message;
+                  } else if (toolResult.summary) {
+                    reply = toolResult.summary;
+                  } else {
+                    reply = 'فەرمانت بە سەرکەوتوویی جێبەجێکرا کاک هێمن گیان ✨';
+                  }
                   break;
                 }
               } else {
@@ -4705,12 +4875,53 @@ async function handleAdvisorGroupChatReply(groupId, reqUser, userPrompt, ioInsta
     const lowerPrompt = (userPrompt || '').toLowerCase();
     const cleanPrompt = (userPrompt || '').replace(/@ڕاوێژکار|@advisor|@rawêjkar/gi, '').trim();
 
-    if (lowerPrompt.includes('سڕینەوەی چات') || lowerPrompt.includes('چاتەکان بسڕەوە') || lowerPrompt.includes('پەیامەکان بسڕەوە') || lowerPrompt.includes('چاتەکانی ئەم گروپە بسڕەوە') || lowerPrompt.includes('پەیامەکانی ئەم گروپە بسڕەوە') || (lowerPrompt.includes('بسڕەوە') && (lowerPrompt.includes('چات') || lowerPrompt.includes('گروپ')))) {
+    const isClearChatCommand = (
+      (lowerPrompt.includes('سڕینەوە') || lowerPrompt.includes('بسڕەوە') || lowerPrompt.includes('پاک')) &&
+      (lowerPrompt.includes('چات') || lowerPrompt.includes('پەیام') || lowerPrompt.includes('نامە') || lowerPrompt.includes('گروپ') || lowerPrompt.includes('هەمووی') || lowerPrompt.includes('هەموو'))
+    );
+
+    if (isClearChatCommand) {
       customGroups.clearGroupMessages(groupId);
       if (ioInstance) {
         ioInstance.to(`group_${groupId}`).emit('custom_group_messages_cleared', { groupId });
       }
       reply = `کاک هێمن گیان، فەرمانت دەستبەجێ جێبەجێکرا! تەواوی چات و پەیامەکانی ناو ئەم گروپە بە سەرکەوتوویی سڕانەوە و پاککرانەوە 🧹✨`;
+    }
+
+    // Direct command execution: remove member from current group
+    if (!reply && (lowerPrompt.includes('دەربکە') || lowerPrompt.includes('لاببە') || lowerPrompt.includes('دەرکە') || lowerPrompt.includes('حەزف') || lowerPrompt.includes('سڕینەوەی ئەندام')) && (lowerPrompt.includes('گروپ') || lowerPrompt.includes('لەم') || lowerPrompt.includes('ئەندام'))) {
+      const words = cleanPrompt.split(/\s+/).filter(w => !['دەربکە', 'لاببە', 'دەرکە', 'لە', 'لەم', 'گروپ', 'گروپە', 'ئەندام', 'ئەم', 'تکایە', 'دەتوانی', 'بکە', 'حەزف'].includes(w));
+      const targetQuery = words.join(' ').trim();
+      if (targetQuery) {
+        const target = findTargetUser(targetQuery);
+        if (target) {
+          customGroups.removeMember(groupId, target.id);
+          const currentMembers = customGroups.getGroupMembers(groupId);
+          if (ioInstance) {
+            ioInstance.to(`group_${groupId}`).emit('custom_group_members_updated', { groupId, members: currentMembers });
+            ioInstance.emit('custom_group_list_refresh');
+          }
+          reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! ئەندام [${target.full_name}] بە سەرکەوتوویی لەم گروپە دەرهێنرا ✨`;
+        }
+      }
+    }
+
+    // Direct command execution: add member to current group
+    if (!reply && (lowerPrompt.includes('زیادبکە') || lowerPrompt.includes('زیاد بکە') || lowerPrompt.includes('بخەرە') || lowerPrompt.includes('ئاد بکە') || lowerPrompt.includes('ئادکە')) && (lowerPrompt.includes('گروپ') || lowerPrompt.includes('ناو') || lowerPrompt.includes('لەم') || lowerPrompt.includes('بۆ'))) {
+      const words = cleanPrompt.split(/\s+/).filter(w => !['زیادبکە', 'زیاد', 'بکە', 'بخەرە', 'ناو', 'بۆ', 'ئەم', 'گروپ', 'گروپە', 'ئاد', 'ئادکە', 'تکایە'].includes(w));
+      const targetQuery = words.join(' ').trim();
+      if (targetQuery) {
+        const target = findTargetUser(targetQuery);
+        if (target) {
+          customGroups.addMember(groupId, target.id);
+          const currentMembers = customGroups.getGroupMembers(groupId);
+          if (ioInstance) {
+            ioInstance.to(`group_${groupId}`).emit('custom_group_members_updated', { groupId, members: currentMembers });
+            ioInstance.emit('custom_group_list_refresh');
+          }
+          reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! بەکارهێنەر [${target.full_name}] بە سەرکەوتوویی خرایە ناو ئەم گروپە ✨`;
+        }
+      }
     }
 
     let geminiKey = null;
@@ -4734,7 +4945,8 @@ ${JSON.stringify(platformAnalytics, null, 2)}
 - گەر داوای زانیاری کرد لەسەر ئەوەی فڵانکەس چی کرد: ئامرازی get_user_full_activity بەکاربهێنە.
 - گەر پرسی کێ لایڤی کردەوە و کێ دایخست: ئامرازی get_live_audit_logs بەکاربهێنە.
 - گەر پرسی کێ قسە ناکات یان کێ ناچالاکە: ئامرازی get_inactive_users بەکاربهێنە.
-- گەر فەرمانی هەر گۆڕانکارییەکی دا (باج ببەخشە، ڕۆڵ بگۆڕە، چات قفڵ بکە، میوت بکە، گروپ بەڕێوەبەرە، و هتد): بە ئامرازی گونجاو یەکسەر جێبەجێی بکە.`;
+- گەر فەرمانی هەر گۆڕانکارییەکی دا (سڕینەوەی چاتی ئەم گروپە clear_custom_group_messages، دەرکردن یان زیادکردنی ئەندام لە گروپ manage_custom_group، باج ببەخشە assign_badge، ڕۆڵ بگۆڕە change_user_role، چات قفڵ بکە، میوت بکە، دروستکردنی ڕاپرسی create_poll، دانانی زەنگی ئاگاداری create_countdown_alarm):
+⚠️ یاسای توند: بە هیچ شێوەیەک تەنها لە دەقدا مەڵێ "کردوومە" یان "جێبەجێم کرد"! دەبێت هەمیشە ئامرازی پەیوەندیدار (Function Call) بانگ بکەیت تا کارەکە بە کردار لە سیستم و داتابەیس جێبەجێ ببێت. ئایدی ئەم گروپەی ئێستا ${groupId}یە.`;
 
         const contents = [
           {
@@ -4814,14 +5026,26 @@ ${JSON.stringify(platformAnalytics, null, 2)}
                   const followParts = followData.candidates?.[0]?.content?.parts || [];
                   const followText = followParts.filter(p => p.text).map(p => p.text).join('\n').trim();
                   if (followText) {
-                    reply = followText;
+                    if (toolResult && toolResult.error) {
+                      reply = `کاک هێمن گیان، لە ئەنجامدانی کارەکەدا ئەم کێشەیە ڕوویدا: ${toolResult.error}`;
+                    } else {
+                      reply = followText;
+                    }
                     break;
                   }
                 }
 
                 // If follow-up didn't produce text, use direct tool result summary
                 if (!reply && toolResult) {
-                  reply = (typeof toolResult === 'string' ? toolResult : (toolResult.message || toolResult.summary)) || 'فەرمانت بە سەرکەوتوویی جێبەجێکرا کاک هێمن گیان ✨';
+                  if (toolResult.error) {
+                    reply = `کاک هێمن گیان، نەمتوانی جێبەجێی بکەم بەهۆی: ${toolResult.error}`;
+                  } else if (toolResult.message) {
+                    reply = toolResult.message;
+                  } else if (toolResult.summary) {
+                    reply = toolResult.summary;
+                  } else {
+                    reply = 'فەرمانت بە سەرکەوتوویی جێبەجێکرا کاک هێمن گیان ✨';
+                  }
                   break;
                 }
               } else {
@@ -5169,14 +5393,14 @@ app.post('/api/polls', authMiddleware, (req, res) => {
     const contentPayload = JSON.stringify({ poll_id: poll.id, question: poll.question });
 
     if (chatType === 'public') {
-      const newMsg = messages.create({
-        user_id: req.user.id,
-        username: req.user.username,
-        full_name: req.user.full_name,
-        role: req.user.role,
-        content: contentPayload,
-        type: 'poll'
-      });
+      const newMsg = messages.create(
+        req.user.id,
+        req.user.username,
+        req.user.full_name,
+        req.user.role,
+        contentPayload,
+        'poll'
+      );
       io.emit('new_message', newMsg);
     } else {
       const groupMsg = customGroups.createMessage(
@@ -5298,14 +5522,14 @@ app.post('/api/alarms', authMiddleware, (req, res) => {
     });
 
     if (chatType === 'public') {
-      const newMsg = messages.create({
-        user_id: req.user.id,
-        username: req.user.username,
-        full_name: req.user.full_name,
-        role: req.user.role,
-        content: contentPayload,
-        type: 'countdown_alarm'
-      });
+      const newMsg = messages.create(
+        req.user.id,
+        req.user.username,
+        req.user.full_name,
+        req.user.role,
+        contentPayload,
+        'countdown_alarm'
+      );
       io.emit('new_message', newMsg);
     } else {
       const groupMsg = customGroups.createMessage(

@@ -881,6 +881,19 @@ const passwordResets = {
 // Message helper methods
 const messages = {
   create(userId, username, fullName, role, content, type = 'text', questionId = null, replyToId = null, attachmentType = 'none', attachmentUrl = null) {
+    if (typeof userId === 'object' && userId !== null) {
+      const obj = userId;
+      userId = obj.user_id ?? obj.userId;
+      username = obj.username;
+      fullName = obj.full_name ?? obj.fullName;
+      role = obj.role;
+      content = obj.content;
+      type = obj.type || 'text';
+      questionId = obj.question_id ?? obj.questionId ?? null;
+      replyToId = obj.reply_to_id ?? obj.replyToId ?? null;
+      attachmentType = obj.attachment_type ?? obj.attachmentType ?? 'none';
+      attachmentUrl = obj.attachment_url ?? obj.attachmentUrl ?? null;
+    }
     const stmt = db.prepare(`
       INSERT INTO messages (user_id, username, full_name, role, content, type, question_id, reply_to_id, attachment_type, attachment_url, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
