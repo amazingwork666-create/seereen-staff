@@ -1130,12 +1130,12 @@ function updateUserUI() {
     if (!currentUser.muted_until || currentUser.muted_until <= Date.now()) {
       messageInput.disabled = false;
       sendBtn.disabled = false;
-      messageInput.placeholder = "پەیامەکەت بنووسە... (قوتابی تازە: لە ٢٤ کاتژمێردا تەنها یەک نامە)";
+      messageInput.placeholder = "";
     }
   } else if (!currentUser.muted_until || currentUser.muted_until <= Date.now()) {
     messageInput.disabled = false;
     sendBtn.disabled = false;
-    messageInput.placeholder = "پەیامەکەت بنووسە...";
+    messageInput.placeholder = "";
   }
 }
 
@@ -3729,10 +3729,128 @@ function handleSendMessage(e) {
     }
     socket.emit('send_message', payload);
     input.value = '';
+    if (typeof autoResizeChatInput === 'function') {
+      autoResizeChatInput(input);
+    }
     cancelReplyToMessage();
     scrollToBottom();
   }
 }
+
+// --- AUTO-EXPANDING CHAT INPUT (EXPANDS WITH MULTI-LINE TYPING) ---
+function autoResizeChatInput(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  const scrollH = el.scrollHeight;
+  const newHeight = Math.min(Math.max(scrollH, 40), 130);
+  el.style.height = newHeight + 'px';
+}
+
+function handleChatInputKeyDown(e, el) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (!isMobile) {
+      e.preventDefault();
+      const form = el.closest('form');
+      if (form) {
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit();
+        } else {
+          form.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+      }
+    }
+  }
+}
+
+function handleCustomGroupInputKeyDown(e, el) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (!isMobile) {
+      e.preventDefault();
+      const form = el.closest('form');
+      if (form) {
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit();
+        } else {
+          form.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+      }
+    }
+  }
+}
+
+// --- CHAT ACTION TOOLS FLOATING MENUS (COMBINED (+) ACTION BUTTON) ---
+function togglePublicChatToolsMenu(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('publicChatToolsMenu');
+  const icon = document.getElementById('publicChatToolsIcon');
+  if (!menu) return;
+  const isHidden = menu.classList.toggle('hidden');
+  if (icon) {
+    if (isHidden) {
+      icon.className = 'fa-solid fa-plus text-base transition-transform duration-200';
+    } else {
+      icon.className = 'fa-solid fa-xmark text-base transition-transform duration-200 text-rose-400 rotate-90';
+    }
+  }
+}
+
+function closePublicChatToolsMenu() {
+  const menu = document.getElementById('publicChatToolsMenu');
+  const icon = document.getElementById('publicChatToolsIcon');
+  if (menu && !menu.classList.contains('hidden')) {
+    menu.classList.add('hidden');
+  }
+  if (icon) {
+    icon.className = 'fa-solid fa-plus text-base transition-transform duration-200';
+  }
+}
+
+function toggleCustomGroupToolsMenu(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('customGroupToolsMenu');
+  const icon = document.getElementById('customGroupToolsIcon');
+  if (!menu) return;
+  const isHidden = menu.classList.toggle('hidden');
+  if (icon) {
+    if (isHidden) {
+      icon.className = 'fa-solid fa-plus text-sm transition-transform duration-200';
+    } else {
+      icon.className = 'fa-solid fa-xmark text-sm transition-transform duration-200 text-rose-400 rotate-90';
+    }
+  }
+}
+
+function closeCustomGroupToolsMenu() {
+  const menu = document.getElementById('customGroupToolsMenu');
+  const icon = document.getElementById('customGroupToolsIcon');
+  if (menu && !menu.classList.contains('hidden')) {
+    menu.classList.add('hidden');
+  }
+  if (icon) {
+    icon.className = 'fa-solid fa-plus text-sm transition-transform duration-200';
+  }
+}
+
+// Global click listener to close popups when clicking outside
+document.addEventListener('click', (e) => {
+  const pubMenu = document.getElementById('publicChatToolsMenu');
+  const pubBtn = document.getElementById('publicChatToolsBtn');
+  if (pubMenu && !pubMenu.classList.contains('hidden')) {
+    if (!pubMenu.contains(e.target) && !pubBtn?.contains(e.target)) {
+      closePublicChatToolsMenu();
+    }
+  }
+
+  const cgMenu = document.getElementById('customGroupToolsMenu');
+  const cgBtn = document.getElementById('customGroupToolsBtn');
+  if (cgMenu && !cgMenu.classList.contains('hidden')) {
+    if (!cgMenu.contains(e.target) && !cgBtn?.contains(e.target)) {
+      closeCustomGroupToolsMenu();
+    }
+  }
+});
 
 // --- SWIPE TO REPLY (TELEGRAM STYLE) ---
 function attachSwipeToReply(elem, msg) {
@@ -5675,7 +5793,7 @@ function checkNightCurfewState() {
       messageInput.disabled = false;
       sendBtn.disabled = false;
       sendBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-      messageInput.placeholder = "پەیامەکەت بنووسە...";
+      messageInput.placeholder = "";
     }
   }
 }
@@ -16528,7 +16646,11 @@ async function handleSendCustomGroupMessage(e) {
 
     if (textInput) {
       textInput.value = '';
-      textInput.style.height = 'auto';
+      if (typeof autoResizeChatInput === 'function') {
+        autoResizeChatInput(textInput);
+      } else {
+        textInput.style.height = '40px';
+      }
     }
     cancelCustomGroupFile();
   } catch (err) {

@@ -968,35 +968,63 @@
 
         <!-- CHAT INPUT BAR -->
         <div id="chatInputBar" class="shrink-0 p-2.5 md:p-3 bg-slate-900 border-t border-slate-800">
-          <form onsubmit="handleSendMessage(event)" class="flex items-center gap-2 max-w-5xl mx-auto">
+          <form onsubmit="handleSendMessage(event)" class="flex items-end gap-2 max-w-5xl mx-auto relative">
             
-            <div id="adminMediaTools" class="hidden items-center gap-1 shrink-0">
-              <button type="button" onclick="triggerImagePicker()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 flex items-center justify-center transition border border-slate-700/60" title="ناردنی وێنە، ڤیدیۆ و فایلی PDF/دۆکیومێنت (تایبەت بە ئەدمین و مامۆستا)">
-                <i class="fa-solid fa-paperclip text-sm"></i>
+            <!-- Combined Tools Button & Floating Popover Menu -->
+            <div id="adminMediaTools" class="hidden relative shrink-0">
+              <button type="button" id="publicChatToolsBtn" onclick="togglePublicChatToolsMenu(event)" class="w-10 h-10 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 border border-slate-700/80 shadow-md flex items-center justify-center transition active:scale-95" title="کردارەکان (فایل، دەنگ، ڕاپرسی، زەنگ)">
+                <i id="publicChatToolsIcon" class="fa-solid fa-plus text-base transition-transform duration-200"></i>
               </button>
               <input type="file" id="imageFileInput" accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt" class="hidden" onchange="handleImagePicked(event)">
 
-              <button type="button" onclick="startVoiceRecording()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 flex items-center justify-center transition border border-slate-700/60" title="ناردنی دەنگ (تایبەت بە ئەدمین و مامۆستا)">
-                <i class="fa-solid fa-microphone text-sm"></i>
-              </button>
+              <!-- Floating Tools Popup Menu -->
+              <div id="publicChatToolsMenu" class="hidden absolute bottom-12 right-0 z-50 bg-slate-900/95 border border-slate-700/90 rounded-2xl shadow-2xl backdrop-blur-md p-1.5 flex flex-col gap-1 min-w-[210px] animate-scale-up">
+                <!-- 1. Attach File / Image -->
+                <button type="button" onclick="triggerImagePicker(); closePublicChatToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full">
+                  <div class="w-7 h-7 rounded-lg bg-indigo-600/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-paperclip text-xs"></i>
+                  </div>
+                  <span>پەیوەستکردنی وێنە و فایل</span>
+                </button>
 
-              <button type="button" id="publicChatPollBtn" onclick="openCreatePollModal('public')" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 flex items-center justify-center transition border border-slate-700/60" title="دروستکردنی ڕاپرسی (تایبەت بە ئەدمین و مامۆستا)">
-                <i class="fa-solid fa-square-poll-vertical text-sm"></i>
-              </button>
+                <!-- 2. Voice Note -->
+                <button type="button" onclick="startVoiceRecording(); closePublicChatToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full">
+                  <div class="w-7 h-7 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-microphone text-xs"></i>
+                  </div>
+                  <span>تۆمارکردنی دەنگ</span>
+                </button>
 
-              <button type="button" id="publicChatAlarmBtn" onclick="openCreateAlarmModal('public')" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 flex items-center justify-center transition border border-slate-700/60" title="دانانی زەنگی ئاگاداری / کاتژمێری وانە">
-                <i class="fa-solid fa-bell text-sm"></i>
-              </button>
+                <!-- 3. Poll -->
+                <button type="button" id="publicChatPollBtn" onclick="openCreatePollModal('public'); closePublicChatToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full">
+                  <div class="w-7 h-7 rounded-lg bg-amber-600/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-square-poll-vertical text-xs"></i>
+                  </div>
+                  <span>دروستکردنی ڕاپرسی</span>
+                </button>
+
+                <!-- 4. Alarm / Lesson Bell -->
+                <button type="button" id="publicChatAlarmBtn" onclick="openCreateAlarmModal('public'); closePublicChatToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full">
+                  <div class="w-7 h-7 rounded-lg bg-rose-600/20 border border-rose-500/40 text-rose-400 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-bell text-xs"></i>
+                  </div>
+                  <span>زەنگی ئاگاداری / میقات</span>
+                </button>
+              </div>
             </div>
 
-            <div class="relative flex-1">
-              <input 
-                type="text" 
+            <!-- Auto-expanding Textarea (Replaces single-line input) -->
+            <div class="relative flex-1 min-w-0">
+              <textarea 
                 id="messageInput" 
-                placeholder="پەیامەکەت بنووسە..." 
+                rows="1" 
+                placeholder="" 
                 autocomplete="off"
-                class="w-full px-4 py-2.5 bg-slate-800/90 border border-slate-700/80 rounded-2xl text-xs md:text-sm focus:outline-none focus:border-indigo-500 text-white placeholder-slate-400 transition"
-              >
+                class="w-full px-3.5 py-2.5 bg-slate-800/90 border border-slate-700/80 rounded-2xl text-xs md:text-sm focus:outline-none focus:border-indigo-500 text-white placeholder-transparent transition leading-relaxed resize-none overflow-y-auto block"
+                style="min-height: 40px; max-height: 120px; height: 40px;"
+                oninput="autoResizeChatInput(this)"
+                onkeydown="handleChatInputKeyDown(event, this)"
+              ></textarea>
             </div>
 
             <button 
@@ -2342,36 +2370,58 @@
           <span class="text-[10px] text-slate-500 hidden sm:inline">کلیک بکە بۆ بانگکردنی خێرای ڕاوێژکار</span>
         </div>
 
-        <form id="customGroupChatForm" onsubmit="handleSendCustomGroupMessage(event)" class="flex items-end gap-1.5 sm:gap-2">
+        <form id="customGroupChatForm" onsubmit="handleSendCustomGroupMessage(event)" class="flex items-end gap-1.5 sm:gap-2 relative">
           <!-- Hidden File Input -->
           <input type="file" id="customGroupFileInput" class="hidden" onchange="handleCustomGroupFileSelect(this)">
-          
-          <!-- Attach File Button -->
-          <button type="button" onclick="document.getElementById('customGroupFileInput').click()" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-indigo-300 border border-slate-700/80 flex items-center justify-center text-sm shrink-0 transition active:scale-95" title="وێنە یان فایلی تر هاوپێچ بکە">
-            <i class="fa-solid fa-paperclip"></i>
-          </button>
 
-          <!-- Voice Record Button -->
-          <button type="button" id="customGroupMicBtn" onclick="toggleCustomGroupVoiceRecord()" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 border border-slate-700/80 flex items-center justify-center text-sm shrink-0 transition active:scale-95" title="تۆمارکردنی دەنگ (بێ داونلۆد)">
-            <i class="fa-solid fa-microphone"></i>
-          </button>
+          <!-- Combined Tools Button & Floating Popover Menu -->
+          <div class="relative shrink-0">
+            <button type="button" id="customGroupToolsBtn" onclick="toggleCustomGroupToolsMenu(event)" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 border border-slate-700/80 flex items-center justify-center text-sm shrink-0 transition active:scale-95" title="کردارەکان (فایل، دەنگ، ڕاپرسی، زەنگ)">
+              <i id="customGroupToolsIcon" class="fa-solid fa-plus text-sm transition-transform duration-200"></i>
+            </button>
 
-          <!-- Group Poll Button (Super Admin & Teacher) -->
-          <button type="button" id="customGroupPollBtn" onclick="openCreatePollModal('custom_group')" class="hidden w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700/80 flex items-center justify-center text-sm shrink-0 transition active:scale-95" title="دروستکردنی ڕاپرسی لەم گروپەدا">
-            <i class="fa-solid fa-square-poll-vertical"></i>
-          </button>
+            <!-- Floating Menu -->
+            <div id="customGroupToolsMenu" class="hidden absolute bottom-12 right-0 z-50 bg-slate-900/95 border border-slate-700/90 rounded-2xl shadow-2xl backdrop-blur-md p-1.5 flex flex-col gap-1 min-w-[210px] animate-scale-up">
+              <!-- 1. Attach File -->
+              <button type="button" onclick="document.getElementById('customGroupFileInput').click(); closeCustomGroupToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full">
+                <div class="w-7 h-7 rounded-lg bg-indigo-600/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center shrink-0">
+                  <i class="fa-solid fa-paperclip text-xs"></i>
+                </div>
+                <span>پەیوەستکردنی فایل و وێنە</span>
+              </button>
 
-          <!-- Group Alarm Button (Super Admin, Teacher & Admin) -->
-          <button type="button" id="customGroupAlarmBtn" onclick="openCreateAlarmModal('custom_group')" class="hidden w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 border border-slate-700/80 flex items-center justify-center text-sm shrink-0 transition active:scale-95" title="دانانی زەنگی ئاگاداری لەم گروپەدا">
-            <i class="fa-solid fa-bell"></i>
-          </button>
+              <!-- 2. Voice -->
+              <button type="button" id="customGroupMicBtn" onclick="toggleCustomGroupVoiceRecord(); closeCustomGroupToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full">
+                <div class="w-7 h-7 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shrink-0">
+                  <i class="fa-solid fa-microphone text-xs"></i>
+                </div>
+                <span>تۆمارکردنی دەنگ</span>
+              </button>
 
-          <!-- Message Textarea -->
-          <textarea id="customGroupTextInput" rows="1" placeholder="" class="flex-1 min-w-0 bg-slate-800/90 border border-slate-700/80 focus:border-indigo-500 rounded-2xl px-3 py-2 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32 transition leading-relaxed"></textarea>
+              <!-- 3. Poll -->
+              <button type="button" id="customGroupPollBtn" onclick="openCreatePollModal('custom_group'); closeCustomGroupToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full">
+                <div class="w-7 h-7 rounded-lg bg-amber-600/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
+                  <i class="fa-solid fa-square-poll-vertical text-xs"></i>
+                </div>
+                <span>دروستکردنی ڕاپرسی</span>
+              </button>
+
+              <!-- 4. Alarm -->
+              <button type="button" id="customGroupAlarmBtn" onclick="openCreateAlarmModal('custom_group'); closeCustomGroupToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full">
+                <div class="w-7 h-7 rounded-lg bg-rose-600/20 border border-rose-500/40 text-rose-400 flex items-center justify-center shrink-0">
+                  <i class="fa-solid fa-bell text-xs"></i>
+                </div>
+                <span>زەنگی ئاگاداری</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Message Textarea (Auto-expanding) -->
+          <textarea id="customGroupTextInput" rows="1" placeholder="" class="flex-1 min-w-0 bg-slate-800/90 border border-slate-700/80 focus:border-indigo-500 rounded-2xl px-3 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-transparent focus:outline-none resize-none overflow-y-auto max-h-32 transition leading-relaxed" style="min-height: 40px; max-height: 120px; height: 40px;" oninput="autoResizeChatInput(this)" onkeydown="handleCustomGroupInputKeyDown(event, this)"></textarea>
 
           <!-- Send Button -->
           <button type="submit" id="customGroupSendBtn" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center text-sm shrink-0 transition shadow-md shadow-indigo-950 active:scale-95" title="ناردن">
-            <i class="fa-solid fa-paper-plane text-xs sm:text-sm"></i>
+            <i class="fa-solid fa-paper-plane text-xs sm:text-sm -rotate-90"></i>
           </button>
         </form>
       </div>
@@ -4293,6 +4343,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=22.3"></script>
+  <script src="/js/app.js?v=22.4"></script>
 </body>
 </html>
