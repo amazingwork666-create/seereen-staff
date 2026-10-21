@@ -16207,29 +16207,45 @@ function closeCreateCustomGroupModal() {
   if (modal) modal.classList.add('hidden');
 }
 
+let manageGroupAvailableMembersCache = [];
+
 function renderNewGroupMembersChecklist(usersList) {
   const container = document.getElementById('newGroupMembersChecklist');
   if (!container) return;
 
   if (!usersList.length) {
-    container.innerHTML = '<p class="text-xs text-slate-500 text-center py-4">هیچ ئەندامێک نەدۆزرایەوە.</p>';
+    container.innerHTML = '<p class="text-xs text-slate-500 text-center py-6 font-bold">هیچ ئەندامێک نەدۆزرایەوە.</p>';
     return;
   }
 
   container.innerHTML = usersList.map(u => {
-    const roleHtml = typeof renderRoleBadge === 'function' ? renderRoleBadge(u.role, u.gender || 'male') : '';
+    const nameClass = typeof getUserNameClass === 'function' ? getUserNameClass(u) : 'user-name-boy';
+    const roleBadge = typeof renderRoleBadge === 'function' ? renderRoleBadge(u.role, u.gender || 'male') : '';
+    const specialBadgeHtml = typeof renderSpecialBadgeHtml === 'function' ? renderSpecialBadgeHtml(u.special_badge) : '';
+    const avatarHtml = u.avatar_url 
+      ? `<img src="${escapeHtml(u.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-xl pointer-events-none select-none" draggable="false">` 
+      : (typeof getGenderEmoji === 'function' ? getGenderEmoji(u.gender) : '👤');
+
     return `
-      <label class="flex items-center justify-between p-2 rounded-xl bg-slate-900/90 hover:bg-slate-850 border border-slate-800 cursor-pointer transition select-none">
-        <div class="flex items-center gap-2 min-w-0">
-          <input type="checkbox" name="selectedGroupMembers" value="${u.id}" onchange="updateSelectedMembersBadge()" class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 bg-slate-800 border-slate-700">
-          <div class="min-w-0">
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="text-xs font-black text-white truncate">${escapeHtml(u.full_name)}</span>
-              ${roleHtml}
+      <label class="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 flex items-center justify-between gap-2.5 transition shadow-sm cursor-pointer select-none group">
+        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+          <input type="checkbox" name="selectedGroupMembers" value="${u.id}" onchange="updateSelectedMembersBadge()" class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 bg-slate-900 border-slate-700 shrink-0">
+          <div class="w-10 h-10 rounded-xl bg-slate-700/80 flex items-center justify-center text-sm font-black text-slate-300 shrink-0 shadow-inner border border-slate-600/40 overflow-hidden">
+            ${avatarHtml}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="text-xs font-black flex items-center gap-1.5 flex-wrap">
+              <span class="${nameClass} break-words leading-tight" title="${escapeHtml(u.full_name)}">${escapeHtml(u.full_name)}</span>
             </div>
-            <span class="text-[10px] text-slate-400 font-mono">@${escapeHtml(u.username)}</span>
+            <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+              ${roleBadge}
+              ${specialBadgeHtml}
+            </div>
           </div>
         </div>
+        <button type="button" onclick="event.preventDefault(); event.stopPropagation(); openUserProfileModal(${u.id})" class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-400 text-xs rounded-lg hover:bg-slate-700/60 transition shrink-0" title="زانیاری">
+          <i class="fa-solid fa-circle-info"></i>
+        </button>
       </label>
     `;
   }).join('');
@@ -16242,7 +16258,8 @@ function filterNewGroupMembersList() {
     return;
   }
   const filtered = allUsersForGroupChecklistCache.filter(u => 
-    (u.full_name || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q)
+    (u.full_name && u.full_name.toLowerCase().includes(q)) ||
+    (u.username && u.username.toLowerCase().includes(q))
   );
   renderNewGroupMembersChecklist(filtered);
 }
@@ -16310,8 +16327,9 @@ function closeCustomGroupManageModal() {
 async function refreshManageGroupMembersUI() {
   if (!activeCustomGroupId) return;
   const list = document.getElementById('manageGroupMembersList');
-  const select = document.getElementById('manageGroupAddMemberSelect');
   const badge = document.getElementById('manageGroupMembersBadge');
+  const searchInput = document.getElementById('manageGroupMemberSearchInput');
+  if (searchInput) searchInput.value = '';
 
   try {
     const [groupRes, allUsersRes] = await Promise.all([
@@ -16327,46 +16345,156 @@ async function refreshManageGroupMembersUI() {
 
       if (badge) badge.innerText = `${members.length} ئەندام`;
 
+      // 1. Render Current Members List exactly like screenshot
       if (list) {
-        list.innerHTML = members.map(m => {
-          const isCreator = m.id === activeCustomGroupData.created_by_id || m.role === 'super_admin';
-          const roleHtml = typeof renderRoleBadge === 'function' ? renderRoleBadge(m.role, 'male') : '';
-          return `
-            <div class="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2">
-              <div class="flex items-center gap-2 min-w-0">
-                <div class="w-7 h-7 rounded-lg bg-indigo-600/30 text-indigo-300 flex items-center justify-center text-xs font-bold shrink-0">
-                  ${m.full_name.charAt(0)}
-                </div>
-                <div class="min-w-0">
-                  <div class="flex items-center gap-1.5 flex-wrap">
-                    <span class="text-xs font-black text-white truncate">${escapeHtml(m.full_name)}</span>
-                    ${roleHtml}
+        if (!members.length) {
+          list.innerHTML = '<p class="text-center text-xs text-slate-500 py-6 font-bold">هیچ ئەندامێک لەم گروپەدا نییە.</p>';
+        } else {
+          list.innerHTML = members.map(m => {
+            const isCreator = m.id === activeCustomGroupData.created_by_id || m.role === 'super_admin';
+            const nameClass = typeof getUserNameClass === 'function' ? getUserNameClass(m) : 'user-name-boy';
+            const roleBadge = typeof renderRoleBadge === 'function' ? renderRoleBadge(m.role, 'male') : '';
+            const specialBadgeHtml = typeof renderSpecialBadgeHtml === 'function' ? renderSpecialBadgeHtml(m.special_badge) : '';
+            const avatarHtml = m.avatar_url 
+              ? `<img src="${escapeHtml(m.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-xl pointer-events-none select-none" draggable="false">` 
+              : (typeof getGenderEmoji === 'function' ? getGenderEmoji(m.gender) : '👤');
+
+            return `
+              <div class="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 flex items-center justify-between gap-2.5 transition shadow-sm">
+                <!-- Member Info -->
+                <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer" onclick="openUserProfileModal(${m.id})">
+                  <div class="w-10 h-10 rounded-xl bg-slate-700/80 flex items-center justify-center text-sm font-black text-slate-300 shrink-0 shadow-inner border border-slate-600/40 overflow-hidden">
+                    ${avatarHtml}
                   </div>
-                  <span class="text-[10px] text-slate-400 font-mono">@${escapeHtml(m.username)}</span>
+                  <div class="min-w-0 flex-1">
+                    <div class="text-xs font-black flex items-center gap-1.5 flex-wrap">
+                      <span class="${nameClass} break-words leading-tight" title="${escapeHtml(m.full_name)}">${escapeHtml(m.full_name)}</span>
+                      ${m.id === currentUser?.id ? '<span class="text-[9px] text-indigo-400 font-normal shrink-0">(تۆ)</span>' : ''}
+                    </div>
+                    <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                      ${roleBadge}
+                      ${specialBadgeHtml}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Action Buttons: Info & Remove -->
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <button type="button" onclick="openUserProfileModal(${m.id})" class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-400 text-xs rounded-lg hover:bg-slate-700/60 transition shrink-0" title="زانیاری">
+                    <i class="fa-solid fa-circle-info"></i>
+                  </button>
+                  ${!isCreator ? `
+                    <button type="button" onclick="removeMemberFromCustomGroup(${m.id})" class="px-2.5 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 hover:bg-rose-500 hover:text-white text-xs font-bold transition flex items-center gap-1 active:scale-95 shadow shrink-0" title="لابردن لە گروپ">
+                      <i class="fa-solid fa-user-minus text-[10px]"></i>
+                      <span>لابردن</span>
+                    </button>
+                  ` : `<span class="text-[10px] text-amber-400 font-black px-2 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 shrink-0">سەرپەرشتیار</span>`}
                 </div>
               </div>
-              <div>
-                ${!isCreator ? `
-                  <button type="button" onclick="removeMemberFromCustomGroup(${m.id})" class="px-2 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500 hover:text-white text-[10px] font-bold transition" title="لابردن لە گروپ">
-                    لابردن ✕
-                  </button>
-                ` : `<span class="text-[10px] text-amber-400 font-black px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30">سەرپەرشتیار</span>`}
-              </div>
-            </div>
-          `;
-        }).join('');
+            `;
+          }).join('');
+        }
       }
 
-      if (select) {
-        const memberIds = new Set(members.map(m => m.id));
-        const nonMembers = allUsers.filter(u => !memberIds.has(u.id) && u.status === 'approved');
-        select.innerHTML = `<option value="">هەڵبژاردنی کەسێک...</option>` + nonMembers.map(u => `
-          <option value="${u.id}">${escapeHtml(u.full_name)} (@${escapeHtml(u.username)})</option>
-        `).join('');
-      }
+      // 2. Filter & Render Available Non-Members with Search
+      const memberIds = new Set(members.map(m => m.id));
+      manageGroupAvailableMembersCache = allUsers.filter(u => !memberIds.has(u.id) && u.status === 'approved');
+      renderManageGroupAvailableMembers(manageGroupAvailableMembersCache);
     }
   } catch (err) {
     console.error('Error refreshing manage group members:', err);
+  }
+}
+
+function renderManageGroupAvailableMembers(usersList) {
+  const container = document.getElementById('manageGroupAvailableMembersList');
+  const badge = document.getElementById('manageGroupAvailableBadge');
+  if (!container) return;
+
+  if (badge) badge.innerText = `${usersList.length} ئەندام`;
+
+  if (!usersList.length) {
+    container.innerHTML = `
+      <div class="text-center py-6 text-slate-500">
+        <i class="fa-solid fa-user-check text-2xl text-emerald-500/40 mb-2 block"></i>
+        <p class="text-xs font-bold">هیچ ئەندامێکی تر نەماوە بۆ زیادکردن</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = usersList.map(u => {
+    const nameClass = typeof getUserNameClass === 'function' ? getUserNameClass(u) : 'user-name-boy';
+    const roleBadge = typeof renderRoleBadge === 'function' ? renderRoleBadge(u.role, u.gender) : '';
+    const specialBadgeHtml = typeof renderSpecialBadgeHtml === 'function' ? renderSpecialBadgeHtml(u.special_badge) : '';
+    const avatarHtml = u.avatar_url 
+      ? `<img src="${escapeHtml(u.avatar_url)}" alt="Avatar" class="w-full h-full object-cover rounded-xl pointer-events-none select-none" draggable="false">` 
+      : (typeof getGenderEmoji === 'function' ? getGenderEmoji(u.gender) : '👤');
+
+    return `
+      <div class="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 flex items-center justify-between gap-2.5 transition shadow-sm">
+        <!-- Member Info -->
+        <div class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer" onclick="openUserProfileModal(${u.id})">
+          <div class="w-10 h-10 rounded-xl bg-slate-700/80 flex items-center justify-center text-sm font-black text-slate-300 shrink-0 shadow-inner border border-slate-600/40 overflow-hidden">
+            ${avatarHtml}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="text-xs font-black flex items-center gap-1.5 flex-wrap">
+              <span class="${nameClass} break-words leading-tight" title="${escapeHtml(u.full_name)}">${escapeHtml(u.full_name)}</span>
+            </div>
+            <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+              ${roleBadge}
+              ${specialBadgeHtml}
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons: Info & Add -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="openUserProfileModal(${u.id})" class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-400 text-xs rounded-lg hover:bg-slate-700/60 transition shrink-0" title="زانیاری">
+            <i class="fa-solid fa-circle-info"></i>
+          </button>
+          <button type="button" onclick="addSpecificMemberToCustomGroup(${u.id})" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow active:scale-95 shrink-0" title="زیادکردن بۆ گروپ">
+            <i class="fa-solid fa-plus text-[10px]"></i>
+            <span>زیادکردن</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function filterManageGroupAvailableMembers() {
+  const q = (document.getElementById('manageGroupMemberSearchInput')?.value || '').toLowerCase().trim();
+  if (!q) {
+    renderManageGroupAvailableMembers(manageGroupAvailableMembersCache);
+    return;
+  }
+  const filtered = manageGroupAvailableMembersCache.filter(u => 
+    (u.full_name && u.full_name.toLowerCase().includes(q)) ||
+    (u.username && u.username.toLowerCase().includes(q))
+  );
+  renderManageGroupAvailableMembers(filtered);
+}
+
+async function addSpecificMemberToCustomGroup(userId) {
+  if (!activeCustomGroupId || !userId) return;
+  try {
+    const res = await fetch(`/api/custom-groups/${activeCustomGroupId}/members`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ userId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'هەڵە لە زیادکردن');
+
+    await refreshManageGroupMembersUI();
+    await loadUserCustomGroups();
+  } catch (err) {
+    alert(err.message || 'هەڵە لە زیادکردنی ئەندام');
   }
 }
 
@@ -16392,31 +16520,6 @@ async function saveCustomGroupRenamed() {
     alert('ناوی گروپەکە گۆڕدرا ✅');
   } catch (err) {
     alert(err.message || 'هەڵە لە نوێکردنەوە');
-  }
-}
-
-async function addSelectedMemberToCustomGroup() {
-  if (!activeCustomGroupId) return;
-  const select = document.getElementById('manageGroupAddMemberSelect');
-  const userId = select ? select.value : null;
-  if (!userId) return alert('تکایە کەسێک هەڵبژێرە');
-
-  try {
-    const res = await fetch(`/api/custom-groups/${activeCustomGroupId}/members`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ userId })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'هەڵە لە زیادکردن');
-
-    await refreshManageGroupMembersUI();
-    await loadUserCustomGroups();
-  } catch (err) {
-    alert(err.message || 'هەڵە لە زیادکردنی ئەندام');
   }
 }
 

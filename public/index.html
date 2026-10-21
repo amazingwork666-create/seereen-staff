@@ -2192,11 +2192,6 @@
             <h3 id="customGroupModalTitle" class="font-black text-sm sm:text-base text-white truncate">ناوی گروپ چات</h3>
             <p id="customGroupModalSubtitle" class="text-[11px] text-indigo-300/90 truncate flex items-center gap-1.5 font-bold">
               <span id="customGroupMembersCountText">٠ ئەندام</span>
-              <span class="text-slate-500">•</span>
-              <span class="text-amber-300 flex items-center gap-1">
-                <i class="fa-solid fa-shield-halved text-[10px]"></i>
-                <span>ڕاوێژکار چاودێری دەکات</span>
-              </span>
             </p>
           </div>
         </div>
@@ -2309,7 +2304,7 @@
           </button>
 
           <!-- Message Textarea -->
-          <textarea id="customGroupTextInput" rows="1" placeholder="نامەکەت یان @ڕاوێژکار بنووسە..." class="flex-1 min-w-0 bg-slate-800/90 border border-slate-700/80 focus:border-indigo-500 rounded-2xl px-3 py-2 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32 transition leading-relaxed"></textarea>
+          <textarea id="customGroupTextInput" rows="1" placeholder="" class="flex-1 min-w-0 bg-slate-800/90 border border-slate-700/80 focus:border-indigo-500 rounded-2xl px-3 py-2 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32 transition leading-relaxed"></textarea>
 
           <!-- Send Button -->
           <button type="submit" id="customGroupSendBtn" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center text-sm shrink-0 transition shadow-md shadow-indigo-950 active:scale-95" title="ناردن">
@@ -2355,10 +2350,10 @@
           </div>
           <div class="relative mb-2">
             <i class="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
-            <input type="text" id="newGroupMemberSearchInput" oninput="filterNewGroupMembersList()" placeholder="گەڕان بەدوای ئەندام..." class="w-full pl-3 pr-8 py-1.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+            <input type="text" id="newGroupMemberSearchInput" oninput="filterNewGroupMembersList()" placeholder="گەڕان بەدوای ناو یان یوزەر..." class="w-full pl-3 pr-8 py-2 bg-slate-800/90 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-amber-500">
           </div>
           <!-- Members Checklist Container -->
-          <div id="newGroupMembersChecklist" class="max-h-56 overflow-y-auto p-2 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-1.5">
+          <div id="newGroupMembersChecklist" class="max-h-72 overflow-y-auto p-2 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-2">
             <div class="text-center py-6 text-slate-500 text-xs">بارکردنی ئەندامان...</div>
           </div>
         </div>
@@ -2381,7 +2376,7 @@
 
   <!-- ================= MODAL: MANAGE CUSTOM GROUP (SUPER ADMIN) ================= -->
   <div id="customGroupManageModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onclick="if(event.target === this) closeCustomGroupManageModal()">
-    <div class="bg-slate-900 border border-indigo-500/40 rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scale-up" onclick="event.stopPropagation()">
+    <div class="bg-slate-900 border border-indigo-500/40 rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-scale-up" onclick="event.stopPropagation()">
       <!-- Header -->
       <div class="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-indigo-950/50 to-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2.5 min-w-0">
@@ -2417,22 +2412,27 @@
             <label class="block text-xs font-black text-slate-300">ئەندامەکانی ناو گروپ</label>
             <span id="manageGroupMembersBadge" class="text-[10px] text-indigo-400 font-mono font-bold">٠ ئەندام</span>
           </div>
-          <div id="manageGroupMembersList" class="max-h-48 overflow-y-auto space-y-1.5 pr-0.5">
-            <div class="text-center py-4 text-slate-500 text-xs">بارکردن...</div>
+          <div id="manageGroupMembersList" class="max-h-60 overflow-y-auto space-y-2 pr-0.5">
+            <div class="text-center py-4 text-slate-500 text-xs">بارکردنی ئەندامان...</div>
           </div>
         </div>
 
-        <!-- 3. Add New Member -->
-        <div class="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2">
-          <label class="block text-xs font-black text-slate-300">زیادکردنی ئەندامی نوێ بۆ ئەم گروپە</label>
-          <div class="flex items-center gap-2">
-            <select id="manageGroupAddMemberSelect" class="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
-              <option value="">هەڵبژاردنی کەسێک...</option>
-            </select>
-            <button type="button" onclick="addSelectedMemberToCustomGroup()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black transition shrink-0 active:scale-95 flex items-center gap-1">
-              <i class="fa-solid fa-plus text-[10px]"></i>
-              <span>زیادکردن</span>
-            </button>
+        <!-- 3. Add New Member (Professional Search & Member Cards as in Image) -->
+        <div class="p-3 sm:p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-black text-slate-200">زیادکردنی ئەندامی نوێ بۆ ئەم گروپە</label>
+            <span id="manageGroupAvailableBadge" class="text-[10px] text-emerald-400 font-mono font-bold">٠ ئەندام</span>
+          </div>
+
+          <!-- Professional Search Input -->
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute right-3 top-2.5 text-xs text-slate-400"></i>
+            <input type="text" id="manageGroupMemberSearchInput" oninput="filterManageGroupAvailableMembers()" placeholder="گەڕان بەدوای ناو یان یوزەر..." class="w-full bg-slate-800/90 border border-slate-700/70 rounded-xl pr-8 pl-3 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition shadow-inner">
+          </div>
+
+          <!-- Available Members Cards Container -->
+          <div id="manageGroupAvailableMembersList" class="max-h-64 overflow-y-auto space-y-2 pr-0.5">
+            <div class="text-center py-6 text-slate-500 text-xs">بارکردنی ئەندامان...</div>
           </div>
         </div>
 
@@ -4039,6 +4039,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=21.5"></script>
+  <script src="/js/app.js?v=21.6"></script>
 </body>
 </html>
