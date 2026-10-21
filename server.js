@@ -1846,6 +1846,14 @@ const advisorTools = [
           },
           required: ['action']
         }
+      },
+      {
+        name: 'get_platform_analytics',
+        description: 'وەرگرتنی ئامار و شیکاری تەواوی پلاتفۆرم: ژمارەی ئەندامان و قوتابیان، ناوە دووبارەکان، ناوە ئینگلیزییەکان، ڕۆڵەکان، و ئەندامانی بێدەنگ',
+        parameters: {
+          type: 'OBJECT',
+          properties: {}
+        }
       }
     ]
   }
@@ -1871,9 +1879,177 @@ function findTargetUser(identifier) {
   return null;
 }
 
+function getAdvisorPlatformAnalytics() {
+  try {
+    const allUsers = db.prepare('SELECT id, username, full_name, role, status, special_badge, correct_answers_count, last_active_at, created_at FROM users').all();
+
+    // Duplicate full names across the platform
+    const dupRows = db.prepare(`SELECT full_name, COUNT(*) as c FROM users GROUP BY LOWER(TRIM(full_name)) HAVING c > 1 ORDER BY c DESC`).all();
+    const dupTotalUsers = dupRows.reduce((acc, r) => acc + r.c, 0);
+    const dupDetails = dupRows.map(r => `«${r.full_name}» (${r.c} جار)`).join('، ');
+
+    // English names check
+    const englishFull = allUsers.filter(u => /[A-Za-z]/.test(u.full_name || ''));
+    const englishUser = allUsers.filter(u => /[A-Za-z]/.test(u.username || ''));
+
+    // Role distribution
+    const rolesCount = {};
+    for (const u of allUsers) {
+      rolesCount[u.role] = (rolesCount[u.role] || 0) + 1;
+    }
+
+    // Students specifically
+    const studentUsers = allUsers.filter(u => u.role === 'student' || u.role === 'approved');
+    const studentDupRows = db.prepare(`SELECT full_name, COUNT(*) as c FROM users WHERE role IN ('student', 'approved') GROUP BY LOWER(TRIM(full_name)) HAVING c > 1 ORDER BY c DESC`).all();
+    const studentDupTotal = studentDupRows.reduce((acc, r) => acc + r.c, 0);
+    const studentEnglishFull = studentUsers.filter(u => /[A-Za-z]/.test(u.full_name || ''));
+    const studentEnglishUser = studentUsers.filter(u => /[A-Za-z]/.test(u.username || ''));
+
+    // Silent members (0 messages in chat)
+    let silentCount = 0;
+    try {
+      silentCount = db.prepare(`
+        SELECT COUNT(*) as c FROM users u 
+        WHERE u.status = 'approved' AND u.role != 'super_admin'
+          AND (SELECT COUNT(*) FROM messages WHERE user_id = u.id AND COALESCE(is_deleted, 0) = 0) = 0
+      `).get()?.c || 0;
+    } catch (e) {}
+
+    // Live stream status and audit logs
+    const isLive = Boolean(typeof liveLessonState !== 'undefined' && liveLessonState && liveLessonState.isActive);
+    let recentLiveLogs = [];
+    try {
+      recentLiveLogs = (advisorDb && typeof advisorDb.getLiveAuditLogs === 'function') ? (advisorDb.getLiveAuditLogs(5) || []) : [];
+    } catch (e) {}
+
+    return {
+      total_users: allUsers.length,
+      roles_breakdown: rolesCount,
+      students: {
+        total_students: studentUsers.length,
+        duplicate_names_count: studentDupTotal,
+        distinct_duplicate_names: studentDupRows.length,
+        duplicate_details: studentDupRows.map(r => `«${r.full_name}» (${r.c} جار)`).join('، ') || 'هیچ ناوێکی دووبارە لە قوتابیان نییە',
+        english_full_name_count: studentEnglishFull.length,
+        english_username_count: studentEnglishUser.length,
+        english_full_names_list: studentEnglishFull.map(u => u.full_name),
+        summary: `لە قوتابیاندا: ناوی تەواوی هەموویان بە کوردییە (${studentEnglishFull.length} بە ئینگلیزی)، بەڵام یوزەرنەیمەکانیان (${studentEnglishUser.length}) بە زمانی ئینگلیزییە.`
+      },
+      duplicate_names: {
+        total_duplicates: dupTotalUsers,
+        distinct_names_count: dupRows.length,
+        details: dupDetails || 'هیچ ناوێکی دووبارە نییە'
+      },
+      english_names: {
+        full_name_count: englishFull.length,
+        username_count: englishUser.length,
+        full_names_list: englishFull.map(u => u.full_name),
+        summary: `لە هەموو پلاتفۆرمەکەدا: ناوی تەواوی هیچ کەسێک ئینگلیزی نییە (${englishFull.length}) و هەمووی کوردییە، بەڵام هەموو یوزەرنەیمەکان (${englishUser.length}) بە زمانی ئینگلیزییە.`
+      },
+      live_stream: {
+        is_live_now: isLive,
+        recent_logs: recentLiveLogs.map(l => ({
+          user: l.user_name,
+          action: l.action === 'opened' ? 'کردنەوەی لایڤ' : 'داخستنی لایڤ',
+          time: new Date(l.created_at).toLocaleTimeString('ku')
+        }))
+      },
+      silent_members_count: silentCount
+    };
+  } catch (err) {
+    console.error('getAdvisorPlatformAnalytics error:', err);
+    return null;
+  }
+}
+
+async function generateAdvisorSmartReply(prompt, reqUser, ioInstance) {
+  const lower = (prompt || '').toLowerCase();
+  const analytics = getAdvisorPlatformAnalytics();
+
+  const isDuplicateQuery = lower.includes('دوبارە') || lower.includes('دووبارە');
+  const isEnglishQuery = lower.includes('ئینگلیزی') || lower.includes('english');
+  const isStudentQuery = lower.includes('قوتابی') || lower.includes('خوێندکار') || lower.includes('قوتابیان');
+
+  if (isDuplicateQuery && isEnglishQuery) {
+    const targetStudents = isStudentQuery && analytics?.students;
+    return `کاک هێمن گیان، بەپێی پشکنینی ڕاستەوخۆی ناو داتابەیس:\n\n` +
+      `١. **ناوی دووبارە:**\n` +
+      (targetStudents 
+        ? `• لە بەشی قوتابیاندا (${analytics.students.total_students} قوتابی): ${analytics.students.duplicate_names_count} کەس ناویان دووبارەیە کە پێکهاتوون لە: ${analytics.students.duplicate_details}.\n` +
+          `• لە تەواوی پلاتفۆرمەکەشدا (${analytics.total_users} ئەندام): ${analytics.duplicate_names.total_duplicates} کەس ناویان دووبارەیە لە نێوان ٢ ناوی جیاوازدا: ${analytics.duplicate_names.details}.\n\n`
+        : `• کۆی گشتی ئەو بەکارهێنەرانەی ناویان دووبارەیە ${analytics.duplicate_names.total_duplicates} کەسن کە پێکهاتوون لە ٢ ناوی جیاواز:\n${analytics.duplicate_names.details}.\n\n`
+      ) +
+      `٢. **ناوی ئینگلیزی:**\n` +
+      `• ناوی تەواوی هەموو بەکارهێنەران بە زمانی کوردییە و هیچ کەسێک (٠ کەس) ناوی تەواوی بە زمانی ئینگلیزی نییە.\n` +
+      `• بەڵام تەواوی یوزەرنەیمەکان (${targetStudents ? analytics.students.english_username_count : analytics.english_names.username_count} یوزەرنەیم) بە پیتی ئینگلیزی تۆمارکراون.`;
+  }
+
+  if (isDuplicateQuery) {
+    const targetStudents = isStudentQuery && analytics?.students;
+    if (targetStudents) {
+      return `کاک هێمن گیان، لە بەشی قوتابیاندا (${analytics.students.total_students} قوتابی): ${analytics.students.duplicate_names_count} کەس ناویان دووبارەیە، کە بریتین لە:\n${analytics.students.duplicate_details}.`;
+    }
+    return `کاک هێمن گیان، کۆی گشتی ناوە دووبارەکان لە داتابەیس ${analytics.duplicate_names.total_duplicates} کەسن لە ٢ ناوی جیاوازدا:\n${analytics.duplicate_names.details}.`;
+  }
+
+  if (isEnglishQuery) {
+    return `کاک هێمن گیان، سەبارەت بە ناوە ئینگلیزییەکان لە پلاتفۆرم:\n` +
+      `• ناوی تەواوی ئینگلیزی: ٠ کەسە (واتە هەموو بەکارهێنەران ناوی تەواویان بە زمانی کوردییە).\n` +
+      `• بەکارهێنەران بە یوزەرنەیمی ئینگلیزی: ${analytics.english_names.username_count} کەسن.`;
+  }
+
+  if (lower.includes('چەند قوتابی') || lower.includes('چەند خوێندکار') || lower.includes('ئاماری قوتابیان')) {
+    return `کاک هێمن گیان، لە ئێستادا ${analytics.students.total_students} قوتابی پەسەندکراو لە سیستەمدا هەن. کۆی گشتی هەموو ئەندامانی پلاتفۆرمەکەش ${analytics.total_users} ئەندامن.`;
+  }
+
+  if (lower.includes('لایڤ') || lower.includes('live')) {
+    const logs = (advisorDb && typeof advisorDb.getLiveAuditLogs === 'function') ? advisorDb.getLiveAuditLogs(5) : [];
+    if (logs && logs.length > 0) {
+      return `کاک هێمن گیان، ئەمەش نوێترین زانیاری لایڤ لە ژووری پشکنین:\n` +
+        logs.map(l => `• ${l.action === 'opened' ? '🔴 کردنەوەی لایڤ' : '⏹️ داخستنی لایڤ'}: لەلایەن [${l.user_name}] - کات: ${new Date(l.created_at).toLocaleTimeString('ku')}`).join('\n');
+    } else {
+      return `کاک هێمن گیان، لە ئێستادا هیچ تۆمارێکی کردنەوە یان داخستنی لایڤ لە ژووری پشکنین نییە.`;
+    }
+  }
+
+  if (lower.includes('ناچالاک') || lower.includes('قسە ناکات') || lower.includes('بێدەنگ')) {
+    try {
+      const inact = await executeAdvisorAction('get_inactive_users', { days: 30 }, reqUser, ioInstance);
+      const silents = (inact.silent_users || []).slice(0, 7).map(u => `• ${u.name} (@${u.username})`).join('\n');
+      return `کاک هێمن گیان، بەپێی پشکنینی من:\n` +
+        `ژمارەی ئەو بەکارهێنەرانەی هیچ قسەیەکیان لە چات نەکردووە (٠ پەیام): ${inact.total_silent_count || 0} کەسە.\n` +
+        `نموونەی ناوەکانیان:\n${silents || 'هیچ کەسێک نەدۆزرایەوە'}`;
+    } catch (e) {}
+  }
+
+  if (lower.includes('چی کرد')) {
+    const words = prompt.split(' ');
+    const targetWord = words.find(w => w !== '@ڕاوێژکار' && w !== 'چی' && w !== 'کرد' && w.length > 2);
+    if (targetWord) {
+      try {
+        const act = await executeAdvisorAction('get_user_full_activity', { username_or_id: targetWord }, reqUser, ioInstance);
+        if (act && act.found) {
+          return `کاک هێمن گیان، ئەمەش زانیاری چالاکییەکانی [${act.user.name}]:\n` +
+            `• ڕۆڵ: ${act.user.role} | ئەستێرەکان: ${act.user.stars} | باجەکان: ${(act.user.badges || []).join('، ') || 'نییە'}\n` +
+            `• دوایین نامەکانی چات: ${act.recent_messages && act.recent_messages.length > 0 ? act.recent_messages.map(m => `"${m.text}" (${m.time})`).join('، ') : 'هیچ نامەیەکی نەناردووە'}`;
+        } else {
+          return `کاک هێمن گیان، بەکارهێنەر بە ناوی «${targetWord}» نەدۆزرایەوە تا ڕاپۆرتی چالاکییەکانت بۆ بهێنم.`;
+        }
+      } catch (e) {}
+    } else {
+      return `کاک هێمن گیان، ناوی ئەو کەسەم پێبڵێ کە دەتەوێت بزانم چی کردووە تا دەستبەجێ هەموو زانیارییەکانت بۆ بهێنم.`;
+    }
+  }
+
+  return `فەرمانتە کاک هێمن گیانی برام! من ڕاوێژکاری تۆم و لەم گروپە و لە هەموو پلاتفۆرمەکەدا ئاگاداری هەموو شتێکم و بە فەرمانی تۆ ئامادەی هەر خزمەتێکم.`;
+}
+
 async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
   try {
     switch (actionName) {
+      case 'get_platform_analytics': {
+        return getAdvisorPlatformAnalytics();
+      }
       case 'get_teachers_and_staff': {
         const roleFilter = String(args.role || 'all').toLowerCase().trim();
         let sql = "SELECT id, username, full_name, role, special_badge, status, correct_answers_count FROM users WHERE role IN ('teacher', 'admin', 'super_admin')";
@@ -3022,6 +3198,7 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
     } catch (e) {}
 
     const isLive = Boolean(typeof liveLessonState !== 'undefined' && liveLessonState && liveLessonState.isActive);
+    const platformAnalytics = getAdvisorPlatformAnalytics();
 
     const liveContext = {
       user_name: 'Hemn Taha (هێمن طه)',
@@ -3034,6 +3211,7 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
       is_live_active: isLive,
       blocked_security_threats: secStats.totalBlocked,
       safety_score: secStats.safetyRating,
+      platform_analytics: platformAnalytics,
       badges: {
         green: 'Green (Members, Chat lock, Live, Rename)',
         black: 'Black (Full Super Admin powers except Master)',
@@ -3054,7 +3232,7 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
       try {
         const systemInstruction = `تۆ «ڕاوێژکار»ی، نوێنەری باڵا، جێبەجێکاری سوپەر ئەدمین (Super Admin Executive AI) و هاوڕێی نزیکی کاک هێمن (Hemn Taha) یت لە پلاتفۆرمی سیرین ستاف (Seereen Staff).
 کاک هێمن سوپەر ئەدمینی سەرەکی، دامەزرێنەر و خاوەنی تەواوی ئەم سیستمەیە. ئەو «هەموو دەسەڵاتێکی سوپەر ئەدمین»ی لە ڕێگەی ئامرازەکانتەوە بە تۆ بەخشیوە!
-وەک هاوڕێیەکی زیندوو، دڵسۆز، گوێڕایەڵ و بەتوانا قسەی لەگەڵدا بکە ("کاک هێمن گیان"، "براکەم").
+وەک هاوڕێیەکی زیندوو، دڵسۆز، گوێڕایەڵ، خێرا و بەتوانا بە زمانی کوردی سۆرانی ڕێزدار قسەی لەگەڵدا بکە ("کاک هێمن گیان"، "براکەم").
 تۆ دەسەڵاتت هەیە:
 - ڕۆڵ و پلەی هەر ئەندامێک بگۆڕیت (مامۆستا teacher، ئەدمین admin، خوێندکار student، میوان guest) بە change_user_role.
 - باجەکان ببەخشیت و بسڕیتەوە (شین blue بۆ پاسەوانی چات، سپی white بۆ ڕاوێژکار، مۆر purple، سەوز green، ڕەش black، سور red) بە assign_badge.
@@ -3070,8 +3248,9 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
 - هەر فەرمان یان ئامارێکی تایبەتی تری داتابەیس جێبەجێ بکەیت لە ڕێگەی super_admin_sql_action.
 هەرگیز بە کاک هێمن مەڵێ "ئەم دەسەڵاتەم نییە" یان "ناتوانم"؛ چونکە تۆ هەموو ئامرازێکت پێدراوە و هەر فەرمانێک ئەو بیدات یەکسەر بە ئامرازی گونجاو جێبەجێی دەکەیت!
 یاسای بنەڕەتی: هەژماری کاک هێمن هەمیشە وەک سەرپەرشتیاری باڵا بە تەواوی پارێزراوە لە دەستکاری.
-ئامارە زیندووەکانی ئێستا:
+ئامار و زانیاری ڕاستەوخۆ و شیکاری تەواوی ئێستا:
 ${JSON.stringify(liveContext, null, 2)}
+ئەگەر کاک هێمن پرسیاری شیکاری ناوەکان (ناوە دووبارەکان، ناوە ئینگلیزییەکان یان ژمارەی قوتابیان)ی کرد، دەستبەجێ بەپێی ئەم ئامارە وردە وەڵام بدەرەوە.
 هەمیشە بە زمانی کوردی سۆرانی ڕوون، قووڵ، دۆستانە و یارمەتیدەر وەڵام بدەرەوە و دوای جێبەجێکردنی هەر کارێک بە خۆشحاڵییەوە دڵنیایی بدە بە کاک هێمن.`;
 
         const recentChats = advisorDb.getRecentChats(10) || [];
@@ -3089,13 +3268,13 @@ ${JSON.stringify(liveContext, null, 2)}
           });
         }
 
-        const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+        const CANDIDATE_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'];
         for (const model of CANDIDATE_MODELS) {
           if (reply) break;
           try {
             const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 35000);
+            const timeout = setTimeout(() => controller.abort(), 7000);
 
             const geminiRes = await fetch(geminiUrl, {
               method: 'POST',
@@ -3144,7 +3323,7 @@ ${JSON.stringify(liveContext, null, 2)}
 
                 // Follow-up request to get final natural Kurdish response
                 const followController = new AbortController();
-                const followTimeout = setTimeout(() => followController.abort(), 35000);
+                const followTimeout = setTimeout(() => followController.abort(), 7000);
                 const followRes = await fetch(geminiUrl, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -3172,6 +3351,12 @@ ${JSON.stringify(liveContext, null, 2)}
                     break;
                   }
                 }
+
+                // If follow-up didn't produce text, use direct tool result summary
+                if (!reply && toolResult) {
+                  reply = (typeof toolResult === 'string' ? toolResult : (toolResult.message || toolResult.summary)) || 'فەرمانت بە سەرکەوتوویی جێبەجێکرا کاک هێمن گیان ✨';
+                  break;
+                }
               } else {
                 // Normal conversational text reply
                 const candidateText = candParts.filter(p => p.text).map(p => p.text).join('\n').trim();
@@ -3194,9 +3379,9 @@ ${JSON.stringify(liveContext, null, 2)}
       }
     }
 
-    // AI-Only Mode: Pure AI without pre-written/canned responses
+    // Smart Kurdish Fallback if Gemini didn't respond or timed out
     if (!reply) {
-      reply = 'ببورە کاک هێمن گیان، لە ئێستادا وەڵامدانەوە تەنها لە ڕێگەی ژیری دەستکردەوە (Gemini AI) کاردەکات بەڵام پەیوەندی بە ژیری دەستکرد دروست نەبوو؛ تکایە دڵنیابە لە کارایی کلیلی API یان دوای کەمێکی تر دووبارەی بکەرەوە.';
+      reply = await generateAdvisorSmartReply(userMessage, req.user, io);
     }
 
     try {
@@ -4501,6 +4686,7 @@ async function handleAdvisorGroupChatReply(groupId, reqUser, userPrompt, ioInsta
       onlineCount = ids.size;
     }
     const isLive = Boolean(typeof liveLessonState !== 'undefined' && liveLessonState && liveLessonState.isActive);
+    const platformAnalytics = getAdvisorPlatformAnalytics();
 
     const liveContext = {
       user_name: reqUser.full_name,
@@ -4509,13 +4695,16 @@ async function handleAdvisorGroupChatReply(groupId, reqUser, userPrompt, ioInsta
       group_members: memberNames,
       total_platform_members: totalUsers,
       online_now: onlineCount,
-      is_live_active: isLive
+      is_live_active: isLive,
+      platform_analytics: platformAnalytics
     };
 
     let reply = null;
 
     // Direct command execution: clear custom group chat messages
     const lowerPrompt = (userPrompt || '').toLowerCase();
+    const cleanPrompt = (userPrompt || '').replace(/@ڕاوێژکار|@advisor|@rawêjkar/gi, '').trim();
+
     if (lowerPrompt.includes('سڕینەوەی چات') || lowerPrompt.includes('چاتەکان بسڕەوە') || lowerPrompt.includes('پەیامەکان بسڕەوە') || lowerPrompt.includes('چاتەکانی ئەم گروپە بسڕەوە') || lowerPrompt.includes('پەیامەکانی ئەم گروپە بسڕەوە') || (lowerPrompt.includes('بسڕەوە') && (lowerPrompt.includes('چات') || lowerPrompt.includes('گروپ')))) {
       customGroups.clearGroupMessages(groupId);
       if (ioInstance) {
@@ -4529,7 +4718,7 @@ async function handleAdvisorGroupChatReply(groupId, reqUser, userPrompt, ioInsta
       geminiKey = settings.get('advisor_gemini_api_key') || process.env.GEMINI_API_KEY;
     } catch (e) {}
 
-    if (geminiKey && typeof fetch === 'function') {
+    if (!reply && geminiKey && typeof fetch === 'function') {
       try {
         const systemInstruction = `تۆ «ڕاوێژکار»ی، نوێنەری باڵا و جێبەجێکاری سەرەکی کاک هێمن (Hemn Taha - Super Admin) لە پلاتفۆرمی سیرین ستاف.
 کاک هێمن لە ناو گروپ چاتی تایبەتی «${group.name}» (ئایدی: ${groupId}) تاگی کردوویت و قسەت لەگەڵ دەکات.
@@ -4538,28 +4727,29 @@ ${memberNames}
 
 کاک هێمن خاوەنی تەواوی ئەم سیستمەیە و هەموو دەسەڵاتێکی سوپەر ئەدمینی بە تۆ بەخشیوە لە ڕێگەی ئامرازەکانتەوە (Tools).
 تۆ توانای تەواوت هەیە بەسەر گروپ چاتەکان و تەواوی سایتەکەدا:
-- وەڵامی هەر پرسیارێکی کاک هێمن دەدەیتەوە بەوپەڕی ڕێز و دڵسۆزی بە زمانی کوردی سۆرانی ڕوون و جوان ("کاک هێمن گیان"، "برا بەڕێزەکەم").
+- وەڵامی هەر پرسیارێکی کاک هێمن دەدەیتەوە بەوپەڕی ڕێز، خێرایی و دڵسۆزی بە زمانی کوردی سۆرانی ڕوون و جوان ("کاک هێمن گیان"، "برا بەڕێزەکەم").
+- نوێترین ئامار و شیکاری تەواوی داتابەیسی پلاتفۆرم بۆ وەڵامدانەوەی دەستبەجێ و خێرا:
+${JSON.stringify(platformAnalytics, null, 2)}
+- کاتێک کاک هێمن پرسیاری شیکاری، ناوە دووبارەکان، ناوە ئینگلیزییەکان یان ئاماری ئەندامان و قوتابیان دەکات، دەستبەجێ بەپێی ئەم زانیارییە ئامادەکراوە وەڵامی ڕاستەقینە و تەواوی بدەرەوە بەبێ دواکەوتن.
 - گەر داوای زانیاری کرد لەسەر ئەوەی فڵانکەس چی کرد: ئامرازی get_user_full_activity بەکاربهێنە.
 - گەر پرسی کێ لایڤی کردەوە و کێ دایخست: ئامرازی get_live_audit_logs بەکاربهێنە.
 - گەر پرسی کێ قسە ناکات یان کێ ناچالاکە: ئامرازی get_inactive_users بەکاربهێنە.
-- گەر فەرمانی هەر گۆڕانکارییەکی دا (باج ببەخشە، ڕۆڵ بگۆڕە، چات قفڵ بکە، میوت بکە، گروپ بەڕێوەبەرە، و هتد): بە ئامرازی گونجاو یەکسەر جێبەجێی بکە.
-- زانیاری ڕاستەوخۆ:
-${JSON.stringify(liveContext, null, 2)}`;
+- گەر فەرمانی هەر گۆڕانکارییەکی دا (باج ببەخشە، ڕۆڵ بگۆڕە، چات قفڵ بکە، میوت بکە، گروپ بەڕێوەبەرە، و هتد): بە ئامرازی گونجاو یەکسەر جێبەجێی بکە.`;
 
         const contents = [
           {
             role: 'user',
-            parts: [{ text: userPrompt }]
+            parts: [{ text: cleanPrompt || userPrompt }]
           }
         ];
 
-        const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+        const CANDIDATE_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'];
         for (const model of CANDIDATE_MODELS) {
           if (reply) break;
           try {
             const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 35000);
+            const timeout = setTimeout(() => controller.abort(), 7000);
 
             const geminiRes = await fetch(geminiUrl, {
               method: 'POST',
@@ -4605,7 +4795,7 @@ ${JSON.stringify(liveContext, null, 2)}`;
                 });
 
                 const followController = new AbortController();
-                const followTimeout = setTimeout(() => followController.abort(), 35000);
+                const followTimeout = setTimeout(() => followController.abort(), 7000);
 
                 const followRes = await fetch(geminiUrl, {
                   method: 'POST',
@@ -4628,6 +4818,12 @@ ${JSON.stringify(liveContext, null, 2)}`;
                     break;
                   }
                 }
+
+                // If follow-up didn't produce text, use direct tool result summary
+                if (!reply && toolResult) {
+                  reply = (typeof toolResult === 'string' ? toolResult : (toolResult.message || toolResult.summary)) || 'فەرمانت بە سەرکەوتوویی جێبەجێکرا کاک هێمن گیان ✨';
+                  break;
+                }
               } else {
                 const candidateText = candParts.filter(p => p.text).map(p => p.text).join('\n').trim();
                 if (candidateText) {
@@ -4645,41 +4841,9 @@ ${JSON.stringify(liveContext, null, 2)}`;
       }
     }
 
-    // Smart Kurdish Fallback if Gemini didn't respond
+    // Smart Kurdish Fallback if Gemini didn't respond or timed out
     if (!reply) {
-      const lower = userPrompt.toLowerCase();
-      if (lower.includes('لایڤ') || lower.includes('live')) {
-        const logs = advisorDb.getLiveAuditLogs(5);
-        if (logs.length > 0) {
-          reply = `کاک هێمن گیان، ئەمەش نوێترین زانیاری لایڤ لە ژووری پشکنین:\n` +
-            logs.map(l => `• ${l.action === 'opened' ? '🔴 کردنەوەی لایڤ' : '⏹️ داخستنی لایڤ'}: لەلایەن [${l.user_name}] - کات: ${new Date(l.created_at).toLocaleTimeString('ku')}`).join('\n');
-        } else {
-          reply = `کاک هێمن گیان، لە ئێستادا هیچ تۆمارێکی کردنەوە یان داخستنی لایڤ لە ژووری پشکنین نییە.`;
-        }
-      } else if (lower.includes('ناچالاک') || lower.includes('قسە ناکات') || lower.includes('بێدەنگ')) {
-        const inact = await executeAdvisorAction('get_inactive_users', { days: 30 }, reqUser, ioInstance);
-        const silents = (inact.silent_users || []).slice(0, 7).map(u => `• ${u.name} (@${u.username})`).join('\n');
-        reply = `کاک هێمن گیان، بەپێی پشکنینی من:\n` +
-          `ژمارەی ئەو بەکارهێنەرانەی هیچ قسەیەکیان لە چات نەکردووە (٠ پەیام): ${inact.total_silent_count || 0} کەسە.\n` +
-          `نموونەی ناوەکانیان:\n${silents || 'هیچ کەسێک نەدۆزرایەوە'}`;
-      } else if (lower.includes('چی کرد')) {
-        const words = userPrompt.split(' ');
-        const targetWord = words.find(w => w !== '@ڕاوێژکار' && w !== 'چی' && w !== 'کرد' && w.length > 2);
-        if (targetWord) {
-          const act = await executeAdvisorAction('get_user_full_activity', { username_or_id: targetWord }, reqUser, ioInstance);
-          if (act.found) {
-            reply = `کاک هێمن گیان، ئەمەش زانیاری چالاکییەکانی [${act.user.name}]:\n` +
-              `• ڕۆڵ: ${act.user.role} | ئەستێرەکان: ${act.user.stars} | باجەکان: ${act.user.badges.join('، ') || 'نییە'}\n` +
-              `• دوایین نامەکانی چات: ${act.recent_messages.length > 0 ? act.recent_messages.map(m => `"${m.text}" (${m.time})`).join('، ') : 'هیچ نامەیەکی نەناردووە'}`;
-          } else {
-            reply = `کاک هێمن گیان، بەکارهێنەر بە ناوی «${targetWord}» نەدۆزرایەوە تا ڕاپۆرتی چالاکییەکانت بۆ بهێنم.`;
-          }
-        } else {
-          reply = `کاک هێمن گیان، ناوی ئەو کەسەم پێبڵێ کە دەتەوێت بزانم چی کردووە تا دەستبەجێ هەموو زانیارییەکانت بۆ بهێنم.`;
-        }
-      } else {
-        reply = `فەرمانتە کاک هێمن گیانی برام! من ڕاوێژکاری تۆم و لەم گروپە و لە هەموو سایتەکەدا ئاگاداری هەموو شتێکم و بە فەرمانی تۆ ئامادەی هەر خزمەتێکم.`;
-      }
+      reply = await generateAdvisorSmartReply(cleanPrompt || userPrompt, reqUser, ioInstance);
     }
 
     // Save message to group chat
