@@ -269,6 +269,19 @@ function initDb() {
       FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS complaints (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      username TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      subject TEXT DEFAULT '',
+      content TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
 
   try {
@@ -283,6 +296,8 @@ function initDb() {
   try { db.exec("ALTER TABLE users ADD COLUMN last_read_message_id INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE users ADD COLUMN last_star_awarded_at INTEGER DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE users ADD COLUMN last_active_at INTEGER DEFAULT NULL"); } catch (e) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN last_question_warn_at INTEGER DEFAULT 0"); } catch (e) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN last_warned_missed_count INTEGER DEFAULT 0"); } catch (e) {}
   try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS live_audit_logs (
@@ -365,6 +380,8 @@ function initDb() {
   try { db.exec("ALTER TABLE questions ADD COLUMN expires_at INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN is_revealed INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE questions ADD COLUMN question_number INTEGER DEFAULT 0"); } catch (e) {}
+  try { db.exec("ALTER TABLE questions ADD COLUMN publish_at INTEGER DEFAULT 0"); } catch (e) {}
+  try { db.exec("ALTER TABLE questions ADD COLUMN is_published INTEGER DEFAULT 1"); } catch (e) {}
   try { db.exec("ALTER TABLE question_submissions ADD COLUMN is_correct INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE dream_sessions ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE dream_sessions ADD COLUMN answered_by_name TEXT DEFAULT NULL"); } catch (e) {}
@@ -1021,18 +1038,33 @@ const messages = {
 
 // Question helper methods
 const questions = {
-  create(adminId, adminName, questionText, correctAnswer = null, durationMinutes = 5, customExpiresAt = null) {
-    const expiresAt = customExpiresAt ? Number(customExpiresAt) : (Date.now() + (durationMinutes * 60 * 1000));
-    const finalDurationMinutes = customExpiresAt ? Math.max(1, Math.round((expiresAt - Date.now()) / 60000)) : durationMinutes;
+  create(adminId, adminName, questionText, correctAnswer = null, durationMinutes = 5, customExpiresAt = null, publishAt = 0) {
+    const isScheduled = publishAt && Number(publishAt) > Date.now();
+    const cleanPublishAt = isScheduled ? Number(publishAt) : 0;
+    const isPublished = isScheduled ? 0 : 1;
+    const isActive = isScheduled ? 0 : 1;
+
+    let expiresAt = 0;
+    let finalDurationMinutes = durationMinutes;
+
+    if (customExpiresAt) {
+      expiresAt = Number(customExpiresAt);
+      const baseTime = isScheduled ? cleanPublishAt : Date.now();
+      finalDurationMinutes = Math.max(1, Math.round((expiresAt - baseTime) / 60000));
+    } else {
+      const baseTime = isScheduled ? cleanPublishAt : Date.now();
+      expiresAt = baseTime + (durationMinutes * 60 * 1000);
+      finalDurationMinutes = durationMinutes;
+    }
     
     const countRow = db.prepare('SELECT COUNT(*) as total FROM questions').get();
     const questionNumber = (countRow ? countRow.total : 0) + 1;
 
     const stmt = db.prepare(`
-      INSERT INTO questions (admin_id, admin_name, question_text, correct_answer, duration_minutes, expires_at, is_revealed, is_active, question_number, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, 0, 1, ?, ?)
+      INSERT INTO questions (admin_id, admin_name, question_text, correct_answer, duration_minutes, expires_at, is_revealed, is_active, question_number, publish_at, is_published, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
     `);
-    const result = stmt.run(adminId, adminName, questionText, correctAnswer ? correctAnswer.trim() : null, finalDurationMinutes, expiresAt, questionNumber, Date.now());
+    const result = stmt.run(adminId, adminName, questionText, correctAnswer ? correctAnswer.trim() : null, finalDurationMinutes, expiresAt, isActive, questionNumber, cleanPublishAt, isPublished, Date.now());
     this.renumberQuestions();
     return this.findById(result.lastInsertRowid);
   },
@@ -1049,12 +1081,32 @@ const questions = {
     `);
     return stmt.all();
   },
+  getScheduledQuestions() {
+    const stmt = db.prepare(`
+      SELECT q.*, 0 as submissions_count, 0 as awards_count
+      FROM questions q
+      WHERE q.is_published = 0
+      ORDER BY q.publish_at ASC
+    `);
+    return stmt.all();
+  },
+  publishNow(id) {
+    const q = this.findById(id);
+    if (!q) return null;
+    const now = Date.now();
+    let expiresAt = q.expires_at;
+    if (!expiresAt || expiresAt <= now) {
+      expiresAt = now + ((q.duration_minutes || 5) * 60 * 1000);
+    }
+    db.prepare('UPDATE questions SET is_published = 1, is_active = 1, publish_at = ?, expires_at = ? WHERE id = ?').run(now, expiresAt, id);
+    return this.findById(id);
+  },
   findById(id) {
     const stmt = db.prepare('SELECT * FROM questions WHERE id = ?');
     return stmt.get(id);
   },
   getActive() {
-    const stmt = db.prepare('SELECT * FROM questions WHERE is_active = 1 AND is_revealed = 0 AND (expires_at = 0 OR expires_at > ?) ORDER BY created_at DESC LIMIT 1');
+    const stmt = db.prepare('SELECT * FROM questions WHERE is_active = 1 AND is_revealed = 0 AND is_published = 1 AND (expires_at = 0 OR expires_at > ?) ORDER BY created_at DESC LIMIT 1');
     return stmt.get(Date.now());
   },
   getTodayQuestions(todayStart) {
@@ -1063,10 +1115,25 @@ const questions = {
       SELECT q.*, 
         (SELECT COUNT(*) FROM question_submissions WHERE question_id = q.id) as submission_count
       FROM questions q 
-      WHERE q.created_at >= ? OR (q.is_active = 1 AND q.is_revealed = 0 AND (q.expires_at = 0 OR q.expires_at > ?))
+      WHERE q.is_published = 1 AND (q.created_at >= ? OR (q.is_active = 1 AND q.is_revealed = 0 AND (q.expires_at = 0 OR q.expires_at > ?)))
       ORDER BY q.created_at ASC
     `);
     return stmt.all(todayStart, now);
+  },
+  getStudentConsecutiveMissedCount(userId, checkLimit = 5) {
+    const recentRevealed = db.prepare("SELECT id FROM questions WHERE is_revealed = 1 ORDER BY id DESC LIMIT ?").all(checkLimit);
+    if (!recentRevealed || recentRevealed.length < checkLimit) return 0;
+    
+    let consecutiveMissed = 0;
+    for (const q of recentRevealed) {
+      const hasAnswered = db.prepare("SELECT 1 FROM question_submissions WHERE question_id = ? AND user_id = ? LIMIT 1").get(q.id, userId);
+      if (!hasAnswered) {
+        consecutiveMissed++;
+      } else {
+        break;
+      }
+    }
+    return consecutiveMissed;
   },
   submitAnswer(questionId, userId, username, fullName, gender, answerText) {
     const stmt = db.prepare(`
@@ -2385,6 +2452,34 @@ const alarmsDb = {
   }
 };
 
+// Complaints Box Helper (سندووقی سکاڵا)
+const complaints = {
+  create(userId, username, fullName, role, subject, content) {
+    const stmt = db.prepare(`
+      INSERT INTO complaints (user_id, username, full_name, role, subject, content, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+    `);
+    const res = stmt.run(userId, username, fullName, role, (subject || '').trim(), content.trim(), Date.now());
+    return this.findById(res.lastInsertRowid);
+  },
+  findById(id) {
+    return db.prepare('SELECT * FROM complaints WHERE id = ?').get(id);
+  },
+  getAll() {
+    return db.prepare('SELECT * FROM complaints ORDER BY created_at DESC').all();
+  },
+  getForUser(userId) {
+    return db.prepare('SELECT * FROM complaints WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+  },
+  updateStatus(id, status) {
+    db.prepare('UPDATE complaints SET status = ? WHERE id = ?').run(status, id);
+    return this.findById(id);
+  },
+  delete(id) {
+    return db.prepare('DELETE FROM complaints WHERE id = ?').run(id);
+  }
+};
+
 module.exports = {
   db,
   initDb,
@@ -2409,5 +2504,6 @@ module.exports = {
   buttonClicks,
   customGroups,
   pollsDb,
-  alarmsDb
+  alarmsDb,
+  complaints
 };

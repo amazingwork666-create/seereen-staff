@@ -11,7 +11,7 @@ let archiver;
 try { archiver = require('archiver'); } catch (e) {}
 let DatabaseSync;
 try { DatabaseSync = require('node:sqlite').DatabaseSync; } catch (e) {}
-const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb, buttonClicks, customGroups, pollsDb, alarmsDb } = require('./db');
+const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb, buttonClicks, customGroups, pollsDb, alarmsDb, complaints } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 4000;
@@ -757,24 +757,120 @@ function triggerQuestionReveal(questionId) {
     tag: 'question-reveal-' + q.id,
     data: { url: '/' }
   });
+
+  // Automatic warning for students who missed 5 consecutive questions
+  try {
+    for (const student of nonResponding) {
+      const sId = student.id || student.user_id;
+      if (!sId) continue;
+      const missedStreak = questions.getStudentConsecutiveMissedCount(sId, 5);
+      if (missedStreak >= 5) {
+        const u = users.findById(sId);
+        const now = Date.now();
+        const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+        if (u && (!u.last_question_warn_at || (now - u.last_question_warn_at > THREE_DAYS_MS))) {
+          db.prepare('UPDATE users SET last_question_warn_at = ?, last_warned_missed_count = ? WHERE id = ?').run(now, missedStreak, u.id);
+
+          const warnText = `ئاگاداری لە بەڕێوەبەرایەتی پلاتفۆرمی سیرین ⚠️:\n\nخوێندکاری بەڕێز (${u.full_name})،\nسەرنجمان داوە کە ٥ پرسیاری لەسەریەکە لە گروپ چاتدا وەڵامت نەداوەتەوە و لە چالاکییەکان بەشدار نەبوویت.\nتکایە بەشداربە لە وەڵامدانەوەی پرسیارە نوێیەکان بۆ ئەوەی لە کۆکردنەوەی ئەستێرە و ڕیزبەندی پێشەنگەکان دانەبڕێیت و ئەکاونتەکەت بە چالاکی بمێنێتەوە 🌸✨`;
+
+          privateMessages.create(
+            q.admin_id,
+            u.id,
+            'بەڕێوەبەرایەتی سیرین',
+            'super_admin',
+            warnText,
+            'text'
+          );
+
+          io.to(`user_${u.id}`).emit('question_warning_notification', {
+            user_id: u.id,
+            missed_count: missedStreak,
+            message: warnText
+          });
+
+          sendPushNotificationToUser(u.id, {
+            title: 'ئاگاداری بەشدارینەکردن لە پرسیارەکان ⚠️',
+            body: `خوێندکاری بەڕێز ${u.full_name}، ٥ پرسیارە وەڵامت نەداوەتەوە، تکایە بەشداربە لە وەڵامدانەوە.`,
+            tag: 'missed-question-warning-' + u.id,
+            data: { url: '/' }
+          });
+          console.log(`[Warning Alert] Sent 5-missed-question warning to student ${u.id} (${u.full_name})`);
+        }
+      }
+    }
+  } catch (warnErr) {
+    console.error('Error sending question non-response warnings:', warnErr);
+  }
 }
 
-// Periodic check every 3 seconds to ensure any scheduled question reveals immediately when deadline expires
+// Function to automatically publish a scheduled question when its time arrives
+function triggerQuestionPublish(questionId) {
+  const q = questions.findById(questionId);
+  if (!q || q.is_published) return;
+
+  const updatedQ = questions.publishNow(questionId);
+  if (!updatedQ) return;
+
+  setupQuestionTimer(updatedQ);
+
+  const msgContent = JSON.stringify({
+    question_id: updatedQ.id,
+    question_number: updatedQ.question_number || 1,
+    question_text: updatedQ.question_text,
+    admin_name: updatedQ.admin_name,
+    duration_minutes: updatedQ.duration_minutes,
+    expires_at: updatedQ.expires_at,
+    has_model_answer: !!updatedQ.correct_answer
+  });
+
+  const questionMsg = messages.create(
+    updatedQ.admin_id,
+    updatedQ.admin_name,
+    updatedQ.admin_name,
+    'admin',
+    msgContent,
+    'question',
+    updatedQ.id
+  );
+
+  io.emit('new_question', {
+    question: updatedQ,
+    message: questionMsg
+  });
+
+  sendPushNotificationToAll({
+    title: `📢 پرسیاری نوێ (${updatedQ.question_number ? 'ژمارە ' + updatedQ.question_number : ''}) بڵاوکرایەوە!`,
+    body: `${updatedQ.question_text.slice(0, 90)}... ئێستا دەتوانیت وەڵامەکەت بنووسیت`,
+    tag: 'new-question-' + updatedQ.id,
+    data: { url: '/' }
+  });
+
+  console.log(`[Scheduled Question] Auto-published question #${updatedQ.id} (${updatedQ.question_text.slice(0, 30)})`);
+}
+
+// Periodic check every 3 seconds for expired questions and scheduled questions to publish
 setInterval(() => {
   try {
-    const expiredQuestions = db.prepare('SELECT id FROM questions WHERE is_active = 1 AND is_revealed = 0 AND expires_at > 0 AND expires_at <= ?').all(Date.now());
+    const now = Date.now();
+    // 1. Reveal expired questions
+    const expiredQuestions = db.prepare('SELECT id FROM questions WHERE is_active = 1 AND is_revealed = 0 AND is_published = 1 AND expires_at > 0 AND expires_at <= ?').all(now);
     for (const q of expiredQuestions) {
       triggerQuestionReveal(q.id);
+    }
+    // 2. Publish scheduled questions whose publish time has arrived
+    const scheduledToPublish = db.prepare('SELECT id FROM questions WHERE is_published = 0 AND publish_at > 0 AND publish_at <= ?').all(now);
+    for (const sq of scheduledToPublish) {
+      triggerQuestionPublish(sq.id);
     }
   } catch (err) {
     console.error('Error in question timer interval:', err);
   }
 }, 3000);
 
-// On startup: check if active questions exist and setup timers
+// On startup: check if active published questions exist and setup timers
 setTimeout(() => {
   try {
-    const allActive = db.prepare('SELECT * FROM questions WHERE is_active = 1 AND is_revealed = 0').all();
+    const allActive = db.prepare('SELECT * FROM questions WHERE is_active = 1 AND is_revealed = 0 AND is_published = 1').all();
     for (const q of allActive) {
       setupQuestionTimer(q);
     }
@@ -1370,7 +1466,7 @@ app.get('/api/advisor/overview', authMiddleware, requireAiAdvisorAccess, async (
       title: `قەڵغانی پاراستنی زیرەک (${secStats.safetyRating} سەلامەت)`,
       text: `سیستەمی فلتەری دەقی فێڵاوی کوردی و دژە-ڕەید چالاکن. تا ئێستا ${secStats.totalBlocked} هەوڵی نایاسایی تێکشکێنراون و دۆخی چات پارێزراوە.`,
       action: 'ai_security',
-      actionText: 'ژووری ئۆپەراسیۆن'
+      actionText: 'قەڵغانی بەرگری'
     });
 
     suggestions.push({
@@ -4357,27 +4453,36 @@ app.get('/api/chat/active-question', authMiddleware, (req, res) => {
   });
 });
 
-// 13. Post Question with Timer (Admin & Super Admin)
+// 13. Post Question with Timer or Schedule for Future (Admin & Super Admin)
 app.post('/api/chat/question', authMiddleware, requireAdmin, (req, res) => {
-  const { question_text, correct_answer, duration_minutes = 5, custom_expires_at } = req.body;
+  const { question_text, correct_answer, duration_minutes = 5, custom_expires_at, publish_at } = req.body;
   if (!question_text || !question_text.trim()) {
     return res.status(400).json({ error: 'تکایە دەقی پرسیار بنووسە' });
   }
 
-  // NOTE: We do NOT close previous questions so all questions of the day stay pinned/tagged at the top!
+  let cleanPublishAt = 0;
+  let isScheduled = false;
+  if (publish_at) {
+    const pubTime = Number(publish_at);
+    if (!isNaN(pubTime) && pubTime > Date.now()) {
+      cleanPublishAt = pubTime;
+      isScheduled = true;
+    }
+  }
 
+  const baseTime = isScheduled ? cleanPublishAt : Date.now();
   let finalExpiresAt = null;
   let finalDurationMinutes = Math.max(1, parseInt(duration_minutes) || 5);
 
   if (custom_expires_at) {
     const customTime = Number(custom_expires_at);
-    if (isNaN(customTime) || customTime <= Date.now()) {
-      return res.status(400).json({ error: 'تکایە بەروار و کاتێکی داهاتوو دیاری بکە کە لە کاتی ئێستا درەنگتر بێت' });
+    if (isNaN(customTime) || customTime <= baseTime) {
+      return res.status(400).json({ error: isScheduled ? 'تکایە کاتی تەواوبوونی پرسیار دوای کاتی بڵاوبوونەوەی دیاری بکە' : 'تکایە بەروار و کاتێکی داهاتوو دیاری بکە کە لە کاتی ئێستا درەنگتر بێت' });
     }
     finalExpiresAt = customTime;
-    finalDurationMinutes = Math.max(1, Math.round((finalExpiresAt - Date.now()) / (60 * 1000)));
+    finalDurationMinutes = Math.max(1, Math.round((finalExpiresAt - baseTime) / (60 * 1000)));
   } else {
-    finalExpiresAt = Date.now() + (finalDurationMinutes * 60 * 1000);
+    finalExpiresAt = baseTime + (finalDurationMinutes * 60 * 1000);
   }
 
   const q = questions.create(
@@ -4386,8 +4491,19 @@ app.post('/api/chat/question', authMiddleware, requireAdmin, (req, res) => {
     question_text.trim(),
     correct_answer || null,
     finalDurationMinutes,
-    finalExpiresAt
+    finalExpiresAt,
+    cleanPublishAt
   );
+
+  if (isScheduled) {
+    io.emit('question_scheduled', { question: q });
+    return res.status(201).json({
+      success: true,
+      question: q,
+      scheduled: true,
+      message: 'پرسیارەکە بە سەرکەوتوویی میقاتکرا بۆ بڵاوبوونەوە لە کاتی دیاریکراودا 📅'
+    });
+  }
 
   setupQuestionTimer(q);
 
@@ -4425,6 +4541,149 @@ app.post('/api/chat/question', authMiddleware, requireAdmin, (req, res) => {
   }, req.user.id);
 
   res.status(201).json({ success: true, question: q, message: questionMsg });
+});
+
+// Endpoint to publish a scheduled question immediately on demand
+app.post('/api/chat/question/:id/publish-now', authMiddleware, requireAdmin, (req, res) => {
+  const qId = parseInt(req.params.id);
+  const q = questions.findById(qId);
+  if (!q) return res.status(404).json({ error: 'پرسیار نەدۆزرایەوە' });
+  if (q.is_published) return res.status(400).json({ error: 'ئەم پرسیارە پێشتر بڵاوکراوەتەوە' });
+  triggerQuestionPublish(q.id);
+  res.json({ success: true, message: 'پرسیارەکە دەستبەجێ بڵاوکرایەوە ✨' });
+});
+
+// Endpoint to get all scheduled questions
+app.get('/api/chat/questions/scheduled', authMiddleware, requireAdmin, (req, res) => {
+  const scheduled = questions.getScheduledQuestions();
+  res.json({ scheduled });
+});
+
+// =========================================================================
+// COMPLAINTS BOX (سندووقی سکاڵا بە پاراستنی ناوی سکاڵاکار)
+// =========================================================================
+
+// 1. Submit a complaint (Any logged-in user)
+app.post('/api/complaints', authMiddleware, (req, res) => {
+  try {
+    const { subject = '', content } = req.body;
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'تکایە دەقی سکاڵا یان سەرنجەکەت بنووسە' });
+    }
+
+    // Check for bad words with AI security
+    const nlpCheck = aiSecurity.scanText(content);
+    if (nlpCheck.hasBadWord) {
+      aiSecurity.logIncident('bad_word', req.user.id, req.user.full_name, `وشەی قەدەغەکراو لە سکاڵا: "${nlpCheck.matched}"`, 'medium', 'blocked');
+      return res.status(400).json({ error: 'تکایە دەستەواژەی شیاو و ڕێزدار بەکاربهێنە.' });
+    }
+
+    const complaint = complaints.create(
+      req.user.id,
+      req.user.username,
+      req.user.full_name,
+      req.user.role,
+      subject,
+      content
+    );
+
+    // Notify staff via Socket.IO
+    io.emit('new_complaint_alert', {
+      id: complaint.id,
+      subject: complaint.subject,
+      created_at: complaint.created_at
+    });
+
+    // Send push notification
+    sendPushNotificationToAll({
+      title: '📬 پەیامێکی نوێ لە سندووقی سکاڵا تۆمارکرا',
+      body: `سەرنج یان سکاڵایەکی نوێ گەیشتە سندووقی سکاڵا: "${(subject || content).slice(0, 60)}..."`,
+      tag: 'new-complaint-' + complaint.id,
+      data: { url: '/?action=complaints' }
+    });
+
+    res.status(201).json({
+      success: true,
+      complaintId: complaint.id,
+      message: 'سەرنج یان سکاڵاکەت بە سەرکەوتوویی تۆمارکرا. ناوت بە تەواوی پارێزراوە لە هەمووان.'
+    });
+  } catch (err) {
+    console.error('Error submitting complaint:', err);
+    res.status(500).json({ error: 'هەڵە لە تۆمارکردنی سکاڵا' });
+  }
+});
+
+// 2. Get Complaints (Only Master Super Admin Kak Hemn & Teachers)
+app.get('/api/complaints', authMiddleware, (req, res) => {
+  try {
+    const isMaster = isMasterSuperAdmin(req.user);
+    const isTeacher = req.user.role === 'teacher';
+    const isStaff = isMaster || isTeacher || req.user.role === 'super_admin';
+
+    if (!isStaff) {
+      return res.status(403).json({ error: 'دەسەڵاتی بینینی سندووقی سکاڵات نییە' });
+    }
+
+    const all = complaints.getAll();
+
+    // Privacy rule: Only Kak Hemn sees real complainant identities!
+    // Teachers see anonymized name!
+    const sanitized = all.map(c => {
+      if (isMaster) {
+        return c; // Kak Hemn sees full name, username, user_id
+      } else {
+        return {
+          id: c.id,
+          user_id: null,
+          username: '***',
+          full_name: 'بەکارهێنەری پارێزراو (نەناسراو)',
+          role: 'student',
+          subject: c.subject,
+          content: c.content,
+          status: c.status,
+          created_at: c.created_at
+        };
+      }
+    });
+
+    res.json({ complaints: sanitized, isMaster });
+  } catch (err) {
+    console.error('Error fetching complaints:', err);
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی سکاڵاکان' });
+  }
+});
+
+// 3. Update Complaint Status (Resolve / Pending)
+app.patch('/api/complaints/:id/status', authMiddleware, (req, res) => {
+  try {
+    const isMaster = isMasterSuperAdmin(req.user);
+    const isTeacher = req.user.role === 'teacher';
+    if (!isMaster && !isTeacher && req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'دەسەڵاتت نییە' });
+    }
+    const { status } = req.body;
+    if (!['pending', 'resolved', 'dismissed'].includes(status)) {
+      return res.status(400).json({ error: 'دۆخی نادروست' });
+    }
+    const updated = complaints.updateStatus(parseInt(req.params.id), status);
+    res.json({ success: true, complaint: updated });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە نوێکردنەوەی دۆخی سکاڵا' });
+  }
+});
+
+// 4. Delete Complaint (Master Super Admin only)
+app.delete('/api/complaints/:id', authMiddleware, (req, res) => {
+  try {
+    const isMaster = isMasterSuperAdmin(req.user);
+    if (!isMaster && req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'تەنها کاک هێمن دەتوانێت سکاڵا بسڕێتەوە' });
+    }
+    complaints.delete(parseInt(req.params.id));
+    res.json({ success: true, message: 'سکاڵاکە بە سەرکەوتوویی سڕایەوە' });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە سڕینەوەی سکاڵا' });
+  }
 });
 
 // 14. Student Submits Secret Answer (Hidden from other students until timer expires! Supports editing)

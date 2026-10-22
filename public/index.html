@@ -735,11 +735,20 @@
               <span id="drawerPendingBadgeCount" class="hidden px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
             </button>
 
-            <!-- AI Security Command Center (Super Admin Only) -->
+            <!-- Complaints Box (All Users) -->
+            <button onclick="closeMainMenuDrawer(); openComplaintsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-amber-500/30 text-amber-300 hover:text-white transition shadow-sm">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-envelope-open-text text-amber-400 text-sm w-5 text-center"></i>
+                <span class="font-bold text-xs sm:text-sm">سندووقی سکاڵا 📬</span>
+              </span>
+              <span id="drawerComplaintsBadge" class="hidden px-2 py-0.5 bg-amber-500/30 text-amber-300 text-[10px] font-black rounded-full border border-amber-500/40">نوێ</span>
+            </button>
+
+            <!-- AI Security Command Center (Defense Shield / قەڵغانی بەرگری) -->
             <button id="drawerAiSecurityBtn" onclick="closeMainMenuDrawer(); openAiSecurityModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-rose-950/40 to-indigo-950/40 hover:from-rose-900/60 hover:to-indigo-900/60 border border-rose-500/40 text-rose-200 hover:text-white transition shadow-sm">
               <span class="flex items-center gap-2.5">
                 <i class="fa-solid fa-shield-virus text-rose-400 text-sm w-5 text-center"></i>
-                <span class="font-bold">ژووری ئۆپەراسیۆنی پاراستن (AI Guard)</span>
+                <span class="font-bold">قەڵغانی بەرگری (AI Guard)</span>
               </span>
               <span id="drawerAiSecurityBadge" class="px-2 py-0.5 bg-rose-500/80 text-white text-[10px] font-black rounded-full animate-pulse">چاودێری</span>
             </button>
@@ -1882,6 +1891,36 @@
 
         <!-- Timing Mode Selector (Quick Minutes vs Specific Date & Time) -->
         <div>
+          <!-- Question Publish Time Mode (Immediate vs Scheduled) -->
+          <div class="p-3 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-2 mb-3">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-clock-rotate-left text-amber-400"></i>
+                <span>کاتی بڵاوبوونەوەی پرسیار لە گروپ</span>
+              </label>
+              <div class="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-750">
+                <button type="button" id="publishModeNowBtn" onclick="setPublishScheduleMode('now')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-500 text-slate-950 shadow transition">
+                  دەستبەجێ ⚡
+                </button>
+                <button type="button" id="publishModeScheduleBtn" onclick="setPublishScheduleMode('schedule')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-transparent text-slate-400 hover:text-white transition">
+                  میقاتکردن 📅
+                </button>
+              </div>
+            </div>
+            
+            <div id="publishScheduleSection" class="hidden space-y-2 pt-1.5 border-t border-slate-800/80">
+              <p class="text-[10px] text-slate-400 leading-relaxed">
+                پرسیارەکە دەمێنێتەوە تا ئەم کات و بەروارە دێت، پاشان خۆکارانە لە گروپ چاتدا بڵاودەبێتەوە و کاتی وەڵامدانەوە دەستپێدەکات.
+              </p>
+              <input type="datetime-local" id="questionPublishDateTime" class="w-full p-2.5 bg-slate-800 border border-amber-500/60 rounded-xl text-sm focus:outline-none text-white font-mono">
+              <div class="flex flex-wrap gap-1.5 pt-0.5">
+                <button type="button" onclick="setQuickPublishPreset('tomorrow_10')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-[10px] font-bold">☀️ سبەی ١٠:٠٠ بەیانی</button>
+                <button type="button" onclick="setQuickPublishPreset('tomorrow_19')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-[10px] font-bold">🌅 سبەی ٧:٠٠ ئێوارە</button>
+                <button type="button" onclick="setQuickPublishPreset('plus_2days')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-[10px] font-bold">⏳ دوای ٢ ڕۆژ</button>
+              </div>
+            </div>
+          </div>
+
           <label class="block text-xs font-bold text-slate-300 mb-1.5">دیاریکردنی تەوقیتی وەڵامدانەوە</label>
           <div class="grid grid-cols-2 gap-2 mb-2.5">
             <button 
@@ -3862,13 +3901,13 @@
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              <h3 class="font-black text-xs sm:text-base text-white truncate">ژووری ئۆپەراسیۆنی پاراستن</h3>
+              <h3 class="font-black text-xs sm:text-base text-white truncate">قەڵغانی بەرگری</h3>
               <span class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span>AI Guard v2.0</span>
               </span>
             </div>
-            <p class="text-[10px] sm:text-[11px] text-slate-300 hidden sm:block truncate">چاودێری و تێکشکاندنی هەڕەشەکان، دژە-فێڵ و قەڵغانی نائاسایی</p>
+            <p class="text-[10px] sm:text-[11px] text-slate-300 hidden sm:block truncate">چاودێری و تێکشکاندنی هەڕەشەکان، دژە-فێڵ و قەڵغانی بەرگری</p>
           </div>
         </div>
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -4008,6 +4047,100 @@
           <span>پاراستنی کۆتایی-بۆ-کۆتایی لەلایەن ژیری دەستکردی سیرین</span>
         </span>
         <button onclick="closeAiSecurityModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700 transition">
+          داخستن
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: COMPLAINTS & FEEDBACK BOX (سندووقی سکاڵا) ================= -->
+  <div id="complaintsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="w-full max-w-2xl max-h-[92dvh] sm:max-h-[85vh] bg-slate-900 border border-amber-500/40 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="p-3 sm:p-4 bg-gradient-to-r from-amber-950/60 via-slate-900 to-indigo-950/60 border-b border-amber-500/30 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-base sm:text-lg shrink-0 shadow-lg shadow-amber-950/50">
+            <i class="fa-solid fa-envelope-open-text"></i>
+          </div>
+          <div class="min-w-0 flex-1">
+            <h3 class="font-black text-xs sm:text-base text-white truncate">سندووقی سکاڵا و سەرنجەکان 📬</h3>
+            <p class="text-[10px] sm:text-[11px] text-amber-300/80 truncate">بەشی پارێزراوی ناردنی ڕەخنە، پێشنیار و سکاڵا</p>
+          </div>
+        </div>
+        <button onclick="closeComplaintsModal()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-xs sm:text-sm border border-slate-700 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Navigation Tabs (Only shown for Staff: Master Super Admin & Teachers) -->
+      <div id="complaintsStaffTabs" class="hidden flex items-center gap-1 p-2 bg-slate-950/80 border-b border-slate-800 shrink-0">
+        <button id="complaintsTabListBtn" onclick="switchComplaintsTab('list')" class="flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-amber-500 text-slate-950 shadow">
+          <i class="fa-solid fa-inbox text-xs"></i>
+          <span>سکاڵاکانی گەیشتوو</span>
+          <span id="complaintsCountBadge" class="px-1.5 py-0.2 bg-slate-900 text-amber-400 rounded-full text-[10px] font-mono font-bold">0</span>
+        </button>
+        <button id="complaintsTabNewBtn" onclick="switchComplaintsTab('new')" class="flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white bg-transparent">
+          <i class="fa-solid fa-pen text-xs"></i>
+          <span>ناردنی پەیامی نوێ</span>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
+        
+        <!-- SECTION 1: Complaints List View (Staff Only) -->
+        <div id="complaintsListSection" class="hidden space-y-2.5">
+          <div class="flex items-center justify-between text-xs pb-1 border-b border-slate-800">
+            <span id="complaintsPrivacyNotice" class="text-[11px] text-slate-400 font-medium">لیستی سکاڵا تۆمارکراوەکان</span>
+            <button onclick="loadComplaintsList()" class="text-amber-400 hover:text-amber-300 text-xs font-bold flex items-center gap-1 transition">
+              <i class="fa-solid fa-rotate-right text-[11px]"></i>
+              <span>نوێکردنەوە</span>
+            </button>
+          </div>
+          <div id="complaintsListContainer" class="space-y-2">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- SECTION 2: Submit Complaint Form (All Users) -->
+        <div id="complaintsFormSection" class="space-y-3">
+          <div class="p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 to-indigo-500/10 border border-amber-500/30 flex items-start gap-2.5">
+            <i class="fa-solid fa-user-shield text-amber-400 text-lg shrink-0 mt-0.5"></i>
+            <div class="text-xs text-slate-200 leading-relaxed">
+              <span class="font-bold text-amber-300 block mb-0.5">دڵنیایی و پاراستنی نهێنی:</span>
+              <span>سەرنج، ڕەخنە و سکاڵاکەت بە تەواوی نهێنی دەمێنێتەوە و ناوت لە هەموو کەس دەپارێزرێت. تەنها کاک هێمن دەتوانێت ناوی ڕاستەقینەی سکاڵاکار ببینێت. بە دڵنیاییەوە بنووسە.</span>
+            </div>
+          </div>
+
+          <form onsubmit="handleSendComplaint(event)" class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">بابەتی سکاڵا (ئارەزوومەندانە):</label>
+              <input type="text" id="complaintSubjectInput" placeholder="نموونە: کێشە لە وانەکان، پێشنیار بۆ چات..." class="w-full p-2.5 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl text-xs sm:text-sm text-white focus:outline-none transition">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">دەقی سکاڵا یان سەرنجەکەت: <span class="text-rose-400">*</span></label>
+              <textarea id="complaintContentInput" rows="5" required placeholder="سکاڵاکەت بە تەواوی لێرە بنووسە..." class="w-full p-3 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl text-xs sm:text-sm text-white focus:outline-none transition leading-relaxed resize-none"></textarea>
+            </div>
+
+            <button type="submit" id="submitComplaintBtn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs sm:text-sm transition shadow-lg shadow-amber-950 active:scale-98 flex items-center justify-center gap-2">
+              <i class="fa-solid fa-paper-plane text-xs"></i>
+              <span>ناردنی سکاڵا بۆ سندووق</span>
+            </button>
+          </form>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-3 bg-slate-950/80 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 shrink-0">
+        <span class="flex items-center gap-1.5">
+          <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+          <span>پارێزراوە بە سیستەمی ئەمنیی سیرین</span>
+        </span>
+        <button onclick="closeComplaintsModal()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl transition">
           داخستن
         </button>
       </div>
@@ -4368,6 +4501,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=22.5"></script>
+  <script src="/js/app.js?v=22.6"></script>
 </body>
 </html>

@@ -2947,20 +2947,49 @@ function appendMessage(msg, scroll = true) {
             </p>
           </div>
 
-          <div class="mb-2">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-black text-slate-200 flex items-center gap-1.5">
-                <i class="fa-solid fa-list-check text-emerald-400"></i>
-                <span>وەڵامە وەرگیراوەکانی قوتابیان:</span>
+          <!-- Official Correct Answer by Teacher (Prominent at top) -->
+          ${modelAnswerHtml}
+
+          <!-- Toggle Participant Submissions Button & Collapsible List -->
+          <div class="mt-3">
+            <button 
+              type="button" 
+              id="revealed-subs-toggle-btn-${payload.question_id}" 
+              onclick="toggleRevealedSubmissions(${payload.question_id})" 
+              data-count="${subs.length}"
+              class="w-full py-2.5 px-4 bg-slate-800/90 hover:bg-slate-750 text-indigo-300 hover:text-white border border-indigo-500/40 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center justify-between shadow-md active:scale-98"
+            >
+              <span class="flex items-center gap-2">
+                <i class="fa-solid fa-users text-indigo-400"></i>
+                <span id="revealed-subs-btn-text-${payload.question_id}">وەڵامی بەشداربووان (${subs.length} قوتابی)</span>
               </span>
-              ${isSuperAdmin ? '<span class="text-[11px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">تەنها ئەدمین دەتوانێت وەڵامی دروست دیاری بکات و ئەستێرە ببەخشێت ⭐</span>' : ''}
-            </div>
-            <div class="space-y-2">
-              ${submissionsHtml}
+              <span class="flex items-center gap-1.5 text-xs text-indigo-400 font-normal">
+                <span>پیشاندان</span>
+                <i id="revealed-subs-btn-icon-${payload.question_id}" class="fa-solid fa-chevron-down text-xs transition-transform duration-200"></i>
+              </span>
+            </button>
+            
+            <!-- Collapsible Submissions Container (Hidden by default to save space) -->
+            <div id="revealed-subs-list-${payload.question_id}" class="hidden space-y-2 mt-2.5 pt-1 border-t border-indigo-500/20">
+              <div class="flex items-center justify-between mb-1.5 pt-1">
+                <span class="text-[11px] font-bold text-slate-300">هەموو وەڵامە وەرگیراوەکان:</span>
+                ${isSuperAdmin ? '<span class="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">دیاریکردنی ڕاست ⭐ و هەڵە ❌</span>' : ''}
+              </div>
+              <div class="space-y-2">
+                ${submissionsHtml}
+              </div>
+
+              <!-- Bottom Collapse Button (as requested by user) -->
+              <button 
+                type="button" 
+                onclick="toggleRevealedSubmissions(${payload.question_id})" 
+                class="w-full mt-2.5 py-2 px-3 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 active:scale-98"
+              >
+                <i class="fa-solid fa-chevron-up text-xs text-rose-400"></i>
+                <span>شاردنەوەی وەڵامەکان (تەنها وەڵامی ڕاست پیشان بدە)</span>
+              </button>
             </div>
           </div>
-
-          ${modelAnswerHtml}
 
           ${nonRespondingHtml}
         </div>
@@ -5469,9 +5498,74 @@ async function closeCurrentQuestion() {
 // --- POST QUESTION MODAL (QUICK TIME & CUSTOM DATE/TIME) ---
 let questionTimeMode = 'quick';
 
+// Toggle participant submissions (Compact Answer View requested by user)
+function toggleRevealedSubmissions(qId) {
+  const listEl = document.getElementById(`revealed-subs-list-${qId}`);
+  const btnIcon = document.getElementById(`revealed-subs-btn-icon-${qId}`);
+  if (!listEl) return;
+
+  const isHidden = listEl.classList.contains('hidden');
+  if (isHidden) {
+    listEl.classList.remove('hidden');
+    if (btnIcon) {
+      btnIcon.classList.remove('fa-chevron-down');
+      btnIcon.classList.add('fa-chevron-up');
+    }
+  } else {
+    listEl.classList.add('hidden');
+    if (btnIcon) {
+      btnIcon.classList.remove('fa-chevron-up');
+      btnIcon.classList.add('fa-chevron-down');
+    }
+  }
+}
+
+let questionPublishMode = 'now';
+
+function setPublishScheduleMode(mode) {
+  questionPublishMode = mode;
+  const nowBtn = document.getElementById('publishModeNowBtn');
+  const schedBtn = document.getElementById('publishModeScheduleBtn');
+  const schedSection = document.getElementById('publishScheduleSection');
+
+  if (!nowBtn || !schedBtn || !schedSection) return;
+
+  if (mode === 'schedule') {
+    schedBtn.className = 'px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-500 text-slate-950 shadow transition';
+    nowBtn.className = 'px-2.5 py-1 text-[11px] font-bold rounded-lg bg-transparent text-slate-400 hover:text-white transition';
+    schedSection.classList.remove('hidden');
+    const input = document.getElementById('questionPublishDateTime');
+    if (input && !input.value) {
+      setQuickPublishPreset('tomorrow_10');
+    }
+  } else {
+    nowBtn.className = 'px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-500 text-slate-950 shadow transition';
+    schedBtn.className = 'px-2.5 py-1 text-[11px] font-bold rounded-lg bg-transparent text-slate-400 hover:text-white transition';
+    schedSection.classList.add('hidden');
+  }
+}
+
+function setQuickPublishPreset(preset) {
+  const input = document.getElementById('questionPublishDateTime');
+  if (!input) return;
+  const d = new Date();
+  if (preset === 'tomorrow_10') {
+    d.setDate(d.getDate() + 1);
+    d.setHours(10, 0, 0, 0);
+  } else if (preset === 'tomorrow_19') {
+    d.setDate(d.getDate() + 1);
+    d.setHours(19, 0, 0, 0);
+  } else if (preset === 'plus_2days') {
+    d.setDate(d.getDate() + 2);
+    d.setHours(12, 0, 0, 0);
+  }
+  input.value = formatDateTimeLocal(d);
+}
+
 function openPostQuestionModal() {
   const modal = document.getElementById('questionModal');
   if (modal) modal.classList.remove('hidden');
+  setPublishScheduleMode('now');
   switchTimeMode('quick');
   if (window.innerWidth > 768) {
     const input = document.getElementById('questionTextInput');
@@ -5486,6 +5580,9 @@ function closePostQuestionModal() {
   if (dtInput) dtInput.value = '';
   const caInput = document.getElementById('questionCorrectAnswerInput');
   if (caInput) caInput.value = '';
+  const pubInput = document.getElementById('questionPublishDateTime');
+  if (pubInput) pubInput.value = '';
+  setPublishScheduleMode('now');
 }
 
 function switchTimeMode(mode) {
@@ -5565,6 +5662,21 @@ async function handlePostQuestion(e) {
     payload.correct_answer = caInput.value.trim();
   }
 
+  // Check if scheduled publishing is chosen
+  if (questionPublishMode === 'schedule') {
+    const pubVal = document.getElementById('questionPublishDateTime').value;
+    if (!pubVal) {
+      alert('تکایە بەروار و کاتی بڵاوبوونەوەی پرسیارەکە دیاری بکە');
+      return;
+    }
+    const pubTime = new Date(pubVal).getTime();
+    if (isNaN(pubTime) || pubTime <= Date.now()) {
+      alert('تکایە بەروار و کاتێکی داهاتوو بۆ بڵاوکردنەوەی پرسیارەکە دیاری بکە کە لە کاتی ئێستا درەنگتر بێت');
+      return;
+    }
+    payload.publish_at = pubTime;
+  }
+
   if (questionTimeMode === 'custom') {
     const dtVal = document.getElementById('questionCustomDateTime').value;
     if (!dtVal) {
@@ -5590,10 +5702,15 @@ async function handlePostQuestion(e) {
       },
       body: JSON.stringify(payload)
     });
+    const data = await res.json();
     if (res.ok) {
       closePostQuestionModal();
+      if (data.is_scheduled) {
+        showLiveToastNotification('📅 پرسیارەکە بە سەرکەوتوویی میقات کرا و لە کاتی دیاریکراودا بڵاودەبێتەوە', 'emerald');
+      } else {
+        showLiveToastNotification('✅ پرسیارەکە دەستبەجێ لە گرووپ بڵاوکرایەوە', 'emerald');
+      }
     } else {
-      const data = await res.json();
       alert(data.error || 'هەڵە لە دانانی پرسیار');
     }
   } catch (err) {
@@ -18005,4 +18122,320 @@ if (typeof socket !== 'undefined' && socket) {
       loadCustomGroupMessages(groupId);
     }
   });
+
+  // Complaints Alert for Staff
+  socket.on('new_complaint_alert', (data) => {
+    const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+    if (isStaff) {
+      showLiveToastNotification(`📬 پەیامێکی نوێ لە سندووقی سکاڵا تۆمارکرا: "${(data?.subject || 'سکاڵای نوێ').slice(0, 30)}"`, 'amber');
+      const badge = document.getElementById('drawerComplaintsBadge');
+      if (badge) {
+        badge.classList.remove('hidden');
+        badge.innerText = 'نوێ';
+      }
+      const modal = document.getElementById('complaintsModal');
+      if (modal && !modal.classList.contains('hidden')) {
+        loadComplaintsList();
+      }
+    }
+  });
+
+  // 5 Consecutive Missed Questions Warning
+  socket.on('question_warning_notification', (data) => {
+    if (data && (!data.user_id || (currentUser && currentUser.id === data.user_id))) {
+      showStudentWarningAlert(data);
+    }
+  });
+}
+
+// =========================================================================
+// COMPLAINTS & FEEDBACK BOX (سندووقی سکاڵا) & STUDENT WARNINGS
+// =========================================================================
+let currentComplaintsList = [];
+let isMasterSuperAdminUser = false;
+
+function openComplaintsModal() {
+  const modal = document.getElementById('complaintsModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  const isStaff = currentUser && (
+    currentUser.role === 'super_admin' || 
+    currentUser.role === 'teacher' || 
+    currentUser.role === 'admin' ||
+    (typeof hasSuperAdminPrivileges === 'function' && hasSuperAdminPrivileges(currentUser))
+  );
+
+  const tabs = document.getElementById('complaintsStaffTabs');
+  if (isStaff) {
+    if (tabs) tabs.classList.remove('hidden');
+    switchComplaintsTab('list');
+  } else {
+    if (tabs) tabs.classList.add('hidden');
+    switchComplaintsTab('new');
+  }
+}
+
+function closeComplaintsModal() {
+  const modal = document.getElementById('complaintsModal');
+  if (modal) modal.classList.add('hidden');
+  const subj = document.getElementById('complaintSubjectInput');
+  if (subj) subj.value = '';
+  const cont = document.getElementById('complaintContentInput');
+  if (cont) cont.value = '';
+}
+
+function switchComplaintsTab(tab) {
+  const listBtn = document.getElementById('complaintsTabListBtn');
+  const newBtn = document.getElementById('complaintsTabNewBtn');
+  const listSec = document.getElementById('complaintsListSection');
+  const formSec = document.getElementById('complaintsFormSection');
+
+  if (tab === 'list') {
+    if (listBtn) listBtn.className = 'flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-amber-500 text-slate-950 shadow';
+    if (newBtn) newBtn.className = 'flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white bg-transparent';
+    if (listSec) listSec.classList.remove('hidden');
+    if (formSec) formSec.classList.add('hidden');
+    loadComplaintsList();
+  } else {
+    if (newBtn) newBtn.className = 'flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-amber-500 text-slate-950 shadow';
+    if (listBtn) listBtn.className = 'flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white bg-transparent';
+    if (formSec) formSec.classList.remove('hidden');
+    if (listSec) listSec.classList.add('hidden');
+  }
+}
+
+async function loadComplaintsList() {
+  const container = document.getElementById('complaintsListContainer');
+  const badge = document.getElementById('complaintsCountBadge');
+  const notice = document.getElementById('complaintsPrivacyNotice');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="py-8 text-center text-slate-400">
+      <i class="fa-solid fa-spinner fa-spin text-xl text-amber-400 mb-2"></i>
+      <p class="text-xs">بارکردنی سکاڵاکان...</p>
+    </div>
+  `;
+
+  try {
+    const res = await fetch('/api/complaints', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) {
+      container.innerHTML = `<div class="p-4 text-center text-xs text-rose-400">دەسەڵاتی بینینی سکاڵاکانت نییە.</div>`;
+      return;
+    }
+    const data = await res.json();
+    currentComplaintsList = data.complaints || [];
+    isMasterSuperAdminUser = !!data.isMaster;
+
+    if (badge) badge.innerText = currentComplaintsList.length;
+
+    if (notice) {
+      if (isMasterSuperAdminUser) {
+        notice.innerHTML = '<span class="text-amber-300 font-bold">دەسەڵاتی باڵا (کاک هێمن):</span> ناوی ڕاستەقینەی هەموو سکاڵاکاران ئاشکرایە.';
+      } else {
+        notice.innerHTML = '<span class="text-indigo-300 font-bold">مامۆستا:</span> ناسنامەی سکاڵاکار پارێزراوە بەپێی یاسای ئەمنی.';
+      }
+    }
+
+    if (currentComplaintsList.length === 0) {
+      container.innerHTML = `
+        <div class="py-10 text-center text-slate-500 space-y-2">
+          <i class="fa-solid fa-envelope-circle-check text-3xl text-slate-600"></i>
+          <p class="text-xs font-bold text-slate-400">سندووقی سکاڵا بەتاڵە</p>
+          <p class="text-[11px] text-slate-500">هیچ سکاڵا و سەرنجێک لەم کاتەدا تۆمار نەکراوە.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = currentComplaintsList.map(c => {
+      const isResolved = c.status === 'resolved';
+      const statusBadge = isResolved 
+        ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1"><i class="fa-solid fa-check"></i> چارەسەرکراو</span>'
+        : '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1"><i class="fa-solid fa-clock"></i> لە چاوەڕوانیدا</span>';
+
+      const userDisplay = isMasterSuperAdminUser
+        ? `<div class="flex items-center gap-1.5"><span class="font-bold text-xs text-amber-300">${escapeHtml(c.full_name)}</span> <span class="text-[10px] text-slate-400 font-mono">(@${escapeHtml(c.username)})</span></div>`
+        : `<div class="flex items-center gap-1.5"><i class="fa-solid fa-shield-halved text-indigo-400 text-xs"></i><span class="font-bold text-xs text-slate-300">بەکارهێنەری پارێزراو</span></div>`;
+
+      const timeStr = new Date(c.created_at).toLocaleDateString('ku', { 
+        year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+      });
+
+      return `
+        <div class="p-3 bg-slate-950/80 rounded-2xl border ${isResolved ? 'border-emerald-500/30' : 'border-amber-500/30'} space-y-2 shadow-md">
+          <div class="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
+            ${userDisplay}
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-slate-400 font-mono">${timeStr}</span>
+              ${statusBadge}
+            </div>
+          </div>
+
+          ${c.subject ? `<div class="text-xs font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-tag text-amber-400 text-[10px]"></i><span>${escapeHtml(c.subject)}</span></div>` : ''}
+
+          <div class="text-xs text-slate-200 leading-relaxed bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 whitespace-pre-wrap select-text">
+            ${escapeHtml(c.content)}
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-1 border-t border-slate-800/60">
+            ${isResolved 
+              ? `<button type="button" onclick="toggleComplaintStatus(${c.id}, 'pending')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition flex items-center gap-1">
+                   <i class="fa-solid fa-arrow-rotate-left text-[10px]"></i>
+                   <span>گەڕاندنەوە بۆ چاوەڕوانی</span>
+                 </button>`
+              : `<button type="button" onclick="toggleComplaintStatus(${c.id}, 'resolved')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/30 transition flex items-center gap-1">
+                   <i class="fa-solid fa-check text-[10px]"></i>
+                   <span>دیاریکردن وەک چارەسەرکراو</span>
+                 </button>`
+            }
+            ${isMasterSuperAdminUser 
+              ? `<button type="button" onclick="deleteComplaintDirect(${c.id})" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 transition flex items-center gap-1">
+                   <i class="fa-solid fa-trash-can text-[10px]"></i>
+                   <span>سڕینەوە</span>
+                 </button>`
+              : ''
+            }
+          </div>
+        </div>
+      `;
+    }).join('');
+
+  } catch (err) {
+    container.innerHTML = `<div class="p-4 text-center text-xs text-rose-400">هەڵە لە وەرگرتنی سکاڵاکان.</div>`;
+  }
+}
+
+async function handleSendComplaint(e) {
+  e.preventDefault();
+  const subjInput = document.getElementById('complaintSubjectInput');
+  const contInput = document.getElementById('complaintContentInput');
+  const btn = document.getElementById('submitComplaintBtn');
+
+  const subject = subjInput ? subjInput.value.trim() : '';
+  const content = contInput ? contInput.value.trim() : '';
+
+  if (!content) {
+    alert('تکایە دەقی سکاڵاکەت بنووسە.');
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> <span>خەریکی تۆمارکردنە...</span>';
+  }
+
+  try {
+    const res = await fetch('/api/complaints', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ subject, content })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      if (subjInput) subjInput.value = '';
+      if (contInput) contInput.value = '';
+      showLiveToastNotification('📬 سکاڵاکەت بە سەرکەوتوویی و بە پارێزراوی تۆمارکرا', 'emerald');
+      alert('سەرنج یان سکاڵاکەت بە سەرکەوتوویی گەیشتە سندووقی سکاڵا. دڵنیابە ناوت بە تەواوی پارێزراوە لە هەمووان.');
+      
+      const isStaff = currentUser && (
+        currentUser.role === 'super_admin' || 
+        currentUser.role === 'teacher' || 
+        currentUser.role === 'admin'
+      );
+      if (isStaff) {
+        switchComplaintsTab('list');
+      } else {
+        closeComplaintsModal();
+      }
+    } else {
+      alert(data.error || 'هەڵە لە ناردنی سکاڵا');
+    }
+  } catch (err) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-paper-plane text-xs"></i> <span>ناردنی سکاڵا بۆ سندووق</span>';
+    }
+  }
+}
+
+async function toggleComplaintStatus(id, newStatus) {
+  try {
+    const res = await fetch(`/api/complaints/${id}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ status: newStatus })
+    });
+    if (res.ok) {
+      showLiveToastNotification('بارودۆخی سکاڵا نوێکرایەوە', 'emerald');
+      loadComplaintsList();
+    } else {
+      const data = await res.json();
+      alert(data.error || 'هەڵە لە گۆڕینی بارودۆخ');
+    }
+  } catch (err) {
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
+async function deleteComplaintDirect(id) {
+  if (!confirm('ئایا دڵنیایت لە سڕینەوەی یەکجارەکی ئەم سکاڵایە؟')) return;
+  try {
+    const res = await fetch(`/api/complaints/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      showLiveToastNotification('سکاڵاکە سڕایەوە', 'emerald');
+      loadComplaintsList();
+    } else {
+      const data = await res.json();
+      alert(data.error || 'هەڵە لە سڕینەوە');
+    }
+  } catch (err) {
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
+function showStudentWarningAlert(data) {
+  playSound('notification');
+  let modal = document.getElementById('studentWarningModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'studentWarningModal';
+    modal.className = 'fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in';
+    modal.innerHTML = `
+      <div class="w-full max-w-md bg-gradient-to-b from-slate-900 to-rose-950/40 border-2 border-rose-500/60 rounded-3xl p-5 shadow-2xl text-center space-y-4">
+        <div class="w-16 h-16 mx-auto rounded-3xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-3xl text-rose-400 animate-bounce">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <div>
+          <h3 class="text-base sm:text-lg font-black text-white">ئاگاداری بەڕێوەبەرایەتی سیرین</h3>
+          <p class="text-xs text-rose-300 mt-1 font-bold">بەشدارینەکردن لە ٥ پرسیاری لەسەریەک!</p>
+        </div>
+        <div id="studentWarningModalMsg" class="p-3 bg-slate-950/80 rounded-2xl border border-rose-500/30 text-xs sm:text-sm text-slate-200 leading-relaxed text-right whitespace-pre-wrap">
+        </div>
+        <button onclick="document.getElementById('studentWarningModal').classList.add('hidden')" class="w-full py-2.5 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-white font-black text-xs sm:text-sm rounded-xl transition shadow-lg shadow-rose-950 active:scale-98">
+          تێگەیشتم، بەشدار دەبم ✅
+        </button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  const msgEl = document.getElementById('studentWarningModalMsg');
+  if (msgEl) {
+    msgEl.innerText = data.message || 'خوێندکاری ئازیز، تۆ وەڵامی ٥ پرسیاری لەسەریەکت نەداوەتەوە. تکایە بەشدار بە لە پرسیارەکان بۆ ئەوەی دانەبڕێیت و لە فێربوون بەردەوام بیت!';
+  }
+  modal.classList.remove('hidden');
 }
