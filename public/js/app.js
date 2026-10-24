@@ -18621,12 +18621,10 @@ function openComplaintsModal() {
 
   if (isStaff) {
     if (tabs) tabs.classList.remove('hidden');
-    if (newBtn) newBtn.classList.add('hidden'); // Staff cannot submit complaints
-    if (formSec) formSec.classList.add('hidden');
-    if (listSec) listSec.classList.remove('hidden');
+    if (newBtn) newBtn.classList.remove('hidden');
     switchComplaintsTab('list');
   } else {
-    // Only students can submit complaints
+    // For students: directly show form, hide staff tabs and complaints list
     if (tabs) tabs.classList.add('hidden');
     if (listSec) listSec.classList.add('hidden');
     if (formSec) formSec.classList.remove('hidden');
@@ -18648,12 +18646,6 @@ function switchComplaintsTab(tab) {
   const listSec = document.getElementById('complaintsListSection');
   const formSec = document.getElementById('complaintsFormSection');
 
-  const isStaff = currentUser && (
-    currentUser.role === 'super_admin' || 
-    currentUser.role === 'teacher' || 
-    currentUser.role === 'admin'
-  );
-
   if (tab === 'list') {
     if (listBtn) listBtn.className = 'flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-amber-500 text-slate-950 shadow';
     if (newBtn) newBtn.className = 'flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white bg-transparent';
@@ -18661,7 +18653,6 @@ function switchComplaintsTab(tab) {
     if (formSec) formSec.classList.add('hidden');
     loadComplaintsList();
   } else {
-    if (isStaff) return; // Prevent staff from opening form
     if (newBtn) newBtn.className = 'flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-amber-500 text-slate-950 shadow';
     if (listBtn) listBtn.className = 'flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white bg-transparent';
     if (formSec) formSec.classList.remove('hidden');
@@ -18775,11 +18766,6 @@ async function loadComplaintsList() {
 
 async function handleSendComplaint(e) {
   e.preventDefault();
-  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
-  if (isStaff) {
-    alert('تەنها قوتابیان دەتوانن لە سندووقی سکاڵا بنووسن.');
-    return;
-  }
   const subjInput = document.getElementById('complaintSubjectInput');
   const contInput = document.getElementById('complaintContentInput');
   const btn = document.getElementById('submitComplaintBtn');

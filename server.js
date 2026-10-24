@@ -4567,22 +4567,20 @@ app.get('/api/chat/questions/scheduled', authMiddleware, requireAdmin, (req, res
 // COMPLAINTS BOX (سندووقی سکاڵا بە پاراستنی ناوی سکاڵاکار)
 // =========================================================================
 
-// 1. Submit a complaint (Students only - staff excluded)
+// 1. Submit a complaint
 app.post('/api/complaints', authMiddleware, (req, res) => {
   try {
-    if (req.user.role === 'super_admin' || req.user.role === 'teacher' || req.user.role === 'admin') {
-      return res.status(403).json({ error: 'تەنها قوتابیان دەتوانن لە سندووقی سکاڵا پەیام بنێرن.' });
-    }
-
     const { subject = '', content } = req.body;
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'تکایە دەقی سکاڵا یان سەرنجەکەت بنووسە' });
     }
 
     // Check for bad words with AI security
-    const nlpCheck = aiSecurity.scanText(content);
-    if (nlpCheck.hasBadWord) {
-      aiSecurity.logIncident('bad_word', req.user.id, req.user.full_name, `وشەی قەدەغەکراو لە سکاڵا: "${nlpCheck.matched}"`, 'medium', 'blocked');
+    const nlpCheck = typeof scanKurdishSmartText === 'function' ? scanKurdishSmartText(content) : { isBlocked: false };
+    if (nlpCheck.isBlocked) {
+      if (aiSecurity && typeof aiSecurity.logIncident === 'function') {
+        aiSecurity.logIncident('bad_word', req.user.id, req.user.full_name, `وشەی قەدەغەکراو لە سکاڵا: "${nlpCheck.matched || ''}"`, 'medium', 'blocked');
+      }
       return res.status(400).json({ error: 'تکایە دەستەواژەی شیاو و ڕێزدار بەکاربهێنە.' });
     }
 
