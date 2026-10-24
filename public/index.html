@@ -395,13 +395,6 @@
       </div>
     </header>
 
-    <!-- TOP CUSTOM GROUPS HEADER BAR (گروپ چاتە تایبەتەکان بە نوکتەی تیشک جوڵاو) -->
-    <div id="customGroupsHeaderBar" class="hidden px-2.5 sm:px-4 py-1.5 bg-slate-950/95 border-b border-indigo-500/20 backdrop-blur-md flex items-center justify-between gap-2 overflow-x-auto no-scrollbar z-25 shadow-inner">
-      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0" id="customGroupsPillsContainer">
-        <!-- Rendered dynamically by renderCustomGroupsHeader() -->
-      </div>
-    </div>
-
     <!-- Notification Permission Prompt Banner -->
     <div id="notificationPermissionBanner" class="hidden px-3.5 py-2.5 bg-gradient-to-r from-indigo-950/95 via-slate-900/95 to-purple-950/95 border-b border-indigo-500/30 flex items-center justify-between gap-3 text-xs z-30 transition-all shadow-md">
       <div class="flex items-center gap-2.5 min-w-0">
@@ -748,7 +741,7 @@
             </button>
 
             <!-- Complaints Inbox (Staff View) -->
-            <button onclick="closeMainMenuDrawer(); openComplaintsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-amber-500/30 text-amber-300 hover:text-white transition shadow-sm">
+            <button id="drawerStaffComplaintsBtn" onclick="closeMainMenuDrawer(); openComplaintsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-amber-500/30 text-amber-300 hover:text-white transition shadow-sm">
               <span class="flex items-center gap-2.5">
                 <i class="fa-solid fa-inbox text-amber-400 text-sm w-5 text-center"></i>
                 <span class="font-bold text-xs sm:text-sm">سندووقی سکاڵا (سکاڵاکانی گەیشتوو) 📬</span>
@@ -4653,6 +4646,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=23.1"></script>
+  <script src="/js/app.js?v=23.2"></script>
 </body>
 </html>

@@ -1063,6 +1063,19 @@ function updateUserUI() {
     }
   }
 
+  // Complaints Box Button in General section: Hidden for staff (staff has inbox button in drawerStaffSection)
+  const drawerComplaintsBtn = document.getElementById('drawerComplaintsBtn');
+  if (drawerComplaintsBtn) {
+    const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.role === 'teacher');
+    if (isStaff) {
+      drawerComplaintsBtn.classList.add('hidden');
+      drawerComplaintsBtn.classList.remove('flex');
+    } else {
+      drawerComplaintsBtn.classList.remove('hidden');
+      drawerComplaintsBtn.classList.add('flex');
+    }
+  }
+
   // Library button visibility: hidden only for guests
   if (currentUser.role === 'guest') {
     if (libraryNavBtn) libraryNavBtn.classList.add('hidden');
@@ -2095,10 +2108,38 @@ function initSocket() {
           if (favIcon && favBtn) {
             if (data.is_favorite) {
               favIcon.className = 'fa-solid fa-star text-amber-400 text-sm';
-              favBtn.title = 'لابردن لە دڵخوازەکان ⭐';
+              favBtn.title = 'لابردنی ئەستێرە (دەرکردن لە لێکنەدراوەکان) ⭐';
             } else {
               favIcon.className = 'fa-regular fa-star text-slate-400 text-sm';
-              favBtn.title = 'کردن بە دڵخواز ⭐';
+              favBtn.title = 'دانانی ئەستێرە (خستنە لیستی لێکنەدراوەکان) ⭐';
+            }
+          }
+        }
+      }
+    }
+  });
+
+  socket.on('dream_session_interpreted', (data) => {
+    if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+      if (data && data.sessionId) {
+        const s = dreamAdminSessionsCache.find(x => x.id === data.sessionId);
+        if (s) s.is_interpreted = data.is_interpreted;
+        if (typeof renderDreamAdminSessionsCards === 'function') renderDreamAdminSessionsCards();
+        if (activeDreamAdminSessionId === data.sessionId) {
+          const interpBtn = document.getElementById('dreamAdminInterpretBtn');
+          const interpIcon = document.getElementById('dreamAdminInterpretIcon');
+          const interpLabel = document.getElementById('dreamAdminInterpretLabel');
+          if (interpBtn && interpIcon) {
+            if (data.is_interpreted) {
+              interpBtn.className = 'px-2 py-1.5 text-emerald-300 bg-emerald-950/70 border border-emerald-500 rounded-xl transition shrink-0 flex items-center gap-1 text-xs shadow-sm';
+              interpIcon.className = 'fa-solid fa-circle-check text-xs text-emerald-400';
+              if (interpLabel) interpLabel.innerText = 'لێکدراوەتەوە ✅';
+              interpBtn.title = 'لێکدانەوە تەواوکراوە (کلیک بکە بۆ گۆڕین)';
+            } else {
+              interpBtn.className = 'px-2 py-1.5 text-slate-400 hover:text-emerald-400 bg-slate-800 rounded-xl border border-slate-700 transition shrink-0 flex items-center gap-1 text-xs';
+              interpIcon.className = 'fa-regular fa-circle-check text-xs';
+              if (interpLabel) interpLabel.innerText = 'لێکنەدراوە ⏳';
+              interpBtn.title = 'لێکنەدراوەتەوە (کلیک بکە بۆ تەواوکردن)';
             }
           }
         }
@@ -10029,7 +10070,7 @@ function switchDreamSessionsTab(tab) {
 
 function renderDreamAdminSessionsCards() {
   const allCount = dreamAdminSessionsCache.length;
-  const uninterpCount = dreamAdminSessionsCache.filter(s => !s.is_interpreted).length;
+  const uninterpCount = dreamAdminSessionsCache.filter(s => s.is_favorite && !s.is_interpreted).length;
   const interpCount = dreamAdminSessionsCache.filter(s => !!s.is_interpreted).length;
 
   const countAllBadge = document.getElementById('dreamCountAll');
@@ -10052,18 +10093,28 @@ function renderDreamAdminSessionsCards() {
 
   let listToRender = dreamAdminSessionsCache;
   if (dreamSessionsActiveTab === 'uninterpreted') {
-    listToRender = dreamAdminSessionsCache.filter(s => !s.is_interpreted);
+    listToRender = dreamAdminSessionsCache.filter(s => s.is_favorite && !s.is_interpreted);
   } else if (dreamSessionsActiveTab === 'interpreted') {
     listToRender = dreamAdminSessionsCache.filter(s => !!s.is_interpreted);
   }
 
   if (listToRender.length === 0) {
-    listContainer.innerHTML = `
-      <div class="text-center py-10 text-slate-500 text-xs px-3">
-        <i class="fa-solid fa-moon text-2xl text-purple-500/40 mb-2 block"></i>
-        هیچ خەونێک لەم بەشەدا نییە.
-      </div>
-    `;
+    if (dreamSessionsActiveTab === 'uninterpreted') {
+      listContainer.innerHTML = `
+        <div class="text-center py-10 text-slate-500 text-xs px-3">
+          <i class="fa-solid fa-star text-2xl text-amber-400/40 mb-2 block"></i>
+          هیچ خەونێک لە لیستی لێکنەدراوەکان نییە.<br>
+          <span class="text-[11px] text-slate-400 mt-1 block">لە بەشی (هەموو) کلیک لە ئەستێرەی ⭐ هەر خەونێک بکە تا بێتە ئەم لیستە.</span>
+        </div>
+      `;
+    } else {
+      listContainer.innerHTML = `
+        <div class="text-center py-10 text-slate-500 text-xs px-3">
+          <i class="fa-solid fa-moon text-2xl text-purple-500/40 mb-2 block"></i>
+          هیچ خەونێک لەم بەشەدا نییە.
+        </div>
+      `;
+    }
     return;
   }
 
@@ -10091,7 +10142,7 @@ function renderDreamAdminSessionsCards() {
 
     const canFavorite = isSuperAdmin || (currentUser && currentUser.role === 'teacher');
     const starBtnHtml = canFavorite ? `
-      <button onclick="event.stopPropagation(); toggleDreamFavorite(${s.id})" class="p-1 text-xs rounded hover:bg-slate-700/60 transition ${isFav ? 'text-amber-400' : 'text-slate-500 hover:text-amber-400'}" title="${isFav ? 'لابردن لە دڵخواز' : 'کردن بە دڵخواز'}">
+      <button onclick="event.stopPropagation(); toggleDreamFavorite(${s.id})" class="p-1 text-xs rounded hover:bg-slate-700/60 transition ${isFav ? 'text-amber-400' : 'text-slate-500 hover:text-amber-400'}" title="${isFav ? 'لابردنی ئەستێرە (دەرکردن لە لیستی لێکنەدراوەکان)' : 'دانانی ئەستێرە ⭐ (خستنە لیستی لێکنەدراوەکان)'}">
         <i class="${isFav ? 'fa-solid' : 'fa-regular'} fa-star"></i>
       </button>
     ` : (isFav ? '<span class="text-amber-400 text-xs">⭐</span>' : '');
@@ -10241,10 +10292,10 @@ async function selectDreamSession(sessionId) {
     if (favIcon && favBtn) {
       if (session.is_favorite) {
         favIcon.className = 'fa-solid fa-star text-amber-400 text-sm';
-        favBtn.title = 'لابردن لە دڵخوازەکان ⭐';
+        favBtn.title = 'لابردنی ئەستێرە (دەرکردن لە لیستی لێکنەدراوەکان) ⭐';
       } else {
         favIcon.className = 'fa-regular fa-star text-slate-400 text-sm';
-        favBtn.title = 'کردن بە دڵخواز ⭐';
+        favBtn.title = 'دانانی ئەستێرە (خستنە لیستی لێکنەدراوەکان) ⭐';
       }
     }
 
@@ -10301,13 +10352,19 @@ async function toggleDreamFavorite(sessionId) {
       if (favIcon && favBtn) {
         if (data.is_favorite) {
           favIcon.className = 'fa-solid fa-star text-amber-400 text-sm';
-          favBtn.title = 'لابردن لە دڵخوازەکان ⭐';
+          favBtn.title = 'لابردنی ئەستێرە (دەرکردن لە لیستی لێکنەدراوەکان) ⭐';
         } else {
           favIcon.className = 'fa-regular fa-star text-slate-400 text-sm';
-          favBtn.title = 'کردن بە دڵخواز ⭐';
+          favBtn.title = 'دانانی ئەستێرە (خستنە لیستی لێکنەدراوەکان) ⭐';
         }
       }
     }
+    showLiveToastNotification(
+      data.is_favorite 
+        ? '⭐ خەونەکە ئەستێرەی پێدرا و خرایە لیستی لێکنەدراوەکان' 
+        : 'خەونەکە لە لیستی لێکنەدراوەکان لادرا', 
+      data.is_favorite ? 'amber' : 'slate'
+    );
   } catch (err) {
     console.error('Error toggling dream favorite:', err);
   }
@@ -16602,63 +16659,14 @@ async function loadUserCustomGroups() {
   }
 }
 
-// 2. Render top header bar with glowing radiant dots for unread groups
+// 2. Render top header bar (Keep permanently hidden as custom groups are managed exclusively in drawer menu)
 function renderCustomGroupsHeader() {
   const bar = document.getElementById('customGroupsHeaderBar');
-  const container = document.getElementById('customGroupsPillsContainer');
-  const adminActions = document.getElementById('customGroupsAdminActions');
-  if (!bar || !container) return;
-
-  const isSuperAdmin = typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'super_admin';
-
-  if (adminActions) {
-    if (isSuperAdmin) {
-      adminActions.classList.remove('hidden');
-    } else {
-      adminActions.classList.add('hidden');
-    }
-  }
-
-  if (userCustomGroupsCache.length === 0 && !isSuperAdmin) {
+  if (bar) {
     bar.classList.add('hidden');
-    container.innerHTML = '';
-    return;
+    bar.style.display = 'none';
+    bar.innerHTML = '';
   }
-
-  bar.classList.remove('hidden');
-
-  if (userCustomGroupsCache.length === 0 && isSuperAdmin) {
-    container.innerHTML = `
-      <div class="text-[11px] text-amber-300/80 font-bold flex items-center gap-1.5 py-0.5">
-        <i class="fa-solid fa-users-viewfinder text-amber-400"></i>
-        <span>گروپ چاتی تایبەت نییە؛ دەتوانیت لە دوگمەی تەنیشتەوە دروستی بکەیت</span>
-      </div>
-    `;
-    return;
-  }
-
-  container.innerHTML = userCustomGroupsCache.map(g => {
-    const hasUnread = (g.unread_count || 0) > 0;
-    return `
-      <button type="button" 
-        onclick="openCustomGroupChatModal(${g.id})" 
-        class="relative px-3 py-1 bg-gradient-to-r from-slate-900 to-indigo-950/80 hover:from-slate-800 hover:to-indigo-900 border ${hasUnread ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.35)]' : 'border-indigo-500/30 hover:border-indigo-500/60'} rounded-xl text-xs font-black text-slate-100 flex items-center gap-2 transition shrink-0 active:scale-95 group" 
-        title="${escapeHtml(g.name)} (${g.member_count || 0} ئەندام)">
-        
-        ${hasUnread 
-          ? `<span class="radiant-dot" title="قسەی نوێی تیاکراوە"></span>` 
-          : `<i class="fa-solid fa-comments text-indigo-400 text-xs"></i>`
-        }
-
-        <span class="truncate max-w-[130px] sm:max-w-[180px]">${escapeHtml(g.name)}</span>
-        
-        ${hasUnread 
-          ? `<span class="px-1.5 py-0.2 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold animate-pulse">نوێ ✨</span>` 
-          : `<span class="text-[10px] text-indigo-300/60 font-mono">(${g.member_count || 0})</span>`
-        }
-      </button>
-    `;
-  }).join('');
 }
 
 // 3. Render in Main Drawer Menu
