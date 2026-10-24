@@ -367,7 +367,7 @@
         </button>
 
         <!-- Push Notifications Toggle Button (Desktop only on navbar, accessible via drawer on mobile) -->
-        <button type="button" id="pushNotificationBtn" onclick="togglePushNotifications()" class="hidden md:flex p-2 md:px-2.5 md:py-1.5 bg-slate-900 border border-slate-800 hover:border-indigo-600/60 text-slate-400 font-bold text-xs rounded-xl transition items-center gap-1.5 active:scale-95" title="ئاگادارییەکانی مۆبایل (Push Notifications)">
+        <button type="button" id="pushNotificationBtn" onclick="togglePushNotifications()" class="hidden p-2 md:px-2.5 md:py-1.5 bg-slate-900 border border-slate-800 hover:border-indigo-600/60 text-slate-400 font-bold text-xs rounded-xl transition items-center gap-1.5 active:scale-95" title="ئاگادارییەکانی مۆبایل (Push Notifications)">
           <i id="pushNotificationIcon" class="fa-regular fa-bell text-amber-400 text-sm"></i>
           <span class="hidden lg:inline" id="pushNotificationText">ئاگاداری</span>
         </button>
@@ -399,12 +399,6 @@
     <div id="customGroupsHeaderBar" class="hidden px-2.5 sm:px-4 py-1.5 bg-slate-950/95 border-b border-indigo-500/20 backdrop-blur-md flex items-center justify-between gap-2 overflow-x-auto no-scrollbar z-25 shadow-inner">
       <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0" id="customGroupsPillsContainer">
         <!-- Rendered dynamically by renderCustomGroupsHeader() -->
-      </div>
-      <div id="customGroupsAdminActions" class="shrink-0 hidden">
-        <button type="button" onclick="openCreateCustomGroupModal()" class="px-2.5 py-1 bg-gradient-to-r from-amber-500/20 to-amber-600/30 hover:from-amber-500/30 hover:to-amber-600/40 border border-amber-500/50 text-amber-300 text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow active:scale-95 shrink-0" title="دروستکردنی گروپ چاتی تایبەت">
-          <i class="fa-solid fa-plus text-[11px]"></i>
-          <span>گروپی نوێ</span>
-        </button>
       </div>
     </div>
 
@@ -550,6 +544,15 @@
                 <span id="drawerDreamSubmitText">ناردنی خەون بۆ لێکدانەوە</span>
               </span>
               <span id="drawerDreamSubmitBadge" class="text-[9px] bg-purple-500/20 text-purple-300 font-bold px-1.5 py-0.5 rounded border border-purple-500/30">١ بە ١</span>
+            </button>
+
+            <!-- Complaints Box (For Students) -->
+            <button id="drawerComplaintsBtn" onclick="closeMainMenuDrawer(); openComplaintsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-amber-500/30 transition shadow-sm">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-envelope-open-text text-amber-400 text-sm w-5 text-center"></i>
+                <span class="font-bold text-xs sm:text-sm">سندووقی سکاڵا 📬</span>
+              </span>
+              <span class="text-[9px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded border border-amber-500/30">نهێنی</span>
             </button>
 
             <!-- Chat Search -->
@@ -735,11 +738,20 @@
               <span id="drawerPendingBadgeCount" class="hidden px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
             </button>
 
-            <!-- Complaints Box (All Users) -->
+            <!-- Activity & Attendance Database (لیستی چالاکی - ئامادەبوون و غیابات) -->
+            <button id="drawerActivityDbBtn" onclick="closeMainMenuDrawer(); openActivityModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-teal-950/40 to-slate-900 hover:from-teal-900/50 hover:to-slate-850 border border-teal-500/40 text-teal-300 hover:text-white transition shadow-sm">
+              <span class="flex items-center gap-2.5">
+                <i class="fa-solid fa-clipboard-user text-teal-400 text-sm w-5 text-center"></i>
+                <span class="font-bold text-xs sm:text-sm">لیستی چالاکی (ئامادەبوون و غیابات) 📋</span>
+              </span>
+              <span class="text-[9px] bg-teal-500/20 text-teal-300 font-bold px-1.5 py-0.5 rounded border border-teal-500/30">داتابەیس</span>
+            </button>
+
+            <!-- Complaints Inbox (Staff View) -->
             <button onclick="closeMainMenuDrawer(); openComplaintsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-amber-500/30 text-amber-300 hover:text-white transition shadow-sm">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-envelope-open-text text-amber-400 text-sm w-5 text-center"></i>
-                <span class="font-bold text-xs sm:text-sm">سندووقی سکاڵا 📬</span>
+                <i class="fa-solid fa-inbox text-amber-400 text-sm w-5 text-center"></i>
+                <span class="font-bold text-xs sm:text-sm">سندووقی سکاڵا (سکاڵاکانی گەیشتوو) 📬</span>
               </span>
               <span id="drawerComplaintsBadge" class="hidden px-2 py-0.5 bg-amber-500/30 text-amber-300 text-[10px] font-black rounded-full border border-amber-500/40">نوێ</span>
             </button>
@@ -1156,8 +1168,8 @@
         <div id="profSuperAdminSpecialCard" class="hidden p-4 rounded-3xl bg-gradient-to-br from-amber-500/15 via-purple-950/30 to-slate-900 border-2 border-amber-500/40 shadow-xl space-y-3">
           <div class="flex items-center justify-between pb-2 border-b border-amber-500/20">
             <div class="flex items-center gap-2.5">
-              <span class="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-base font-black shadow-inner">
-                <i class="fa-solid fa-crown"></i>
+              <span class="w-9 h-9 rounded-2xl bg-gradient-to-br from-amber-500/25 to-indigo-500/25 text-amber-300 border border-amber-500/40 flex items-center justify-center text-base font-black shadow-inner shadow-amber-950/40">
+                <i class="fa-solid fa-shield-halved"></i>
               </span>
               <div>
                 <span class="block text-xs font-black text-amber-300">بەڕێوەبەری سەرەکی پڕۆژە</span>
@@ -1912,6 +1924,14 @@
               <p class="text-[10px] text-slate-400 leading-relaxed">
                 پرسیارەکە دەمێنێتەوە تا ئەم کات و بەروارە دێت، پاشان خۆکارانە لە گروپ چاتدا بڵاودەبێتەوە و کاتی وەڵامدانەوە دەستپێدەکات.
               </p>
+              <!-- Existing Question Days Alert / Notice -->
+              <div id="existingQuestionDatesNotice" class="hidden p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs space-y-1">
+                <div class="flex items-center gap-1.5 font-bold text-[11px] text-amber-300">
+                  <i class="fa-solid fa-calendar-check"></i>
+                  <span>ئەو بەروارانەی پێشتر پرسیاریان بۆ دیاریکراوە (تا دووبارە نەبێتەوە):</span>
+                </div>
+                <div id="existingQuestionDatesChips" class="flex flex-wrap gap-1 text-[10px]"></div>
+              </div>
               <input type="datetime-local" id="questionPublishDateTime" class="w-full p-2.5 bg-slate-800 border border-amber-500/60 rounded-xl text-sm focus:outline-none text-white font-mono">
               <div class="flex flex-wrap gap-1.5 pt-0.5">
                 <button type="button" onclick="setQuickPublishPreset('tomorrow_10')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 text-[10px] font-bold">☀️ سبەی ١٠:٠٠ بەیانی</button>
@@ -2182,6 +2202,24 @@
 
             <!-- Preview of Selected Files -->
             <div id="libSelectedFilesPreview" class="hidden p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-1.5 max-h-28 overflow-y-auto"></div>
+
+            <!-- Optional Book Cover and Author Images -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1 flex items-center justify-between">
+                  <span>وێنەی بەرگی کتێب (ئارەزوومەندانە)</span>
+                  <i class="fa-solid fa-image text-teal-400 text-xs"></i>
+                </label>
+                <input type="file" id="libBookCoverImage" accept="image/*" class="w-full text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-slate-800 file:text-teal-300 hover:file:bg-slate-700 cursor-pointer">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1 flex items-center justify-between">
+                  <span>وێنەی نووسەر (ئارەزوومەندانە)</span>
+                  <i class="fa-solid fa-user text-teal-400 text-xs"></i>
+                </label>
+                <input type="file" id="libBookAuthorImage" accept="image/*" class="w-full text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-slate-800 file:text-teal-300 hover:file:bg-slate-700 cursor-pointer">
+              </div>
+            </div>
 
             <div>
               <label class="block text-xs font-bold text-slate-300 mb-1">پوختە یان ڕوونکردنەوە (ئارەزوومەندانە)</label>
@@ -3047,16 +3085,21 @@
               <h4 class="text-xs font-black text-slate-300">لیستی خەون بینەکان</h4>
               <span id="dreamSessionsCountBadge" class="text-[10px] bg-purple-500/20 text-purple-300 font-mono px-2 py-0.5 rounded-full">0</span>
             </div>
-            <!-- TABS: All vs Favorites -->
+            <!-- TABS: All vs Uninterpreted vs Interpreted -->
             <div class="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-bold">
               <button id="dreamTabAllBtn" onclick="switchDreamSessionsTab('all')" class="flex-1 py-1 rounded-lg text-white bg-purple-600 shadow transition flex items-center justify-center gap-1 text-[11px]">
                 <span>هەموو</span>
                 <span id="dreamCountAll" class="text-[10px] bg-white/20 px-1.5 py-0.2 rounded-full">0</span>
               </button>
-              <button id="dreamTabFavBtn" onclick="switchDreamSessionsTab('favorites')" class="flex-1 py-1 rounded-lg text-slate-400 hover:text-amber-300 transition flex items-center justify-center gap-1 text-[11px]">
-                <i class="fa-solid fa-star text-amber-400 text-[10px]"></i>
-                <span>دڵخوازەکان</span>
-                <span id="dreamCountFavorites" class="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.2 rounded-full">0</span>
+              <button id="dreamTabUninterpretedBtn" onclick="switchDreamSessionsTab('uninterpreted')" class="flex-1 py-1 rounded-lg text-slate-400 hover:text-amber-300 transition flex items-center justify-center gap-1 text-[11px]">
+                <i class="fa-regular fa-clock text-amber-400 text-[10px]"></i>
+                <span>لێکنەدراوەکان</span>
+                <span id="dreamCountUninterpreted" class="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.2 rounded-full">0</span>
+              </button>
+              <button id="dreamTabInterpretedBtn" onclick="switchDreamSessionsTab('interpreted')" class="flex-1 py-1 rounded-lg text-slate-400 hover:text-emerald-300 transition flex items-center justify-center gap-1 text-[11px]">
+                <i class="fa-solid fa-circle-check text-emerald-400 text-[10px]"></i>
+                <span>لێکدراوەکان</span>
+                <span id="dreamCountInterpreted" class="text-[10px] bg-emerald-400/20 text-emerald-300 px-1.5 py-0.2 rounded-full">0</span>
               </button>
             </div>
           </div>
@@ -3090,6 +3133,12 @@
               </div>
 
               <div class="flex items-center gap-1 md:gap-1.5 shrink-0">
+                <!-- Interpret Toggle Button (لێکدراوەتەوە / لێکنەدراوەتەوە) -->
+                <button id="dreamAdminInterpretBtn" onclick="toggleActiveDreamInterpret()" class="px-2 py-1.5 text-slate-400 hover:text-emerald-400 bg-slate-800 rounded-xl border border-slate-700 transition shrink-0 flex items-center gap-1 text-xs" title="دیاریکردن وەک لێکدراوەتەوە">
+                  <i id="dreamAdminInterpretIcon" class="fa-regular fa-circle-check text-xs"></i>
+                  <span id="dreamAdminInterpretLabel" class="text-[10px] hidden sm:inline">لێکدراوەتەوە</span>
+                </button>
+
                 <!-- Star / Favorite Button -->
                 <button id="dreamAdminFavBtn" onclick="toggleActiveDreamFavorite()" class="p-1.5 md:p-2 text-slate-400 hover:text-amber-400 bg-slate-800 rounded-xl border border-slate-700 transition shrink-0" title="کردن بە دڵخواز ⭐">
                   <i id="dreamAdminFavIcon" class="fa-regular fa-star text-xs md:text-sm"></i>
@@ -3771,11 +3820,26 @@
         </div>
       </div>
 
-      <!-- Recorded Lessons List -->
+      <!-- Recorded Lessons List / Teachers View -->
       <div class="flex-1 overflow-y-auto p-4 space-y-3">
-        <div id="recordedLessonsListContainer" class="space-y-2.5">
+        <!-- Teacher Navigation Header -->
+        <div id="recordedLessonsNavHeader" class="hidden flex items-center justify-between pb-2 border-b border-slate-800">
+          <button type="button" onclick="showRecordedLessonsTeachersView()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-arrow-right"></i>
+            <span>گەڕانەوە بۆ لیستی مامۆستاکان</span>
+          </button>
+          <span id="selectedTeacherNameBadge" class="text-xs font-black text-emerald-400"></span>
+        </div>
+
+        <!-- Teachers Grid View -->
+        <div id="recordedLessonsTeachersContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <!-- Rendered in JS -->
-          <div class="p-6 text-center text-slate-500 text-xs">لە بارکردندایە...</div>
+          <div class="p-6 text-center text-slate-500 text-xs col-span-2">لە بارکردندایە...</div>
+        </div>
+
+        <!-- Lessons of Selected Teacher -->
+        <div id="recordedLessonsListContainer" class="hidden space-y-2.5">
+          <!-- Rendered in JS -->
         </div>
       </div>
     </div>
@@ -4104,13 +4168,13 @@
           </div>
         </div>
 
-        <!-- SECTION 2: Submit Complaint Form (All Users) -->
+        <!-- SECTION 2: Submit Complaint Form (Only for Students) -->
         <div id="complaintsFormSection" class="space-y-3">
           <div class="p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 to-indigo-500/10 border border-amber-500/30 flex items-start gap-2.5">
             <i class="fa-solid fa-user-shield text-amber-400 text-lg shrink-0 mt-0.5"></i>
             <div class="text-xs text-slate-200 leading-relaxed">
               <span class="font-bold text-amber-300 block mb-0.5">دڵنیایی و پاراستنی نهێنی:</span>
-              <span>سەرنج، ڕەخنە و سکاڵاکەت بە تەواوی نهێنی دەمێنێتەوە و ناوت لە هەموو کەس دەپارێزرێت. تەنها کاک هێمن دەتوانێت ناوی ڕاستەقینەی سکاڵاکار ببینێت. بە دڵنیاییەوە بنووسە.</span>
+              <span>سەرنج، ڕەخنە و سکاڵاکەت بە تەواوی نهێنی دەمێنێتەوە. ناوەکانتان نهێنی و پارێزراوە و هیچ کەسێک ناتوانێت بیبینێت. بە دڵنیایی و ئازادانە بنووسە.</span>
             </div>
           </div>
 
@@ -4145,6 +4209,94 @@
         </button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ================= MODAL: LEAVE REQUEST (مۆڵەت) ================= -->
+  <div id="leaveRequestModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="bg-slate-900 border border-sky-500/40 rounded-2xl sm:rounded-3xl p-4 sm:p-5 w-full max-w-md shadow-2xl relative flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0 mb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center justify-center text-base">
+            <i class="fa-solid fa-file-signature"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-white">داواکردنی مۆڵەت</h3>
+            <span class="text-[11px] text-slate-400">تایبەت بە وەرگرتنی مۆڵەت بۆ ئامادەنەبوون</span>
+          </div>
+        </div>
+        <button type="button" onclick="closeLeaveModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleSendLeaveRequest(event)" class="space-y-3">
+        <input type="hidden" id="leaveSessionIdInput">
+        <div class="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-200 leading-relaxed">
+          تکایە هۆکاری مۆڵەتەکەت بە ڕوونی بنووسە. دوای ناردن، مامۆستا یان ئەدمین چاوخشاندن بە داواکارییەکەتدا دەکات بۆ پەسەندکردن.
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1">هۆکار و عوزری ئامادەنەبوون: <span class="text-rose-400">*</span></label>
+          <textarea id="leaveReasonInput" rows="4" required placeholder="هۆکاری نەهاتن یاخود عوزرەکەت لێرە بە ڕوونی بنووسە..." class="w-full p-2.5 bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-xl text-xs sm:text-sm text-white focus:outline-none resize-none"></textarea>
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button type="button" onclick="closeLeaveModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition">
+            پاشگەزبوونەوە
+          </button>
+          <button type="submit" id="sendLeaveSubmitBtn" class="px-5 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-black rounded-xl text-xs transition shadow active:scale-95 flex items-center gap-1.5">
+            <i class="fa-solid fa-paper-plane text-xs"></i>
+            <span>ناردنی مۆڵەت</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: ACTIVITY DATABASE (لیستی چالاکی) ================= -->
+  <div id="activityDatabaseModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="w-full max-w-4xl h-[92dvh] sm:max-h-[90vh] bg-slate-900 border border-teal-500/40 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative">
+      <!-- Modal Header -->
+      <div class="p-3 sm:p-4 bg-gradient-to-r from-teal-950/80 via-slate-900 to-emerald-950/80 border-b border-teal-500/30 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-600 text-white flex items-center justify-center text-base sm:text-lg shrink-0 shadow-lg shadow-teal-900/50">
+            <i class="fa-solid fa-clipboard-user"></i>
+          </div>
+          <div class="min-w-0 flex-1">
+            <h3 class="font-black text-xs sm:text-base text-white truncate">لیستی چالاکی (داتابەیسی ئامادەبوون و غیابات) 📋</h3>
+            <span class="text-[10px] sm:text-xs text-teal-300/80 block truncate">تۆماری سەرجەم ڕۆژ و کاتەکانی پەنجەمۆر، هاتووان، غائیبان و مۆڵەتپێدراوان</span>
+          </div>
+        </div>
+        <button type="button" onclick="closeActivityModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Filters & Search -->
+      <div class="p-3 bg-slate-950/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div class="relative flex-1 min-w-[200px]">
+          <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+          </span>
+          <input 
+            type="text" 
+            id="activitySearchInput" 
+            oninput="handleActivitySearch(this.value)" 
+            placeholder="گەڕان بەپێی ڕۆژ، بەروار یان ناوی خاوەن تۆمار..." 
+            class="w-full pr-8 pl-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"
+          >
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="loadActivitySessions()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-teal-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+            <i class="fa-solid fa-rotate"></i>
+            <span>نوێکردنەوە</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Sessions Container -->
+      <div id="activitySessionsContainer" class="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
+        <div class="p-8 text-center text-slate-500 text-xs">لە بارکردندایە...</div>
+      </div>
     </div>
   </div>
 
@@ -4501,6 +4653,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=22.6"></script>
+  <script src="/js/app.js?v=23.0"></script>
 </body>
 </html>

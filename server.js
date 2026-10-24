@@ -11,7 +11,7 @@ let archiver;
 try { archiver = require('archiver'); } catch (e) {}
 let DatabaseSync;
 try { DatabaseSync = require('node:sqlite').DatabaseSync; } catch (e) {}
-const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb, buttonClicks, customGroups, pollsDb, alarmsDb, complaints } = require('./db');
+const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb, buttonClicks, customGroups, pollsDb, alarmsDb, complaints, attendanceDb } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 4000;
@@ -4432,13 +4432,17 @@ app.get('/api/chat/active-question', authMiddleware, (req, res) => {
   const todayStart = getTodayStartTimestamp();
   const todayQuestions = questions.getTodayQuestions(todayStart);
 
+  const canSeeAnswer = req.user.role === 'super_admin' || req.user.role === 'teacher';
+
   const mappedQuestions = todayQuestions.map(q => {
     let mySubmission = null;
-    if (req.user.role === 'student') {
+    if (req.user.role === 'student' || req.user.role === 'new_student') {
       mySubmission = questions.getStudentSubmission(q.id, req.user.id);
     }
+    const showCorrectAnswer = q.is_revealed || canSeeAnswer;
     return {
       ...q,
+      correct_answer: showCorrectAnswer ? q.correct_answer : null,
       my_submission: mySubmission ? mySubmission.answer_text : null,
       my_submitted_at: mySubmission ? mySubmission.submitted_at : null
     };
@@ -4563,9 +4567,13 @@ app.get('/api/chat/questions/scheduled', authMiddleware, requireAdmin, (req, res
 // COMPLAINTS BOX (سندووقی سکاڵا بە پاراستنی ناوی سکاڵاکار)
 // =========================================================================
 
-// 1. Submit a complaint (Any logged-in user)
+// 1. Submit a complaint (Students only - staff excluded)
 app.post('/api/complaints', authMiddleware, (req, res) => {
   try {
+    if (req.user.role === 'super_admin' || req.user.role === 'teacher' || req.user.role === 'admin') {
+      return res.status(403).json({ error: 'تەنها قوتابیان دەتوانن لە سندووقی سکاڵا پەیام بنێرن.' });
+    }
+
     const { subject = '', content } = req.body;
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'تکایە دەقی سکاڵا یان سەرنجەکەت بنووسە' });
@@ -5022,11 +5030,11 @@ app.post('/api/chat/question/edit', authMiddleware, requireTeacherOrSuperAdmin, 
 
 // 20. Questions Archive & Bank (Available to all users)
 app.get('/api/chat/questions/archive', authMiddleware, (req, res) => {
-  const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin' || req.user.role === 'teacher';
+  const canSeeAnswer = req.user.role === 'super_admin' || req.user.role === 'teacher';
   const list = questions.getAllArchive().map(q => ({
     ...q,
-    // Hide official answer of active unrevealed question from non-admins
-    correct_answer: (q.is_revealed || isAdmin) ? q.correct_answer : null
+    // Hide official answer of active unrevealed question from non-super_admin / non-teachers
+    correct_answer: (q.is_revealed || canSeeAnswer) ? q.correct_answer : null
   }));
   res.json({ questions: list });
 });
@@ -5054,7 +5062,12 @@ app.get('/api/library/books', authMiddleware, (req, res) => {
 });
 
 // 22. Upload library book / multiple files (Teacher, Admin, Super Admin)
-app.post('/api/library/upload', authMiddleware, requireAdmin, libraryUpload.fields([{ name: 'files', maxCount: 50 }, { name: 'file', maxCount: 1 }]), (req, res) => {
+app.post('/api/library/upload', authMiddleware, requireAdmin, libraryUpload.fields([
+  { name: 'files', maxCount: 50 }, 
+  { name: 'file', maxCount: 1 },
+  { name: 'cover_image', maxCount: 1 },
+  { name: 'author_image', maxCount: 1 }
+]), (req, res) => {
   try {
     const rawFiles = (req.files && req.files.files) ? req.files.files : ((req.files && req.files.file) ? req.files.file : (req.file ? [req.file] : []));
     if (!rawFiles || rawFiles.length === 0) {
@@ -5064,6 +5077,20 @@ app.post('/api/library/upload', authMiddleware, requireAdmin, libraryUpload.fiel
     const { title, author = '', description = '', category = 'گشتی' } = req.body;
     if (!title || !title.trim()) {
       return res.status(400).json({ error: 'تکایە ناوی کتێب یان ناوی سەرەکی بنووسە' });
+    }
+
+    let coverImageUrl = '';
+    if (req.files && req.files.cover_image && req.files.cover_image[0]) {
+      coverImageUrl = `/uploads/${req.files.cover_image[0].filename}`;
+    } else if (req.body.cover_image) {
+      coverImageUrl = req.body.cover_image.trim();
+    }
+
+    let authorImageUrl = '';
+    if (req.files && req.files.author_image && req.files.author_image[0]) {
+      authorImageUrl = `/uploads/${req.files.author_image[0].filename}`;
+    } else if (req.body.author_image) {
+      authorImageUrl = req.body.author_image.trim();
     }
 
     const parsedFiles = rawFiles.map(f => ({
@@ -5085,7 +5112,9 @@ app.post('/api/library/upload', authMiddleware, requireAdmin, libraryUpload.fiel
       primary.file_type,
       req.user.id,
       req.user.full_name,
-      parsedFiles
+      parsedFiles,
+      coverImageUrl,
+      authorImageUrl
     );
 
     res.status(201).json({
@@ -5096,6 +5125,35 @@ app.post('/api/library/upload', authMiddleware, requireAdmin, libraryUpload.fiel
   } catch (err) {
     console.error('Library upload error:', err);
     res.status(500).json({ error: 'هەڵەیەک ڕوویدا لە بارکردنی پەڕتووک' });
+  }
+});
+
+// Update images for existing book
+app.post('/api/library/books/:id/images', authMiddleware, requireAdmin, libraryUpload.fields([
+  { name: 'cover_image', maxCount: 1 },
+  { name: 'author_image', maxCount: 1 }
+]), (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    let coverImageUrl = undefined;
+    let authorImageUrl = undefined;
+
+    if (req.files && req.files.cover_image && req.files.cover_image[0]) {
+      coverImageUrl = `/uploads/${req.files.cover_image[0].filename}`;
+    } else if (req.body.cover_image !== undefined) {
+      coverImageUrl = req.body.cover_image;
+    }
+
+    if (req.files && req.files.author_image && req.files.author_image[0]) {
+      authorImageUrl = `/uploads/${req.files.author_image[0].filename}`;
+    } else if (req.body.author_image !== undefined) {
+      authorImageUrl = req.body.author_image;
+    }
+
+    const updated = library.updateImages(id, coverImageUrl, authorImageUrl);
+    res.json({ success: true, book: updated });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە نوێکردنەوەی وێنەکان' });
   }
 });
 
@@ -6170,14 +6228,21 @@ app.get('/api/chat/messages', authMiddleware, (req, res) => {
   const buttonClicksData = buttonClicks.getClicksForMessages(msgIds, req.user.id);
   const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
   const now = Date.now();
-  const result = history.map(m => ({
-    ...m,
-    is_star_glowing: Boolean(m.last_star_awarded_at && (now - Number(m.last_star_awarded_at) <= TWO_DAYS_MS)),
-    starInfo: calculateStars(m.correct_answers_count),
-    reactions: reactionsMap[m.id] || [],
-    button_clicks_count: buttonClicksData.counts[m.id] || 0,
-    user_has_clicked: !!buttonClicksData.userClicked[m.id]
-  }));
+  const result = history.map(m => {
+    let attSummary = null;
+    if (m.attachment_type === 'attendance' && m.attachment_url) {
+      try { attSummary = attendanceDb.getSessionSummary(parseInt(m.attachment_url)); } catch (e) {}
+    }
+    return {
+      ...m,
+      is_star_glowing: Boolean(m.last_star_awarded_at && (now - Number(m.last_star_awarded_at) <= TWO_DAYS_MS)),
+      starInfo: calculateStars(m.correct_answers_count),
+      reactions: reactionsMap[m.id] || [],
+      button_clicks_count: buttonClicksData.counts[m.id] || 0,
+      user_has_clicked: !!buttonClicksData.userClicked[m.id],
+      attendance_summary: attSummary
+    };
+  });
   res.json({ 
     messages: result,
     last_read_message_id: req.user.last_read_message_id || 0
@@ -6188,11 +6253,15 @@ app.get('/api/chat/messages', authMiddleware, (req, res) => {
 app.get('/api/chat/search', authMiddleware, (req, res) => {
   try {
     const rawQ = (req.query.q || '').trim();
-    if (!rawQ || rawQ.length < 2) return res.json({ results: [] });
+    if (!rawQ || rawQ.length < 1) return res.json({ results: [] });
 
     // Normalize query for Kurdish / Arabic variations
     const cleanQ = rawQ.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
     const wildcard = `%${cleanQ}%`;
+
+    const variant1 = `%${cleanQ.replace(/ی/g, 'ي').replace(/ک/g, 'ك')}%`;
+    const variant2 = `%${cleanQ.replace(/ي/g, 'ی').replace(/ك/g, 'ک')}%`;
+    const variant3 = `%${cleanQ.replace(/ھ/g, 'ه').replace(/ە/g, 'ه')}%`;
 
     const stmt = db.prepare(`
       SELECT m.*, u.gender, u.correct_answers_count, u.last_star_awarded_at,
@@ -6205,15 +6274,24 @@ app.get('/api/chat/search', authMiddleware, (req, res) => {
             m.content LIKE ? 
          OR m.full_name LIKE ? 
          OR m.username LIKE ?
+         OR m.content LIKE ?
+         OR m.content LIKE ?
+         OR m.content LIKE ?
+         OR m.full_name LIKE ?
+         OR m.full_name LIKE ?
          OR REPLACE(REPLACE(REPLACE(m.content, 'ي', 'ی'), 'ك', 'ک'), 'ھ', 'ه') LIKE ?
          OR REPLACE(REPLACE(REPLACE(m.full_name, 'ي', 'ی'), 'ك', 'ک'), 'ھ', 'ه') LIKE ?
-         OR REPLACE(REPLACE(REPLACE(m.content, 'ە', 'ه'), 'ێ', 'ی'), 'ۆ', 'و') LIKE ?
       )
       ORDER BY m.id DESC
       LIMIT 80
     `);
 
-    const results = stmt.all(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+    const results = stmt.all(
+      wildcard, wildcard, wildcard,
+      variant1, variant2, variant3,
+      variant1, variant2,
+      wildcard, wildcard
+    );
     const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
     const now = Date.now();
     const mapped = results.reverse().map(m => ({
@@ -6225,6 +6303,174 @@ app.get('/api/chat/search', authMiddleware, (req, res) => {
   } catch (err) {
     console.error('Chat search error:', err);
     res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// Context messages around a specific message ID (for clicking older search results)
+app.get('/api/chat/message-context/:id', authMiddleware, (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id);
+    if (!targetId) return res.status(400).json({ error: 'Invalid ID' });
+
+    const before = db.prepare(`
+      SELECT * FROM messages 
+      WHERE id <= ? AND COALESCE(is_deleted, 0) = 0 
+      ORDER BY id DESC LIMIT 25
+    `).all(targetId);
+
+    const after = db.prepare(`
+      SELECT * FROM messages 
+      WHERE id > ? AND COALESCE(is_deleted, 0) = 0 
+      ORDER BY id ASC LIMIT 25
+    `).all(targetId);
+
+    const combined = [...before.reverse(), ...after];
+    const msgIds = combined.map(m => m.id);
+    const reactionsMap = messageReactions.getForMessages(msgIds, req.user.id);
+    const buttonClicksData = buttonClicks.getClicksForMessages(msgIds, req.user.id);
+
+    const now = Date.now();
+    const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
+    const result = combined.map(m => {
+      let attSummary = null;
+      if (m.attachment_type === 'attendance' && m.attachment_url) {
+        try { attSummary = attendanceDb.getSessionSummary(parseInt(m.attachment_url)); } catch (e) {}
+      }
+      return {
+        ...m,
+        is_star_glowing: false,
+        starInfo: calculateStars(m.correct_answers_count),
+        reactions: reactionsMap[m.id] || [],
+        button_clicks_count: buttonClicksData.counts[m.id] || 0,
+        user_has_clicked: !!buttonClicksData.userClicked[m.id],
+        attendance_summary: attSummary
+      };
+    });
+
+    res.json({ messages: result, target_id: targetId });
+  } catch (err) {
+    console.error('Message context error:', err);
+    res.status(500).json({ error: 'Failed to load context' });
+  }
+});
+
+// =========================================================================
+// ATTENDANCE & ACTIVITY DATABASE (@هاتن / @غیابات)
+// =========================================================================
+
+// 1. Mark Attendance (Fingerprint Button clicked by student)
+app.post('/api/attendance/mark', authMiddleware, (req, res) => {
+  try {
+    const { session_id } = req.body;
+    if (!session_id) return res.status(400).json({ error: 'ناسنامەی دانیشتن پێویستە' });
+    const sessId = parseInt(session_id);
+
+    const result = attendanceDb.markAttendance(sessId, req.user.id, req.user.full_name, req.user.role);
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    const summary = attendanceDb.getSessionSummary(sessId);
+    io.emit('attendance_updated', { session_id: sessId, summary });
+
+    res.json({ success: true, summary, record: result.record });
+  } catch (err) {
+    console.error('Attendance mark error:', err);
+    res.status(500).json({ error: 'هەڵە لە تۆمارکردنی ئامادەبوون' });
+  }
+});
+
+// 2. Request Leave (مۆڵەت) with reason
+app.post('/api/attendance/leave', authMiddleware, (req, res) => {
+  try {
+    const { session_id, excuse_reason } = req.body;
+    if (!session_id) return res.status(400).json({ error: 'ناسنامەی دانیشتن پێویستە' });
+    if (!excuse_reason || !excuse_reason.trim()) {
+      return res.status(400).json({ error: 'تکایە هۆکاری داواکردنی مۆڵەت بنووسە' });
+    }
+    const sessId = parseInt(session_id);
+
+    const result = attendanceDb.requestLeave(sessId, req.user.id, req.user.full_name, req.user.role, excuse_reason);
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    const summary = attendanceDb.getSessionSummary(sessId);
+    io.emit('attendance_updated', { session_id: sessId, summary });
+
+    res.json({ success: true, summary, record: result.record });
+  } catch (err) {
+    console.error('Attendance leave request error:', err);
+    res.status(500).json({ error: 'هەڵە لە ناردنی داواکاری مۆڵەت' });
+  }
+});
+
+// 3. Review Leave (Accept / Reject) - Staff Only
+app.post('/api/attendance/review-leave', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const { session_id, user_id, status } = req.body;
+    if (!session_id || !user_id || !status) return res.status(400).json({ error: 'زانیارییەکان تەواو نین' });
+    if (!['excused', 'absent'].includes(status)) return res.status(400).json({ error: 'دۆخی نادروست' });
+
+    const sessId = parseInt(session_id);
+    const uId = parseInt(user_id);
+    const result = attendanceDb.reviewLeave(sessId, uId, status, req.user.id, req.user.full_name);
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    const summary = attendanceDb.getSessionSummary(sessId);
+    io.emit('attendance_updated', { session_id: sessId, summary });
+
+    res.json({ success: true, summary });
+  } catch (err) {
+    console.error('Review leave error:', err);
+    res.status(500).json({ error: 'هەڵە لە پێداچوونەوەی مۆڵەت' });
+  }
+});
+
+// 4. Close Attendance Session - Staff Only
+app.post('/api/attendance/close', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const { session_id } = req.body;
+    if (!session_id) return res.status(400).json({ error: 'ناسنامەی دانیشتن پێویستە' });
+    const sessId = parseInt(session_id);
+
+    attendanceDb.closeSession(sessId);
+    const summary = attendanceDb.getSessionSummary(sessId);
+    io.emit('attendance_updated', { session_id: sessId, summary });
+    io.emit('attendance_session_closed', { session_id: sessId });
+
+    res.json({ success: true, summary });
+  } catch (err) {
+    console.error('Close attendance error:', err);
+    res.status(500).json({ error: 'هەڵە لە کۆتاییهێنان بە ئامادەبوون' });
+  }
+});
+
+// 5. Get Session Details
+app.get('/api/attendance/session/:id', authMiddleware, (req, res) => {
+  try {
+    const sessId = parseInt(req.params.id);
+    const summary = attendanceDb.getSessionSummary(sessId);
+    if (!summary) return res.status(404).json({ error: 'دانیشتن نەدۆزرایەوە' });
+    res.json({ summary });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی زانیاری' });
+  }
+});
+
+// 6. Get All Attendance Sessions (Activity Database - لیستی چالاکی)
+app.get('/api/attendance/all', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const sessions = attendanceDb.getAllSessionsWithStats();
+    res.json({ sessions });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە بارکردنی لیستی چالاکی' });
+  }
+});
+
+// 7. Get Student Attendance History
+app.get('/api/attendance/student/:userId', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const history = attendanceDb.getStudentAttendanceHistory(parseInt(req.params.userId));
+    res.json({ history });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە بارکردنی مێژوو' });
   }
 });
 
@@ -7213,6 +7459,22 @@ app.post('/api/dream/admin/session/:id/favorite', authMiddleware, requireDreamMa
   }
 });
 
+// 9b. Mark Dream Session as Interpreted / Uninterpreted (لێکدراوەکان / لێکنەدراوەکان)
+app.post('/api/dream/admin/session/:id/interpret', authMiddleware, requireDreamManager, (req, res) => {
+  try {
+    const sessionId = parseInt(req.params.id);
+    const session = dreamSessions.findById(sessionId);
+    if (!session) return res.status(404).json({ error: 'دانیشتن نەدۆزرایەوە' });
+
+    const newInterpretedStatus = dreamSessions.toggleInterpreted(sessionId);
+    emitToDreamAdmins('dream_session_interpreted', { sessionId, is_interpreted: newInterpretedStatus });
+    res.json({ success: true, is_interpreted: newInterpretedStatus });
+  } catch (err) {
+    console.error('Toggle interpreted error:', err);
+    res.status(500).json({ error: 'هەڵە لە گۆڕینی دۆخی لێکدانەوە' });
+  }
+});
+
 // 10. Super Admin Download ALL audio recordings as ZIP
 app.get('/api/admin/audio/download-all', authMiddleware, requireSuperAdmin, (req, res) => {
   try {
@@ -7583,11 +7845,27 @@ io.on('connection', (socket) => {
 
       const isPrivilegedUser = ['super_admin', 'teacher', 'admin'].includes(freshUser.role) || freshUser.special_badge === 'black' || freshUser.special_badge === 'white';
       const hasButtonTrigger = isPrivilegedUser && /@دوگم[ەه]/.test(content);
+      const hasAttendanceTrigger = isPrivilegedUser && (/@هاتن/.test(content) || /@غیابات/.test(content) || /@ئامادەبوون/.test(content));
 
       let cleanContent = content;
       let attachmentType = 'none';
+      let attachmentUrl = null;
+      let createdAttendanceSession = null;
 
-      if (hasButtonTrigger) {
+      if (hasAttendanceTrigger) {
+        attachmentType = 'attendance';
+        cleanContent = content.replace(/@هاتن|@غیابات|@ئامادەبوون/g, '').trim();
+        if (!cleanContent) {
+          cleanContent = 'تۆماری ئامادەبوون و غیابات (پەنجەمۆر بنێن 🔴)';
+        }
+        createdAttendanceSession = attendanceDb.createSession(
+          freshUser.id,
+          freshUser.full_name,
+          freshUser.role,
+          cleanContent
+        );
+        attachmentUrl = String(createdAttendanceSession.id);
+      } else if (hasButtonTrigger) {
         attachmentType = 'action_button';
         cleanContent = content.replace(/@دوگم[ەه]/g, '').trim();
         if (!cleanContent) {
@@ -7607,8 +7885,12 @@ io.on('connection', (socket) => {
         null,
         replyToId,
         attachmentType,
-        null
+        attachmentUrl
       );
+
+      if (createdAttendanceSession) {
+        attendanceDb.updateMessageId(createdAttendanceSession.id, savedMsg.id);
+      }
 
       const isStaffUser = freshUser.role === 'super_admin' || freshUser.role === 'teacher';
       const isMentionAll = isStaffUser && (
@@ -7636,9 +7918,22 @@ io.on('connection', (socket) => {
         });
       }
 
+      if (hasAttendanceTrigger) {
+        sendPushNotificationToAll({
+          title: `📋 تۆماری ئامادەبوون (@هاتن) لەلایەن ${freshUser.full_name}`,
+          body: cleanContent.trim(),
+          icon: '/favicon.png',
+          tag: 'attendance-' + (createdAttendanceSession ? createdAttendanceSession.id : Date.now())
+        }, freshUser.id);
+      }
+
       const starInfo = calculateStars(freshUser.correct_answers_count);
       const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
       const isStarGlowing = Boolean(freshUser.last_star_awarded_at && (Date.now() - Number(freshUser.last_star_awarded_at) <= TWO_DAYS_MS));
+      let attSummary = null;
+      if (attachmentType === 'attendance' && attachmentUrl) {
+        try { attSummary = attendanceDb.getSessionSummary(parseInt(attachmentUrl)); } catch (e) {}
+      }
       const broadcastMsg = {
         ...savedMsg,
         gender: freshUser.gender || 'male',
@@ -7647,7 +7942,8 @@ io.on('connection', (socket) => {
         is_star_glowing: isStarGlowing,
         is_mention_all: !!isMentionAll,
         button_clicks_count: 0,
-        user_has_clicked: false
+        user_has_clicked: false,
+        attendance_summary: attSummary
       };
 
       io.emit('new_message', broadcastMsg);

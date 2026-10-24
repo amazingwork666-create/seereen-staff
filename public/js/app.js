@@ -2206,6 +2206,19 @@ function initSocket() {
     loadMessages();
   });
 
+  socket.on('attendance_updated', (data) => {
+    if (data && data.sessionId) {
+      refreshAttendanceMessageUI(data.sessionId);
+    }
+  });
+
+  socket.on('attendance_session_closed', (data) => {
+    if (data && data.sessionId) {
+      refreshAttendanceMessageUI(data.sessionId);
+      showLiveToastNotification('تۆماری ئامادەبوون داخرا 🔒', 'indigo');
+    }
+  });
+
   // Question submission evaluation updated (⭐ or ❌)
   socket.on('submission_evaluated', (data) => {
     handleSubmissionEvaluated(data);
@@ -2495,7 +2508,7 @@ async function loadMessages() {
           isRestoringChatPosition = false;
         }, 150);
       } else {
-        scrollToBottom();
+        scrollToBottom(true);
         if (latestMsg) {
           syncLastReadMessageWithServer(latestMsg.id);
         }
@@ -2636,7 +2649,8 @@ function appendMessage(msg, scroll = true) {
   const timeInfo = getMessageDateTimeInfo(msg.created_at);
   const dateStr = timeInfo.shortTime || new Date(msg.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
 
-  let msgElem = document.createElement('div');
+  const isAlreadyInDom = !!document.getElementById(`msg-${msg.id}`);
+  let msgElem = document.getElementById(`msg-${msg.id}`) || document.createElement('div');
   msgElem.id = `msg-${msg.id}`;
   msgElem.className = 'transition-all duration-200 chat-msg-item';
 
@@ -2876,16 +2890,23 @@ function appendMessage(msg, scroll = true) {
         `;
       }
 
-      // Non-responding list: HIDDEN FROM REGULAR STUDENTS, VISIBLE ONLY TO ADMINS
+      // Non-responding list: HIDDEN FROM REGULAR STUDENTS, COLLAPSIBLE FOR ADMINS
       let nonRespondingHtml = '';
-      if (isAdmin && nonResponding.length > 0) {
+      if ((isAdmin || isStaff) && nonResponding.length > 0) {
+        const toggleId = `non-resp-${payload.question_id || msg.id}`;
         nonRespondingHtml = `
-          <div class="mt-3.5 pt-3 border-t border-slate-800">
-            <div class="text-xs font-black text-rose-400 mb-2 flex items-center gap-1.5">
-              <i class="fa-solid fa-user-xmark"></i>
-              <span>ئەو قوتابیانەی وەڵامیان نەداوەتەوە (${nonResponding.length} قوتابی - تەنها لای ئەدمین دیارە):</span>
-            </div>
-            <div class="flex flex-wrap gap-1.5">
+          <div class="mt-3 pt-2.5 border-t border-slate-800">
+            <button type="button" onclick="toggleNonRespondingCollapse('${toggleId}')" class="w-full flex items-center justify-between text-xs font-black text-rose-400 hover:text-rose-300 py-1.5 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 transition">
+              <span class="flex items-center gap-1.5">
+                <i class="fa-solid fa-user-xmark"></i>
+                <span>قوتابیانی وەڵامنەداوە (${nonResponding.length} کەس)</span>
+              </span>
+              <span class="flex items-center gap-1 text-[11px] text-rose-300">
+                <span id="${toggleId}-label">دەرخستن</span>
+                <i id="${toggleId}-icon" class="fa-solid fa-chevron-down text-[10px] transition-transform"></i>
+              </span>
+            </button>
+            <div id="${toggleId}" class="hidden flex flex-wrap gap-1.5 pt-2">
               ${nonResponding.map(u => `
                 <span onclick="openUserProfileModal(${u.user_id || u.id})" class="cursor-pointer px-2.5 py-1 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs font-bold ${getUserNameClass(u)} hover:bg-rose-500/20 transition">
                   ${escapeHtml(u.full_name)}
@@ -3129,6 +3150,193 @@ function appendMessage(msg, scroll = true) {
       </div>
     `;
     container.appendChild(msgElem);
+    if (scroll && !isUserScrolledUp) scrollToBottom();
+    return;
+  }
+
+  // 2b. ATTENDANCE & LEAVE CARD (@هاتن / @غیابات)
+  if (msg.attachment_type === 'attendance') {
+    msgElem.className = 'chat-msg-item w-full my-3.5';
+    msgElem.setAttribute('data-msg-id', msg.id);
+
+    const summary = msg.attendance_summary || {};
+    const session = summary.session || {};
+    const sessionId = session.id || Number(msg.attachment_url) || 0;
+    const isActive = session.is_active === 1 || session.is_active === true;
+    const userRec = summary.user_record || null;
+    const isPresent = userRec && userRec.status === 'present';
+    const isExcused = userRec && userRec.status === 'excused';
+    const hasPendingLeave = userRec && userRec.leave_status === 'pending';
+    const isRejectedLeave = userRec && userRec.leave_status === 'rejected';
+
+    const presentCount = summary.present_count || 0;
+    const excusedCount = summary.excused_count || 0;
+    const absentCount = summary.absent_count || 0;
+    const pendingLeaves = summary.pending_leaves || [];
+
+    const isStaffUser = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+
+    // Red fingerprint button that turns green when marked
+    let fingerprintBtnHtml = '';
+    if (isPresent) {
+      fingerprintBtnHtml = `
+        <div class="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 border border-emerald-400 select-none">
+          <i class="fa-solid fa-fingerprint text-lg"></i>
+          <span>ئامادەبوویت ✅</span>
+        </div>
+      `;
+    } else if (isExcused) {
+      fingerprintBtnHtml = `
+        <div class="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-sky-600 to-blue-600 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg border border-sky-400 select-none">
+          <i class="fa-solid fa-calendar-check text-lg"></i>
+          <span>مۆڵەتپێدراو (عوزر پەسەندکراو) 📝</span>
+        </div>
+      `;
+    } else if (!isActive) {
+      fingerprintBtnHtml = `
+        <div class="flex-1 py-3 px-4 rounded-2xl bg-slate-800 text-slate-400 font-bold text-xs flex items-center justify-center gap-2 border border-slate-700 select-none">
+          <i class="fa-solid fa-lock text-sm"></i>
+          <span>تۆماری ئامادەبوون داخراوە</span>
+        </div>
+      `;
+    } else {
+      fingerprintBtnHtml = `
+        <button type="button" onclick="markAttendanceClick(${sessionId}, ${msg.id})" class="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl shadow-rose-950/50 border border-rose-400 active:scale-95 transition-all animate-pulse">
+          <i class="fa-solid fa-fingerprint text-xl text-white"></i>
+          <span>دوگمەی هاتن (پەنجەمۆر)</span>
+        </button>
+      `;
+    }
+
+    // Light blue square leave button
+    let leaveBtnHtml = '';
+    if (hasPendingLeave) {
+      leaveBtnHtml = `
+        <button type="button" disabled class="py-3 px-3 rounded-2xl bg-sky-500/20 border border-sky-400/50 text-sky-300 font-bold text-xs flex flex-col items-center justify-center gap-1 select-none cursor-default" title="داواکاری مۆڵەتەکەت چاوەڕوانە">
+          <i class="fa-solid fa-clock-rotate-left text-sm"></i>
+          <span class="text-[10px]">مۆڵەت (چاوەڕوانە) ⏳</span>
+        </button>
+      `;
+    } else if (isExcused) {
+      leaveBtnHtml = `
+        <div class="py-3 px-3 rounded-2xl bg-sky-600/30 border border-sky-400/50 text-sky-200 font-bold text-xs flex flex-col items-center justify-center gap-1 select-none">
+          <i class="fa-solid fa-check text-sm text-sky-300"></i>
+          <span class="text-[10px]">مۆڵەت قبوڵکرا</span>
+        </div>
+      `;
+    } else if (isRejectedLeave) {
+      leaveBtnHtml = `
+        <button type="button" onclick="openLeaveModal(${sessionId})" class="py-3 px-3 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold text-xs flex flex-col items-center justify-center gap-1 hover:bg-rose-500/30 transition" title="عوزرەکەت قبوڵ نەکرا، دەتوانیت هۆکاری تر بنووسیت">
+          <i class="fa-solid fa-circle-exclamation text-sm text-rose-400"></i>
+          <span class="text-[10px]">مۆڵەت (ڕەتکرایەوە) ❌</span>
+        </button>
+      `;
+    } else if (isActive && !isPresent) {
+      leaveBtnHtml = `
+        <button type="button" onclick="openLeaveModal(${sessionId})" class="py-3 px-3.5 rounded-2xl bg-sky-100 hover:bg-sky-200 text-sky-950 font-black text-xs flex flex-col items-center justify-center gap-1 border border-sky-300 shadow-md transition active:scale-95" title="داواکردنی مۆڵەت بۆ ئامادەنەبوون">
+          <i class="fa-solid fa-file-signature text-base text-sky-700"></i>
+          <span class="text-[11px]">مۆڵەت 📝</span>
+        </button>
+      `;
+    }
+
+    // Live Staff Review Panel
+    let staffReviewHtml = '';
+    if (isStaffUser) {
+      const pendingLeaveItems = pendingLeaves.map(pl => `
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-sky-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div class="min-w-0">
+            <span class="font-bold text-sky-300 block">${escapeHtml(pl.full_name)}</span>
+            <p class="text-[11px] text-slate-300 whitespace-pre-wrap mt-0.5">هۆکار: "${escapeHtml(pl.leave_reason || '')}"</p>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button type="button" onclick="reviewLeaveRequestClick(${sessionId}, ${pl.user_id}, 'approved', ${msg.id})" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] transition shadow active:scale-95 flex items-center gap-1">
+              <i class="fa-solid fa-check"></i>
+              <span>قبوڵ (ئامادە)</span>
+            </button>
+            <button type="button" onclick="reviewLeaveRequestClick(${sessionId}, ${pl.user_id}, 'rejected', ${msg.id})" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-bold text-[11px] transition shadow active:scale-95 flex items-center gap-1">
+              <i class="fa-solid fa-xmark"></i>
+              <span>ڕەتکردن (غائیب)</span>
+            </button>
+          </div>
+        </div>
+      `).join('');
+
+      staffReviewHtml = `
+        <div class="mt-3 pt-3 border-t border-slate-800 space-y-2">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-2 text-xs">
+              <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold rounded-lg border border-emerald-500/30">
+                ✅ هاتووان: ${presentCount}
+              </span>
+              <span class="px-2 py-0.5 bg-sky-500/20 text-sky-300 font-bold rounded-lg border border-sky-500/30">
+                📝 مۆڵەت: ${excusedCount}
+              </span>
+              <span class="px-2 py-0.5 bg-rose-500/20 text-rose-300 font-bold rounded-lg border border-rose-500/30">
+                ❌ غائب: ${absentCount}
+              </span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              ${isActive ? `
+                <button type="button" onclick="closeAttendanceSessionClick(${sessionId}, ${msg.id})" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-[11px] font-bold transition flex items-center gap-1">
+                  <i class="fa-solid fa-lock text-[10px]"></i>
+                  <span>داخستنی ئامادەبوون</span>
+                </button>
+              ` : `
+                <span class="text-[10px] text-slate-500 font-bold">داخراوە</span>
+              `}
+              <button type="button" onclick="openActivityModal()" class="px-2.5 py-1 bg-teal-600/20 hover:bg-teal-600 text-teal-300 hover:text-white border border-teal-500/40 rounded-xl text-[11px] font-bold transition flex items-center gap-1">
+                <i class="fa-solid fa-table-list text-[10px]"></i>
+                <span>لیستی چالاکی</span>
+              </button>
+            </div>
+          </div>
+
+          ${pendingLeaves.length > 0 ? `
+            <div class="mt-2 space-y-1.5">
+              <span class="text-[11px] font-bold text-sky-300 flex items-center gap-1">
+                <i class="fa-solid fa-bell animate-bounce text-sky-400"></i>
+                <span>داواکارییەکانی مۆڵەت کە چاوەڕوانی بڕیارن (${pendingLeaves.length}):</span>
+              </span>
+              ${pendingLeaveItems}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    msgElem.innerHTML = `
+      <div class="max-w-xl mx-auto rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border-2 ${isActive ? 'border-rose-500/60 shadow-xl shadow-rose-950/20' : 'border-slate-800 shadow-md'} p-4 relative overflow-hidden">
+        <div class="flex items-center justify-between pb-2.5 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center text-sm font-black">
+              <i class="fa-solid fa-fingerprint"></i>
+            </div>
+            <div>
+              <h4 class="font-black text-xs sm:text-sm text-white">${escapeHtml(session.title || 'تۆماری ئامادەبوون و غیابات')}</h4>
+              <span class="text-[10px] text-slate-400 font-mono">${dateStr} • دانەر: ${escapeHtml(summary.creator_name || 'ئیدارە')}</span>
+            </div>
+          </div>
+          <span class="px-2 py-0.5 rounded-lg text-[10px] font-black ${isActive ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse' : 'bg-slate-800 text-slate-400 border border-slate-700'}">
+            ${isActive ? 'چالاکە 🟢' : 'کۆتاییهات 🔒'}
+          </span>
+        </div>
+
+        <p class="text-xs text-slate-300 mt-2 mb-3 leading-relaxed">
+          تکایە پەنجە بنێن بە دوگمەی هاتندا بۆ تۆمارکردنی ئامادەبوونتان. لە کاتی بوونی هەر عوزرێک، پەنجە بنێن بە دوگمەی مۆڵەت و هۆکارەکەتان بنووسن.
+        </p>
+
+        <!-- Actions Row: Red Fingerprint + Light Blue Leave Button -->
+        <div class="flex items-stretch gap-2">
+          ${fingerprintBtnHtml}
+          ${leaveBtnHtml}
+        </div>
+
+        ${staffReviewHtml}
+      </div>
+    `;
+
+    if (!isAlreadyInDom) container.appendChild(msgElem);
     if (scroll && !isUserScrolledUp) scrollToBottom();
     return;
   }
@@ -3443,10 +3651,24 @@ function appendMessage(msg, scroll = true) {
   if (scroll && !isUserScrolledUp) scrollToBottom();
 }
 
-function scrollToBottom() {
+function toggleNonRespondingCollapse(id) {
+  const el = document.getElementById(id);
+  const icon = document.getElementById(`${id}-icon`);
+  const label = document.getElementById(`${id}-label`);
+  if (!el) return;
+  const isHidden = el.classList.toggle('hidden');
+  if (label) label.textContent = isHidden ? 'دەرخستن' : 'شاردنەوە';
+  if (icon) icon.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+function scrollToBottom(instant = false) {
   const container = document.getElementById('messagesContainer');
   if (container) {
-    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    if (instant) {
+      container.scrollTop = container.scrollHeight;
+    } else {
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    }
   }
   const arrowBtn = document.getElementById('scrollToLatestBtn');
   if (arrowBtn) {
@@ -5137,6 +5359,11 @@ async function cancelActiveQuestion() {
 let currentEditQuestionId = null;
 
 function openEditQuestionModal(questionId) {
+  const canEdit = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
+  if (!canEdit) {
+    alert('تەنها سوپەر ئەدمین و مامۆستا دەتوانن پرسیار دەستکاری بکەن');
+    return;
+  }
   const targetId = questionId || (activeQuestion ? activeQuestion.id : null);
   if (!targetId) return;
   currentEditQuestionId = targetId;
@@ -5567,9 +5794,48 @@ function openPostQuestionModal() {
   if (modal) modal.classList.remove('hidden');
   setPublishScheduleMode('now');
   switchTimeMode('quick');
+  loadExistingQuestionDatesNotice();
   if (window.innerWidth > 768) {
     const input = document.getElementById('questionTextInput');
     if (input) setTimeout(() => input.focus(), 100);
+  }
+}
+
+async function loadExistingQuestionDatesNotice() {
+  const noticeBox = document.getElementById('existingQuestionDatesNotice');
+  const chipsBox = document.getElementById('existingQuestionDatesChips');
+  if (!noticeBox || !chipsBox) return;
+  try {
+    const res = await fetch('/api/chat/questions/archive?limit=15', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const questions = data.questions || [];
+    const dateMap = new Map();
+    questions.forEach(q => {
+      const dStr = q.scheduled_publish_time || q.created_at;
+      if (!dStr) return;
+      const d = new Date(dStr);
+      const key = d.toLocaleDateString('ku-IQ', { weekday: 'long', year: 'numeric', month: 'numeric', day: 'numeric' });
+      const status = q.is_active ? 'کارا 🟢' : (q.scheduled_publish_time && new Date(q.scheduled_publish_time) > new Date() ? 'میقاتکراو ⏳' : 'تەواوبوو');
+      if (!dateMap.has(key)) {
+        dateMap.set(key, status);
+      }
+    });
+
+    if (dateMap.size > 0) {
+      noticeBox.classList.remove('hidden');
+      chipsBox.innerHTML = Array.from(dateMap.entries()).slice(0, 6).map(([dStr, st]) => `
+        <span class="px-2 py-0.5 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-200 font-bold">
+          📅 ${dStr} (${st})
+        </span>
+      `).join('');
+    } else {
+      noticeBox.classList.add('hidden');
+    }
+  } catch (e) {
+    console.error('Error fetching question dates:', e);
   }
 }
 
@@ -8552,17 +8818,25 @@ function renderLibraryBooks(books) {
           <!-- 3D Book Cover Graphic -->
           <div class="h-24 sm:h-28 rounded-xl bg-gradient-to-tr from-teal-950 via-slate-800 to-emerald-950/40 border border-slate-700/60 flex flex-col items-center justify-center p-2 text-center relative overflow-hidden group-hover:scale-[1.02] transition-transform">
             <div class="absolute inset-y-0 right-0 w-1.5 bg-gradient-to-l from-black/40 to-transparent"></div>
-            <i class="fa-solid ${hasMultiple ? 'fa-book-journal-whills text-emerald-400' : 'fa-file-pdf text-rose-400'} text-2xl sm:text-3xl mb-1 drop-shadow"></i>
-            <span class="text-[9px] text-slate-400 font-mono">${formatFileSize(totalSize)}</span>
+            ${book.cover_image ? `
+              <img src="${escapeHtml(book.cover_image)}" alt="${escapeHtml(book.title)}" class="w-full h-full object-cover rounded-lg">
+            ` : `
+              <i class="fa-solid ${hasMultiple ? 'fa-book-journal-whills text-emerald-400' : 'fa-file-pdf text-rose-400'} text-2xl sm:text-3xl mb-1 drop-shadow"></i>
+              <span class="text-[9px] text-slate-400 font-mono">${formatFileSize(totalSize)}</span>
+            `}
           </div>
 
           <!-- Title & Author (Owner) -->
           <div class="mt-2 min-w-0">
-            <h4 class="font-black text-xs sm:text-sm text-white line-clamp-2 leading-tight group-hover:text-teal-300 transition" title="${escapeHtml(book.title)}">
+            <h4 class="font-black text-xs sm:text-sm text-white line-clamp-2 leading-tight break-words group-hover:text-teal-300 transition" title="${escapeHtml(book.title)}">
               ${escapeHtml(book.title)}
             </h4>
-            <p class="text-[10px] text-amber-300/90 font-medium truncate mt-1 flex items-center gap-1" title="${escapeHtml(book.author || 'خاوەن کتێبی گشتی')}">
-              <i class="fa-solid fa-feather-pointed text-[9px] text-amber-400 shrink-0"></i>
+            <p class="text-[10px] text-amber-300/90 font-medium truncate mt-1 flex items-center gap-1.5" title="${escapeHtml(book.author || 'خاوەن کتێبی گشتی')}">
+              ${book.author_image ? `
+                <img src="${escapeHtml(book.author_image)}" alt="" class="w-4 h-4 rounded-full object-cover border border-amber-400/50 shrink-0">
+              ` : `
+                <i class="fa-solid fa-feather-pointed text-[9px] text-amber-400 shrink-0"></i>
+              `}
               <span class="truncate">${escapeHtml(book.author || 'خاوەن کتێبی گشتی')}</span>
             </p>
           </div>
@@ -8900,6 +9174,15 @@ async function handleUploadLibraryBook(e) {
   formData.append('author', author);
   formData.append('category', category);
   formData.append('description', description);
+
+  const coverInput = document.getElementById('libBookCoverImage');
+  if (coverInput && coverInput.files && coverInput.files[0]) {
+    formData.append('cover_image', coverInput.files[0]);
+  }
+  const authorImgInput = document.getElementById('libBookAuthorImage');
+  if (authorImgInput && authorImgInput.files && authorImgInput.files[0]) {
+    formData.append('author_image', authorImgInput.files[0]);
+  }
 
   try {
     const res = await fetch('/api/library/upload', {
@@ -9722,59 +10005,65 @@ function backToDreamAdminSessions() {
   if (emptyPrompt) emptyPrompt.classList.remove('hidden');
 }
 
-let dreamSessionsActiveTab = 'all'; // 'all' or 'favorites'
+let dreamSessionsActiveTab = 'all'; // 'all', 'uninterpreted', 'interpreted'
 
 function switchDreamSessionsTab(tab) {
   dreamSessionsActiveTab = tab;
   const tabAllBtn = document.getElementById('dreamTabAllBtn');
-  const tabFavBtn = document.getElementById('dreamTabFavBtn');
+  const tabUninterpBtn = document.getElementById('dreamTabUninterpretedBtn');
+  const tabInterpBtn = document.getElementById('dreamTabInterpretedBtn');
+
+  if (tabAllBtn) tabAllBtn.className = 'flex-1 py-1 rounded-lg text-slate-400 hover:text-white transition flex items-center justify-center gap-1 text-[11px]';
+  if (tabUninterpBtn) tabUninterpBtn.className = 'flex-1 py-1 rounded-lg text-slate-400 hover:text-amber-300 transition flex items-center justify-center gap-1 text-[11px]';
+  if (tabInterpBtn) tabInterpBtn.className = 'flex-1 py-1 rounded-lg text-slate-400 hover:text-emerald-300 transition flex items-center justify-center gap-1 text-[11px]';
+
   if (tab === 'all') {
     if (tabAllBtn) tabAllBtn.className = 'flex-1 py-1 rounded-lg text-white bg-purple-600 shadow transition flex items-center justify-center gap-1 text-[11px]';
-    if (tabFavBtn) tabFavBtn.className = 'flex-1 py-1 rounded-lg text-slate-400 hover:text-amber-300 transition flex items-center justify-center gap-1 text-[11px]';
-  } else {
-    if (tabAllBtn) tabAllBtn.className = 'flex-1 py-1 rounded-lg text-slate-400 hover:text-white transition flex items-center justify-center gap-1 text-[11px]';
-    if (tabFavBtn) tabFavBtn.className = 'flex-1 py-1 rounded-lg text-slate-950 font-black bg-amber-400 shadow transition flex items-center justify-center gap-1 text-[11px]';
+  } else if (tab === 'uninterpreted') {
+    if (tabUninterpBtn) tabUninterpBtn.className = 'flex-1 py-1 rounded-lg text-slate-950 font-black bg-amber-400 shadow transition flex items-center justify-center gap-1 text-[11px]';
+  } else if (tab === 'interpreted') {
+    if (tabInterpBtn) tabInterpBtn.className = 'flex-1 py-1 rounded-lg text-slate-950 font-black bg-emerald-400 shadow transition flex items-center justify-center gap-1 text-[11px]';
   }
   renderDreamAdminSessionsCards();
 }
 
 function renderDreamAdminSessionsCards() {
   const allCount = dreamAdminSessionsCache.length;
-  const favCount = dreamAdminSessionsCache.filter(s => s.is_favorite).length;
+  const uninterpCount = dreamAdminSessionsCache.filter(s => !s.is_interpreted).length;
+  const interpCount = dreamAdminSessionsCache.filter(s => !!s.is_interpreted).length;
 
   const countAllBadge = document.getElementById('dreamCountAll');
-  const countFavBadge = document.getElementById('dreamCountFavorites');
+  const countUninterpBadge = document.getElementById('dreamCountUninterpreted');
+  const countInterpBadge = document.getElementById('dreamCountInterpreted');
   const countTotalBadge = document.getElementById('dreamSessionsCountBadge');
 
   if (countAllBadge) countAllBadge.innerText = allCount;
-  if (countFavBadge) countFavBadge.innerText = favCount;
-  if (countTotalBadge) countTotalBadge.innerText = (dreamSessionsActiveTab === 'favorites') ? favCount : allCount;
+  if (countUninterpBadge) countUninterpBadge.innerText = uninterpCount;
+  if (countInterpBadge) countInterpBadge.innerText = interpCount;
+  if (countTotalBadge) {
+    if (dreamSessionsActiveTab === 'uninterpreted') countTotalBadge.innerText = uninterpCount;
+    else if (dreamSessionsActiveTab === 'interpreted') countTotalBadge.innerText = interpCount;
+    else countTotalBadge.innerText = allCount;
+  }
 
   const listContainer = document.getElementById('dreamSessionsList');
   if (!listContainer) return;
   listContainer.innerHTML = '';
 
   let listToRender = dreamAdminSessionsCache;
-  if (dreamSessionsActiveTab === 'favorites') {
-    listToRender = dreamAdminSessionsCache.filter(s => s.is_favorite);
+  if (dreamSessionsActiveTab === 'uninterpreted') {
+    listToRender = dreamAdminSessionsCache.filter(s => !s.is_interpreted);
+  } else if (dreamSessionsActiveTab === 'interpreted') {
+    listToRender = dreamAdminSessionsCache.filter(s => !!s.is_interpreted);
   }
 
   if (listToRender.length === 0) {
-    if (dreamSessionsActiveTab === 'favorites') {
-      listContainer.innerHTML = `
-        <div class="text-center py-10 text-slate-500 text-xs px-3">
-          <i class="fa-regular fa-star text-2xl text-amber-500/40 mb-2 block"></i>
-          هیچ چاتێکی دڵخواز دیارینەکراوە.<br>
-          <span class="text-[10px] text-slate-600 mt-1 block">دەتوانیت لە ڕێگەی ئەستێرەکەوە چاتە گرنگەکان بخەیتە ئێرە ⭐</span>
-        </div>
-      `;
-    } else {
-      listContainer.innerHTML = `
-        <div class="text-center py-10 text-slate-500 text-xs">
-          هیچ داواکارییەکی لێکدانەوەی خەون نییە
-        </div>
-      `;
-    }
+    listContainer.innerHTML = `
+      <div class="text-center py-10 text-slate-500 text-xs px-3">
+        <i class="fa-solid fa-moon text-2xl text-purple-500/40 mb-2 block"></i>
+        هیچ خەونێک لەم بەشەدا نییە.
+      </div>
+    `;
     return;
   }
 
@@ -9813,6 +10102,10 @@ function renderDreamAdminSessionsCards() {
       </button>
     ` : '';
 
+    const interpBadge = s.is_interpreted
+      ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold inline-flex items-center gap-1"><i class="fa-solid fa-circle-check text-[8px]"></i> لێکدراوەتەوە</span>`
+      : `<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold inline-flex items-center gap-1"><i class="fa-regular fa-clock text-[8px]"></i> لێکنەدراوە</span>`;
+
     card.innerHTML = `
       <div class="flex items-center justify-between mb-1">
         <div class="flex items-center gap-1.5 overflow-hidden">
@@ -9829,8 +10122,9 @@ function renderDreamAdminSessionsCards() {
         <div class="text-[11px] text-slate-400 truncate pr-1 flex-1">
           ${escapeHtml(s.last_message_content || 'دانیشتنی نوێ')}
         </div>
-        <div class="shrink-0">
+        <div class="shrink-0 flex items-center gap-1">
           ${voiceBadgeHtml}
+          ${interpBadge}
         </div>
       </div>
       <div class="mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
@@ -9954,6 +10248,23 @@ async function selectDreamSession(sessionId) {
       }
     }
 
+    const interpBtn = document.getElementById('dreamAdminInterpretBtn');
+    const interpIcon = document.getElementById('dreamAdminInterpretIcon');
+    const interpLabel = document.getElementById('dreamAdminInterpretLabel');
+    if (interpBtn && interpIcon) {
+      if (session.is_interpreted) {
+        interpBtn.className = 'px-2 py-1.5 text-emerald-300 bg-emerald-950/70 border border-emerald-500 rounded-xl transition shrink-0 flex items-center gap-1 text-xs shadow-sm';
+        interpIcon.className = 'fa-solid fa-circle-check text-xs text-emerald-400';
+        if (interpLabel) interpLabel.innerText = 'لێکدراوەتەوە ✅';
+        interpBtn.title = 'لێکدانەوە تەواوکراوە (کلیک بکە بۆ گۆڕین)';
+      } else {
+        interpBtn.className = 'px-2 py-1.5 text-slate-400 hover:text-emerald-400 bg-slate-800 rounded-xl border border-slate-700 transition shrink-0 flex items-center gap-1 text-xs';
+        interpIcon.className = 'fa-regular fa-circle-check text-xs';
+        if (interpLabel) interpLabel.innerText = 'لێکنەدراوە ⏳';
+        interpBtn.title = 'لێکنەدراوەتەوە (کلیک بکە بۆ تەواوکردن)';
+      }
+    }
+
     const container = document.getElementById('dreamAdminMessagesContainer');
     if (container) {
       container.innerHTML = '';
@@ -10005,6 +10316,42 @@ async function toggleDreamFavorite(sessionId) {
 function toggleActiveDreamFavorite() {
   if (activeDreamAdminSessionId) {
     toggleDreamFavorite(activeDreamAdminSessionId);
+  }
+}
+
+async function toggleActiveDreamInterpret() {
+  if (!activeDreamAdminSessionId) return;
+  try {
+    const res = await fetch(`/api/dream/admin/session/${activeDreamAdminSessionId}/interpret`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const session = dreamAdminSessionsCache.find(s => s.id === activeDreamAdminSessionId);
+    if (session) {
+      session.is_interpreted = data.is_interpreted;
+    }
+    const interpBtn = document.getElementById('dreamAdminInterpretBtn');
+    const interpIcon = document.getElementById('dreamAdminInterpretIcon');
+    const interpLabel = document.getElementById('dreamAdminInterpretLabel');
+    if (interpBtn && interpIcon) {
+      if (data.is_interpreted) {
+        interpBtn.className = 'px-2 py-1.5 text-emerald-300 bg-emerald-950/70 border border-emerald-500 rounded-xl transition shrink-0 flex items-center gap-1 text-xs shadow-sm';
+        interpIcon.className = 'fa-solid fa-circle-check text-xs text-emerald-400';
+        if (interpLabel) interpLabel.innerText = 'لێکدراوەتەوە ✅';
+        interpBtn.title = 'لێکدانەوە تەواوکراوە (کلیک بکە بۆ گۆڕین)';
+      } else {
+        interpBtn.className = 'px-2 py-1.5 text-slate-400 hover:text-emerald-400 bg-slate-800 rounded-xl border border-slate-700 transition shrink-0 flex items-center gap-1 text-xs';
+        interpIcon.className = 'fa-regular fa-circle-check text-xs';
+        if (interpLabel) interpLabel.innerText = 'لێکنەدراوە ⏳';
+        interpBtn.title = 'لێکنەدراوەتەوە (کلیک بکە بۆ تەواوکردن)';
+      }
+    }
+    renderDreamAdminSessionsCards();
+    showLiveToastNotification(data.is_interpreted ? 'خەونەکە وەک لێکدراوەتەوە دیاریکرا ✅' : 'خەونەکە وەک لێکنەدراوە دیاریکرا ⏳', 'emerald');
+  } catch (e) {
+    console.error('Error toggling interpret:', e);
   }
 }
 
@@ -10726,7 +11073,6 @@ function normalizeKurdishText(str) {
     .replace(/[ھ]/g, 'ه')
     .replace(/[أإآ]/g, 'ا')
     .replace(/[ؤ]/g, 'و')
-    .replace(/[ئ]/g, 'ی')
     .replace(/[\u064B-\u065F]/g, '') // harakat (fatha, damma, etc.)
     .trim();
 }
@@ -10843,11 +11189,38 @@ async function executeServerChatSearch(query) {
   }
 }
 
-function jumpToSearchResultMessage(msgId) {
+async function jumpToSearchResultMessage(msgId) {
   const dropdown = document.getElementById('chatSearchResultsDropdown');
   if (dropdown) dropdown.classList.add('hidden');
 
-  const elem = document.getElementById(`msg-${msgId}`);
+  let elem = document.getElementById(`msg-${msgId}`);
+  if (!elem) {
+    try {
+      showLiveToastNotification('هێنانی پەیامە کۆنەکە لە سێرڤەرەوە...', 'indigo');
+      const res = await fetch(`/api/chat/message-context/${msgId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const container = document.getElementById('messagesContainer');
+        if (container && Array.isArray(data.messages) && data.messages.length > 0) {
+          const existingIds = new Set(Array.from(container.querySelectorAll('.chat-msg-item')).map(m => m.id.replace('msg-', '')));
+          const missing = data.messages.filter(m => !existingIds.has(String(m.id)));
+          if (missing.length > 0) {
+            const frag = document.createDocumentFragment();
+            missing.forEach(m => {
+              const tempHolder = document.createElement('div');
+              appendMessage(m, false);
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching context:', e);
+    }
+    elem = document.getElementById(`msg-${msgId}`);
+  }
+
   if (elem) {
     elem.classList.remove('hidden');
     elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -14903,10 +15276,19 @@ async function submitNewRecordedLesson() {
   }
 }
 
+let cachedRecordedLessons = [];
+
 async function loadRecordedLessons() {
-  const container = document.getElementById('recordedLessonsListContainer');
-  if (!container) return;
-  container.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs">لە بارکردندایە...</div>';
+  const teachersContainer = document.getElementById('recordedLessonsTeachersContainer');
+  const lessonsContainer = document.getElementById('recordedLessonsListContainer');
+  const navHeader = document.getElementById('recordedLessonsNavHeader');
+
+  if (teachersContainer) {
+    teachersContainer.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs col-span-2">لە بارکردندایە...</div>';
+    teachersContainer.classList.remove('hidden');
+  }
+  if (lessonsContainer) lessonsContainer.classList.add('hidden');
+  if (navHeader) navHeader.classList.add('hidden');
 
   try {
     const res = await fetch('/api/recorded-lessons', {
@@ -14914,89 +15296,155 @@ async function loadRecordedLessons() {
     });
     const data = await res.json();
     if (!res.ok || !Array.isArray(data.lessons)) {
-      container.innerHTML = '<div class="p-6 text-center text-rose-400 text-xs">نەتوانرا وانەکان بهێنرێت</div>';
+      if (teachersContainer) teachersContainer.innerHTML = '<div class="p-6 text-center text-rose-400 text-xs col-span-2">نەتوانرا وانەکان بهێنرێت</div>';
       return;
     }
 
-    if (data.lessons.length === 0) {
-      container.innerHTML = `
-        <div class="p-8 text-center text-slate-500 text-xs leading-relaxed">
-          هیچ وانەیەکی تۆمارکراو بەردەست نییە.<br>
-          کاتێک مامۆستا یان سوپەر ئەدمین وانەی دەنگی دابنێن، لێرەدا دەتوانیت گوێیان لێ بگریت.
-        </div>
-      `;
+    cachedRecordedLessons = data.lessons;
+
+    if (cachedRecordedLessons.length === 0) {
+      if (teachersContainer) {
+        teachersContainer.innerHTML = `
+          <div class="p-8 text-center text-slate-500 text-xs leading-relaxed col-span-2">
+            هیچ وانەیەکی تۆمارکراو بەردەست نییە.<br>
+            کاتێک مامۆستا یان سوپەر ئەدمین وانەی دەنگی دابنێن، لێرەدا دەتوانیت گوێیان لێ بگریت.
+          </div>
+        `;
+      }
       return;
     }
 
-    const isStaff = currentUser && (currentUser.role === 'teacher' || currentUser.role === 'super_admin');
-
-    container.innerHTML = data.lessons.map(lesson => {
-      const createdTime = lesson.created_at ? new Date(lesson.created_at).toLocaleDateString('ku-IQ') : '';
-      const deleteBtn = isStaff ? `
-        <button type="button" onclick="deleteRecordedLesson(${lesson.id})" class="p-1 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="سڕینەوە">
-          <i class="fa-solid fa-trash text-xs"></i>
-        </button>
-      ` : '';
-
-      const storageKey = `seereen_lesson_pos_${lesson.id}`;
-      const savedPos = parseFloat(localStorage.getItem(storageKey) || '0');
-      const hasSavedPos = savedPos > 3;
-      const resumeBadgeHtml = `
-        <div id="resume-badge-lesson-audio-${lesson.id}" class="${hasSavedPos ? '' : 'hidden '}flex items-center justify-between text-[11px] px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
-          <div class="flex items-center gap-1.5">
-            <i class="fa-solid fa-clock-rotate-left"></i>
-            <span>شوێنی وەستان: <b>${formatAudioDuration(savedPos)}</b> ⏱️</span>
-          </div>
-          <button type="button" onclick="resetLessonAudioToStart('lesson-audio-${lesson.id}', '${storageKey}')" class="text-[10px] text-slate-400 hover:text-white underline hover:no-underline" title="دەستپێکردنەوە لە سەرەتاوە">
-            لە سەرەتاوە ↺
-          </button>
-        </div>
-      `;
-
-      return `
-        <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2.5 shadow-sm">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-mono font-bold text-xs border border-emerald-500/30">
-                #${lesson.lesson_number}
-              </span>
-              <h4 class="font-black text-xs sm:text-sm text-white">${escapeHtml(lesson.title)}</h4>
-            </div>
-            <div class="flex items-center gap-1.5 shrink-0">
-              ${deleteBtn}
-            </div>
-          </div>
-
-          ${lesson.description ? `
-            <p class="text-xs text-slate-300 leading-relaxed bg-slate-950/40 p-2.5 rounded-xl border border-slate-800/80">
-              ${escapeHtml(lesson.description)}
-            </p>
-          ` : ''}
-
-          <div class="flex items-center justify-between text-[11px] text-slate-400">
-            <span>مامۆستا: <strong class="text-amber-300">${escapeHtml(lesson.instructor_name || 'مامۆستا')}</strong></span>
-            <span class="font-mono text-[10px] text-slate-500">${createdTime}</span>
-          </div>
-
-          ${resumeBadgeHtml}
-
-          <!-- Audio Player Protected from Download (داونلۆد بە تەواوی قەدەغەیە) -->
-          <div class="pt-1">
-            <audio id="lesson-audio-${lesson.id}" controls controlsList="nodownload" oncontextmenu="return false;" src="${escapeHtml(lesson.audio_url)}" class="w-full h-9 rounded-xl"></audio>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    // Attach resume listeners
-    data.lessons.forEach(lesson => {
-      const audio = document.getElementById(`lesson-audio-${lesson.id}`);
-      if (audio) initResumeLessonAudio(audio, `seereen_lesson_pos_${lesson.id}`);
-    });
+    renderRecordedLessonsTeachers();
   } catch (err) {
     console.error('Error loading recorded lessons:', err);
-    container.innerHTML = '<div class="p-6 text-center text-rose-400 text-xs">هەڵەیەک ڕوویدا</div>';
+    if (teachersContainer) teachersContainer.innerHTML = '<div class="p-6 text-center text-rose-400 text-xs col-span-2">هەڵەیەک ڕوویدا</div>';
   }
+}
+
+function renderRecordedLessonsTeachers() {
+  const teachersContainer = document.getElementById('recordedLessonsTeachersContainer');
+  const lessonsContainer = document.getElementById('recordedLessonsListContainer');
+  const navHeader = document.getElementById('recordedLessonsNavHeader');
+
+  if (!teachersContainer) return;
+  teachersContainer.classList.remove('hidden');
+  if (lessonsContainer) lessonsContainer.classList.add('hidden');
+  if (navHeader) navHeader.classList.add('hidden');
+
+  const teacherMap = new Map();
+  cachedRecordedLessons.forEach(l => {
+    const tName = (l.instructor_name && l.instructor_name.trim()) ? l.instructor_name.trim() : 'مامۆستا';
+    if (!teacherMap.has(tName)) {
+      teacherMap.set(tName, []);
+    }
+    teacherMap.get(tName).push(l);
+  });
+
+  teachersContainer.innerHTML = Array.from(teacherMap.entries()).map(([teacherName, lessons]) => {
+    return `
+      <div onclick="showTeacherRecordedLessons('${escapeHtml(teacherName)}')" class="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-emerald-500/50 hover:from-slate-850 transition-all cursor-pointer shadow-md group flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform shadow-inner">
+            <i class="fa-solid fa-chalkboard-user"></i>
+          </div>
+          <div class="min-w-0">
+            <h4 class="font-black text-sm text-white group-hover:text-emerald-300 transition truncate">${escapeHtml(teacherName)}</h4>
+            <span class="text-[11px] text-slate-400 block mt-0.5 font-medium">${lessons.length} وانەی تۆمارکراو 🎙️</span>
+          </div>
+        </div>
+        <div class="w-8 h-8 rounded-xl bg-slate-800 group-hover:bg-emerald-600 text-slate-400 group-hover:text-white flex items-center justify-center text-xs transition shrink-0">
+          <i class="fa-solid fa-chevron-left"></i>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function showRecordedLessonsTeachersView() {
+  renderRecordedLessonsTeachers();
+}
+
+function showTeacherRecordedLessons(teacherName) {
+  const teachersContainer = document.getElementById('recordedLessonsTeachersContainer');
+  const lessonsContainer = document.getElementById('recordedLessonsListContainer');
+  const navHeader = document.getElementById('recordedLessonsNavHeader');
+  const badge = document.getElementById('selectedTeacherNameBadge');
+
+  if (teachersContainer) teachersContainer.classList.add('hidden');
+  if (navHeader) navHeader.classList.remove('hidden');
+  if (lessonsContainer) lessonsContainer.classList.remove('hidden');
+  if (badge) badge.innerText = `وانەکانی: ${teacherName}`;
+
+  const lessons = cachedRecordedLessons.filter(l => {
+    const t = (l.instructor_name && l.instructor_name.trim()) ? l.instructor_name.trim() : 'مامۆستا';
+    return t === teacherName;
+  });
+
+  const isStaff = currentUser && (currentUser.role === 'teacher' || currentUser.role === 'super_admin');
+
+  lessonsContainer.innerHTML = lessons.map(lesson => {
+    const createdTime = lesson.created_at ? new Date(lesson.created_at).toLocaleDateString('ku-IQ') : '';
+    const deleteBtn = isStaff ? `
+      <button type="button" onclick="deleteRecordedLesson(${lesson.id})" class="p-1 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="سڕینەوە">
+        <i class="fa-solid fa-trash text-xs"></i>
+      </button>
+    ` : '';
+
+    const storageKey = `seereen_lesson_pos_${lesson.id}`;
+    const savedPos = parseFloat(localStorage.getItem(storageKey) || '0');
+    const hasSavedPos = savedPos > 3;
+    const resumeBadgeHtml = `
+      <div id="resume-badge-lesson-audio-${lesson.id}" class="${hasSavedPos ? '' : 'hidden '}flex items-center justify-between text-[11px] px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
+        <div class="flex items-center gap-1.5">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <span>شوێنی وەستان: <b>${formatAudioDuration(savedPos)}</b> ⏱️</span>
+        </div>
+        <button type="button" onclick="resetLessonAudioToStart('lesson-audio-${lesson.id}', '${storageKey}')" class="text-[10px] text-slate-400 hover:text-white underline hover:no-underline" title="دەستپێکردنەوە لە سەرەتاوە">
+          لە سەرەتاوە ↺
+        </button>
+      </div>
+    `;
+
+    return `
+      <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2.5 shadow-sm">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-mono font-bold text-xs border border-emerald-500/30">
+              #${lesson.lesson_number}
+            </span>
+            <h4 class="font-black text-xs sm:text-sm text-white">${escapeHtml(lesson.title)}</h4>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            ${deleteBtn}
+          </div>
+        </div>
+
+        ${lesson.description ? `
+          <p class="text-xs text-slate-300 leading-relaxed bg-slate-950/40 p-2.5 rounded-xl border border-slate-800/80">
+            ${escapeHtml(lesson.description)}
+          </p>
+        ` : ''}
+
+        <div class="flex items-center justify-between text-[11px] text-slate-400">
+          <span>مامۆستا: <strong class="text-amber-300">${escapeHtml(lesson.instructor_name || 'مامۆستا')}</strong></span>
+          <span class="font-mono text-[10px] text-slate-500">${createdTime}</span>
+        </div>
+
+        ${resumeBadgeHtml}
+
+        <!-- Audio Player Protected from Download -->
+        <div class="pt-1">
+          <audio id="lesson-audio-${lesson.id}" controls controlsList="nodownload" oncontextmenu="return false;" src="${escapeHtml(lesson.audio_url)}" class="w-full h-9 rounded-xl"></audio>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Attach resume listeners
+  lessons.forEach(lesson => {
+    const audio = document.getElementById(`lesson-audio-${lesson.id}`);
+    if (audio) initResumeLessonAudio(audio, `seereen_lesson_pos_${lesson.id}`);
+  });
 }
 
 async function deleteRecordedLesson(id) {
@@ -18167,12 +18615,21 @@ function openComplaintsModal() {
   );
 
   const tabs = document.getElementById('complaintsStaffTabs');
+  const newBtn = document.getElementById('complaintsTabNewBtn');
+  const listSec = document.getElementById('complaintsListSection');
+  const formSec = document.getElementById('complaintsFormSection');
+
   if (isStaff) {
     if (tabs) tabs.classList.remove('hidden');
+    if (newBtn) newBtn.classList.add('hidden'); // Staff cannot submit complaints
+    if (formSec) formSec.classList.add('hidden');
+    if (listSec) listSec.classList.remove('hidden');
     switchComplaintsTab('list');
   } else {
+    // Only students can submit complaints
     if (tabs) tabs.classList.add('hidden');
-    switchComplaintsTab('new');
+    if (listSec) listSec.classList.add('hidden');
+    if (formSec) formSec.classList.remove('hidden');
   }
 }
 
@@ -18191,6 +18648,12 @@ function switchComplaintsTab(tab) {
   const listSec = document.getElementById('complaintsListSection');
   const formSec = document.getElementById('complaintsFormSection');
 
+  const isStaff = currentUser && (
+    currentUser.role === 'super_admin' || 
+    currentUser.role === 'teacher' || 
+    currentUser.role === 'admin'
+  );
+
   if (tab === 'list') {
     if (listBtn) listBtn.className = 'flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-amber-500 text-slate-950 shadow';
     if (newBtn) newBtn.className = 'flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white bg-transparent';
@@ -18198,6 +18661,7 @@ function switchComplaintsTab(tab) {
     if (formSec) formSec.classList.add('hidden');
     loadComplaintsList();
   } else {
+    if (isStaff) return; // Prevent staff from opening form
     if (newBtn) newBtn.className = 'flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-amber-500 text-slate-950 shadow';
     if (listBtn) listBtn.className = 'flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white bg-transparent';
     if (formSec) formSec.classList.remove('hidden');
@@ -18311,6 +18775,11 @@ async function loadComplaintsList() {
 
 async function handleSendComplaint(e) {
   e.preventDefault();
+  const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+  if (isStaff) {
+    alert('تەنها قوتابیان دەتوانن لە سندووقی سکاڵا بنووسن.');
+    return;
+  }
   const subjInput = document.getElementById('complaintSubjectInput');
   const contInput = document.getElementById('complaintContentInput');
   const btn = document.getElementById('submitComplaintBtn');
@@ -18438,4 +18907,352 @@ function showStudentWarningAlert(data) {
     msgEl.innerText = data.message || 'خوێندکاری ئازیز، تۆ وەڵامی ٥ پرسیاری لەسەریەکت نەداوەتەوە. تکایە بەشدار بە لە پرسیارەکان بۆ ئەوەی دانەبڕێیت و لە فێربوون بەردەوام بیت!';
   }
   modal.classList.remove('hidden');
+}
+
+// =========================================================================
+// ATTENDANCE & LEAVE SYSTEM (@هاتن / @غیابات) & ACTIVITY DATABASE (لیستی چالاکی)
+// =========================================================================
+let cachedActivitySessions = [];
+
+async function markAttendanceClick(sessionId, msgId) {
+  if (!token) return alert('تکایە سەرەتا بچۆ ژوورەوە');
+  try {
+    const res = await fetch('/api/attendance/mark', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ sessionId })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'هەڵەیەک ڕوویدا لە تۆمارکردنی ئامادەبوون');
+      return;
+    }
+    showLiveToastNotification('ئامادەبوونت بە سەرکەوتوویی تۆمارکرا! ✅', 'emerald');
+    playSound('notification');
+    refreshAttendanceMessageUI(sessionId);
+  } catch (err) {
+    console.error('Mark attendance error:', err);
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  }
+}
+
+function openLeaveModal(sessionId) {
+  const modal = document.getElementById('leaveRequestModal');
+  const input = document.getElementById('leaveSessionIdInput');
+  const reason = document.getElementById('leaveReasonInput');
+  if (input) input.value = sessionId;
+  if (reason) reason.value = '';
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeLeaveModal() {
+  const modal = document.getElementById('leaveRequestModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function handleSendLeaveRequest(e) {
+  e.preventDefault();
+  const sessionId = document.getElementById('leaveSessionIdInput').value;
+  const reasonInput = document.getElementById('leaveReasonInput');
+  const reason = reasonInput ? reasonInput.value.trim() : '';
+
+  if (!reason) {
+    alert('تکایە هۆکاری مۆڵەت بنووسە.');
+    return;
+  }
+
+  const btn = document.getElementById('sendLeaveSubmitBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> <span>ناردن...</span>';
+  }
+
+  try {
+    const res = await fetch('/api/attendance/leave', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ sessionId, reason })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'هەڵە لە ناردنی داواکاری مۆڵەت');
+      return;
+    }
+    closeLeaveModal();
+    showLiveToastNotification('داواکاری مۆڵەتەکەت نێردرا و چاوەڕوانی پەسەندکردنە 📝', 'sky');
+    refreshAttendanceMessageUI(sessionId);
+  } catch (err) {
+    console.error('Send leave error:', err);
+    alert('پەیوەندی ناتەواوە');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-paper-plane text-xs"></i> <span>ناردنی مۆڵەت</span>';
+    }
+  }
+}
+
+async function reviewLeaveRequestClick(sessionId, userId, status, msgId) {
+  if (!confirm(status === 'approved' ? 'ئایا دڵنیایت لە پەسەندکردنی ئەم مۆڵەتە وەک (ئامادە)؟' : 'ئایا دڵنیایت لە ڕەتکردنەوەی ئەم مۆڵەتە وەک (غائیب)؟')) return;
+  try {
+    const res = await fetch('/api/attendance/review-leave', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ sessionId, userId, status })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'هەڵە لە پێداچوونەوە بە مۆڵەت');
+      return;
+    }
+    showLiveToastNotification(status === 'approved' ? 'مۆڵەتەکە پەسەندکرا ✅' : 'مۆڵەتەکە ڕەتکرایەوە ❌', status === 'approved' ? 'emerald' : 'rose');
+    refreshAttendanceMessageUI(sessionId);
+  } catch (err) {
+    console.error('Review leave error:', err);
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
+async function closeAttendanceSessionClick(sessionId, msgId) {
+  if (!confirm('ئایا دڵنیایت لە داخستنی تۆماری ئامادەبوون؟ چیتر کەس ناتوانێت پەنجەمۆر لێبدات.')) return;
+  try {
+    const res = await fetch('/api/attendance/close', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ sessionId })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'هەڵە لە داخستن');
+      return;
+    }
+    showLiveToastNotification('تۆماری ئامادەبوون داخرا 🔒', 'indigo');
+    refreshAttendanceMessageUI(sessionId);
+  } catch (err) {
+    console.error('Close attendance error:', err);
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
+async function refreshAttendanceMessageUI(sessionId) {
+  try {
+    const res = await fetch(`/api/attendance/session/${sessionId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const summary = data.summary;
+    if (!summary || !summary.session) return;
+    const msgId = summary.session.message_id;
+    if (!msgId) return;
+
+    const existingCard = document.getElementById(`msg-${msgId}`);
+    if (existingCard) {
+      const dummyMsg = {
+        id: msgId,
+        type: 'text',
+        attachment_type: 'attendance',
+        created_at: summary.session.created_at,
+        attendance_summary: summary
+      };
+      appendMessage(dummyMsg, false);
+    }
+  } catch (e) {
+    console.error('Error refreshing attendance message:', e);
+  }
+}
+
+function openActivityModal() {
+  const modal = document.getElementById('activityDatabaseModal');
+  if (modal) modal.classList.remove('hidden');
+  loadActivitySessions();
+}
+
+function closeActivityModal() {
+  const modal = document.getElementById('activityDatabaseModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function loadActivitySessions() {
+  const container = document.getElementById('activitySessionsContainer');
+  if (!container) return;
+  container.innerHTML = `
+    <div class="py-12 text-center text-slate-400">
+      <i class="fa-solid fa-spinner fa-spin text-2xl text-teal-400 mb-2"></i>
+      <p class="text-xs">بارکردنی داتابەیسی چالاکی و ئامادەبوون...</p>
+    </div>
+  `;
+
+  try {
+    const res = await fetch('/api/attendance/all', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) {
+      container.innerHTML = '<div class="p-6 text-center text-xs text-rose-400">دەسەڵاتی بینینی داتابەیسی چالاکیت نییە.</div>';
+      return;
+    }
+    const data = await res.json();
+    cachedActivitySessions = data.sessions || [];
+    renderActivitySessionsList(cachedActivitySessions);
+  } catch (err) {
+    console.error('Load activity sessions error:', err);
+    container.innerHTML = '<div class="p-6 text-center text-xs text-rose-400">هەڵەیەک ڕوویدا لە بارکردنی داتابەیس</div>';
+  }
+}
+
+function handleActivitySearch(query) {
+  const q = normalizeKurdishText(query);
+  if (!q) {
+    renderActivitySessionsList(cachedActivitySessions);
+    return;
+  }
+  const filtered = cachedActivitySessions.filter(s => {
+    const titleMatch = normalizeKurdishText(s.title).includes(q);
+    const creatorMatch = normalizeKurdishText(s.creator_name).includes(q);
+    const dateMatch = s.date_str && s.date_str.includes(q);
+    const dayMatch = s.day_name && normalizeKurdishText(s.day_name).includes(q);
+    return titleMatch || creatorMatch || dateMatch || dayMatch;
+  });
+  renderActivitySessionsList(filtered);
+}
+
+function renderActivitySessionsList(sessions) {
+  const container = document.getElementById('activitySessionsContainer');
+  if (!container) return;
+
+  if (!sessions || sessions.length === 0) {
+    container.innerHTML = `
+      <div class="py-12 text-center text-slate-500 space-y-2">
+        <i class="fa-solid fa-clipboard-question text-3xl text-slate-600"></i>
+        <p class="text-xs font-bold text-slate-400">هیچ تۆمارێکی ئامادەبوون نییە</p>
+        <p class="text-[11px] text-slate-500">کاتێک مامۆستا یان ئەدمین لە چات بنووسن @هاتن، تۆمار لێرە کۆدەبێتەوە.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = sessions.map(s => {
+    const isAct = s.is_active === 1 || s.is_active === true;
+    const timeFormatted = new Date(s.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
+    const collapseId = `activity-rec-collapse-${s.id}`;
+
+    return `
+      <div class="p-4 rounded-2xl bg-slate-950/80 border ${isAct ? 'border-teal-500/50 shadow-lg shadow-teal-950/20' : 'border-slate-800'} space-y-3">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800 flex-wrap gap-2">
+          <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-xl bg-teal-500/20 text-teal-300 border border-teal-500/30 flex items-center justify-center text-lg font-black shrink-0">
+              <i class="fa-solid fa-calendar-day"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h4 class="font-black text-sm text-white">${escapeHtml(s.title || 'ئامادەبوون')}</h4>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${isAct ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse' : 'bg-slate-800 text-slate-400 border border-slate-700'}">
+                  ${isAct ? 'چالاکە 🟢' : 'داخراوە 🔒'}
+                </span>
+              </div>
+              <span class="text-xs text-amber-300 font-bold block mt-0.5">
+                📅 ${escapeHtml(s.day_name || '')} • ${escapeHtml(s.date_str || '')} (${timeFormatted})
+              </span>
+            </div>
+          </div>
+          <div class="text-right text-[11px] text-slate-400">
+            <span>تۆمارکار: <strong class="text-teal-300">${escapeHtml(s.creator_name || 'ستاف')}</strong></span>
+          </div>
+        </div>
+
+        <!-- Stats Chips -->
+        <div class="grid grid-cols-3 gap-2 text-center text-xs">
+          <div class="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+            <span class="text-[10px] text-emerald-400 block font-bold">هاتووان</span>
+            <strong class="text-base text-emerald-300 font-black">${s.present_count || 0}</strong>
+          </div>
+          <div class="p-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
+            <span class="text-[10px] text-sky-400 block font-bold">مۆڵەتپێدراو</span>
+            <strong class="text-base text-sky-300 font-black">${s.excused_count || 0}</strong>
+          </div>
+          <div class="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
+            <span class="text-[10px] text-rose-400 block font-bold">غائیبان</span>
+            <strong class="text-base text-rose-300 font-black">${s.absent_count || 0}</strong>
+          </div>
+        </div>
+
+        <!-- Toggle Detail Lists -->
+        <div>
+          <button type="button" onclick="toggleActivityDetails('${collapseId}')" class="w-full py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-850 text-slate-300 hover:text-white border border-slate-800 text-xs font-bold transition flex items-center justify-between">
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-users text-teal-400"></i>
+              <span>وردەکاریی ناوەکان (هاتووان، غائیبان و مۆڵەتەکان)</span>
+            </span>
+            <i id="${collapseId}-chevron" class="fa-solid fa-chevron-down text-xs transition-transform"></i>
+          </button>
+
+          <div id="${collapseId}" class="hidden pt-3 space-y-3">
+            <div class="space-y-1.5">
+              <span class="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+                <i class="fa-solid fa-check"></i>
+                <span>لیستی هاتووان (${s.present_list ? s.present_list.length : 0}):</span>
+              </span>
+              <div class="flex flex-wrap gap-1.5">
+                ${(s.present_list || []).length > 0 ? s.present_list.map(u => `
+                  <span onclick="openUserProfileModal(${u.user_id})" class="cursor-pointer px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20 transition">
+                    ${escapeHtml(u.full_name)}
+                  </span>
+                `).join('') : '<span class="text-[10px] text-slate-500">هیچ کەس نییە</span>'}
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <span class="text-[11px] font-bold text-sky-400 flex items-center gap-1">
+                <i class="fa-solid fa-file-signature"></i>
+                <span>لیستی مۆڵەتپێدراوان (${s.excused_list ? s.excused_list.length : 0}):</span>
+              </span>
+              <div class="flex flex-wrap gap-1.5">
+                ${(s.excused_list || []).length > 0 ? s.excused_list.map(u => `
+                  <span onclick="openUserProfileModal(${u.user_id})" class="cursor-pointer px-2.5 py-1 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs font-bold text-sky-200 hover:bg-sky-500/20 transition" title="هۆکار: ${escapeHtml(u.leave_reason || '')}">
+                    ${escapeHtml(u.full_name)} ${u.leave_reason ? `("${escapeHtml(u.leave_reason)}")` : ''}
+                  </span>
+                `).join('') : '<span class="text-[10px] text-slate-500">هیچ کەس نییە</span>'}
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <span class="text-[11px] font-bold text-rose-400 flex items-center gap-1">
+                <i class="fa-solid fa-xmark"></i>
+                <span>لیستی غائیبان (${s.absent_list ? s.absent_list.length : 0}):</span>
+              </span>
+              <div class="flex flex-wrap gap-1.5">
+                ${(s.absent_list || []).length > 0 ? s.absent_list.map(u => `
+                  <span onclick="openUserProfileModal(${u.user_id})" class="cursor-pointer px-2.5 py-1 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs font-bold text-rose-200 hover:bg-rose-500/20 transition">
+                    ${escapeHtml(u.full_name)}
+                  </span>
+                `).join('') : '<span class="text-[10px] text-slate-500">هیچ کەس نییە</span>'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleActivityDetails(collapseId) {
+  const el = document.getElementById(collapseId);
+  const chev = document.getElementById(`${collapseId}-chevron`);
+  if (!el) return;
+  const isHidden = el.classList.toggle('hidden');
+  if (chev) {
+    chev.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(180deg)';
+  }
 }

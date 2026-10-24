@@ -495,10 +495,47 @@ function initDb() {
         created_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_alarms_target ON event_alarms(target_time ASC);
+
+      -- ATTENDANCE & LEAVE TABLES (@هاتن / @غیابات)
+      CREATE TABLE IF NOT EXISTS attendance_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_id INTEGER DEFAULT NULL,
+        creator_id INTEGER NOT NULL,
+        creator_name TEXT NOT NULL,
+        creator_role TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT 'تۆماری ئامادەبوون و غیابات',
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at INTEGER NOT NULL,
+        closed_at INTEGER DEFAULT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS attendance_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        user_name TEXT NOT NULL,
+        user_role TEXT DEFAULT 'student',
+        status TEXT NOT NULL,
+        excuse_reason TEXT DEFAULT '',
+        reviewed_by_id INTEGER DEFAULT NULL,
+        reviewed_by_name TEXT DEFAULT NULL,
+        recorded_at INTEGER NOT NULL,
+        UNIQUE(session_id, user_id),
+        FOREIGN KEY (session_id) REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_att_sess ON attendance_records(session_id);
+      CREATE INDEX IF NOT EXISTS idx_att_user ON attendance_records(user_id);
     `);
   } catch (e) {
-    console.error('Error creating polls or event_alarms tables:', e);
+    console.error('Error creating polls, alarms, or attendance tables:', e);
   }
+
+  // Migrations for Dream Interpretation and Library
+  try { db.exec("ALTER TABLE dream_sessions ADD COLUMN is_interpreted INTEGER NOT NULL DEFAULT 0"); } catch (e) {}
+  try { db.exec("ALTER TABLE library_books ADD COLUMN cover_image TEXT DEFAULT ''"); } catch (e) {}
+  try { db.exec("ALTER TABLE library_books ADD COLUMN author_image TEXT DEFAULT ''"); } catch (e) {}
 
   // Backfill question_number sequentially for any unnumbered questions
   try {
@@ -1354,7 +1391,7 @@ function parseBookFiles(book) {
 
 // Library helper methods (Books, PDFs, Multi-File Collections)
 const library = {
-  create(title, author, description, category, fileUrl, fileName, fileSize, fileType, uploaderId, uploaderName, files = []) {
+  create(title, author, description, category, fileUrl, fileName, fileSize, fileType, uploaderId, uploaderName, files = [], coverImage = '', authorImage = '') {
     let fileList = Array.isArray(files) && files.length > 0 ? files : [];
     if (fileList.length === 0 && fileUrl) {
       fileList.push({
@@ -1368,8 +1405,8 @@ const library = {
     const filesJson = JSON.stringify(fileList);
 
     const stmt = db.prepare(`
-      INSERT INTO library_books (title, author, description, category, file_url, file_name, file_size, file_type, uploader_id, uploader_name, files, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO library_books (title, author, description, category, file_url, file_name, file_size, file_type, uploader_id, uploader_name, files, cover_image, author_image, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const result = stmt.run(
       title.trim(),
@@ -1383,9 +1420,21 @@ const library = {
       uploaderId,
       uploaderName,
       filesJson,
+      coverImage || '',
+      authorImage || '',
       Date.now()
     );
     return this.findById(result.lastInsertRowid);
+  },
+  updateImages(id, coverImage, authorImage) {
+    if (coverImage !== undefined && authorImage !== undefined) {
+      db.prepare('UPDATE library_books SET cover_image = ?, author_image = ? WHERE id = ?').run(coverImage || '', authorImage || '', id);
+    } else if (coverImage !== undefined) {
+      db.prepare('UPDATE library_books SET cover_image = ? WHERE id = ?').run(coverImage || '', id);
+    } else if (authorImage !== undefined) {
+      db.prepare('UPDATE library_books SET author_image = ? WHERE id = ?').run(authorImage || '', id);
+    }
+    return this.findById(id);
   },
   findById(id) {
     const stmt = db.prepare('SELECT * FROM library_books WHERE id = ?');
@@ -1468,6 +1517,7 @@ const dreamSessions = {
         (SELECT content FROM dream_messages m WHERE m.session_id = s.id ORDER BY m.created_at DESC LIMIT 1) as last_message_content,
         (SELECT type FROM dream_messages m WHERE m.session_id = s.id ORDER BY m.created_at DESC LIMIT 1) as last_message_type
       FROM dream_sessions s 
+      WHERE (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id AND m.sender_type = 'dreamer') > 0
       ORDER BY s.last_activity DESC
     `);
     return stmt.all();
@@ -1490,6 +1540,13 @@ const dreamSessions = {
     const newFav = s.is_favorite ? 0 : 1;
     db.prepare('UPDATE dream_sessions SET is_favorite = ? WHERE id = ?').run(newFav, sessionId);
     return newFav;
+  },
+  toggleInterpreted(sessionId) {
+    const s = this.findById(sessionId);
+    if (!s) return null;
+    const newStatus = s.is_interpreted ? 0 : 1;
+    db.prepare('UPDATE dream_sessions SET is_interpreted = ? WHERE id = ?').run(newStatus, sessionId);
+    return newStatus;
   },
   delete(sessionId) {
     db.prepare('DELETE FROM dream_messages WHERE session_id = ?').run(sessionId);
@@ -2452,6 +2509,181 @@ const alarmsDb = {
   }
 };
 
+// Attendance & Absence Helper (@هاتن / @غیابات)
+const attendanceDb = {
+  createSession(creatorId, creatorName, creatorRole, title = 'تۆماری ئامادەبوون و غیابات', messageId = null) {
+    const stmt = db.prepare(`
+      INSERT INTO attendance_sessions (message_id, creator_id, creator_name, creator_role, title, status, created_at)
+      VALUES (?, ?, ?, ?, ?, 'active', ?)
+    `);
+    const now = Date.now();
+    const res = stmt.run(messageId, creatorId, creatorName, creatorRole, title, now);
+    return this.getSession(res.lastInsertRowid);
+  },
+
+  updateMessageId(sessionId, messageId) {
+    db.prepare('UPDATE attendance_sessions SET message_id = ? WHERE id = ?').run(messageId, sessionId);
+  },
+
+  getSession(id) {
+    return db.prepare('SELECT * FROM attendance_sessions WHERE id = ?').get(id);
+  },
+
+  getActiveSession() {
+    return db.prepare("SELECT * FROM attendance_sessions WHERE status = 'active' ORDER BY created_at DESC LIMIT 1").get();
+  },
+
+  closeSession(id) {
+    const now = Date.now();
+    db.prepare("UPDATE attendance_sessions SET status = 'closed', closed_at = ? WHERE id = ?").run(now, id);
+
+    // Automatically record all active students who didn't respond as 'absent'
+    try {
+      const studentUsers = db.prepare("SELECT id, full_name, role FROM users WHERE role IN ('student', 'new_student') AND status = 'approved' AND is_blocked = 0").all();
+      const existingRecords = db.prepare('SELECT user_id FROM attendance_records WHERE session_id = ?').all(id);
+      const existingUserIds = new Set(existingRecords.map(r => r.user_id));
+
+      const insertAbsentStmt = db.prepare(`
+        INSERT INTO attendance_records (session_id, user_id, user_name, user_role, status, excuse_reason, recorded_at)
+        VALUES (?, ?, ?, ?, 'absent', '', ?)
+      `);
+
+      for (const stu of studentUsers) {
+        if (!existingUserIds.has(stu.id)) {
+          insertAbsentStmt.run(id, stu.id, stu.full_name, stu.role || 'student', now);
+        }
+      }
+    } catch (e) {
+      console.error('Error auto-marking absent students:', e);
+    }
+
+    return this.getSession(id);
+  },
+
+  markAttendance(sessionId, userId, userName, userRole) {
+    const session = this.getSession(sessionId);
+    if (!session || session.status !== 'active') return { error: 'ئەم دانیشتنەی ئامادەبوون داخراوە' };
+
+    const existing = db.prepare('SELECT * FROM attendance_records WHERE session_id = ? AND user_id = ?').get(sessionId, userId);
+    if (existing) {
+      if (existing.status === 'attended') {
+        return { success: true, already: true, record: existing };
+      }
+      db.prepare("UPDATE attendance_records SET status = 'attended', recorded_at = ? WHERE id = ?").run(Date.now(), existing.id);
+      return { success: true, updated: true, record: this.getRecord(existing.id) };
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO attendance_records (session_id, user_id, user_name, user_role, status, recorded_at)
+      VALUES (?, ?, ?, ?, 'attended', ?)
+    `);
+    const now = Date.now();
+    const res = stmt.run(sessionId, userId, userName, userRole || 'student', now);
+    return { success: true, record: this.getRecord(res.lastInsertRowid) };
+  },
+
+  requestLeave(sessionId, userId, userName, userRole, excuseReason) {
+    const session = this.getSession(sessionId);
+    if (!session || session.status !== 'active') return { error: 'ئەم دانیشتنەی ئامادەبوون داخراوە' };
+    if (!excuseReason || !excuseReason.trim()) return { error: 'پێویستە هۆکاری داواکردنی مۆڵەت بنووسیت' };
+
+    const existing = db.prepare('SELECT * FROM attendance_records WHERE session_id = ? AND user_id = ?').get(sessionId, userId);
+    const now = Date.now();
+    if (existing) {
+      db.prepare("UPDATE attendance_records SET status = 'leave_pending', excuse_reason = ?, recorded_at = ? WHERE id = ?").run(excuseReason.trim(), now, existing.id);
+      return { success: true, record: this.getRecord(existing.id) };
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO attendance_records (session_id, user_id, user_name, user_role, status, excuse_reason, recorded_at)
+      VALUES (?, ?, ?, ?, 'leave_pending', ?, ?)
+    `);
+    const res = stmt.run(sessionId, userId, userName, userRole || 'student', excuseReason.trim(), now);
+    return { success: true, record: this.getRecord(res.lastInsertRowid) };
+  },
+
+  reviewLeave(sessionId, userId, newStatus, reviewerId, reviewerName) {
+    const record = db.prepare('SELECT * FROM attendance_records WHERE session_id = ? AND user_id = ?').get(sessionId, userId);
+    if (!record) return { error: 'داواکاری مۆڵەت نەدۆزرایەوە' };
+    db.prepare(`
+      UPDATE attendance_records 
+      SET status = ?, reviewed_by_id = ?, reviewed_by_name = ?, recorded_at = ?
+      WHERE id = ?
+    `).run(newStatus, reviewerId, reviewerName, Date.now(), record.id);
+    return { success: true, record: this.getRecord(record.id) };
+  },
+
+  getRecord(id) {
+    return db.prepare('SELECT * FROM attendance_records WHERE id = ?').get(id);
+  },
+
+  getSessionRecords(sessionId) {
+    return db.prepare('SELECT * FROM attendance_records WHERE session_id = ? ORDER BY recorded_at ASC').all(sessionId);
+  },
+
+  getSessionSummary(sessionId) {
+    const session = this.getSession(sessionId);
+    if (!session) return null;
+    const records = this.getSessionRecords(sessionId);
+
+    const allStudents = db.prepare("SELECT id, full_name, role FROM users WHERE role IN ('student', 'new_student') AND status = 'approved' AND is_blocked = 0").all();
+    const recordedMap = new Map();
+    records.forEach(r => recordedMap.set(r.user_id, r));
+
+    const attended = records.filter(r => r.status === 'attended');
+    const excused = records.filter(r => r.status === 'excused');
+    const leavePending = records.filter(r => r.status === 'leave_pending');
+    const explicitAbsent = records.filter(r => r.status === 'absent');
+
+    const unresponded = session.status === 'active' 
+      ? allStudents.filter(s => !recordedMap.has(s.id)).map(s => ({
+          user_id: s.id,
+          user_name: s.full_name,
+          user_role: s.role,
+          status: 'unresponded'
+        }))
+      : [];
+
+    return {
+      session,
+      attended,
+      excused,
+      leavePending,
+      absent: session.status === 'closed' ? explicitAbsent : unresponded,
+      stats: {
+        total_students: allStudents.length,
+        attended_count: attended.length,
+        excused_count: excused.length,
+        leave_pending_count: leavePending.length,
+        absent_count: session.status === 'closed' ? explicitAbsent.length : unresponded.length
+      }
+    };
+  },
+
+  getAllSessionsWithStats() {
+    const sessions = db.prepare('SELECT * FROM attendance_sessions ORDER BY created_at DESC').all();
+    return sessions.map(s => {
+      const records = db.prepare('SELECT status, COUNT(*) as cnt FROM attendance_records WHERE session_id = ? GROUP BY status').all(s.id);
+      const counts = { attended: 0, excused: 0, leave_pending: 0, absent: 0 };
+      records.forEach(r => { counts[r.status] = r.cnt; });
+      return {
+        ...s,
+        stats: counts
+      };
+    });
+  },
+
+  getStudentAttendanceHistory(userId) {
+    return db.prepare(`
+      SELECT r.*, s.title as session_title, s.created_at as session_date, s.creator_name
+      FROM attendance_records r
+      JOIN attendance_sessions s ON r.session_id = s.id
+      WHERE r.user_id = ?
+      ORDER BY s.created_at DESC
+    `).all(userId);
+  }
+};
+
 // Complaints Box Helper (سندووقی سکاڵا)
 const complaints = {
   create(userId, username, fullName, role, subject, content) {
@@ -2505,5 +2737,6 @@ module.exports = {
   customGroups,
   pollsDb,
   alarmsDb,
-  complaints
+  complaints,
+  attendanceDb
 };
