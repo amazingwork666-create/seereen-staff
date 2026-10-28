@@ -7086,13 +7086,24 @@ app.post('/api/dream/start', (req, res) => {
       const newToken = `dream_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       session = dreamSessions.create(newToken, finalName, finalGender === 'female' ? 'female' : 'male');
       
-      // Add initial welcome system message
+      // Add initial welcome system message with complete conditions and voice instructions
+      const initialWelcome = `بەخێربێیت ${session.dreamer_name} بۆ بەشی لێکدانەوەی خەونەکان 🌙
+
+تکایە بۆ ئەوەی خەونەکەت بە جوانترین شێوە لێکبدرێتەوە، ئەم مەرج و زانیارییانەمان بۆ بنێرە:
+🎙️ ١. خەونەکەت بە نامەیەکی دەنگی (ڤۆیس) بە تەواوی باس بکە.
+👤 ٢. ناو و تەمەنت بڵێ.
+💍 ٣. ئایا هاوسەرگیریت کردووە یان نا؟
+🕌 ٤. ئاینت چییە؟
+💼 ٥. پیشە و ئیشت چییە؟
+
+📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
+
       dreamMessages.create(
         session.id, 
         'system', 
-        'ستافی سیرین', 
-        `بەخێربێیت ${session.dreamer_name} بۆ بەشی لێکدانەوەی خەون 🌙\nخەونەکەت بە دەق یان بە دەنگ (ڤۆیس) بنێرە، بەڕێوەبەر لە نزیکترین کاتدا وەڵامت دەداتەوە یان پەیوەندیت پێوە دەکات.`,
-        'system'
+        'سیستەمی سیرین', 
+        initialWelcome,
+        'text'
       );
 
       // Notify Super Admin and Teacher reliably
@@ -7231,22 +7242,21 @@ app.post('/api/dream/message', async (req, res) => {
     }
 
     // Automated greeting reply and questionnaire for dreamer
+    const autoMessages = [];
     if (senderType === 'dreamer') {
       const lowerText = content.trim().toLowerCase();
       const isGreeting = lowerText.includes('سلام') || lowerText.includes('سڵاو') || lowerText.includes('سلاو') || lowerText.includes('slaw') || lowerText.includes('slam');
 
       if (isGreeting) {
-        setTimeout(() => {
-          const reply = dreamMessages.create(targetSessionId, 'system', 'سیستەمی سیرین', 'عَلَيْكُمُ السَّلَامُ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ', 'text');
-          io.to(`dream_${targetSessionId}`).emit('dream_new_message', reply);
-          emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: reply });
-          emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: reply.content });
-        }, 500);
+        const reply = dreamMessages.create(targetSessionId, 'system', 'سیستەمی سیرین', 'عَلَيْكُمُ السَّلَامُ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ', 'text');
+        autoMessages.push(reply);
+        io.to(`dream_${targetSessionId}`).emit('dream_new_message', reply);
+        emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: reply });
+        emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: reply.content });
       }
 
       if (!dreamMessages.hasAutoQuestions(targetSessionId)) {
-        setTimeout(() => {
-          const autoQ = `بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان
+        const autoQ = `بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان
 
 تکایە بۆ ئەوەی خەونەکەت بە جوانترین شێوە لێکبدرێتەوە، ئەم زانیارییانەمان بۆ بنێرە:
 🎙️ ١. خەونەکەت بە نامەیەکی دەنگی (ڤۆیس) بە تەواوی باس بکە.
@@ -7256,15 +7266,15 @@ app.post('/api/dream/message', async (req, res) => {
 💼 ٥. پیشە و ئیشت چییە؟
 
 📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
-          const qMsg = dreamMessages.create(targetSessionId, 'system', 'سیستەمی سیرین', autoQ, 'text');
-          io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
-          emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
-          emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: 'پرسیارەکانی لێکدانەوەی خەون' });
-        }, isGreeting ? 1500 : 600);
+        const qMsg = dreamMessages.create(targetSessionId, 'system', 'سیستەمی سیرین', autoQ, 'text');
+        autoMessages.push(qMsg);
+        io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
+        emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
+        emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: 'پرسیارەکانی لێکدانەوەی خەون' });
       }
     }
 
-    res.json({ success: true, message: msg });
+    res.json({ success: true, message: msg, auto_messages: autoMessages });
   } catch (err) {
     console.error('Dream message error:', err);
     res.status(500).json({ error: 'هەڵە لە ناردنی پەیام' });
@@ -7333,9 +7343,9 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
     }
 
     // Automated questionnaire if dreamer sends voice as first interaction
+    const autoMessages = [];
     if (senderType === 'dreamer' && !dreamMessages.hasAutoQuestions(targetSessionId)) {
-      setTimeout(() => {
-        const autoQ = `بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان
+      const autoQ = `بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان
 
 تکایە بۆ ئەوەی خەونەکەت بە جوانترین شێوە لێکبدرێتەوە، ئەم زانیارییانەمان بۆ بنێرە:
 🎙️ ١. خەونەکەت بە نامەیەکی دەنگی (ڤۆیس) بە تەواوی باس بکە.
@@ -7345,14 +7355,14 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
 💼 ٥. پیشە و ئیشت چییە؟
 
 📞 تێبینی: گەر ئێمە پەیوەندیمان کارا بوو (لەسەر هێڵ بووین)، دەتوانیت تەلەفۆن (تێل) ڕاستەوخۆ بکەیت.`;
-        const qMsg = dreamMessages.create(targetSessionId, 'system', 'سیستەمی سیرین', autoQ, 'text');
-        io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
-        emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
-        emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: 'پرسیارەکانی لێکدانەوەی خەون' });
-      }, 800);
+      const qMsg = dreamMessages.create(targetSessionId, 'system', 'سیستەمی سیرین', autoQ, 'text');
+      autoMessages.push(qMsg);
+      io.to(`dream_${targetSessionId}`).emit('dream_new_message', qMsg);
+      emitToDreamAdmins('dream_admin_new_message', { sessionId: targetSessionId, message: qMsg });
+      emitToDreamAdmins('dream_session_updated', { sessionId: targetSessionId, lastMessage: 'پرسیارەکانی لێکدانەوەی خەون' });
     }
 
-    res.json({ success: true, message: msg });
+    res.json({ success: true, message: msg, auto_messages: autoMessages });
   } catch (err) {
     console.error('Dream voice error:', err);
     res.status(500).json({ error: 'هەڵە لە ناردنی دەنگ' });
@@ -7660,6 +7670,13 @@ io.on('connection', (socket) => {
   if (canManageDreams(user)) {
     socket.join('dream_admins');
   }
+
+  socket.on('join_dream_room', (data) => {
+    const sid = data?.sessionId || data?.session_id;
+    if (sid) {
+      socket.join(`dream_${sid}`);
+    }
+  });
 
   socket.on('dream_admin_join_session', (sessionId) => {
     if (canManageDreams(user)) {

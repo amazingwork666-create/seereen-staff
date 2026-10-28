@@ -2199,6 +2199,10 @@ function initSocket() {
     updateDreamAvailabilityUI(data);
   });
 
+  socket.on('dream_new_message', (msg) => {
+    appendDreamMessage(msg, false);
+  });
+
   socket.on('dream_new_secret_recording', (data) => {
     if (typeof activeDreamAdminSessionId !== 'undefined' && activeDreamAdminSessionId === data.sessionId) {
       appendDreamAdminMessage(data.message);
@@ -9527,6 +9531,10 @@ function openDreamChatModalWithSession(session, initialMessages) {
   if (!modal) return;
   modal.classList.remove('hidden');
 
+  if (socket && socket.connected && session && session.id) {
+    socket.emit('join_dream_room', { sessionId: session.id });
+  }
+
   const container = document.getElementById('dreamMessagesContainer');
   if (container) {
     container.innerHTML = '';
@@ -9553,7 +9561,9 @@ function initDreamSocket(dreamToken) {
     dreamSocket = null;
   }
   dreamSocket = io({
-    auth: { dreamToken }
+    auth: { dreamToken },
+    forceNew: true,
+    transports: ['websocket', 'polling']
   });
 
   dreamSocket.on('dream_new_message', (msg) => {
@@ -9828,6 +9838,9 @@ async function sendDreamTextMessage(isAdmin = false) {
       appendDreamMessage(data.message, true);
     } else {
       appendDreamMessage(data.message, false);
+      if (data.auto_messages && Array.isArray(data.auto_messages)) {
+        data.auto_messages.forEach(m => appendDreamMessage(m, false));
+      }
     }
   } catch (err) {
     alert('پەیوەندی ناتەواوە');
@@ -9948,6 +9961,9 @@ async function stopAndSendDreamVoice(isAdmin = false) {
         return;
       }
       appendDreamMessage(data.message, isAdmin);
+      if (!isAdmin && data.auto_messages && Array.isArray(data.auto_messages)) {
+        data.auto_messages.forEach(m => appendDreamMessage(m, false));
+      }
     } catch (e) {
       alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
     }

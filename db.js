@@ -1613,7 +1613,7 @@ const dreamMessages = {
   },
   hasAutoQuestions(sessionId) {
     try {
-      const stmt = db.prepare(`SELECT COUNT(*) as count FROM dream_messages WHERE session_id = ? AND sender_type = 'super_admin' AND (content LIKE '%خەونەکەت بە نامەی دەنگی%' OR content LIKE '%بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان%')`);
+      const stmt = db.prepare(`SELECT COUNT(*) as count FROM dream_messages WHERE session_id = ? AND (content LIKE '%خەونەکەت بە نامەی دەنگی%' OR content LIKE '%خەونەکەت بە نامەیەکی دەنگی%' OR content LIKE '%بەخێربێیت بۆ بەشی لێکدانەوەی خەونەکان%')`);
       const row = stmt.get(sessionId);
       return row && row.count > 0;
     } catch (e) {
