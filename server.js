@@ -6359,15 +6359,15 @@ app.get('/api/chat/message-context/:id', authMiddleware, (req, res) => {
 // 1. Mark Attendance (Fingerprint Button clicked by student)
 app.post('/api/attendance/mark', authMiddleware, (req, res) => {
   try {
-    const { session_id } = req.body;
-    if (!session_id) return res.status(400).json({ error: 'ناسنامەی دانیشتن پێویستە' });
-    const sessId = parseInt(session_id);
+    const rawId = req.body.session_id || req.body.sessionId;
+    if (!rawId) return res.status(400).json({ error: 'ناسنامەی دانیشتن پێویستە' });
+    const sessId = parseInt(rawId);
 
     const result = attendanceDb.markAttendance(sessId, req.user.id, req.user.full_name, req.user.role);
     if (result.error) return res.status(400).json({ error: result.error });
 
     const summary = attendanceDb.getSessionSummary(sessId);
-    io.emit('attendance_updated', { session_id: sessId, summary });
+    io.emit('attendance_updated', { session_id: sessId, sessionId: sessId, summary });
 
     res.json({ success: true, summary, record: result.record });
   } catch (err) {
@@ -6379,18 +6379,19 @@ app.post('/api/attendance/mark', authMiddleware, (req, res) => {
 // 2. Request Leave (مۆڵەت) with reason
 app.post('/api/attendance/leave', authMiddleware, (req, res) => {
   try {
-    const { session_id, excuse_reason } = req.body;
-    if (!session_id) return res.status(400).json({ error: 'ناسنامەی دانیشتن پێویستە' });
-    if (!excuse_reason || !excuse_reason.trim()) {
+    const rawId = req.body.session_id || req.body.sessionId;
+    if (!rawId) return res.status(400).json({ error: 'ناسنامەی دانیشتن پێویستە' });
+    const excuseReason = (req.body.excuse_reason || req.body.reason || '').trim();
+    if (!excuseReason) {
       return res.status(400).json({ error: 'تکایە هۆکاری داواکردنی مۆڵەت بنووسە' });
     }
-    const sessId = parseInt(session_id);
+    const sessId = parseInt(rawId);
 
-    const result = attendanceDb.requestLeave(sessId, req.user.id, req.user.full_name, req.user.role, excuse_reason);
+    const result = attendanceDb.requestLeave(sessId, req.user.id, req.user.full_name, req.user.role, excuseReason);
     if (result.error) return res.status(400).json({ error: result.error });
 
     const summary = attendanceDb.getSessionSummary(sessId);
-    io.emit('attendance_updated', { session_id: sessId, summary });
+    io.emit('attendance_updated', { session_id: sessId, sessionId: sessId, summary });
 
     res.json({ success: true, summary, record: result.record });
   } catch (err) {
@@ -6402,17 +6403,24 @@ app.post('/api/attendance/leave', authMiddleware, (req, res) => {
 // 3. Review Leave (Accept / Reject) - Staff Only
 app.post('/api/attendance/review-leave', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
   try {
-    const { session_id, user_id, status } = req.body;
-    if (!session_id || !user_id || !status) return res.status(400).json({ error: 'زانیارییەکان تەواو نین' });
-    if (!['excused', 'absent'].includes(status)) return res.status(400).json({ error: 'دۆخی نادروست' });
+    const rawSessId = req.body.session_id || req.body.sessionId;
+    const rawUserId = req.body.user_id || req.body.userId;
+    let rawStatus = req.body.status;
 
-    const sessId = parseInt(session_id);
-    const uId = parseInt(user_id);
-    const result = attendanceDb.reviewLeave(sessId, uId, status, req.user.id, req.user.full_name);
+    if (!rawSessId || !rawUserId || !rawStatus) return res.status(400).json({ error: 'زانیارییەکان تەواو نین' });
+
+    if (rawStatus === 'approved') rawStatus = 'excused';
+    if (rawStatus === 'rejected') rawStatus = 'absent';
+
+    if (!['excused', 'absent'].includes(rawStatus)) return res.status(400).json({ error: 'دۆخی نادروست' });
+
+    const sessId = parseInt(rawSessId);
+    const uId = parseInt(rawUserId);
+    const result = attendanceDb.reviewLeave(sessId, uId, rawStatus, req.user.id, req.user.full_name);
     if (result.error) return res.status(400).json({ error: result.error });
 
     const summary = attendanceDb.getSessionSummary(sessId);
-    io.emit('attendance_updated', { session_id: sessId, summary });
+    io.emit('attendance_updated', { session_id: sessId, sessionId: sessId, summary });
 
     res.json({ success: true, summary });
   } catch (err) {
@@ -6424,19 +6432,49 @@ app.post('/api/attendance/review-leave', authMiddleware, requireTeacherOrSuperAd
 // 4. Close Attendance Session - Staff Only
 app.post('/api/attendance/close', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
   try {
-    const { session_id } = req.body;
-    if (!session_id) return res.status(400).json({ error: 'ناسنامەی دانیشتن پێویستە' });
-    const sessId = parseInt(session_id);
+    const rawId = req.body.session_id || req.body.sessionId;
+    if (!rawId) return res.status(400).json({ error: 'ناسنامەی دانیشتن پێویستە' });
+    const sessId = parseInt(rawId);
 
     attendanceDb.closeSession(sessId);
     const summary = attendanceDb.getSessionSummary(sessId);
-    io.emit('attendance_updated', { session_id: sessId, summary });
-    io.emit('attendance_session_closed', { session_id: sessId });
+    io.emit('attendance_updated', { session_id: sessId, sessionId: sessId, summary });
+    io.emit('attendance_session_closed', { session_id: sessId, sessionId: sessId });
 
     res.json({ success: true, summary });
   } catch (err) {
     console.error('Close attendance error:', err);
     res.status(500).json({ error: 'هەڵە لە کۆتاییهێنان بە ئامادەبوون' });
+  }
+});
+
+// 4b. Delete Attendance Session - Staff Only (سڕینەوەی دانیشتنی غیابات)
+app.delete('/api/attendance/session/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const sessId = parseInt(req.params.id);
+    const session = attendanceDb.getSession(sessId);
+    if (!session) return res.status(404).json({ error: 'تۆماری ئامادەبوون نەدۆزرایەوە' });
+
+    // Delete session and related records
+    attendanceDb.deleteSession(sessId);
+
+    // If there is an associated chat message, delete it too
+    if (session.message_id) {
+      messages.delete(session.message_id);
+      io.emit('message_deleted', { id: session.message_id });
+    }
+    const matchingMsgs = db.prepare("SELECT id FROM messages WHERE attachment_type = 'attendance' AND attachment_url = ?").all(String(sessId));
+    for (const m of matchingMsgs) {
+      messages.delete(m.id);
+      io.emit('message_deleted', { id: m.id });
+    }
+
+    io.emit('attendance_session_deleted', { session_id: sessId, sessionId: sessId });
+
+    res.json({ success: true, message: 'تۆماری ئامادەبوون و غیابات بە سەرکەوتوویی سڕایەوە' });
+  } catch (err) {
+    console.error('Delete attendance error:', err);
+    res.status(500).json({ error: 'هەڵە لە سڕینەوەی تۆماری ئامادەبوون' });
   }
 });
 
@@ -7843,7 +7881,7 @@ io.on('connection', (socket) => {
 
       const isPrivilegedUser = ['super_admin', 'teacher', 'admin'].includes(freshUser.role) || freshUser.special_badge === 'black' || freshUser.special_badge === 'white';
       const hasButtonTrigger = isPrivilegedUser && /@دوگم[ەه]/.test(content);
-      const hasAttendanceTrigger = isPrivilegedUser && (/@هاتن/.test(content) || /@غیابات/.test(content) || /@ئامادەبوون/.test(content));
+      const hasAttendanceTrigger = isPrivilegedUser && /@(هاتن|غیابات|غەیبات|ئامادەبوون|ئامادەبون)/i.test(content);
 
       let cleanContent = content;
       let attachmentType = 'none';
@@ -7852,7 +7890,7 @@ io.on('connection', (socket) => {
 
       if (hasAttendanceTrigger) {
         attachmentType = 'attendance';
-        cleanContent = content.replace(/@هاتن|@غیابات|@ئامادەبوون/g, '').trim();
+        cleanContent = content.replace(/@(هاتن|غیابات|غەیبات|ئامادەبوون|ئامادەبون)/gi, '').trim();
         if (!cleanContent) {
           cleanContent = 'تۆماری ئامادەبوون و غیابات (پەنجەمۆر بنێن 🔴)';
         }

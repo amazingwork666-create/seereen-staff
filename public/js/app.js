@@ -2248,15 +2248,26 @@ function initSocket() {
   });
 
   socket.on('attendance_updated', (data) => {
-    if (data && data.sessionId) {
-      refreshAttendanceMessageUI(data.sessionId);
+    const sid = data?.sessionId || data?.session_id;
+    if (sid) {
+      refreshAttendanceMessageUI(sid);
     }
   });
 
   socket.on('attendance_session_closed', (data) => {
-    if (data && data.sessionId) {
-      refreshAttendanceMessageUI(data.sessionId);
+    const sid = data?.sessionId || data?.session_id;
+    if (sid) {
+      refreshAttendanceMessageUI(sid);
       showLiveToastNotification('تۆماری ئامادەبوون داخرا 🔒', 'indigo');
+    }
+  });
+
+  socket.on('attendance_session_deleted', (data) => {
+    const sid = data?.sessionId || data?.session_id;
+    if (sid) {
+      const cardEl = document.querySelector(`[data-attendance-session="${sid}"]`);
+      if (cardEl) cardEl.remove();
+      if (typeof loadActivitySessions === 'function') loadActivitySessions();
     }
   });
 
@@ -3203,17 +3214,22 @@ function appendMessage(msg, scroll = true) {
     const summary = msg.attendance_summary || {};
     const session = summary.session || {};
     const sessionId = session.id || Number(msg.attachment_url) || 0;
-    const isActive = session.is_active === 1 || session.is_active === true;
-    const userRec = summary.user_record || null;
-    const isPresent = userRec && userRec.status === 'present';
-    const isExcused = userRec && userRec.status === 'excused';
-    const hasPendingLeave = userRec && userRec.leave_status === 'pending';
-    const isRejectedLeave = userRec && userRec.leave_status === 'rejected';
+    msgElem.setAttribute('data-attendance-session', sessionId);
 
-    const presentCount = summary.present_count || 0;
-    const excusedCount = summary.excused_count || 0;
-    const absentCount = summary.absent_count || 0;
-    const pendingLeaves = summary.pending_leaves || [];
+    // Active status: check status === 'active' or is_active === true
+    const isActive = session.status === 'active' || session.is_active === 1 || session.is_active === true || summary.is_active === true;
+    
+    // Check current user status in arrays
+    const myId = currentUser ? currentUser.id : 0;
+    const isPresent = Boolean(summary.attended && summary.attended.some(r => r.user_id === myId));
+    const isExcused = Boolean(summary.excused && summary.excused.some(r => r.user_id === myId));
+    const hasPendingLeave = Boolean(summary.leavePending && summary.leavePending.some(r => r.user_id === myId));
+    const isRejectedLeave = Boolean(summary.absent && summary.absent.some(r => r.user_id === myId && r.status === 'absent' && (r.excuse_reason || r.leave_reason)));
+
+    const presentCount = summary.present_count ?? summary.stats?.attended_count ?? summary.stats?.attended ?? summary.attended?.length ?? 0;
+    const excusedCount = summary.excused_count ?? summary.stats?.excused_count ?? summary.stats?.excused ?? summary.excused?.length ?? 0;
+    const absentCount = summary.absent_count ?? summary.stats?.absent_count ?? summary.stats?.absent ?? summary.absent?.length ?? 0;
+    const pendingLeaves = summary.pending_leaves || summary.leavePending || [];
 
     const isStaffUser = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
 
@@ -3287,8 +3303,8 @@ function appendMessage(msg, scroll = true) {
       const pendingLeaveItems = pendingLeaves.map(pl => `
         <div class="p-2.5 rounded-xl bg-slate-900 border border-sky-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
           <div class="min-w-0">
-            <span class="font-bold text-sky-300 block">${escapeHtml(pl.full_name)}</span>
-            <p class="text-[11px] text-slate-300 whitespace-pre-wrap mt-0.5">هۆکار: "${escapeHtml(pl.leave_reason || '')}"</p>
+            <span class="font-bold text-sky-300 block">${escapeHtml(pl.full_name || pl.user_name || 'قوتابی')}</span>
+            <p class="text-[11px] text-slate-300 whitespace-pre-wrap mt-0.5">هۆکار: "${escapeHtml(pl.excuse_reason || pl.leave_reason || '')}"</p>
           </div>
           <div class="flex items-center gap-1.5 shrink-0">
             <button type="button" onclick="reviewLeaveRequestClick(${sessionId}, ${pl.user_id}, 'approved', ${msg.id})" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] transition shadow active:scale-95 flex items-center gap-1">
@@ -3355,12 +3371,19 @@ function appendMessage(msg, scroll = true) {
             </div>
             <div>
               <h4 class="font-black text-xs sm:text-sm text-white">${escapeHtml(session.title || 'تۆماری ئامادەبوون و غیابات')}</h4>
-              <span class="text-[10px] text-slate-400 font-mono">${dateStr} • دانەر: ${escapeHtml(summary.creator_name || 'ئیدارە')}</span>
+              <span class="text-[10px] text-slate-400 font-mono">${dateStr} • دانەر: ${escapeHtml(summary.creator_name || session.creator_name || 'ئیدارە')}</span>
             </div>
           </div>
-          <span class="px-2 py-0.5 rounded-lg text-[10px] font-black ${isActive ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse' : 'bg-slate-800 text-slate-400 border border-slate-700'}">
-            ${isActive ? 'چالاکە 🟢' : 'کۆتاییهات 🔒'}
-          </span>
+          <div class="flex items-center gap-1.5">
+            <span class="px-2 py-0.5 rounded-lg text-[10px] font-black ${isActive ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse' : 'bg-slate-800 text-slate-400 border border-slate-700'}">
+              ${isActive ? 'چالاکە 🟢' : 'کۆتاییهات 🔒'}
+            </span>
+            ${isStaffUser ? `
+              <button type="button" onclick="deleteAttendanceSessionClick(${sessionId}, ${msg.id})" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition" title="سڕینەوەی ئەم تۆمارەی غیابات 🗑️">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+              </button>
+            ` : ''}
+          </div>
         </div>
 
         <p class="text-xs text-slate-300 mt-2 mb-3 leading-relaxed">
@@ -18917,7 +18940,7 @@ async function markAttendanceClick(sessionId, msgId) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ sessionId })
+      body: JSON.stringify({ session_id: sessionId, sessionId })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -18971,7 +18994,7 @@ async function handleSendLeaveRequest(e) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ sessionId, reason })
+      body: JSON.stringify({ session_id: sessionId, sessionId, excuse_reason: reason, reason })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -19001,7 +19024,7 @@ async function reviewLeaveRequestClick(sessionId, userId, status, msgId) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ sessionId, userId, status })
+      body: JSON.stringify({ session_id: sessionId, sessionId, user_id: userId, userId, status })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -19025,7 +19048,7 @@ async function closeAttendanceSessionClick(sessionId, msgId) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ sessionId })
+      body: JSON.stringify({ session_id: sessionId, sessionId })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -19040,6 +19063,34 @@ async function closeAttendanceSessionClick(sessionId, msgId) {
   }
 }
 
+async function deleteAttendanceSessionClick(sessionId, msgId) {
+  if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم تۆمارەی غیابات؟\nسەرجەم پەنجەمۆرەکان و داتاکانی ئەم دانیشتنە بە یەکجاری دەسڕێنەوە!')) return;
+  try {
+    const res = await fetch(`/api/attendance/session/${sessionId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'هەڵە لە سڕینەوەی تۆمار');
+      return;
+    }
+    showLiveToastNotification('تۆماری ئامادەبوون و غیابات سڕایەوە 🗑️', 'rose');
+    if (msgId) {
+      const el = document.getElementById(`msg-${msgId}`);
+      if (el) el.remove();
+    }
+    const cardEl = document.querySelector(`[data-attendance-session="${sessionId}"]`);
+    if (cardEl) cardEl.remove();
+    if (typeof loadActivitySessions === 'function') loadActivitySessions();
+  } catch (err) {
+    console.error('Delete attendance error:', err);
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
 async function refreshAttendanceMessageUI(sessionId) {
   try {
     const res = await fetch(`/api/attendance/session/${sessionId}`, {
@@ -19050,12 +19101,16 @@ async function refreshAttendanceMessageUI(sessionId) {
     const summary = data.summary;
     if (!summary || !summary.session) return;
     const msgId = summary.session.message_id;
-    if (!msgId) return;
 
-    const existingCard = document.getElementById(`msg-${msgId}`);
+    let existingCard = msgId ? document.getElementById(`msg-${msgId}`) : null;
+    if (!existingCard) {
+      existingCard = document.querySelector(`[data-attendance-session="${sessionId}"]`);
+    }
+
     if (existingCard) {
+      const realMsgId = msgId || Number(existingCard.getAttribute('data-msg-id')) || 0;
       const dummyMsg = {
-        id: msgId,
+        id: realMsgId,
         type: 'text',
         attachment_type: 'attendance',
         created_at: summary.session.created_at,
@@ -19138,9 +19193,12 @@ function renderActivitySessionsList(sessions) {
   }
 
   container.innerHTML = sessions.map(s => {
-    const isAct = s.is_active === 1 || s.is_active === true;
+    const isAct = s.status === 'active' || s.is_active === 1 || s.is_active === true;
     const timeFormatted = new Date(s.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
     const collapseId = `activity-rec-collapse-${s.id}`;
+    const presCount = s.present_count ?? s.stats?.attended ?? s.stats?.attended_count ?? 0;
+    const excCount = s.excused_count ?? s.stats?.excused ?? s.stats?.excused_count ?? 0;
+    const absCount = s.absent_count ?? s.stats?.absent ?? s.stats?.absent_count ?? 0;
 
     return `
       <div class="p-4 rounded-2xl bg-slate-950/80 border ${isAct ? 'border-teal-500/50 shadow-lg shadow-teal-950/20' : 'border-slate-800'} space-y-3">
@@ -19161,8 +19219,15 @@ function renderActivitySessionsList(sessions) {
               </span>
             </div>
           </div>
-          <div class="text-right text-[11px] text-slate-400">
-            <span>تۆمارکار: <strong class="text-teal-300">${escapeHtml(s.creator_name || 'ستاف')}</strong></span>
+          <div class="flex items-center gap-2">
+            <div class="text-right text-[11px] text-slate-400">
+              <span>تۆمارکار: <strong class="text-teal-300">${escapeHtml(s.creator_name || 'ستاف')}</strong></span>
+            </div>
+            ${(currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin')) ? `
+              <button type="button" onclick="deleteAttendanceSessionClick(${s.id}, ${s.message_id || 0})" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-900 rounded-lg transition" title="سڕینەوەی ئەم دانیشتنە 🗑️">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+              </button>
+            ` : ''}
           </div>
         </div>
 
@@ -19170,15 +19235,15 @@ function renderActivitySessionsList(sessions) {
         <div class="grid grid-cols-3 gap-2 text-center text-xs">
           <div class="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
             <span class="text-[10px] text-emerald-400 block font-bold">هاتووان</span>
-            <strong class="text-base text-emerald-300 font-black">${s.present_count || 0}</strong>
+            <strong class="text-base text-emerald-300 font-black">${presCount}</strong>
           </div>
           <div class="p-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
             <span class="text-[10px] text-sky-400 block font-bold">مۆڵەتپێدراو</span>
-            <strong class="text-base text-sky-300 font-black">${s.excused_count || 0}</strong>
+            <strong class="text-base text-sky-300 font-black">${excCount}</strong>
           </div>
           <div class="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
             <span class="text-[10px] text-rose-400 block font-bold">غائیبان</span>
-            <strong class="text-base text-rose-300 font-black">${s.absent_count || 0}</strong>
+            <strong class="text-base text-rose-300 font-black">${absCount}</strong>
           </div>
         </div>
 

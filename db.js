@@ -2644,33 +2644,91 @@ const attendanceDb = {
         }))
       : [];
 
+    const absentList = session.status === 'closed' ? explicitAbsent : unresponded;
+    const isActive = session.status === 'active';
+
     return {
-      session,
+      session: {
+        ...session,
+        is_active: isActive
+      },
+      creator_name: session.creator_name,
+      is_active: isActive,
+      present_count: attended.length,
+      excused_count: excused.length,
+      absent_count: absentList.length,
+      pending_leaves: leavePending,
       attended,
       excused,
       leavePending,
-      absent: session.status === 'closed' ? explicitAbsent : unresponded,
+      absent: absentList,
       stats: {
         total_students: allStudents.length,
         attended_count: attended.length,
         excused_count: excused.length,
         leave_pending_count: leavePending.length,
-        absent_count: session.status === 'closed' ? explicitAbsent.length : unresponded.length
+        absent_count: absentList.length
       }
     };
   },
 
   getAllSessionsWithStats() {
     const sessions = db.prepare('SELECT * FROM attendance_sessions ORDER BY created_at DESC').all();
+    const kurdishDays = ['یەکشەممە', 'دووشەممە', 'سێشەممە', 'چوارشەممە', 'پێنجشەممە', 'هەینی', 'شەممە'];
+    const allStudents = db.prepare("SELECT id, full_name, role FROM users WHERE role IN ('student', 'new_student') AND status = 'approved' AND is_blocked = 0").all();
+
     return sessions.map(s => {
-      const records = db.prepare('SELECT status, COUNT(*) as cnt FROM attendance_records WHERE session_id = ? GROUP BY status').all(s.id);
-      const counts = { attended: 0, excused: 0, leave_pending: 0, absent: 0 };
-      records.forEach(r => { counts[r.status] = r.cnt; });
+      const records = db.prepare('SELECT * FROM attendance_records WHERE session_id = ? ORDER BY recorded_at ASC').all(s.id);
+      const recordedMap = new Map();
+      records.forEach(r => recordedMap.set(r.user_id, r));
+
+      const attended = records.filter(r => r.status === 'attended');
+      const excused = records.filter(r => r.status === 'excused');
+      const leavePending = records.filter(r => r.status === 'leave_pending');
+      const explicitAbsent = records.filter(r => r.status === 'absent');
+
+      const unresponded = s.status === 'active'
+        ? allStudents.filter(stu => !recordedMap.has(stu.id)).map(stu => ({
+            user_id: stu.id,
+            full_name: stu.full_name,
+            user_role: stu.role,
+            status: 'unresponded'
+          }))
+        : [];
+
+      const absentList = s.status === 'closed'
+        ? explicitAbsent.map(r => ({ user_id: r.user_id, full_name: r.user_name }))
+        : unresponded.map(r => ({ user_id: r.user_id, full_name: r.full_name }));
+
+      const d = new Date(s.created_at);
+      const dayName = kurdishDays[d.getDay()] || '';
+      const dateStr = d.toLocaleDateString('ku-IQ') || `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+      const isAct = s.status === 'active';
+
       return {
         ...s,
-        stats: counts
+        is_active: isAct,
+        day_name: dayName,
+        date_str: dateStr,
+        present_count: attended.length,
+        excused_count: excused.length,
+        absent_count: absentList.length,
+        present_list: attended.map(r => ({ user_id: r.user_id, full_name: r.user_name })),
+        excused_list: excused.map(r => ({ user_id: r.user_id, full_name: r.user_name, leave_reason: r.excuse_reason })),
+        absent_list: absentList,
+        stats: {
+          attended: attended.length,
+          excused: excused.length,
+          leave_pending: leavePending.length,
+          absent: absentList.length
+        }
       };
     });
+  },
+
+  deleteSession(sessionId) {
+    db.prepare('DELETE FROM attendance_records WHERE session_id = ?').run(sessionId);
+    return db.prepare('DELETE FROM attendance_sessions WHERE id = ?').run(sessionId);
   },
 
   getStudentAttendanceHistory(userId) {
