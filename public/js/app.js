@@ -2937,23 +2937,26 @@ function appendMessage(msg, scroll = true) {
             </div>
 
             <!-- Reaction section for the teacher's model answer -->
-            <div class="mt-2.5 pt-2 border-t border-emerald-500/30 flex flex-col gap-2">
-              <div class="flex items-center justify-between gap-2 flex-wrap">
-                <div class="flex items-center gap-1.5 flex-wrap min-w-0 max-w-full">
-                  <span class="text-[11px] font-bold text-emerald-300/80 shrink-0">کاردانەوە:</span>
-                  <div class="inline-flex items-center gap-1 bg-emerald-950/40 p-1 rounded-xl border border-emerald-500/20 flex-wrap max-w-full">
-                    <button type="button" onclick="sendReaction(${msg.id}, '⭐', event)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-xs transition active:scale-95 shrink-0" title="ئەستێرە">⭐</button>
-                    <button type="button" onclick="sendReaction(${msg.id}, '💯', event)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-xs transition active:scale-95 shrink-0" title="سەد لە سەد">💯</button>
-                    <button type="button" onclick="sendReaction(${msg.id}, '🤲', event)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-xs transition active:scale-95 shrink-0" title="دەستخۆشی و دوعا">🤲</button>
-                    <button type="button" onclick="sendReaction(${msg.id}, '👍', event)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-xs transition active:scale-95 shrink-0" title="بەدڵبوون">👍</button>
-                    <button type="button" onclick="sendReaction(${msg.id}, '🏆', event)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-xs transition active:scale-95 shrink-0" title="نایاب">🏆</button>
-                    <button type="button" onclick="sendReaction(${msg.id}, '❤️', event)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-xs transition active:scale-95 shrink-0" title="دڵ">❤️</button>
-                  </div>
-                </div>
+            <div class="mt-3 pt-2.5 border-t border-emerald-500/25 flex flex-col gap-2">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[11px] font-bold text-emerald-300/90 flex items-center gap-1.5">
+                  <i class="fa-regular fa-face-smile text-emerald-400 text-xs"></i>
+                  <span>کاردانەوە:</span>
+                </span>
+                <span class="text-[10px] text-emerald-400/60 font-mono">(یەک کاردانەوە)</span>
+              </div>
+
+              <div class="grid grid-cols-6 gap-1.5 bg-emerald-950/60 p-1.5 rounded-2xl border border-emerald-500/25 shadow-inner w-full">
+                <button type="button" onclick="sendReaction(${msg.id}, '⭐', event)" class="h-8 flex items-center justify-center rounded-xl bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-sm transition active:scale-125 select-none" title="ئەستێرە">⭐</button>
+                <button type="button" onclick="sendReaction(${msg.id}, '💯', event)" class="h-8 flex items-center justify-center rounded-xl bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-sm transition active:scale-125 select-none" title="سەد لە سەد">💯</button>
+                <button type="button" onclick="sendReaction(${msg.id}, '🤲', event)" class="h-8 flex items-center justify-center rounded-xl bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-sm transition active:scale-125 select-none" title="دەستخۆشی و دوعا">🤲</button>
+                <button type="button" onclick="sendReaction(${msg.id}, '👍', event)" class="h-8 flex items-center justify-center rounded-xl bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-sm transition active:scale-125 select-none" title="بەدڵبوون">👍</button>
+                <button type="button" onclick="sendReaction(${msg.id}, '🏆', event)" class="h-8 flex items-center justify-center rounded-xl bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-sm transition active:scale-125 select-none" title="نایاب">🏆</button>
+                <button type="button" onclick="sendReaction(${msg.id}, '❤️', event)" class="h-8 flex items-center justify-center rounded-xl bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-sm transition active:scale-125 select-none" title="دڵ">❤️</button>
               </div>
 
               <!-- Reactions Container rendered dynamically -->
-              <div id="msg-reactions-${msg.id}" class="flex items-center gap-1.5 flex-wrap empty:hidden">
+              <div id="msg-reactions-${msg.id}" class="flex items-center gap-1.5 flex-wrap empty:hidden pt-0.5">
                 ${reactionsHtml}
               </div>
             </div>
@@ -3228,6 +3231,7 @@ function appendMessage(msg, scroll = true) {
   // 2b. ATTENDANCE & LEAVE CARD (@هاتن / @غیابات)
   if (msg.attachment_type === 'attendance') {
     msgElem.className = 'chat-msg-item w-full my-3.5';
+    msgElem.id = 'msg-' + msg.id;
     msgElem.setAttribute('data-msg-id', msg.id);
 
     const summary = msg.attendance_summary || {};
@@ -3235,8 +3239,14 @@ function appendMessage(msg, scroll = true) {
     const sessionId = session.id || Number(msg.attachment_url) || 0;
     msgElem.setAttribute('data-attendance-session', sessionId);
 
-    // Active status: check status === 'active' or is_active === true
-    const isActive = session.status === 'active' || session.is_active === 1 || session.is_active === true || summary.is_active === true;
+    // Active status: If not explicitly closed, it is active!
+    const isExplicitlyClosed = session.status === 'closed' || Boolean(session.closed_at);
+    const isActive = !isExplicitlyClosed;
+
+    // If summary is missing or empty, fetch it live
+    if (sessionId && (!msg.attendance_summary || !msg.attendance_summary.session)) {
+      setTimeout(() => refreshAttendanceMessageUI(sessionId), 120);
+    }
     
     // Check current user status in arrays
     const myId = currentUser ? currentUser.id : 0;
@@ -3248,9 +3258,17 @@ function appendMessage(msg, scroll = true) {
     const presentCount = summary.present_count ?? summary.stats?.attended_count ?? summary.stats?.attended ?? summary.attended?.length ?? 0;
     const excusedCount = summary.excused_count ?? summary.stats?.excused_count ?? summary.stats?.excused ?? summary.excused?.length ?? 0;
     const absentCount = summary.absent_count ?? summary.stats?.absent_count ?? summary.stats?.absent ?? summary.absent?.length ?? 0;
+    const unrespondedList = summary.unresponded || [];
+    const unrespondedCount = summary.unresponded_count ?? unrespondedList.length ?? summary.stats?.unresponded_count ?? 0;
     const pendingLeaves = summary.pending_leaves || summary.leavePending || [];
 
-    const isStaffUser = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin');
+    const isStaffUser = currentUser && (
+      currentUser.role === 'super_admin' ||
+      currentUser.role === 'teacher' ||
+      currentUser.role === 'admin' ||
+      (typeof hasSuperAdminPrivileges === 'function' && hasSuperAdminPrivileges(currentUser)) ||
+      (typeof canModerateChat === 'function' && canModerateChat(currentUser))
+    );
 
     // Red fingerprint button that turns green when marked
     let fingerprintBtnHtml = '';
@@ -3277,9 +3295,9 @@ function appendMessage(msg, scroll = true) {
       `;
     } else {
       fingerprintBtnHtml = `
-        <button type="button" onclick="markAttendanceClick(${sessionId}, ${msg.id})" class="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl shadow-rose-950/50 border border-rose-400 active:scale-95 transition-all animate-pulse">
+        <button type="button" onclick="markAttendanceClick(${sessionId}, ${msg.id})" class="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl shadow-rose-950/50 border border-rose-400 active:scale-95 transition-all animate-pulse cursor-pointer">
           <i class="fa-solid fa-fingerprint text-xl text-white"></i>
-          <span>دوگمەی هاتن (پەنجەمۆر)</span>
+          <span>دوگمەی هاتن (پەنجەمۆر بنێن 🔴)</span>
         </button>
       `;
     }
@@ -3338,35 +3356,80 @@ function appendMessage(msg, scroll = true) {
         </div>
       `).join('');
 
+      // In active session, display: هاتووان, مۆڵەت, وەڵامنەدراوە (چاوەڕوانکراو)
+      // In closed session, display: هاتووان, مۆڵەت, غائب
+      const statsBadgeHtml = isActive ? `
+        <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold rounded-lg border border-emerald-500/30">
+          ✅ هاتووان: ${presentCount}
+        </span>
+        <span class="px-2 py-0.5 bg-sky-500/20 text-sky-300 font-bold rounded-lg border border-sky-500/30">
+          📝 مۆڵەت: ${excusedCount}
+        </span>
+        <span class="px-2 py-0.5 bg-amber-500/20 text-amber-300 font-bold rounded-lg border border-amber-500/30">
+          ⏳ وەڵامنەدراوە: ${unrespondedCount}
+        </span>
+      ` : `
+        <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold rounded-lg border border-emerald-500/30">
+          ✅ هاتووان: ${presentCount}
+        </span>
+        <span class="px-2 py-0.5 bg-sky-500/20 text-sky-300 font-bold rounded-lg border border-sky-500/30">
+          📝 مۆڵەت: ${excusedCount}
+        </span>
+        <span class="px-2 py-0.5 bg-rose-500/20 text-rose-300 font-bold rounded-lg border border-rose-500/30">
+          ❌ غائب: ${absentCount}
+        </span>
+      `;
+
+      // Collapsible unresponded list for staff while active
+      let unrespondedCollapseHtml = '';
+      if (isActive && unrespondedList.length > 0) {
+        const unrespToggleId = `unresp-att-${sessionId || msg.id}`;
+        unrespondedCollapseHtml = `
+          <div class="mt-2.5 pt-2 border-t border-slate-800">
+            <button type="button" onclick="toggleNonRespondingCollapse('${unrespToggleId}')" class="w-full flex items-center justify-between text-xs font-black text-amber-400 hover:text-amber-300 py-1.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20 transition cursor-pointer">
+              <span class="flex items-center gap-1.5">
+                <i class="fa-solid fa-user-clock"></i>
+                <span>قوتابیانی وەڵامنەداوە (${unrespondedList.length} کەس)</span>
+              </span>
+              <span class="flex items-center gap-1 text-[11px] text-amber-300">
+                <span id="${unrespToggleId}-label">دەرخستن</span>
+                <i id="${unrespToggleId}-icon" class="fa-solid fa-chevron-down text-[10px] transition-transform"></i>
+              </span>
+            </button>
+            <div id="${unrespToggleId}" class="hidden flex flex-wrap gap-1.5 pt-2">
+              ${unrespondedList.map(u => `
+                <span onclick="openUserProfileModal(${u.user_id || u.id})" class="cursor-pointer px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs font-bold ${getUserNameClass(u)} hover:bg-amber-500/20 transition">
+                  ${escapeHtml(u.user_name || u.full_name || 'قوتابی')}
+                </span>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
       staffReviewHtml = `
         <div class="mt-3 pt-3 border-t border-slate-800 space-y-2">
           <div class="flex items-center justify-between flex-wrap gap-2">
-            <div class="flex items-center gap-2 text-xs">
-              <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold rounded-lg border border-emerald-500/30">
-                ✅ هاتووان: ${presentCount}
-              </span>
-              <span class="px-2 py-0.5 bg-sky-500/20 text-sky-300 font-bold rounded-lg border border-sky-500/30">
-                📝 مۆڵەت: ${excusedCount}
-              </span>
-              <span class="px-2 py-0.5 bg-rose-500/20 text-rose-300 font-bold rounded-lg border border-rose-500/30">
-                ❌ غائب: ${absentCount}
-              </span>
+            <div class="flex items-center gap-2 text-xs flex-wrap">
+              ${statsBadgeHtml}
             </div>
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-1.5 flex-wrap">
               ${isActive ? `
-                <button type="button" onclick="closeAttendanceSessionClick(${sessionId}, ${msg.id})" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-[11px] font-bold transition flex items-center gap-1">
+                <button type="button" onclick="closeAttendanceSessionClick(${sessionId}, ${msg.id})" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-[11px] font-bold transition flex items-center gap-1 cursor-pointer">
                   <i class="fa-solid fa-lock text-[10px]"></i>
                   <span>داخستنی ئامادەبوون</span>
                 </button>
               ` : `
                 <span class="text-[10px] text-slate-500 font-bold">داخراوە</span>
               `}
-              <button type="button" onclick="openActivityModal()" class="px-2.5 py-1 bg-teal-600/20 hover:bg-teal-600 text-teal-300 hover:text-white border border-teal-500/40 rounded-xl text-[11px] font-bold transition flex items-center gap-1">
+              <button type="button" onclick="openActivityModal()" class="px-2.5 py-1 bg-teal-600/20 hover:bg-teal-600 text-teal-300 hover:text-white border border-teal-500/40 rounded-xl text-[11px] font-bold transition flex items-center gap-1 cursor-pointer">
                 <i class="fa-solid fa-table-list text-[10px]"></i>
                 <span>لیستی چالاکی</span>
               </button>
             </div>
           </div>
+
+          ${unrespondedCollapseHtml}
 
           ${pendingLeaves.length > 0 ? `
             <div class="mt-2 space-y-1.5">
@@ -3385,7 +3448,7 @@ function appendMessage(msg, scroll = true) {
       <div class="max-w-xl mx-auto rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border-2 ${isActive ? 'border-rose-500/60 shadow-xl shadow-rose-950/20' : 'border-slate-800 shadow-md'} p-4 relative overflow-hidden">
         <div class="flex items-center justify-between pb-2.5 border-b border-slate-800">
           <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center text-sm font-black">
+            <div class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center text-sm font-black shrink-0">
               <i class="fa-solid fa-fingerprint"></i>
             </div>
             <div>
@@ -3393,13 +3456,14 @@ function appendMessage(msg, scroll = true) {
               <span class="text-[10px] text-slate-400 font-mono">${dateStr} • دانەر: ${escapeHtml(summary.creator_name || session.creator_name || 'ئیدارە')}</span>
             </div>
           </div>
-          <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-2">
             <span class="px-2 py-0.5 rounded-lg text-[10px] font-black ${isActive ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse' : 'bg-slate-800 text-slate-400 border border-slate-700'}">
               ${isActive ? 'چالاکە 🟢' : 'کۆتاییهات 🔒'}
             </span>
             ${isStaffUser ? `
-              <button type="button" onclick="deleteAttendanceSessionClick(${sessionId}, ${msg.id})" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition" title="سڕینەوەی ئەم تۆمارەی غیابات 🗑️">
+              <button type="button" onclick="deleteAttendanceSessionClick(${sessionId}, ${msg.id})" class="px-2.5 py-1 text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-600 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer" title="سڕینەوەی ئەم تۆمارەی غیابات 🗑️">
                 <i class="fa-solid fa-trash-can text-xs"></i>
+                <span>سڕینەوە 🗑️</span>
               </button>
             ` : ''}
           </div>
@@ -3708,13 +3772,13 @@ function appendMessage(msg, scroll = true) {
     </div>
 
     <!-- Quick Reaction Picker Popover (Hidden by default) -->
-    <div id="reaction-picker-${msg.id}" class="hidden my-1 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl p-1 shadow-2xl z-20 flex items-center gap-1 flex-wrap max-w-full animate-scale-up">
-      <button type="button" onclick="sendReaction(${msg.id}, '⭐', event)" class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="ئەستێرە">⭐</button>
-      <button type="button" onclick="sendReaction(${msg.id}, '💯', event)" class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="سەد لەسەد">💯</button>
-      <button type="button" onclick="sendReaction(${msg.id}, '🤲', event)" class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="دوعا">🤲</button>
-      <button type="button" onclick="sendReaction(${msg.id}, '👍', event)" class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="ڵایک">👍</button>
-      <button type="button" onclick="sendReaction(${msg.id}, '🏆', event)" class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="کاس">🏆</button>
-      <button type="button" onclick="sendReaction(${msg.id}, '❤️', event)" class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="دڵ">❤️</button>
+    <div id="reaction-picker-${msg.id}" class="hidden my-1 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl p-1.5 shadow-2xl z-20 inline-flex items-center gap-1 max-w-full animate-scale-up">
+      <button type="button" onclick="sendReaction(${msg.id}, '⭐', event)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125 shrink-0" title="ئەستێرە">⭐</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '💯', event)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125 shrink-0" title="سەد لەسەد">💯</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '🤲', event)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125 shrink-0" title="دوعا">🤲</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '👍', event)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125 shrink-0" title="ڵایک">👍</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '🏆', event)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125 shrink-0" title="کاس">🏆</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '❤️', event)" class="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125 shrink-0" title="دڵ">❤️</button>
     </div>
 
     <div id="msg-bubble-${msg.id}" onclick="handleMessageBubbleClick(${msg.id}, event)" class="max-w-lg md:max-w-xl rounded-2xl px-3.5 py-2 text-xs md:text-sm leading-relaxed shadow break-words ${bubbleBg} cursor-pointer transition-transform duration-150 active:scale-[0.99] group/bubble">
@@ -19172,6 +19236,16 @@ async function closeAttendanceSessionClick(sessionId, msgId) {
 }
 
 async function deleteAttendanceSessionClick(sessionId, msgId) {
+  if (!sessionId && msgId) {
+    const el = document.getElementById(`msg-${msgId}`) || document.querySelector(`[data-msg-id="${msgId}"]`);
+    if (el) {
+      sessionId = Number(el.getAttribute('data-attendance-session')) || 0;
+    }
+  }
+  if (!sessionId) {
+    alert('ناسنامەی دانیشتنی غیابات نەدۆزرایەوە!');
+    return;
+  }
   if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم تۆمارەی غیابات؟\nسەرجەم پەنجەمۆرەکان و داتاکانی ئەم دانیشتنە بە یەکجاری دەسڕێنەوە!')) return;
   try {
     const res = await fetch(`/api/attendance/session/${sessionId}`, {
@@ -19187,11 +19261,11 @@ async function deleteAttendanceSessionClick(sessionId, msgId) {
     }
     showLiveToastNotification('تۆماری ئامادەبوون و غیابات سڕایەوە 🗑️', 'rose');
     if (msgId) {
-      const el = document.getElementById(`msg-${msgId}`);
+      const el = document.getElementById(`msg-${msgId}`) || document.querySelector(`[data-msg-id="${msgId}"]`);
       if (el) el.remove();
     }
-    const cardEl = document.querySelector(`[data-attendance-session="${sessionId}"]`);
-    if (cardEl) cardEl.remove();
+    const cardEls = document.querySelectorAll(`[data-attendance-session="${sessionId}"]`);
+    cardEls.forEach(el => el.remove());
     if (typeof loadActivitySessions === 'function') loadActivitySessions();
   } catch (err) {
     console.error('Delete attendance error:', err);
@@ -19331,9 +19405,10 @@ function renderActivitySessionsList(sessions) {
             <div class="text-right text-[11px] text-slate-400">
               <span>تۆمارکار: <strong class="text-teal-300">${escapeHtml(s.creator_name || 'ستاف')}</strong></span>
             </div>
-            ${(currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin')) ? `
-              <button type="button" onclick="deleteAttendanceSessionClick(${s.id}, ${s.message_id || 0})" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-900 rounded-lg transition" title="سڕینەوەی ئەم دانیشتنە 🗑️">
+            ${(currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin' || (typeof hasSuperAdminPrivileges === 'function' && hasSuperAdminPrivileges(currentUser)))) ? `
+              <button type="button" onclick="deleteAttendanceSessionClick(${s.id}, ${s.message_id || 0})" class="px-2 py-1 text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/30 rounded-lg transition text-xs font-bold flex items-center gap-1 cursor-pointer" title="سڕینەوەی ئەم دانیشتنە 🗑️">
                 <i class="fa-solid fa-trash-can text-xs"></i>
+                <span class="text-[10px]">سڕینەوە</span>
               </button>
             ` : ''}
           </div>
@@ -19349,9 +19424,9 @@ function renderActivitySessionsList(sessions) {
             <span class="text-[10px] text-sky-400 block font-bold">مۆڵەتپێدراو</span>
             <strong class="text-base text-sky-300 font-black">${excCount}</strong>
           </div>
-          <div class="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
-            <span class="text-[10px] text-rose-400 block font-bold">غائیبان</span>
-            <strong class="text-base text-rose-300 font-black">${absCount}</strong>
+          <div class="p-2 rounded-xl ${isAct ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-rose-500/10 border border-rose-500/20'}">
+            <span class="text-[10px] ${isAct ? 'text-amber-400' : 'text-rose-400'} block font-bold">${isAct ? 'وەڵامنەدراوە' : 'غائیبان'}</span>
+            <strong class="text-base ${isAct ? 'text-amber-300' : 'text-rose-300'} font-black">${isAct ? (s.unresponded_count ?? s.unresponded_list?.length ?? 0) : absCount}</strong>
           </div>
         </div>
 

@@ -2672,7 +2672,9 @@ const attendanceDb = {
         }))
       : [];
 
-    const absentList = session.status === 'closed' ? explicitAbsent : unresponded;
+    // While session is active, unresponded students are NOT marked as absent yet; they are waiting/pending.
+    // Only explicit absent records (or all unresponded once closed) count as absent.
+    const absentList = session.status === 'closed' ? explicitAbsent : explicitAbsent;
     const isActive = session.status === 'active';
 
     return {
@@ -2685,17 +2687,20 @@ const attendanceDb = {
       present_count: attended.length,
       excused_count: excused.length,
       absent_count: absentList.length,
+      unresponded_count: unresponded.length,
       pending_leaves: leavePending,
       attended,
       excused,
       leavePending,
       absent: absentList,
+      unresponded,
       stats: {
         total_students: allStudents.length,
         attended_count: attended.length,
         excused_count: excused.length,
         leave_pending_count: leavePending.length,
-        absent_count: absentList.length
+        absent_count: absentList.length,
+        unresponded_count: unresponded.length
       }
     };
   },
@@ -2726,7 +2731,7 @@ const attendanceDb = {
 
       const absentList = s.status === 'closed'
         ? explicitAbsent.map(r => ({ user_id: r.user_id, full_name: r.user_name }))
-        : unresponded.map(r => ({ user_id: r.user_id, full_name: r.full_name }));
+        : explicitAbsent.map(r => ({ user_id: r.user_id, full_name: r.user_name }));
 
       const d = new Date(s.created_at);
       const dayName = kurdishDays[d.getDay()] || '';
@@ -2741,14 +2746,17 @@ const attendanceDb = {
         present_count: attended.length,
         excused_count: excused.length,
         absent_count: absentList.length,
+        unresponded_count: unresponded.length,
         present_list: attended.map(r => ({ user_id: r.user_id, full_name: r.user_name })),
         excused_list: excused.map(r => ({ user_id: r.user_id, full_name: r.user_name, leave_reason: r.excuse_reason })),
         absent_list: absentList,
+        unresponded_list: unresponded,
         stats: {
           attended: attended.length,
           excused: excused.length,
           leave_pending: leavePending.length,
-          absent: absentList.length
+          absent: absentList.length,
+          unresponded: unresponded.length
         }
       };
     });

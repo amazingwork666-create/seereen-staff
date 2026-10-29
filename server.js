@@ -6270,6 +6270,20 @@ app.delete('/api/chat/messages/:id', authMiddleware, (req, res) => {
 
   messages.delete(msgId);
   io.emit('message_deleted', { id: msgId });
+
+  // If this message was an attendance session (@غیابات / @هاتن), cascade delete the session and its records
+  if (msg.attachment_type === 'attendance' && msg.attachment_url) {
+    try {
+      const sessId = parseInt(msg.attachment_url);
+      if (sessId) {
+        attendanceDb.deleteSession(sessId);
+        io.emit('attendance_session_deleted', { session_id: sessId, sessionId: sessId });
+      }
+    } catch (e) {
+      console.error('Error cascade deleting attendance session:', e);
+    }
+  }
+
   res.json({ success: true, message: 'نامەکە سڕایەوە (لە ئەرشیڤ پارێزراوە بۆ گەڕاندنەوە)' });
 });
 
@@ -6513,8 +6527,12 @@ app.post('/api/attendance/close', authMiddleware, requireTeacherOrSuperAdmin, (r
 });
 
 // 4b. Delete Attendance Session - Staff Only (سڕینەوەی دانیشتنی غیابات)
-app.delete('/api/attendance/session/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+app.delete('/api/attendance/session/:id', authMiddleware, (req, res) => {
   try {
+    const isStaff = ['super_admin', 'teacher', 'admin'].includes(req.user.role) || hasSuperAdminPrivileges(req.user) || canModerateChat(req.user);
+    if (!isStaff) {
+      return res.status(403).json({ error: 'تەنها سوپەر ئەدمین و مامۆستا دەسەڵاتی ئەم کارەیان هەیە' });
+    }
     const sessId = parseInt(req.params.id);
     const session = attendanceDb.getSession(sessId);
     if (!session) return res.status(404).json({ error: 'تۆماری ئامادەبوون نەدۆزرایەوە' });
@@ -7960,7 +7978,7 @@ io.on('connection', (socket) => {
         return;
       }
 
-      const isPrivilegedUser = ['super_admin', 'teacher', 'admin'].includes(freshUser.role) || freshUser.special_badge === 'black' || freshUser.special_badge === 'white';
+      const isPrivilegedUser = ['super_admin', 'teacher', 'admin'].includes(freshUser.role) || freshUser.special_badge === 'black' || freshUser.special_badge === 'white' || hasSuperAdminPrivileges(freshUser) || canModerateChat(freshUser);
       const hasButtonTrigger = isPrivilegedUser && /@دوگم[ەه]/.test(content);
       const hasAttendanceTrigger = isPrivilegedUser && /@(هاتن|غیابات|غەیبات|ئامادەبوون|ئامادەبون)/i.test(content);
 
