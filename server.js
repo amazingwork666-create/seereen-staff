@@ -1277,10 +1277,10 @@ app.post('/api/admin/security/red-alert', authMiddleware, requireSuperAdmin, (re
 
 app.post('/api/admin/security/log-incident', authMiddleware, (req, res) => {
   try {
-    const { type, details, severity, action_taken } = req.body;
+    const { type, details, severity, action_taken, evidence } = req.body;
     const allowedTypes = ['bad_word', 'nsfw_image', 'flood_raid', 'malicious_link', 'star_fraud', 'harassment', 'impersonation'];
     const safeType = allowedTypes.includes(type) ? type : 'other';
-    aiSecurity.logIncident(safeType, req.user.id, req.user.full_name, details || 'پشکنەری کڵاینت هەوڵێکی گوماناوی ڕاگرت', severity || 'medium', action_taken || 'blocked');
+    aiSecurity.logIncident(safeType, req.user.id, req.user.full_name, details || 'پشکنەری کڵاینت هەوڵێکی گوماناوی ڕاگرت', severity || 'medium', action_taken || 'blocked', evidence || '');
     io.emit('security_incident_alert', {
       type: safeType,
       user_id: req.user.id,
@@ -1288,11 +1288,23 @@ app.post('/api/admin/security/log-incident', authMiddleware, (req, res) => {
       details: details || '',
       severity: severity || 'medium',
       action_taken: action_taken || 'blocked',
+      evidence: evidence || '',
       timestamp: Date.now()
     });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە تۆمارکردنی ئاگاداری ئاسایش' });
+  }
+});
+
+app.delete('/api/admin/security/incident/:id', authMiddleware, requireSuperAdminPrivileges, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ناسنامەی نادروست' });
+    aiSecurity.deleteIncident(id);
+    res.json({ success: true, message: 'تۆمارەکە بە سەرکەوتوویی سڕایەوە' });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە سڕینەوەی تۆمار' });
   }
 });
 

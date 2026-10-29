@@ -250,6 +250,7 @@ function initDb() {
       details TEXT,
       severity TEXT DEFAULT 'medium',
       action_taken TEXT DEFAULT 'blocked',
+      evidence TEXT DEFAULT '',
       created_at INTEGER NOT NULL
     );
 
@@ -331,6 +332,7 @@ function initDb() {
   try { db.exec("ALTER TABLE messages ADD COLUMN is_deleted INTEGER DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE messages ADD COLUMN deleted_at INTEGER DEFAULT NULL"); } catch (e) {}
   try { db.exec("ALTER TABLE library_books ADD COLUMN files TEXT DEFAULT '[]'"); } catch (e) {}
+  try { db.exec("ALTER TABLE ai_security_incidents ADD COLUMN evidence TEXT DEFAULT ''"); } catch (e) {}
   
   // --- CUSTOM PRIVATE GROUP CHATS ---
   try {
@@ -2075,24 +2077,58 @@ const recordedLessons = {
 
 // AI Security Incidents Helper Methods
 const aiSecurity = {
-  logIncident(type, userId, userName, details, severity = 'medium', actionTaken = 'blocked') {
+  logIncident(type, userId, userName, details, severity = 'medium', actionTaken = 'blocked', evidence = '') {
     try {
       const stmt = db.prepare(`
-        INSERT INTO ai_security_incidents (incident_type, user_id, user_name, details, severity, action_taken, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO ai_security_incidents (incident_type, user_id, user_name, details, severity, action_taken, evidence, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      return stmt.run(type, userId || null, userName || 'نەزانراو', String(details).substring(0, 300), severity, actionTaken, Date.now());
+      return stmt.run(type, userId || null, userName || 'نەزانراو', String(details).substring(0, 1000), severity, actionTaken, evidence || '', Date.now());
     } catch (e) {
-      console.error('Error logging security incident:', e);
-      return null;
+      try {
+        const stmt = db.prepare(`
+          INSERT INTO ai_security_incidents (incident_type, user_id, user_name, details, severity, action_taken, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        return stmt.run(type, userId || null, userName || 'نەزانراو', String(details).substring(0, 1000), severity, actionTaken, Date.now());
+      } catch (e2) {
+        console.error('Error logging security incident:', e2);
+        return null;
+      }
     }
   },
   getRecentIncidents(limit = 60) {
     try {
-      const stmt = db.prepare(`SELECT * FROM ai_security_incidents ORDER BY created_at DESC LIMIT ?`);
+      const stmt = db.prepare(`
+        SELECT 
+          i.*,
+          u.full_name as user_full_name,
+          u.username,
+          u.phone,
+          u.role as user_role,
+          u.gender as user_gender,
+          u.avatar_url as user_avatar,
+          u.is_banned,
+          u.is_muted
+        FROM ai_security_incidents i
+        LEFT JOIN users u ON i.user_id = u.id
+        ORDER BY i.created_at DESC LIMIT ?
+      `);
       return stmt.all(limit);
     } catch (e) {
-      return [];
+      try {
+        return db.prepare(`SELECT * FROM ai_security_incidents ORDER BY created_at DESC LIMIT ?`).all(limit);
+      } catch (err) {
+        return [];
+      }
+    }
+  },
+  deleteIncident(id) {
+    try {
+      return db.prepare(`DELETE FROM ai_security_incidents WHERE id = ?`).run(id);
+    } catch (e) {
+      console.error('Error deleting incident:', e);
+      return null;
     }
   },
   getStats() {

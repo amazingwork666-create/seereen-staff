@@ -4834,6 +4834,12 @@ async function scanImageWithVisualShield(file) {
 
           const skinRatio = skinPixels / totalPixels;
           if (skinRatio > 0.52) {
+            let thumbnail = '';
+            try {
+              thumbnail = canvas.toDataURL('image/jpeg', 0.5);
+            } catch (te) {}
+
+            const fileName = (file && file.name) ? file.name : 'وێنە';
             // Log to server incident center
             fetch('/api/admin/security/log-incident', {
               method: 'POST',
@@ -4843,15 +4849,17 @@ async function scanImageWithVisualShield(file) {
               },
               body: JSON.stringify({
                 type: 'nsfw_image',
-                details: `وێنەی نەشیاو (ڕێژەی ڕووتی پێست: ${Math.round(skinRatio * 100)}%) لە کاتی ئەپلۆد ڕەتکرایەوە`,
+                details: `وێنەی نەشیاو: "${fileName}" (ڕێژەی ڕووتی پێست: ${Math.round(skinRatio * 100)}%) لە کاتی ئەپلۆد ڕەتکرایەوە`,
                 severity: 'high',
-                action_taken: 'blocked'
+                action_taken: 'blocked',
+                evidence: thumbnail
               })
             }).catch(() => {});
 
             resolve({
               safe: false,
               skinRatio,
+              evidence: thumbnail,
               message: '⚠️ پاسەوانی AI وێنە: ئەم وێنەیە نەشیاوە یان بە تەواوی داپۆشراو نییە و ڕێگەی پێ نادرێت!'
             });
             return;
@@ -12485,6 +12493,14 @@ async function uploadPrivateImage(input) {
   const rawFile = input.files[0];
   input.value = '';
 
+  if (rawFile && rawFile.type && rawFile.type.startsWith('image/')) {
+    const shield = await scanImageWithVisualShield(rawFile);
+    if (!shield.safe) {
+      alert(shield.message || '⚠️ پاسەوانی AI: ئەم وێنەیە نەشیاوە و ڕێگەی پێ نادرێت!');
+      return;
+    }
+  }
+
   showLiveToastNotification('وێنەکە لە ئامادەکردن و بارکردندایە... 🖼️', 'emerald');
 
   try {
@@ -15996,6 +16012,7 @@ async function loadAiSecurityStats() {
     if (ratingEl) ratingEl.innerText = safetyRate;
 
     // Render Recent Incidents Feed
+    window._currentSecurityIncidents = data.recent || [];
     const listEl = document.getElementById('aiSecIncidentsList');
     const badgeEl = document.getElementById('aiSecIncidentCountBadge');
     if (badgeEl) badgeEl.innerText = `${(data.recent || []).length} ڕووداو`;
@@ -16031,23 +16048,97 @@ async function loadAiSecurityStats() {
             red_alert_disabled: 'بارودۆخی نائاسایی کۆتایی هات'
           };
           const actLabel = actionMap[inc.action_taken] || inc.action_taken || 'ڕێگری لێکرا';
-          const timeStr = new Date(inc.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
+          const timeDateStr = new Date(inc.created_at).toLocaleString('ku-IQ', {
+            hour: '2-digit',
+            minute: '2-digit',
+            month: 'numeric',
+            day: 'numeric'
+          });
+
+          const effectiveName = inc.user_full_name || inc.user_name || 'نەناسراو';
+          const usernameText = inc.username ? `@${escapeHtml(inc.username)}` : (inc.user_id ? `#${inc.user_id}` : '');
+          const hasEvidence = !!(inc.evidence && inc.evidence.trim());
 
           return `
-            <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-3 text-xs hover:border-slate-700 transition">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <span class="px-2 py-0.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 shrink-0 ${tInfo.color}">
+            <div class="p-3 sm:p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition flex flex-col gap-2.5 shadow-sm text-xs">
+              <!-- Top Row: Type Badge + Action Badge + Time -->
+              <div class="flex items-center justify-between gap-2">
+                <span class="px-2.5 py-1 rounded-xl border text-[10px] sm:text-[11px] font-bold flex items-center gap-1.5 shrink-0 ${tInfo.color}">
                   <i class="fa-solid ${tInfo.icon}"></i>
                   <span>${tInfo.label}</span>
                 </span>
-                <div class="min-w-0">
-                  <p class="font-bold text-white truncate text-[11px]">${escapeHtml(inc.user_name || 'نەناسراو')}</p>
-                  <p class="text-[10px] text-slate-400 truncate">${escapeHtml(inc.details || '')}</p>
+                <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  <span class="px-2 py-0.5 rounded-lg bg-rose-950/60 border border-rose-500/30 text-[10px] text-rose-300 font-bold">${actLabel}</span>
+                  <span class="text-[10px] text-slate-400 font-mono">${timeDateStr}</span>
                 </div>
               </div>
-              <div class="text-left shrink-0">
-                <span class="px-1.5 py-0.5 rounded bg-slate-800 text-[9px] text-emerald-400 font-bold block">${actLabel}</span>
-                <span class="text-[9px] text-slate-500">${timeStr}</span>
+
+              <!-- User Info Row: Full Name without truncation + Role/Username -->
+              <div class="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-800/60">
+                <div class="flex items-center gap-2 min-w-0">
+                  <div class="w-7 h-7 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-xs text-[#dfaa86] shrink-0 font-bold overflow-hidden">
+                    ${inc.user_avatar ? `<img src="${escapeHtml(inc.user_avatar)}" class="w-full h-full object-cover" />` : `<i class="fa-solid fa-user-shield"></i>`}
+                  </div>
+                  <div class="min-w-0">
+                    <span class="font-black text-white text-xs sm:text-sm block">
+                      ${escapeHtml(effectiveName)}
+                    </span>
+                    ${usernameText ? `<span class="text-[10px] text-slate-400 font-mono dir-ltr block">${usernameText}</span>` : ''}
+                  </div>
+                </div>
+                ${inc.user_role ? `
+                  <span class="px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 text-[10px] font-bold border border-slate-700/60">
+                    ${inc.user_role === 'student' ? 'قوتابی' : inc.user_role === 'teacher' ? 'مامۆستا' : inc.user_role === 'admin' ? 'ئەدمین' : inc.user_role === 'super_admin' ? 'سوپەر ئەدمین' : inc.user_role}
+                  </span>
+                ` : ''}
+              </div>
+
+              <!-- Violation Details Box (Full text, NO truncation!) -->
+              <div class="p-2 sm:p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] leading-relaxed text-slate-200 break-words">
+                <span class="text-rose-400 font-bold ml-1.5"><i class="fa-solid fa-triangle-exclamation text-[10px] ml-0.5"></i> هەڵە و سەرپێچی:</span>
+                <span>${escapeHtml(inc.details || 'هەوڵی گوماناوی لەلایەن سیستمەوە ڕێگری لێکرا')}</span>
+              </div>
+
+              <!-- Evidence Section (If image thumbnail exists) -->
+              ${hasEvidence ? `
+                <div class="p-2 rounded-xl bg-rose-950/30 border border-rose-500/30 flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <img src="${escapeHtml(inc.evidence)}" onclick="showIncidentEvidenceModal('${inc.id}')" class="w-12 h-12 rounded-lg object-cover border border-rose-500/50 cursor-pointer hover:scale-105 transition shadow" alt="وێنەی بەڵگە" title="کلیک بکە بۆ بینینی گەورەکراو" />
+                    <div class="text-[10px]">
+                      <span class="font-bold text-rose-300 block">🖼️ وێنەی بەڵگە تۆمارکراوە</span>
+                      <span class="text-slate-400 text-[9px]">کلیک لە وێنەکە بکە بۆ بینینی تەواو</span>
+                    </div>
+                  </div>
+                  <button type="button" onclick="showIncidentEvidenceModal('${inc.id}')" class="px-2.5 py-1 rounded-lg bg-rose-900/60 hover:bg-rose-800 text-rose-200 text-[10px] font-bold transition shrink-0 flex items-center gap-1 border border-rose-500/40">
+                    <i class="fa-solid fa-eye"></i>
+                    <span>بینینی وێنەکە</span>
+                  </button>
+                </div>
+              ` : (inc.incident_type === 'nsfw_image' ? `
+                <div class="px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-300/90 flex items-center gap-2">
+                  <i class="fa-solid fa-shield-halved text-amber-400 text-xs shrink-0"></i>
+                  <span>ئەم وێنەیە پێش ناردن لە ئامێری بەکارهێنەرەوە بلۆک کرا و ڕێگەی پێ نەدرا بگاتە سێرڤەر.</span>
+                </div>
+              ` : '')}
+
+              <!-- Bottom Action Buttons: Full Details Modal + Manage User in Admin + Delete Incident -->
+              <div class="flex items-center justify-between gap-1.5 pt-1 text-[10px]">
+                <div class="flex items-center gap-1.5">
+                  <button type="button" onclick="openIncidentDetailsModal('${inc.id}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg font-bold border border-slate-700 transition flex items-center gap-1">
+                    <i class="fa-solid fa-circle-info text-[9px] text-[#dfaa86]"></i>
+                    <span>وردەکاری تەواو</span>
+                  </button>
+                  ${inc.user_id ? `
+                    <button type="button" onclick="goToUserInAdminPanel('${inc.user_id}', '${escapeHtml(effectiveName)}')" class="px-2.5 py-1 bg-slate-800 hover:bg-[#dfaa86]/20 text-slate-300 hover:text-[#dfaa86] rounded-lg font-bold border border-slate-700 transition flex items-center gap-1" title="پیشاندانی ئەندام لە پانێڵی بەڕێوەبردن">
+                      <i class="fa-solid fa-user-pen text-[9px]"></i>
+                      <span>بەڕێوەبردن</span>
+                    </button>
+                  ` : ''}
+                </div>
+                <button type="button" onclick="deleteSingleIncident('${inc.id}')" class="px-2 py-1 text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition text-[10px] flex items-center gap-1" title="سڕینەوەی ئەم ڕووداوە">
+                  <i class="fa-solid fa-trash-can text-[9px]"></i>
+                  <span>سڕینەوە</span>
+                </button>
               </div>
             </div>
           `;
@@ -16057,6 +16148,184 @@ async function loadAiSecurityStats() {
   } catch (err) {
     console.error('Failed to load AI security stats:', err);
   }
+}
+
+function openIncidentDetailsModal(id) {
+  const inc = (window._currentSecurityIncidents || []).find(x => String(x.id) === String(id));
+  if (!inc) return;
+
+  const modal = document.getElementById('aiIncidentDetailsModal');
+  const content = document.getElementById('aiIncidentDetailsContent');
+  const actions = document.getElementById('aiIncidentDetailsActions');
+  if (!modal || !content) return;
+
+  const effectiveName = inc.user_full_name || inc.user_name || 'نەناسراو';
+  const typeMap = {
+    bad_word: { label: 'دەقی فێڵاوی (NLP)', color: 'bg-purple-900/50 text-purple-300 border-purple-500/40', icon: 'fa-spell-check' },
+    nsfw_image: { label: 'وێنەی نەشیاو (NSFW)', color: 'bg-pink-900/50 text-pink-300 border-pink-500/40', icon: 'fa-eye-slash' },
+    flood_raid: { label: 'هێرشی لافاو (Flood)', color: 'bg-amber-900/50 text-amber-300 border-amber-500/40', icon: 'fa-bolt' },
+    flood_attack: { label: 'هێرشی لافاو (Flood)', color: 'bg-amber-900/50 text-amber-300 border-amber-500/40', icon: 'fa-bolt' },
+    malicious_link: { label: 'لینکی زیانبەخش', color: 'bg-cyan-900/50 text-cyan-300 border-cyan-500/40', icon: 'fa-link-slash' },
+    star_fraud: { label: 'فێڵی ئەستێرە', color: 'bg-indigo-900/50 text-indigo-300 border-indigo-500/40', icon: 'fa-star' },
+    harassment: { label: 'هەراسانکاری / ژمارە', color: 'bg-rose-900/50 text-rose-300 border-rose-500/40', icon: 'fa-phone-slash' },
+    impersonation: { label: 'خۆکردن بە ئەدمین', color: 'bg-red-900/50 text-red-300 border-red-500/40', icon: 'fa-user-ninja' },
+    red_alert: { label: 'قەڵغانی پۆڵایین', color: 'bg-rose-900/70 text-rose-200 border-rose-500/50', icon: 'fa-bullhorn' }
+  };
+  const tInfo = typeMap[inc.incident_type] || { label: inc.incident_type, color: 'bg-slate-800 text-slate-300 border-slate-700', icon: 'fa-shield' };
+  const actionMap = {
+    blocked: 'بلۆککرا (Blocked)',
+    auto_muted: 'بێدەنگکراوە',
+    auto_muted_60s: 'بێدەنگکرا بۆ ٦٠ چرکە',
+    auto_muted_300s: 'بێدەنگکرا بۆ ٥ خولەک',
+    red_alert_active: 'بارودۆخی نائاسایی کارابوو',
+    red_alert_disabled: 'بارودۆخی نائاسایی کۆتایی هات'
+  };
+  const actLabel = actionMap[inc.action_taken] || inc.action_taken || 'ڕێگری لێکرا';
+  const fullDateStr = new Date(inc.created_at).toLocaleString('ku-IQ', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+
+  content.innerHTML = `
+    <!-- User Card -->
+    <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-lg text-[#dfaa86] shrink-0 font-bold overflow-hidden shadow">
+          ${inc.user_avatar ? `<img src="${escapeHtml(inc.user_avatar)}" class="w-full h-full object-cover" />` : `<i class="fa-solid fa-user-shield"></i>`}
+        </div>
+        <div class="min-w-0">
+          <h4 class="font-black text-white text-sm sm:text-base leading-snug break-words">${escapeHtml(effectiveName)}</h4>
+          <div class="flex items-center flex-wrap gap-2 text-[11px] text-slate-400 mt-0.5">
+            ${inc.username ? `<span class="font-mono dir-ltr text-amber-400">@${escapeHtml(inc.username)}</span>` : ''}
+            ${inc.phone ? `<span>تەلەفۆن: ${escapeHtml(inc.phone)}</span>` : ''}
+            <span>ئایدی: #${inc.user_id || 'نەزانراو'}</span>
+          </div>
+        </div>
+      </div>
+      <div class="text-left shrink-0">
+        <span class="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold border border-slate-700 block text-center">
+          ${inc.user_role === 'student' ? 'قوتابی' : inc.user_role === 'teacher' ? 'مامۆستا' : inc.user_role === 'admin' ? 'ئەدمین' : inc.user_role === 'super_admin' ? 'سوپەر ئەدمین' : (inc.user_role || 'ئەندام')}
+        </span>
+      </div>
+    </div>
+
+    <!-- Incident Info Grid -->
+    <div class="grid grid-cols-2 gap-2 text-xs">
+      <div class="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
+        <span class="text-[10px] text-slate-400 block mb-1">جۆری سەرپێچی:</span>
+        <span class="px-2 py-0.5 rounded-lg border text-[11px] font-bold inline-flex items-center gap-1 ${tInfo.color}">
+          <i class="fa-solid ${tInfo.icon}"></i>
+          <span>${tInfo.label}</span>
+        </span>
+      </div>
+      <div class="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
+        <span class="text-[10px] text-slate-400 block mb-1">بڕیاری سیستم:</span>
+        <span class="px-2 py-0.5 rounded-lg bg-rose-950/60 border border-rose-500/40 text-[11px] text-rose-300 font-bold inline-block">
+          ${actLabel}
+        </span>
+      </div>
+      <div class="col-span-2 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
+        <span class="text-[10px] text-slate-400 block mb-0.5">کات و بەرواری ڕووداو:</span>
+        <span class="font-mono text-slate-200 text-xs">${fullDateStr}</span>
+      </div>
+    </div>
+
+    <!-- Error & Violation Details -->
+    <div class="p-3.5 rounded-2xl bg-rose-950/20 border border-rose-500/30 text-xs leading-relaxed">
+      <span class="font-black text-rose-300 flex items-center gap-1.5 mb-1.5">
+        <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
+        <span>وردەکاری تەواوی هەڵە و سەرپێچییەکە:</span>
+      </span>
+      <p class="text-slate-200 bg-slate-950/80 p-2.5 rounded-xl border border-rose-500/20 break-words font-mono text-[11px]">
+        ${escapeHtml(inc.details || 'زانیاری وردەکاری تۆمار نەکراوە')}
+      </p>
+    </div>
+
+    <!-- Evidence Image (If Available) -->
+    ${inc.evidence && inc.evidence.trim() ? `
+      <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-rose-500/30 space-y-2">
+        <span class="font-bold text-rose-300 text-xs flex items-center gap-1.5">
+          <i class="fa-solid fa-image text-rose-400"></i>
+          <span>وێنەی بەڵگە (Evidence Captured by Shield):</span>
+        </span>
+        <div class="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-900 border border-slate-800">
+          <img src="${escapeHtml(inc.evidence)}" class="max-w-full max-h-72 object-contain rounded-xl border border-rose-500/40 shadow-xl" alt="بەڵگەی سەرپێچی" />
+          <p class="text-[10px] text-slate-400 mt-2 text-center">ئەم وێنەیە لە کاتی ئەپلۆد لەلایەن قەڵغانی وێنەی زیرەک دەستنیشان کراوە و ڕاگیراوە.</p>
+        </div>
+      </div>
+    ` : (inc.incident_type === 'nsfw_image' ? `
+      <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
+        <i class="fa-solid fa-shield-cat text-amber-400 text-base shrink-0"></i>
+        <span>ئەم وێنەیە پێش ناردن ڕاگیراوە و لەبەر سەلامەتی و قەبارەی سیستم وێنەکەی هەڵنەگیراوە. لەمەودوا وێنەی هەموو هەوڵە نوێیەکان لەسەرەوە دەردەکەوێت.</span>
+      </div>
+    ` : '')}
+  `;
+
+  if (actions) {
+    actions.innerHTML = `
+      ${inc.user_id ? `
+        <button type="button" onclick="goToUserInAdminPanel('${inc.user_id}', '${escapeHtml(effectiveName)}')" class="px-3 py-2 bg-gradient-to-r from-[#c78361] to-[#dfaa86] text-slate-950 font-black rounded-xl hover:opacity-90 transition text-xs flex items-center gap-1.5 shadow">
+          <i class="fa-solid fa-user-pen"></i>
+          <span>بەڕێوەبردن لە پانێڵ</span>
+        </button>
+      ` : ''}
+      <button type="button" onclick="deleteSingleIncident('${inc.id}')" class="px-3 py-2 bg-rose-950/50 hover:bg-rose-900 text-rose-300 hover:text-white rounded-xl border border-rose-500/30 transition text-xs flex items-center gap-1.5">
+        <i class="fa-solid fa-trash-can"></i>
+        <span>سڕینەوەی تۆمار</span>
+      </button>
+    `;
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function closeIncidentDetailsModal() {
+  const modal = document.getElementById('aiIncidentDetailsModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function showIncidentEvidenceModal(id) {
+  openIncidentDetailsModal(id);
+}
+
+function goToUserInAdminPanel(userId, userName) {
+  closeIncidentDetailsModal();
+  closeAiSecurityModal();
+  openAdminModal();
+  switchAdminSubTab('users');
+  setTimeout(() => {
+    const searchInput = document.getElementById('userSearchInput') || document.getElementById('adminUsersSearch');
+    if (searchInput) {
+      searchInput.value = userName || userId || '';
+      searchInput.dispatchEvent(new Event('input'));
+    }
+  }, 250);
+}
+
+async function deleteSingleIncident(id) {
+  if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم تۆمارەی سەرپێچی؟')) return;
+  try {
+    const res = await fetch(`/api/admin/security/incident/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeIncidentDetailsModal();
+      loadAiSecurityStats();
+    } else {
+      alert(data.error || 'نەتوانرا تۆمارەکە بسڕدرێتەوە');
+    }
+  } catch (err) {
+    alert('هەڵەی پەیوەندی بە سێرڤەرەوە');
+  }
+}
 }
 
 async function toggleRedAlertLockdown() {
