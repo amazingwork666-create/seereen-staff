@@ -7286,8 +7286,8 @@ app.post('/api/dream/message', async (req, res) => {
       }
 
       targetSessionId = parseInt(sessionId);
-      senderType = user.role;
-      senderName = (user.full_name && user.full_name.trim()) ? user.full_name.trim() : (user.username || 'مامۆستا');
+      senderType = (user.role === 'super_admin' || user.role === 'teacher') ? user.role : 'dream_interpreter';
+      senderName = (user.full_name && user.full_name.trim()) ? user.full_name.trim() : (user.username || 'لێکدەرەوەی خەون');
     } else {
       return res.status(401).json({ error: 'ڕێگاپێدراو نییە' });
     }
@@ -7313,7 +7313,7 @@ app.post('/api/dream/message', async (req, res) => {
     const msg = dreamMessages.create(targetSessionId, senderType, senderName, content.trim(), 'text');
     
     // Broadcast message to dream room and dream admins
-    const isStaffReply = (senderType === 'teacher' || senderType === 'super_admin' || (user && user.special_badge === 'purple'));
+    const isStaffReply = senderType !== 'dreamer';
     const dreamerMsg = isStaffReply
       ? { ...msg, sender_name: getDreamTeacherAlias(senderName) }
       : msg;
@@ -7404,8 +7404,8 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
         return res.status(403).json({ error: 'تەنها مامۆستا، سوپەر ئەدمین یان هەڵگری باجی مۆر بۆیان هەیە دەنگ بنێرن بۆ خەون بین' });
       }
       targetSessionId = sessionId;
-      senderType = user.role;
-      senderName = (user.full_name && user.full_name.trim()) ? user.full_name.trim() : (user.username || 'مامۆستا');
+      senderType = (user.role === 'super_admin' || user.role === 'teacher') ? user.role : 'dream_interpreter';
+      senderName = (user.full_name && user.full_name.trim()) ? user.full_name.trim() : (user.username || 'لێکدەرەوەی خەون');
     } else {
       return res.status(401).json({ error: 'ڕێگاپێدراو نییە' });
     }
@@ -7414,7 +7414,7 @@ app.post('/api/dream/upload-voice', upload.single('voice'), (req, res) => {
     const content = durationText ? `پەیامی دەنگی (${durationText})` : 'پەیامی دەنگی';
     const msg = dreamMessages.create(targetSessionId, senderType, senderName, content, 'voice', voiceUrl);
 
-    const isStaffReply = (senderType === 'teacher' || senderType === 'super_admin' || (user && user.special_badge === 'purple'));
+    const isStaffReply = senderType !== 'dreamer';
     const dreamerVoiceMsg = isStaffReply
       ? { ...msg, sender_name: getDreamTeacherAlias(senderName) }
       : msg;

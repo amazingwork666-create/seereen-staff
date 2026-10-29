@@ -9821,7 +9821,8 @@ function appendDreamMessage(msg, isAdminView = false) {
   const isDreamerSender = msg.sender_type === 'dreamer';
   const isSuperAdminSender = msg.sender_type === 'super_admin';
   const isTeacherSender = msg.sender_type === 'teacher';
-  const isStaffSender = isSuperAdminSender || isTeacherSender;
+  const isInterpreterSender = msg.sender_type === 'dream_interpreter';
+  const isStaffSender = isSuperAdminSender || isTeacherSender || isInterpreterSender;
   const isSystem = msg.sender_type === 'system';
   const dateStr = new Date(msg.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
 
@@ -9910,6 +9911,9 @@ function appendDreamMessage(msg, isAdminView = false) {
     } else if (isTeacherSender) {
       senderBadge = '<span class="role-text-teacher font-black text-[10px] inline-flex items-center gap-1 mr-1.5 select-none" title="مامۆستا"><i class="fa-solid fa-graduation-cap text-[9px]"></i> مامۆستا</span>';
       senderNameHtml = `<span class="text-amber-300 font-black">${escapeHtml(msg.sender_name)}</span>`;
+    } else if (isInterpreterSender) {
+      senderBadge = '<span class="text-purple-400 font-black text-[10px] inline-flex items-center gap-1 mr-1.5 select-none" title="لێکدەرەوەی خەون (باجی مۆر)"><i class="fa-solid fa-moon text-[9px]"></i> لێکدەرەوە</span>';
+      senderNameHtml = `<span class="text-purple-300 font-black">${escapeHtml(msg.sender_name)}</span>`;
     } else {
       senderBadge = '<span class="text-[9px] font-bold text-purple-300 mr-1.5">خەون بین</span>';
       senderNameHtml = `<span>${escapeHtml(msg.sender_name)}</span>`;
@@ -10201,6 +10205,9 @@ function openDreamAdminModal() {
     if (currentUser && currentUser.role === 'super_admin') {
       roleIndicator.innerHTML = '';
       roleIndicator.className = 'hidden';
+    } else if (hasUserBadge(currentUser, 'purple')) {
+      roleIndicator.innerHTML = '<i class="fa-solid fa-moon text-[10px]"></i> لێکدەرەوەی خەون (باجی مۆر)';
+      roleIndicator.className = 'text-purple-400 text-[11px] font-black whitespace-nowrap inline-flex items-center gap-1';
     } else {
       roleIndicator.innerHTML = '<i class="fa-solid fa-graduation-cap text-[10px]"></i> مامۆستا';
       roleIndicator.className = 'role-text-teacher text-[11px] font-black whitespace-nowrap inline-flex items-center gap-1';
@@ -10227,7 +10234,7 @@ function openDreamAdminModal() {
   }
 
   loadDreamAdminSessions();
-  if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
+  if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || hasUserBadge(currentUser, 'purple'))) {
     setTimeout(() => { requestDreamMicrophonePermission(); }, 250);
   }
 }
@@ -10340,7 +10347,7 @@ function renderDreamAdminSessionsCards() {
 
     card.onclick = () => selectDreamSession(s.id);
 
-    const canFavorite = isSuperAdmin || (currentUser && currentUser.role === 'teacher');
+    const canFavorite = isSuperAdmin || (currentUser && (currentUser.role === 'teacher' || hasUserBadge(currentUser, 'purple')));
     const starBtnHtml = canFavorite ? `
       <button onclick="event.stopPropagation(); toggleDreamFavorite(${s.id})" class="p-1 text-xs rounded hover:bg-slate-700/60 transition ${isFav ? 'text-amber-400' : 'text-slate-500 hover:text-amber-400'}" title="${isFav ? 'لابردنی ئەستێرە (دەرکردن لە لیستی لێکنەدراوەکان)' : 'دانانی ئەستێرە ⭐ (خستنە لیستی لێکنەدراوەکان)'}">
         <i class="${isFav ? 'fa-solid' : 'fa-regular'} fa-star"></i>
@@ -10384,8 +10391,8 @@ function renderDreamAdminSessionsCards() {
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
             <span class="text-slate-400 text-[10px] truncate">وەڵامدراوەتەوە لەلایەن: <strong class="text-emerald-400 font-bold">${escapeHtml(s.answered_by_name)}</strong></span>
           </div>
-          <span class="text-[9px] px-1.5 py-0.5 rounded ${s.answered_by_role === 'teacher' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'} shrink-0 font-bold">
-            ${s.answered_by_role === 'teacher' ? 'مامۆستا' : 'ئەدمین'}
+          <span class="text-[9px] px-1.5 py-0.5 rounded ${s.answered_by_role === 'teacher' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : s.answered_by_role === 'dream_interpreter' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'} shrink-0 font-bold">
+            ${s.answered_by_role === 'teacher' ? 'مامۆستا' : s.answered_by_role === 'dream_interpreter' ? 'لێکدەرەوە (باجی مۆر)' : 'ئەدمین'}
           </span>
         ` : `
           <div class="inline-flex items-center gap-1.5 text-amber-400/90 font-medium">
@@ -10436,7 +10443,8 @@ async function selectDreamSession(sessionId) {
 
   const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
   const isTeacher = currentUser && currentUser.role === 'teacher';
-  const canAnswer = isSuperAdmin || isTeacher;
+  const hasPurpleBadge = hasUserBadge(currentUser, 'purple');
+  const canAnswer = isSuperAdmin || isTeacher || hasPurpleBadge;
   const inputBar = document.getElementById('dreamAdminInputBar');
   const callBtn = document.getElementById('adminStartCallBtn');
   const teacherNotice = document.getElementById('dreamTeacherNotice');
@@ -10529,7 +10537,7 @@ async function selectDreamSession(sessionId) {
 }
 
 async function toggleDreamFavorite(sessionId) {
-  if (!token || !currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'teacher')) return;
+  if (!token || !currentUser || !canUserManageDreams(currentUser)) return;
   try {
     const res = await fetch(`/api/dream/admin/session/${sessionId}/favorite`, {
       method: 'POST',
@@ -10700,8 +10708,8 @@ function startDreamCallFromDreamer() {
 }
 
 function startDreamCallFromAdmin() {
-  if (!currentUser || currentUser.role !== 'super_admin') {
-    alert('تەنها سوپەر ئەدمین بۆی هەیە پەیوەندی تەلەفۆنی بکات!');
+  if (!currentUser || !canUserManageDreams(currentUser)) {
+    alert('تەنها مامۆستا، سوپەر ئەدمین یان هەڵگری باجی مۆر بۆیان هەیە پەیوەندی تەلەفۆنی بکەن!');
     return;
   }
   if (!activeDreamAdminSessionId) return;
@@ -10734,15 +10742,15 @@ async function initiateDreamAudioCall(sessionId, peerName, callerRole) {
   if (sock) {
     sock.emit('dream_call_start', {
       sessionId,
-      callerName: callerRole === 'dreamer' ? peerName : 'hemn taha',
+      callerName: callerRole === 'dreamer' ? peerName : (currentUser ? currentUser.full_name : 'لێکدەرەوەی خەون'),
       callerRole
     });
   }
 }
 
 function handleIncomingDreamCall(data, isAdmin) {
-  // If teacher or super_admin receives event -> allow answering!
-  if (isAdmin && currentUser && currentUser.role !== 'super_admin' && currentUser.role !== 'teacher') return;
+  // If teacher, super_admin, or purple badge receives event -> allow answering!
+  if (isAdmin && currentUser && !canUserManageDreams(currentUser)) return;
 
   callActiveSessionId = data.sessionId;
   callRecordingUploaded = false;
@@ -10774,7 +10782,7 @@ async function acceptIncomingDreamCall() {
   document.getElementById('callStatusText').innerText = 'پەیوەندی بەسترا';
   applyAudioOutputMode();
 
-  const sock = (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? socket : dreamSocket;
+  const sock = (currentUser && canUserManageDreams(currentUser)) ? socket : dreamSocket;
   if (sock) {
     sock.emit('dream_call_accept', { sessionId: callActiveSessionId });
   }
@@ -10784,7 +10792,7 @@ async function acceptIncomingDreamCall() {
 
 function rejectIncomingDreamCall() {
   stopRingtone();
-  const sock = (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? socket : dreamSocket;
+  const sock = (currentUser && canUserManageDreams(currentUser)) ? socket : dreamSocket;
   if (sock) {
     sock.emit('dream_call_reject', { sessionId: callActiveSessionId });
   }
@@ -10811,7 +10819,7 @@ async function handleDreamCallSignal(data) {
       if (data.sdp.type === 'offer') {
         const answer = await rtcPeerConn.createAnswer();
         await rtcPeerConn.setLocalDescription(answer);
-        const sock = (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? socket : dreamSocket;
+        const sock = (currentUser && canUserManageDreams(currentUser)) ? socket : dreamSocket;
         if (sock) sock.emit('dream_call_signal', { sessionId: callActiveSessionId, sdp: answer });
       }
     } else if (data.candidate) {
@@ -10828,7 +10836,7 @@ function handleDreamCallEnded() {
 }
 
 function hangupDreamCall() {
-  const sock = (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? socket : dreamSocket;
+  const sock = (currentUser && canUserManageDreams(currentUser)) ? socket : dreamSocket;
   if (sock && callActiveSessionId) {
     sock.emit('dream_call_end', { sessionId: callActiveSessionId });
   }
@@ -10850,7 +10858,7 @@ async function establishWebRTCConnection(isOffer) {
 
     rtcPeerConn.onicecandidate = (event) => {
       if (event.candidate) {
-        const sock = (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? socket : dreamSocket;
+        const sock = (currentUser && canUserManageDreams(currentUser)) ? socket : dreamSocket;
         if (sock) sock.emit('dream_call_signal', { sessionId: callActiveSessionId, candidate: event.candidate });
       }
     };
@@ -10861,7 +10869,7 @@ async function establishWebRTCConnection(isOffer) {
 
       // START AUTOMATIC TWO-WAY AUDIO RECORDING ONLY ON ADMIN SIDE!
       // The dreamer browser does not record or upload secret recordings.
-      if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher' || currentUser.role === 'admin')) {
+      if (currentUser && canUserManageDreams(currentUser)) {
         startTwoWayCallRecording(callLocalStream, callRemoteStream, callActiveSessionId);
       }
     };
@@ -10869,7 +10877,7 @@ async function establishWebRTCConnection(isOffer) {
     if (isOffer) {
       const offer = await rtcPeerConn.createOffer();
       await rtcPeerConn.setLocalDescription(offer);
-      const sock = (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) ? socket : dreamSocket;
+      const sock = (currentUser && canUserManageDreams(currentUser)) ? socket : dreamSocket;
       if (sock) sock.emit('dream_call_signal', { sessionId: callActiveSessionId, sdp: offer });
     }
 

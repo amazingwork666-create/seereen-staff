@@ -1651,7 +1651,7 @@ const dreamMessages = {
     const stmt = db.prepare('SELECT * FROM dream_messages WHERE session_id = ? AND is_secret_recording = 0 ORDER BY created_at ASC');
     const msgs = stmt.all(sessionId);
     return msgs.map(m => {
-      if (m.sender_type === 'super_admin' || m.sender_type === 'teacher') {
+      if (m.sender_type === 'super_admin' || m.sender_type === 'teacher' || m.sender_type === 'dream_interpreter') {
         return { ...m, sender_name: getDreamTeacherAlias(m.sender_name) };
       }
       return m;
