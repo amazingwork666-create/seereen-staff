@@ -3533,10 +3533,10 @@
       </div>
 
       <!-- Main Layout: Conversations List & Active Chat Area -->
-      <div class="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
+      <div class="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden relative">
         
         <!-- Conversations / Staff Sidebar -->
-        <div id="privateConversationsSidebar" class="w-full md:w-80 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col bg-slate-950/60 shrink-0">
+        <div id="privateConversationsSidebar" class="w-full md:w-80 h-full border-b md:border-b-0 md:border-r border-slate-800 flex flex-col bg-slate-950/60 min-h-0 overflow-hidden shrink-0">
           <!-- Sidebar Tabs -->
           <div class="p-2 border-b border-slate-800 flex items-center gap-1 bg-slate-900/60 shrink-0">
             <button type="button" onclick="switchPrivateChatTab('staff')" id="privateTabStaffBtn" class="flex-1 py-1.5 px-2 rounded-xl text-white font-bold bg-sky-600 shadow transition flex items-center justify-center gap-1.5 text-xs">
@@ -3551,22 +3551,22 @@
           </div>
 
           <!-- Tab Content 1: Teachers & Super Admin List (جیاکراوەتەوە بۆ قوتابی) -->
-          <div id="privateStaffListContainer" class="flex-1 overflow-y-auto p-2 space-y-2 text-xs">
+          <div id="privateStaffListContainer" class="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2 space-y-2 text-xs" style="-webkit-overflow-scrolling: touch; touch-action: pan-y;">
             <div class="text-[11px] text-slate-400 px-2 pt-1 font-bold">کلیک لەسەر مامۆستا یان ئەدمین بکە بۆ گفتوگۆ:</div>
-            <div id="privateStaffList" class="space-y-1.5">
+            <div id="privateStaffList" class="space-y-1.5 pb-16">
               <!-- Rendered in JS -->
               <div class="p-4 text-center text-slate-500 text-xs">لە بارکردندایە...</div>
             </div>
           </div>
 
           <!-- Tab Content 2: Active Conversations List -->
-          <div id="privateConversationsList" class="hidden flex-1 overflow-y-auto p-2 space-y-1.5 text-xs">
+          <div id="privateConversationsList" class="hidden flex-1 min-h-0 overflow-y-auto overscroll-contain p-2 space-y-1.5 text-xs pb-16" style="-webkit-overflow-scrolling: touch; touch-action: pan-y;">
             <!-- Rendered in JS -->
           </div>
         </div>
 
         <!-- Active Conversation Area -->
-        <div id="privateChatArea" class="flex-1 flex flex-col bg-slate-950/40 min-h-0">
+        <div id="privateChatArea" class="hidden md:flex flex-1 flex-col bg-slate-950/40 min-h-0 h-full overflow-hidden">
           
           <!-- Empty State (When no user selected) -->
           <div id="privateChatEmptyState" class="flex-1 flex flex-col items-center justify-center p-6 text-center text-slate-500">
@@ -3599,7 +3599,7 @@
             </div>
 
             <!-- Messages Stream -->
-            <div id="privateMessagesContainer" class="flex-1 overflow-y-auto p-3 space-y-2 text-xs">
+            <div id="privateMessagesContainer" class="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 space-y-2 text-xs" style="-webkit-overflow-scrolling: touch; touch-action: pan-y;">
               <!-- Rendered in JS -->
             </div>
 
@@ -4717,6 +4717,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=24.1"></script>
+  <script src="/js/app.js?v=24.2"></script>
 </body>
 </html>

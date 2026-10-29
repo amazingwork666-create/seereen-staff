@@ -11969,6 +11969,31 @@ async function openPrivateChatModal() {
     }
   }
 
+  // Mobile layout adjustment
+  const sidebar = document.getElementById('privateConversationsSidebar');
+  const chatArea = document.getElementById('privateChatArea');
+  if (window.innerWidth < 768) {
+    if (!activePrivateOtherUser) {
+      if (sidebar) sidebar.classList.remove('hidden');
+      if (chatArea) {
+        chatArea.classList.add('hidden');
+        chatArea.classList.remove('flex');
+      }
+    } else {
+      if (sidebar) sidebar.classList.add('hidden');
+      if (chatArea) {
+        chatArea.classList.remove('hidden');
+        chatArea.classList.add('flex');
+      }
+    }
+  } else {
+    if (sidebar) sidebar.classList.remove('hidden');
+    if (chatArea) {
+      chatArea.classList.remove('hidden');
+      chatArea.classList.add('flex');
+    }
+  }
+
   // If student: default to staff tab. If staff: default to conversations tab
   if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher')) {
     switchPrivateChatTab('conversations');
@@ -12201,6 +12226,11 @@ async function openPrivateChatWithUser(targetUserId, targetName, targetRole, tar
   if (window.innerWidth < 768) {
     const sidebar = document.getElementById('privateConversationsSidebar');
     if (sidebar) sidebar.classList.add('hidden');
+    const chatArea = document.getElementById('privateChatArea');
+    if (chatArea) {
+      chatArea.classList.remove('hidden');
+      chatArea.classList.add('flex');
+    }
   }
 
   const nameEl = document.getElementById('privateChatTargetName');
@@ -12219,16 +12249,25 @@ async function openPrivateChatWithUser(targetUserId, targetName, targetRole, tar
 
 function showPrivateConversationsSidebarMobile() {
   const sidebar = document.getElementById('privateConversationsSidebar');
+  const chatArea = document.getElementById('privateChatArea');
   const emptyState = document.getElementById('privateChatEmptyState');
   const activeBox = document.getElementById('privateChatActiveBox');
   if (!sidebar) return;
 
   if (sidebar.classList.contains('hidden')) {
     sidebar.classList.remove('hidden');
+    if (chatArea) {
+      chatArea.classList.add('hidden');
+      chatArea.classList.remove('flex');
+    }
     if (activeBox) activeBox.classList.add('hidden');
     if (emptyState) emptyState.classList.add('hidden');
   } else {
     sidebar.classList.add('hidden');
+    if (chatArea) {
+      chatArea.classList.remove('hidden');
+      chatArea.classList.add('flex');
+    }
     if (activePrivateOtherUser && activeBox) {
       activeBox.classList.remove('hidden');
     } else if (emptyState) {
@@ -16325,7 +16364,6 @@ async function deleteSingleIncident(id) {
   } catch (err) {
     alert('هەڵەی پەیوەندی بە سێرڤەرەوە');
   }
-}
 }
 
 async function toggleRedAlertLockdown() {
