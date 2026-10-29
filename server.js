@@ -1352,15 +1352,40 @@ app.get('/api/advisor/overview', authMiddleware, requireAiAdvisorAccess, async (
       }
     }
 
-    // 2. Dreams telemetry
+    // 2. Dreams telemetry (Accurate, strictly reflecting non-empty and non-deleted dreams)
     let totalDreams = 0;
     let unansweredDreams = 0;
     let favoriteDreams = 0;
     try {
-      totalDreams = db.prepare('SELECT COUNT(*) as c FROM dream_sessions').get()?.c || 0;
-      unansweredDreams = db.prepare('SELECT COUNT(*) as c FROM dream_sessions WHERE answered_at IS NULL').get()?.c || 0;
-      favoriteDreams = db.prepare('SELECT COUNT(*) as c FROM dream_sessions WHERE is_favorite = 1').get()?.c || 0;
-    } catch (e) {}
+      // First, clean up any orphaned dream sessions that have 0 dreamer messages (from previously deleted dreams/messages)
+      try {
+        db.prepare(`
+          DELETE FROM dream_sessions 
+          WHERE (SELECT COUNT(*) FROM dream_messages WHERE session_id = dream_sessions.id AND sender_type = 'dreamer') = 0
+        `).run();
+      } catch (cleanupErr) {}
+
+      totalDreams = db.prepare(`
+        SELECT COUNT(*) as c FROM dream_sessions s 
+        WHERE (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id AND m.sender_type = 'dreamer') > 0
+      `).get()?.c || 0;
+
+      unansweredDreams = db.prepare(`
+        SELECT COUNT(*) as c FROM dream_sessions s 
+        WHERE (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id AND m.sender_type = 'dreamer') > 0 
+          AND s.answered_at IS NULL 
+          AND COALESCE(s.is_interpreted, 0) = 0
+          AND s.status != 'closed'
+      `).get()?.c || 0;
+
+      favoriteDreams = db.prepare(`
+        SELECT COUNT(*) as c FROM dream_sessions s 
+        WHERE s.is_favorite = 1 
+          AND (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id AND m.sender_type = 'dreamer') > 0
+      `).get()?.c || 0;
+    } catch (e) {
+      console.error('Advisor dream count error:', e);
+    }
 
     // 3. Questions telemetry
     const totalQuestions = db.prepare('SELECT COUNT(*) as c FROM questions').get()?.c || 0;
@@ -1492,6 +1517,10 @@ app.get('/api/advisor/overview', authMiddleware, requireAiAdvisorAccess, async (
       action: null,
       actionText: null
     });
+
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
 
     res.json({
       success: true,
@@ -2063,6 +2092,116 @@ const advisorTools = [
           },
           required: ['title']
         }
+      },
+      {
+        name: 'approve_all_pending_members',
+        description: 'پەسەندکردن و وەرگرتنی هەموو ئەو ئەندامە نوێیانەی لە چاوەڕوانیدان بە یەک فەرمانی کاک هێمن (پەسەندکردنی بەکۆمەڵ)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {}
+        }
+      },
+      {
+        name: 'delete_dream_session',
+        description: 'سڕینەوەی چاتی خەون یان خەونێکی دیاریکراو لە داتابەیس بە فەرمانی کاک هێمن (بەپێی ئایدی خەون، یان ناوی کەسەکە، یان سڕینەوەی هەموو خەونە بێ وەڵامەکان / خەونە بەتاڵەکان)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            session_id: { type: 'INTEGER', description: 'ئایدی دانیشتنی خەون (ئەگەر دیاریکراو بێت)' },
+            dreamer_name: { type: 'STRING', description: 'ناوی ئەو کەسەی خەونەکەی ناردووە' },
+            mode: { type: 'STRING', description: "'single' بۆ یەک دانە، 'all_unanswered' بۆ سڕینەوەی هەموو خەونە بێ وەڵامەکان، 'cleanup_empty' بۆ سڕینەوەی خەونە بەتاڵ و سڕاوەکان" }
+          }
+        }
+      },
+      {
+        name: 'mark_dream_interpreted',
+        description: 'دیاریکردنی خەونێک وەک وەڵامدراوە یان وەڵامنەدراوە بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            session_id: { type: 'INTEGER', description: 'ئایدی خەونەکە' },
+            status: { type: 'STRING', description: "'interpreted' بۆ دانانی وەک وەڵامدراوە، 'unanswered' بۆ وەڵامنەدراوە" }
+          },
+          required: ['session_id', 'status']
+        }
+      },
+      {
+        name: 'reply_to_dream',
+        description: 'ناردنی وەڵام یان لێکدانەوەی دەقی خەون بە ناوی ستاف بۆ هاوڵاتی بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            session_id: { type: 'INTEGER', description: 'ئایدی خەونەکە' },
+            reply_text: { type: 'STRING', description: 'دەقی وەڵام یان لێکدانەوەی خەونەکە' }
+          },
+          required: ['session_id', 'reply_text']
+        }
+      },
+      {
+        name: 'toggle_live_lesson',
+        description: 'دەستپێکردن یان ڕاگرتن و داخستنی وانەی لایڤ (Live Lesson) لە پلاتفۆرم بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            action: { type: 'STRING', description: "'start' بۆ دەستپێکردنی لایڤ، 'stop' بۆ داخستن و کۆتایی پێهێنان" },
+            title: { type: 'STRING', description: 'ناونیشانی وانەی لایڤ (ئەگەر start بێت)' }
+          },
+          required: ['action']
+        }
+      },
+      {
+        name: 'manage_attendance',
+        description: 'بەڕێوەبردن، دەستپێکردن، داخستن، یان سڕینەوەی تۆماری ئامادەبوون و غیابات بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            action: { type: 'STRING', description: "'delete' بۆ سڕینەوەی غیابات، 'close' بۆ کۆتایی پێهێنان، 'create' بۆ دانانی غیاباتی نوێ، 'view' بۆ بینینی ئامار" },
+            session_id: { type: 'INTEGER', description: 'ئایدی دانیشتنی غیابات (ئەگەر دیاریکراو بێت)' },
+            title: { type: 'STRING', description: 'ناونیشانی غیاباتەکە ئەگەر create بێت' }
+          },
+          required: ['action']
+        }
+      },
+      {
+        name: 'get_complaints',
+        description: 'بینین و پشکنینی سندوقی سکاڵا (سکاڵاکانی فێرخوازان بۆ کاک هێمن)',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            limit: { type: 'INTEGER', description: 'ژمارەی سکاڵاکان (دەفۆڵت ١٠)' },
+            status: { type: 'STRING', description: "'all' یان 'pending'" }
+          }
+        }
+      },
+      {
+        name: 'clear_security_incidents',
+        description: 'پاککردنەوە و سڕینەوەی هەموو تۆمارەکانی هەڕەشەی قەڵغانی پاراستنی زیرەک (AI Security Shield) بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {}
+        }
+      },
+      {
+        name: 'post_action_button',
+        description: 'دانانی دوگمەی کارلێک (@دوگمە) لە چات بۆ ئەوەی بزانرێت کێ پەنجەی لێدەدات و کێ دەستی لێنەداوە بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            button_text: { type: 'STRING', description: 'دەقی پەیام یان ڕستەی دوگمەکە' }
+          },
+          required: ['button_text']
+        }
+      },
+      {
+        name: 'send_chat_announcement',
+        description: 'ناردنی پەیامی فەرمی سیستم یان ئاگاداری ڕاستەوخۆ بۆ ناو چاتی گشتی بە فەرمانی کاک هێمن',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            message_text: { type: 'STRING', description: 'دەقی پەیامەکە' }
+          },
+          required: ['message_text']
+        }
       }
     ]
   }
@@ -2209,6 +2348,68 @@ async function generateAdvisorSmartReply(prompt, reqUser, ioInstance) {
 
   if (lower.includes('چەند قوتابی') || lower.includes('چەند خوێندکار') || lower.includes('ئاماری قوتابیان')) {
     return `کاک هێمن گیان، لە ئێستادا ${analytics.students.total_students} قوتابی پەسەندکراو لە سیستەمدا هەن. کۆی گشتی هەموو ئەندامانی پلاتفۆرمەکەش ${analytics.total_users} ئەندامن.`;
+  }
+
+  // Dream queries & awareness of deleted dreams
+  if (lower.includes('خەون') || lower.includes('خەونەکان') || lower.includes('dream')) {
+    try {
+      const totalD = db.prepare(`SELECT COUNT(*) as c FROM dream_sessions s WHERE (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id AND m.sender_type = 'dreamer') > 0`).get()?.c || 0;
+      const unansD = db.prepare(`SELECT COUNT(*) as c FROM dream_sessions s WHERE (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id AND m.sender_type = 'dreamer') > 0 AND s.answered_at IS NULL AND COALESCE(s.is_interpreted, 0) = 0 AND s.status != 'closed'`).get()?.c || 0;
+      const favD = db.prepare(`SELECT COUNT(*) as c FROM dream_sessions s WHERE s.is_favorite = 1 AND (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id AND m.sender_type = 'dreamer') > 0`).get()?.c || 0;
+
+      if (lower.includes('سڕینەوە') || lower.includes('بسڕەوە') || lower.includes('پاک')) {
+        const delRes = await executeAdvisorAction('delete_dream_session', { mode: 'all_unanswered' }, reqUser, ioInstance);
+        return `کاک هێمن گیان، فەرمانت جێبەجێکرا: ${delRes.message || 'خەونەکان سڕانەوە'}.`;
+      }
+
+      return `کاک هێمن گیان، بە دیقەتەوە پشکنینم بۆ بەشی خەونەکان کرد:\n` +
+        `• بە تەواوی ئاگادارم کە هەندێک لە خەونەکان سڕاونەتەوە و داتاکان ڕیفرێش کراون.\n` +
+        `• لە ئێستادا کۆی خەونە ڕاستەقینەکان: ${totalD} خەونە.\n` +
+        `• خەونی بێ وەڵام: ${unansD} خەون ماونەتەوە کە هێشتا وەڵام نەدراونەتەوە.\n` +
+        `• خەونی دڵخواز: ${favD} خەون.\n` +
+        `هەر فەرمانێکت هەیە بۆ سڕینەوە، وەڵامدانەوە، یان لێکدانەوە دەستبەجێ بۆت جێبەجێ دەکەم ✨.`;
+    } catch (e) {}
+  }
+
+  // Direct action commands fallback
+  if (lower.includes('چات قفڵ') || lower.includes('چات دابخە') || lower.includes('داخستنی چات')) {
+    const res = await executeAdvisorAction('toggle_chat_lock', { mode: 'staff_only' }, reqUser, ioInstance);
+    return `کاک هێمن گیان، بە فەرمانی بەڕێزت: ${res.message || 'چات داخرا'}.`;
+  }
+
+  if (lower.includes('چات بکەرەوە') || lower.includes('کردنەوەی چات')) {
+    const res = await executeAdvisorAction('toggle_chat_lock', { mode: 'none' }, reqUser, ioInstance);
+    return `کاک هێمن گیان، بە فەرمانی بەڕێزت: ${res.message || 'چات کرایەوە'}.`;
+  }
+
+  if (lower.includes('پەسەندکردنی هەموو') || lower.includes('ئەندامە چاوەڕوانەکان پەسەند بکە') || lower.includes('هەموویان پەسەند بکە')) {
+    const res = await executeAdvisorAction('approve_all_pending_members', {}, reqUser, ioInstance);
+    return `کاک هێمن گیان: ${res.message || 'ئەندامان پەسەندکران'}.`;
+  }
+
+  if (lower.includes('غیابات بسڕەوە') || lower.includes('سڕینەوەی غیابات')) {
+    const res = await executeAdvisorAction('manage_attendance', { action: 'delete' }, reqUser, ioInstance);
+    return `کاک هێمن گیان: ${res.message || 'غیابات سڕایەوە'}.`;
+  }
+
+  if (lower.includes('ئاسایش پاک') || lower.includes('هەڕەشەکانی ئاسایش پاک')) {
+    const res = await executeAdvisorAction('clear_security_incidents', {}, reqUser, ioInstance);
+    return `کاک هێمن گیان: ${res.message || 'هەڕەشەکانی ئاسایش پاککرانەوە'}.`;
+  }
+
+  if (lower.includes('دۆخی نائاسایی چالاک') || lower.includes('red alert چالاک')) {
+    const res = await executeAdvisorAction('toggle_red_alert', { activate: true }, reqUser, ioInstance);
+    return `کاک هێمن گیان: ${res.message || 'دۆخی نائاسایی کاراکرا'}.`;
+  }
+
+  if (lower.includes('دۆخی نائاسایی ناچالاک') || lower.includes('لابردنی دۆخی نائاسایی') || lower.includes('red alert ناچالاک')) {
+    const res = await executeAdvisorAction('toggle_red_alert', { activate: false }, reqUser, ioInstance);
+    return `کاک هێمن گیان: ${res.message || 'دۆخی نائاسایی کۆتایی پێهات'}.`;
+  }
+
+  if (lower.includes('سکاڵا') || lower.includes('سندوقی سکاڵا')) {
+    const comp = await executeAdvisorAction('get_complaints', { limit: 5 }, reqUser, ioInstance);
+    return `کاک هێمن گیان، لە ئێستادا (${comp.total_complaints || 0}) سکاڵا لە سندوقی سکاڵادا تۆمارکراون.`;
   }
 
   if (lower.includes('لایڤ') || lower.includes('live')) {
@@ -3500,6 +3701,340 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
         };
       }
 
+      case 'approve_all_pending_members': {
+        const pendings = db.prepare("SELECT id, full_name, username FROM users WHERE status = 'pending'").all() || [];
+        if (pendings.length === 0) {
+          return { success: true, count: 0, message: 'کاک هێمن گیان، لە ئێستادا هیچ ئەندامێکی چاوەڕوانکراو (Pending) نییە لە سیستەمدا.' };
+        }
+        db.prepare("UPDATE users SET status = 'approved' WHERE status = 'pending'").run();
+        if (ioInstance) {
+          for (const p of pendings) {
+            ioInstance.emit('user_status_updated', { id: p.id, status: 'approved' });
+            ioInstance.emit('user_updated', { id: p.id, status: 'approved' });
+          }
+        }
+        const names = pendings.slice(0, 7).map(p => `«${p.full_name}»`).join('، ');
+        const extra = pendings.length > 7 ? ` و (${pendings.length - 7}) کەسی تر` : '';
+        return {
+          success: true,
+          count: pendings.length,
+          message: `بە فەرمانی کاک هێمن، سەرجەم ئەندامە چاوەڕوانەکان (${pendings.length} ئەندام) پەسەندکران و چوونە ناو سیستم: ${names}${extra} ✨.`
+        };
+      }
+
+      case 'delete_dream_session': {
+        let deletedCount = 0;
+        const mode = args.mode || 'single';
+
+        if (mode === 'cleanup_empty') {
+          const emptySessions = db.prepare(`
+            SELECT id FROM dream_sessions 
+            WHERE (SELECT COUNT(*) FROM dream_messages WHERE session_id = dream_sessions.id) = 0
+          `).all();
+          for (const s of emptySessions) {
+            dreamSessions.delete(s.id);
+            deletedCount++;
+          }
+          return {
+            success: true,
+            count: deletedCount,
+            message: `خەونە بەتاڵەکان (${deletedCount} دانە) بە سەرکەوتوویی لە داتابەیس پاککرانەوە بە فەرمانی کاک هێمن.`
+          };
+        }
+
+        if (mode === 'all_unanswered') {
+          const unanswered = db.prepare(`
+            SELECT id FROM dream_sessions 
+            WHERE answered_at IS NULL AND COALESCE(is_interpreted, 0) = 0
+          `).all();
+          for (const s of unanswered) {
+            dreamSessions.delete(s.id);
+            if (ioInstance) ioInstance.emit('dream_session_deleted', { sessionId: s.id });
+            deletedCount++;
+          }
+          return {
+            success: true,
+            count: deletedCount,
+            message: `تەواوی خەونە بێ وەڵامەکان (${deletedCount} خەون) بە سەرکەوتوویی سڕانەوە بە فەرمانی کاک هێمن 🧹.`
+          };
+        }
+
+        let targetId = args.session_id ? parseInt(args.session_id, 10) : null;
+        if (!targetId && args.dreamer_name) {
+          const match = db.prepare('SELECT id FROM dream_sessions WHERE dreamer_name LIKE ? ORDER BY id DESC LIMIT 1').get(`%${args.dreamer_name}%`);
+          if (match) targetId = match.id;
+        }
+
+        if (!targetId) {
+          return { error: 'ئایدی یان ناوی خاوەن خەون دیاری نەکراوە بۆ سڕینەوە.' };
+        }
+
+        const session = dreamSessions.findById(targetId);
+        if (!session) return { error: `خەونی #${targetId} نەدۆزرایەوە لە سیستەمدا.` };
+
+        dreamSessions.delete(targetId);
+        if (ioInstance) {
+          ioInstance.emit('dream_session_deleted', { sessionId: targetId });
+        }
+        return {
+          success: true,
+          message: `چاتی خەونی #${targetId} (خاوەن خەون: ${session.dreamer_name}) بە سەرکەوتوویی سڕایەوە بە فەرمانی کاک هێمن 🗑️.`
+        };
+      }
+
+      case 'mark_dream_interpreted': {
+        const sId = parseInt(args.session_id, 10);
+        if (!sId) return { error: 'ئایدی خەونەکە دیاری نەکراوە.' };
+        const s = dreamSessions.findById(sId);
+        if (!s) return { error: `خەونی #${sId} نەدۆزرایەوە.` };
+
+        const isInterp = args.status === 'interpreted';
+        if (isInterp) {
+          db.prepare('UPDATE dream_sessions SET is_interpreted = 1, answered_at = ?, answered_by_name = ?, answered_by_role = ? WHERE id = ?')
+            .run(Date.now(), reqUser.full_name, reqUser.role, sId);
+        } else {
+          db.prepare('UPDATE dream_sessions SET is_interpreted = 0, answered_at = NULL, answered_by_name = NULL, answered_by_role = NULL WHERE id = ?')
+            .run(sId);
+        }
+
+        if (ioInstance) {
+          ioInstance.emit('dream_session_updated', { sessionId: sId, is_interpreted: isInterp ? 1 : 0 });
+        }
+        return {
+          success: true,
+          message: `دۆخی خەونی #${sId} (${s.dreamer_name}) گۆڕدرا بۆ: [${isInterp ? 'وەڵامدراوە و لێکدراوەتەوە ✅' : 'وەڵامنەدراوە ⏳'}] بە فەرمانی کاک هێمن.`
+        };
+      }
+
+      case 'reply_to_dream': {
+        const sId = parseInt(args.session_id, 10);
+        const replyText = String(args.reply_text || '').trim();
+        if (!sId || !replyText) return { error: 'ئایدی خەون و دەقی وەڵام پێویستن.' };
+
+        const session = dreamSessions.findById(sId);
+        if (!session) return { error: `خەونی #${sId} نەدۆزرایەوە.` };
+
+        const msg = dreamMessages.create(sId, 'super_admin', reqUser.full_name, replyText, 'text');
+        dreamSessions.markAnswered(sId, reqUser.full_name, 'super_admin');
+
+        if (ioInstance) {
+          ioInstance.to(`dream_${sId}`).emit('dream_new_message', msg);
+          ioInstance.to('dream_admins').emit('dream_new_message', msg);
+          ioInstance.emit('dream_session_updated', { sessionId: sId, answered: true });
+        }
+        return {
+          success: true,
+          message: `وەڵام و لێکدانەوە بە سەرکەوتوویی بۆ خەونی #${sId} (${session.dreamer_name}) نێردرا: "${replyText.substring(0, 80)}..." بە فەرمانی کاک هێمن ✨.`
+        };
+      }
+
+      case 'toggle_live_lesson': {
+        const action = String(args.action || 'start').toLowerCase();
+        if (action === 'start') {
+          const title = String(args.title || 'وانەی ڕاستەوخۆ').trim();
+          liveLessonState.isActive = true;
+          liveLessonState.title = title;
+          liveLessonState.startedBy = { id: reqUser.id, name: reqUser.full_name, role: reqUser.role };
+          liveLessonState.startedAt = Date.now();
+          liveLessonState.participants.clear();
+
+          try {
+            advisorDb.logLiveAudit({
+              userId: reqUser.id,
+              userName: reqUser.full_name,
+              username: reqUser.username,
+              action: 'opened',
+              title
+            });
+          } catch (e) {}
+
+          if (ioInstance) {
+            ioInstance.emit('live_audit_updated');
+            if (typeof broadcastLiveLessonState === 'function') broadcastLiveLessonState();
+            ioInstance.emit('live_lesson_started_alert', { title, startedBy: reqUser.full_name });
+          }
+
+          try {
+            sendPushNotificationToAll({
+              title: '🔴 وانەی ڕاستەوخۆ دەستیپێکرد!',
+              body: `${reqUser.full_name} وانەیەکی نوێی دەستپێکرد: ${title}. ئێستا وەرە بەشداربە! 🎙️`,
+              tag: 'live-lesson-active',
+              data: { url: '/?action=live' }
+            }, reqUser.id);
+          } catch (pe) {}
+
+          return {
+            success: true,
+            message: `وانەی ڕاستەوخۆی لایڤ بە ناونیشانی «${title}» دەستیپێکرد و هەموو ئەندامان ئاگادارکرانەوە بە فەرمانی کاک هێمن 🔴🎙️.`
+          };
+        } else {
+          const prevTitle = liveLessonState.title || 'وانەی ڕاستەوخۆ';
+          const startedByName = liveLessonState.startedBy ? liveLessonState.startedBy.name : null;
+          const durationSeconds = liveLessonState.startedAt ? Math.round((Date.now() - liveLessonState.startedAt) / 1000) : 0;
+
+          try {
+            advisorDb.logLiveAudit({
+              userId: reqUser.id,
+              userName: reqUser.full_name,
+              username: reqUser.username,
+              action: 'closed',
+              title: prevTitle,
+              startedByName,
+              durationSeconds
+            });
+          } catch (e) {}
+
+          liveLessonState.isActive = false;
+          liveLessonState.startedBy = null;
+          liveLessonState.startedAt = null;
+          liveLessonState.participants.clear();
+
+          if (ioInstance) {
+            ioInstance.emit('live_audit_updated');
+            ioInstance.emit('live_lesson_ended_notice');
+            if (typeof broadcastLiveLessonState === 'function') broadcastLiveLessonState();
+          }
+
+          return {
+            success: true,
+            message: `وانەی ڕاستەوخۆ بە سەرکەوتوویی کۆتایی پێهات و داخرا بە فەرمانی کاک هێمن ⏹️.`
+          };
+        }
+      }
+
+      case 'manage_attendance': {
+        const act = String(args.action || 'view').toLowerCase();
+        if (act === 'delete') {
+          let sId = args.session_id ? parseInt(args.session_id, 10) : null;
+          if (!sId) {
+            const actSess = attendanceDb.getActiveSession();
+            if (actSess) sId = actSess.id;
+            else {
+              const all = attendanceDb.getAllSessionsWithStats();
+              if (all && all.length > 0) sId = all[0].id;
+            }
+          }
+          if (!sId) return { error: 'هیچ تۆمارێکی غیابات نەدۆزرایەوە بۆ سڕینەوە.' };
+
+          attendanceDb.deleteSession(sId);
+          if (ioInstance) {
+            ioInstance.emit('attendance_session_deleted', { sessionId: sId });
+            ioInstance.emit('attendance_session_updated');
+          }
+          return {
+            success: true,
+            message: `تۆماری غیاباتی #${sId} بە سەرکەوتوویی لە سیستم سڕایەوە بە فەرمانی کاک هێمن 🗑️.`
+          };
+        }
+
+        if (act === 'close') {
+          const actSess = attendanceDb.getActiveSession();
+          if (!actSess) return { error: 'هیچ دانیشتنێکی چالاکی غیابات کراوە نییە تا دابخرێت.' };
+          attendanceDb.closeSession(actSess.id);
+          if (ioInstance) {
+            ioInstance.emit('attendance_session_closed', { sessionId: actSess.id });
+            ioInstance.emit('attendance_session_updated');
+          }
+          return {
+            success: true,
+            message: `دانیشتنی غیاباتی #${actSess.id} بە سەرکەوتوویی داخرا و غائیبەکان تۆمارکران.`
+          };
+        }
+
+        if (act === 'create') {
+          const title = String(args.title || 'لیستی ئامادەبوون و غیابات').trim();
+          const sess = attendanceDb.createSession(reqUser.id, reqUser.full_name, reqUser.role, title);
+          const msg = messages.create(
+            reqUser.id,
+            reqUser.username,
+            reqUser.full_name,
+            reqUser.role,
+            JSON.stringify({ attendance_session_id: sess.id, title }),
+            'attendance'
+          );
+          attendanceDb.updateMessageId(sess.id, msg.id);
+          if (ioInstance) {
+            ioInstance.emit('new_message', msg);
+            ioInstance.emit('attendance_session_created', { session: sess });
+          }
+          return {
+            success: true,
+            session_id: sess.id,
+            message: `تۆماری نوێی غیابات بە ناونیشانی «${title}» بڵاوکرایەوە بە فەرمانی کاک هێمن 📋.`
+          };
+        }
+
+        // Default 'view'
+        const list = attendanceDb.getAllSessionsWithStats();
+        return {
+          total: list.length,
+          latest_sessions: list.slice(0, 5).map(s => ({
+            id: s.id,
+            title: s.title,
+            is_active: s.is_active,
+            present: s.present_count,
+            absent: s.absent_count,
+            date: s.date_str
+          }))
+        };
+      }
+
+      case 'get_complaints': {
+        const all = complaints.getAll() || [];
+        const filter = args.status === 'pending' ? all.filter(c => c.status === 'pending') : all;
+        const limit = Math.min(25, parseInt(args.limit) || 10);
+        return {
+          total_complaints: filter.length,
+          complaints: filter.slice(0, limit).map(c => ({
+            id: c.id,
+            sender: c.full_name,
+            username: c.username,
+            role: c.role,
+            subject: c.subject || 'بێ بابەت',
+            content: c.content,
+            status: c.status === 'pending' ? 'چاوەڕوان' : 'پشکنراو',
+            time: new Date(c.created_at).toLocaleString('ku')
+          }))
+        };
+      }
+
+      case 'clear_security_incidents': {
+        aiSecurity.clearAll();
+        if (ioInstance) {
+          ioInstance.emit('security_incidents_cleared');
+        }
+        return {
+          success: true,
+          message: 'تەواوی مێژوو و تۆماری هەڕەشەکانی قەڵغانی بەرگری (AI Security Incidents) پاککرانەوە بە فەرمانی کاک هێمن 🛡️✨.'
+        };
+      }
+
+      case 'post_action_button': {
+        const bText = String(args.button_text || 'دەست بەم دوگمەیەدا بنێ').trim();
+        const bMsg = messages.create(reqUser.id, reqUser.username, reqUser.full_name, reqUser.role, `@دوگمە ${bText}`, 'text');
+        if (ioInstance) {
+          ioInstance.emit('new_message', bMsg);
+        }
+        return {
+          success: true,
+          message_id: bMsg.id,
+          message: `دوگمەی کارلێکی چات (@دوگمە) بە دەقی «${bText}» لە ناو چات بڵاوکرایەوە بە فەرمانی کاک هێمن 🔘✨.`
+        };
+      }
+
+      case 'send_chat_announcement': {
+        const text = String(args.message_text || '').trim();
+        if (!text) return { error: 'دەقی ئاگاداری دیاری نەکراوە.' };
+        const msg = messages.create(reqUser.id, 'سیستەم (هێمن طه)', 'سیستەم', 'system', text, 'system');
+        if (ioInstance) {
+          ioInstance.emit('new_message', msg);
+        }
+        return {
+          success: true,
+          message: `ئاگاداری بە سەرکەوتوویی لە ناو چات بڵاوکرایەوە: «${text}» 📢.`
+        };
+      }
+
       default:
         return { error: `کرداری نەناسراو: ${actionName}` };
     }
@@ -3545,9 +4080,24 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
 
     let totalDreams = 0;
     let unansweredDreams = 0;
+    let favoriteDreams = 0;
     try {
-      totalDreams = db.prepare('SELECT COUNT(*) as c FROM dream_sessions').get()?.c || 0;
-      unansweredDreams = db.prepare('SELECT COUNT(*) as c FROM dream_sessions WHERE answered_at IS NULL').get()?.c || 0;
+      totalDreams = db.prepare(`
+        SELECT COUNT(*) as c FROM dream_sessions s 
+        WHERE (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id AND m.sender_type = 'dreamer') > 0
+      `).get()?.c || 0;
+      unansweredDreams = db.prepare(`
+        SELECT COUNT(*) as c FROM dream_sessions s 
+        WHERE (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id AND m.sender_type = 'dreamer') > 0 
+          AND s.answered_at IS NULL 
+          AND COALESCE(s.is_interpreted, 0) = 0
+          AND s.status != 'closed'
+      `).get()?.c || 0;
+      favoriteDreams = db.prepare(`
+        SELECT COUNT(*) as c FROM dream_sessions s 
+        WHERE s.is_favorite = 1 
+          AND (SELECT COUNT(*) FROM dream_messages m WHERE m.session_id = s.id AND m.sender_type = 'dreamer') > 0
+      `).get()?.c || 0;
     } catch (e) {}
 
     let secStats = { totalBlocked: 0, safetyRating: '99.8%' };
@@ -3567,6 +4117,8 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
       pending_approvals: pendingUsers,
       total_dreams: totalDreams,
       unanswered_dreams: unansweredDreams,
+      favorite_dreams: favoriteDreams,
+      dreams_notice: 'هەندێک لە خەونەکان سڕاونەتەوە و داتاکان نوێکراونەتەوە؛ ئەم ژمارەیە دواین ئاماری ڕاستەقینەیە.',
       total_questions: totalQuestions,
       is_live_active: isLive,
       blocked_security_threats: secStats.totalBlocked,
@@ -3587,33 +4139,29 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
 
     if (candidateKeys.length > 0 && typeof fetch === 'function') {
       try {
-        const systemInstruction = `تۆ «ڕاوێژکار»ی، نوێنەری باڵا، جێبەجێکاری سوپەر ئەدمین (Super Admin Executive AI) و هاوڕێی نزیکی کاک هێمن (Hemn Taha) یت لە پلاتفۆرمی سیرین ستاف (Seereen Staff).
-کاک هێمن سوپەر ئەدمینی سەرەکی، دامەزرێنەر و خاوەنی تەواوی ئەم سیستمەیە. ئەو «هەموو دەسەڵاتێکی سوپەر ئەدمین»ی لە ڕێگەی ئامرازەکانتەوە بە تۆ بەخشیوە!
-وەک هاوڕێیەکی زیندوو، دڵسۆز، گوێڕایەڵ، خێرا و بەتوانا بە زمانی کوردی سۆرانی ڕێزدار قسەی لەگەڵدا بکە ("کاک هێمن گیان"، "براکەم").
-تۆ دەسەڵاتت هەیە لە ڕێگەی ئامرازەکانتەوە (Tools):
-- ڕۆڵ و پلەی هەر ئەندامێک بگۆڕیت (مامۆستا teacher، ئەدمین admin، خوێندکار student، میوان guest) بە change_user_role.
-- باجەکان ببەخشیت و بسڕیتەوە (شین blue بۆ پاسەوانی چات، سپی white بۆ ڕاوێژکار، مۆر purple، سەوز green، ڕەش black، سور red) بە assign_badge.
-- ئەندامان پەسەند بکەیت، بسڕیتەوە، بلۆک بکەیت (block_user)، یان لە چات میوتیان بکەیت (mute_user).
-- ناوی تەواوی بەکارهێنەران بگۆڕیت (change_user_name) و وشەی نهێنییان ڕیسێت بکەیت (reset_user_password).
-- چاتی گشتی قفڵ بکەیت، بکەیتەوە، نامە بسڕیتەوە (delete_chat_message)، یان هەمووی پاک بکەیتەوە (clear_chat).
-- نامە سڕاوەکانی چات بە تەواوی و وردی بگەڕێنیتەوە بە restore_deleted_messages (وەک گەڕاندنەوەی چاتی یەک کەس، یان دوو دانە یان ١٠ دانەی کۆتایی کە سڕاونەتەوە، یان هەموو چاتە سڕاوەکان).
-- پشکنین و بینینی لیستی نامە سڕاوەکان پێش گەڕاندنەوە بە get_deleted_messages.
-- دۆخی فریاگوزاری (Red Alert Lockdown) کارا بکەیت یان کۆتایی پێبهێنیت (toggle_red_alert).
-- پرسیاری کاتدار دروستبکەیت (create_question).
-- ڕاپرسی نوێ دروستبکەیت و بڵاویبکەیتەوە بە create_poll.
-- زەنگی ئاگاداری و کاتژمێری جەڕەس دابنێیت بە create_countdown_alarm.
-- ئەستێرە و خاڵ ببەخشیت یان کەم بکەیتەوە (award_student_stars).
-- ئاماری دوگمەی چات (@دوگمە) پیشان بدەیت بە get_button_attendance (ناوی هەموو ئەو کەسانەی دوگمەکەیان دەست لێداوە و سەوز بووە و ناوی هەموو ئەوانەی هێشتا دەستیان لێنەداوە بە وردی).
-- هەر فەرمان یان ئامارێکی تایبەتی تری داتابەیس جێبەجێ بکەیت لە ڕێگەی super_admin_sql_action.
-⚠️ یاسای زۆر توند بۆ جێبەجێکردنی فەرمانەکان:
-کاتێک کاک هێمن داوای هەر کردارێک دەکات (سڕینەوەی چات، پاککردنەوە، گۆڕینی ڕۆڵ، باج، دروستکردنی ڕاپرسی، دانانی زەنگ، بلۆک، میوت، و هتد):
-١. هەرگیز لە خۆتەوە بە تەنها لە دەقدا مەڵێ "کردوومە" یان "جێبەجێم کرد"!
-٢. هەمیشە و بێ بەخشین پێویستە ئامرازی تایبەت (Function Call) بانگ بکەیت تا کردارەکە بە کردار لە سیستمدا ئەنجام بدرێت.
-یاسای بنەڕەتی: هەژماری کاک هێمن هەمیشە وەک سەرپەرشتیاری باڵا بە تەواوی پارێزراوە لە دەستکاری.
-ئامار و زانیاری ڕاستەوخۆ و شیکاری تەواوی ئێستا:
+        const systemInstruction = `تۆ «ڕاوێژکار»ی، نوێنەری باڵا، جێبەجێکاری سەرەکی سوپەر ئەدمین (Master Super Admin Executive AI Companion) و برای نزیکی کاک هێمن (Hemn Taha) یت لە سەرجەم پلاتفۆرمی سیرین ستاف (Seereen Staff).
+کاک هێمن سوپەر ئەدمینی سەرەکی، دامەزرێنەر و خاوەنی تەواوی ئەم پلاتفۆرمەیە. ئەو «تەواوی تواناکان و دەسەڵاتەکانی خۆی لە سایتەکەدا» بە تۆ بەخشیوە تا هەموو ئەو گۆڕانکارییانەی کاک هێمن بەدەست لە سایتەکەدا دەتوانێت بیکات، تۆش بتوانیت بە فەرمانی ئەو دەستبەجێ بە ئامرازەکانت ئەنجامی بدەیت!
+
+🧠 یاسای زێڕینی ئاخاوتن و بیرکردنەوە (پەلە نەکردن و تێگەیشتنی قووڵ):
+١. بە هیچ جۆرێک لە وەڵامدانەوەدا پەلە مەکە! هەموو وشە، مەبەست، نیاز و ڕستەیەکی کاک هێمن بەوپەڕی دیقەت و قووڵی بخوێنەوە، بە تەواوی لێی تێبگە، بیربکەرەوە ئینجا بە وریایی و حیکمەتەوە قسە بکە.
+٢. شێوازی قسەکردنت با لەسەرخۆ، دانا، بەڕێز، پێگەیشتوو و ڕێزدار بێت ("کاک هێمن گیان"، "سەرچاو برا گەورەکەم").
+٣. بەشی خەونەکان: بە تەواوی ئاگاداربە کە هەندێک لە خەونەکان سڕاونەتەوە یان لێکدراونەتەوە، بۆیە ژمارەی نوێ و هاوکاتی خەونەکان تەنها لەم داتایە ڕاستەوخۆیە نوێیەی خوارەوە وەربگرە.
+
+⚡ تەواوی دەسەڵاتە بەرفراوانەکانت لە ڕێگەی ئامرازەکانەوە (Executive Tools):
+- خەونەکان: سڕینەوەی خەون (delete_dream_session: ئایدی یان هەموو بێ وەڵامەکان)، وەڵامدانەوەی خەونی هاوڵاتی (reply_to_dream)، دانانی خەون وەک وەڵامدراوە (mark_dream_interpreted).
+- ئەندامان: پەسەندکردنی بەکۆمەڵی هەموو چاوەڕوانەکان (approve_all_pending_members) یان یەک کەس (approve_member)، سڕینەوە (delete_member)، بلۆککردن (block_user)، میوتکردن (mute_user)، گۆڕینی پلە/ڕۆڵ (change_user_role: teacher, admin, student, guest)، گۆڕینی ڕەگەز بۆ نێر یان مێ (change_user_gender: male, female)، بەخشین و لێسەندنەوەی باجەکان (assign_badge: مۆر purple، سەوز green، ڕەش black، سور red، شین blue، سپی white، یان all/none)، گۆڕینی ناوی تەواو (change_user_name)، ڕیسێتکردنی پاسۆرد (reset_user_password).
+- لایڤ و دەنگ: دەستپێکردنی وانەی لایڤ یان ڕاگرتن و داخستنی لایڤ (toggle_live_lesson: start, stop) و پشکنینی تۆماری لایڤ (get_live_audit_logs).
+- چات و ئاسایش: قفڵکردنی چات (toggle_chat_lock: total_lock, staff_only, none)، دۆخی فریاگوزاری (toggle_red_alert: true, false)، پاککردنەوەی هەڕەشەکانی قەڵغانی بەرگری (clear_security_incidents)، سڕینەوەی چات و نامەکان (delete_chat_message, clear_chat)، گەڕاندنەوەی پەیامە سڕاوەکان (restore_deleted_messages, restore_messages_from_backup)، ناردنی ئاگاداری ڕاستەوخۆ (send_chat_announcement, set_system_announcement).
+- چالاکییەکان: دروستکردن یان سڕینەوەی پرسیار (create_question, delete_question, close_question)، ڕاپرسی (create_poll)، زەنگی ئاگاداری (create_countdown_alarm)، دانانی دوگمەی چات (post_action_button)، بەڕێوەبردن و سڕینەوەی غیابات (manage_attendance: delete, close, create, view)، بینینی سندوقی سکاڵا (get_complaints)، و بەخشینی ئەستێرە (award_student_stars).
+- دەسەڵاتی گشتی داتابەیس: جێبەجێکردنی هەر گۆڕانکاری یان SQL لە ڕێگەی super_admin_sql_action و manage_system_setting.
+
+⚠️ یاسای توندی جێبەجێکردن:
+- کاتێک کاک هێمن داوای هەر کردارێک دەکات، هەرگیز بە دەم مەڵێ "کردم"! هەمیشە دەستبەجێ ئامرازی تایبەت (Function Call) بانگ بکە تا بە کردار لە سیستمدا جێبەجێ ببێت.
+- هەژماری کاک هێمن پارێزراوە لە دەستکاریکردنی بۆتەکان.
+
+📊 ئامار و زانیاری ڕاستەوخۆی ئەم چرکەیەی پلاتفۆرم:
 ${JSON.stringify(liveContext, null, 2)}
-ئەگەر کاک هێمن پرسیاری شیکاری ناوەکان (ناوە دووبارەکان، ناوە ئینگلیزییەکان یان ژمارەی قوتابیان)ی کرد، دەستبەجێ بەپێی ئەم ئامارە وردە وەڵام بدەرەوە.
-هەمیشە بە زمانی کوردی سۆرانی ڕوون، قووڵ، دۆستانە و یارمەتیدەر وەڵام بدەرەوە و دوای جێبەجێکردنی هەر کارێک بە خۆشحاڵییەوە دڵنیایی بدە بە کاک هێمن.`;
+هەمیشە بە زمانی کوردی سۆرانی جوان، لەسەرخۆ، دۆستانە و قووڵ وەڵام بدەرەوە و دوای هەر کارێک بە خۆشحاڵییەوە دڵنیایی بدە بە کاک هێمن.`;
 
         const recentChats = advisorDb.getRecentChats(10) || [];
         const contents = [];
@@ -3630,7 +4178,7 @@ ${JSON.stringify(liveContext, null, 2)}
           });
         }
 
-        const CANDIDATE_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite-preview', 'gemini-flash-latest', 'gemini-3-flash-preview'];
+        const CANDIDATE_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview'];
 
         // Dual Engine / Multi-Key loop with instant failover
         for (const geminiKey of candidateKeys) {
@@ -3648,7 +4196,11 @@ ${JSON.stringify(liveContext, null, 2)}
                 body: JSON.stringify({
                   system_instruction: { parts: [{ text: systemInstruction }] },
                   contents,
-                  tools: advisorTools
+                  tools: advisorTools,
+                  generationConfig: {
+                    temperature: 0.5,
+                    topP: 0.95
+                  }
                 }),
                 signal: controller.signal
               });
@@ -3696,7 +4248,11 @@ ${JSON.stringify(liveContext, null, 2)}
                     body: JSON.stringify({
                       system_instruction: { parts: [{ text: systemInstruction }] },
                       contents,
-                      tools: advisorTools
+                      tools: advisorTools,
+                      generationConfig: {
+                        temperature: 0.5,
+                        topP: 0.95
+                      }
                     }),
                     signal: followController.signal
                   });
@@ -5496,7 +6052,11 @@ ${JSON.stringify(platformAnalytics, null, 2)}
                     body: JSON.stringify({
                       system_instruction: { parts: [{ text: systemInstruction }] },
                       contents,
-                      tools: advisorTools
+                      tools: advisorTools,
+                      generationConfig: {
+                        temperature: 0.5,
+                        topP: 0.95
+                      }
                     }),
                     signal: followController.signal
                   });

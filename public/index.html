@@ -4387,7 +4387,7 @@
         </div>
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <!-- Refresh / Scan Platform Now Button -->
-          <button onclick="loadAdvisorOverview()" id="advisorRefreshBtn" class="px-2 sm:px-2.5 py-1.5 rounded-xl bg-purple-950/50 hover:bg-purple-900/70 text-purple-300 hover:text-white flex items-center gap-1.5 text-xs border border-purple-500/30 transition shadow-sm" title="پشکنینی نوێی سایت">
+          <button onclick="loadAdvisorOverview(true)" id="advisorRefreshBtn" class="px-2 sm:px-2.5 py-1.5 rounded-xl bg-purple-950/50 hover:bg-purple-900/70 text-purple-300 hover:text-white flex items-center gap-1.5 text-xs border border-purple-500/30 transition shadow-sm" title="پشکنینی نوێی سایت">
             <i class="fa-solid fa-arrows-rotate text-xs"></i>
             <span class="hidden sm:inline font-bold">پشکنین</span>
           </button>
@@ -4444,9 +4444,9 @@
             </div>
 
             <!-- 2. Dreams Department -->
-            <div class="p-3 bg-gradient-to-br from-purple-950/40 to-slate-900 border border-purple-500/30 rounded-2xl flex flex-col justify-between shadow-sm">
+            <div onclick="handleAdvisorAction('dream_admin')" class="p-3 bg-gradient-to-br from-purple-950/40 to-slate-900 border border-purple-500/30 hover:border-purple-400/60 rounded-2xl flex flex-col justify-between shadow-sm cursor-pointer transition group" title="کلیک بکە بۆ بینین و لێکدانەوەی خەونەکان">
               <div class="flex items-center justify-between text-xs text-purple-300 mb-1">
-                <span class="font-bold flex items-center gap-1.5">
+                <span class="font-bold flex items-center gap-1.5 group-hover:text-purple-200 transition">
                   <i class="fa-solid fa-moon text-purple-400"></i>
                   <span>بەشی خەونەکان</span>
                 </span>
@@ -4599,14 +4599,24 @@
               </div>
               <div class="bg-slate-800/90 border border-purple-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
                 <div class="flex items-center justify-between gap-2 mb-1">
-                  <span class="text-xs font-black text-purple-300">ڕاوێژکاری تایبەت</span>
+                  <span class="text-xs font-black text-purple-300">ڕاوێژکاری باڵا</span>
                   <span class="text-[9px] text-slate-400">ئێستا</span>
                 </div>
                 <p class="text-xs text-slate-200 leading-relaxed">
-                  سڵاو کاک هێمن گیان، برای بەڕێز و خۆشەویستم! من وەک ڕاوێژکار و هاوڕێی نزیکی خۆت لێرەم. چاودێری هەموو وردەکارییەکی سایت، داتابەیس، خەونەکان، ئاسایش و ئەندامان دەکەم. لە هەر بابەتێکدا پرسیار، پێشنیار، یان ڕاوێژت هەبێت، فەرموو لێرە بنووسە و لە خزمەتتدام! 💜
+                  سڵاو کاک هێمن گیان، برای گەورە و خۆشەویستم! من وەک ڕاوێژکاری باڵا و جێبەجێکاری سوپەر ئەدمین لە خزمەتتدام. تەواوی دەسەڵاتە بەرفراوانەکانت لە سایتەکەدا لەبەردەستمدایە؛ بە قووڵی و لەسەرخۆ گوێ لە هەموو قسە و فەرمانێکت دەگرم و تەواوی تواناکانی تۆم هەیە. هەر گۆڕانکارییەک کە بە دەست دەتوانیت بیکەیت لە خەونەکان، سڕینەوە، چات، ئەندامان و لایڤ، تەنها فەرمانم پێبکە تا ڕاستەوخۆ جێبەجێی بکەم! 💜✨
                 </p>
               </div>
             </div>
+          </div>
+
+          <!-- Quick Action Prompts Bar -->
+          <div class="px-3 py-1.5 bg-slate-900/80 border-t border-slate-800/80 flex items-center gap-1.5 overflow-x-auto text-[11px] shrink-0 no-scrollbar">
+            <button onclick="document.getElementById('advisorChatInput').value='ئاماری بەشی خەونەکان و خەونە بێ وەڵامەکانم پێ بڵێ'; sendAdvisorMessage();" class="px-2.5 py-1 rounded-xl bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 hover:text-white border border-purple-500/30 shrink-0 transition">🌙 خەونەکان</button>
+            <button onclick="document.getElementById('advisorChatInput').value='ئەندامە چاوەڕوانەکانم بۆ پەسەند بکە'; sendAdvisorMessage();" class="px-2.5 py-1 rounded-xl bg-amber-950/50 hover:bg-amber-900/60 text-amber-300 hover:text-white border border-amber-500/30 shrink-0 transition">👥 پەسەندکردنی ئەندامان</button>
+            <button onclick="document.getElementById('advisorChatInput').value='چاتم بۆ قفڵ بکە و بیکە تەنها ستاف'; sendAdvisorMessage();" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 shrink-0 transition">🔒 قفڵی چات</button>
+            <button onclick="document.getElementById('advisorChatInput').value='چاتم بۆ بکەرەوە'; sendAdvisorMessage();" class="px-2.5 py-1 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 hover:text-white border border-emerald-500/30 shrink-0 transition">🔓 کردنەوەی چات</button>
+            <button onclick="document.getElementById('advisorChatInput').value='تۆماری غیاباتم بۆ بسڕەوە'; sendAdvisorMessage();" class="px-2.5 py-1 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 shrink-0 transition">📋 سڕینەوەی غیابات</button>
+            <button onclick="document.getElementById('advisorChatInput').value='هەڕەشەکانی ئاسایش پاکبکەرەوە'; sendAdvisorMessage();" class="px-2.5 py-1 rounded-xl bg-blue-950/40 hover:bg-blue-900/60 text-blue-300 hover:text-white border border-blue-500/30 shrink-0 transition">🛡️ پاککردنی ئاسایش</button>
           </div>
 
 
@@ -4717,6 +4727,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=24.3"></script>
+  <script src="/js/app.js?v=24.5"></script>
 </body>
 </html>

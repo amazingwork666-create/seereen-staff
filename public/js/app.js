@@ -16539,7 +16539,7 @@ function switchAdvisorTab(tab) {
   }
 }
 
-async function loadAdvisorOverview() {
+async function loadAdvisorOverview(force = false) {
   const refreshBtn = document.getElementById('advisorRefreshBtn');
   if (refreshBtn) {
     const icon = refreshBtn.querySelector('i');
@@ -16547,8 +16547,13 @@ async function loadAdvisorOverview() {
   }
 
   try {
-    const res = await fetch('/api/advisor/overview', {
-      headers: { 'Authorization': `Bearer ${token}` }
+    const res = await fetch(`/api/advisor/overview?_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
     });
     if (!res.ok) throw new Error('Failed to fetch advisor overview');
     const data = await res.json();
@@ -16892,7 +16897,7 @@ async function sendAdvisorMessage() {
       <div class="bg-slate-800/90 border border-purple-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
         <div class="flex items-center gap-2">
           <span class="text-xs font-black text-purple-300">ڕاوێژکار</span>
-          <span class="text-[10px] text-slate-400 italic">سەرقاڵی پشکنین و داڕشتنی وەڵامە...</span>
+          <span class="text-[10px] text-slate-400 italic">بە دیقەتەوە دەخوێنێتەوە و بیردەکاتەوە...</span>
           <span class="flex gap-1">
             <span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce"></span>
             <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0.2s"></span>
@@ -16946,6 +16951,11 @@ async function sendAdvisorMessage() {
     `;
     container.insertAdjacentHTML('beforeend', replyHtml);
     container.scrollTop = container.scrollHeight;
+
+    // Refresh overview data in background to keep stats strictly synchronized
+    try {
+      loadAdvisorOverview(true);
+    } catch (bgSyncErr) {}
   } catch (err) {
     const typingElem = document.getElementById(typingId);
     if (typingElem) typingElem.remove();
