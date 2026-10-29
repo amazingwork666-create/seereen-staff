@@ -6828,7 +6828,7 @@ async function openUserProfileModal(userId) {
           const cfg = BADGE_CONFIG[b];
           if (!cfg) return '';
           return `
-            <div class="p-2.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 flex items-center justify-between gap-2 shadow-sm">
+            <div class="p-2.5 rounded-2xl bg-slate-950/70 border border-[#dfaa86]/25 flex items-center justify-between gap-2 shadow-sm">
               <div class="flex items-center gap-2.5 min-w-0">
                 <span class="w-7 h-7 rounded-xl ${cfg.chipClass} flex items-center justify-center text-xs shrink-0 shadow-inner">
                   <i class="fa-solid ${cfg.icon}"></i>
@@ -6885,7 +6885,7 @@ async function openUserProfileModal(userId) {
     } else {
       prof.roleHistory.forEach((h, idx) => {
         const item = document.createElement('div');
-        item.className = 'p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-between';
+        item.className = 'p-2.5 rounded-2xl bg-slate-950/70 border border-[#dfaa86]/25 flex items-center justify-between shadow-sm';
         const d = new Date(h.created_at).toLocaleDateString('ku-IQ') + ' ' + new Date(h.created_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
         const oldR = h.old_role === 'student' ? 'قوتابی' : 'ئەدمین';
         const newR = h.new_role === 'admin' ? 'ئەدمین 🛡️' : 'قوتابی 🎓';
@@ -6907,15 +6907,15 @@ async function openUserProfileModal(userId) {
     } else {
       prof.answeredQuestions.forEach((q, idx) => {
         const item = document.createElement('div');
-        item.className = 'p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between';
+        item.className = 'p-2.5 rounded-2xl bg-slate-950/70 border border-[#dfaa86]/30 flex items-center justify-between shadow-sm';
         const d = new Date(q.awarded_at).toLocaleDateString('ku-IQ') + ' ' + new Date(q.awarded_at).toLocaleTimeString('ku-IQ', { hour: '2-digit', minute: '2-digit' });
 
         item.innerHTML = `
           <div>
-            <div class="font-bold text-amber-200">پرسیاری ژمارە #${q.question_id || (idx + 1)}</div>
+            <div class="font-bold text-[#dfaa86]">پرسیاری ژمارە #${q.question_id || (idx + 1)}</div>
             <div class="text-xs text-white line-clamp-1">${escapeHtml(q.question_text || 'پرسیاری دەستی')}</div>
           </div>
-          <span class="text-[10px] text-amber-400 font-mono shrink-0 mr-2">${d} ⭐</span>
+          <span class="text-[10px] text-[#dfaa86] font-mono shrink-0 mr-2">${d} ⭐</span>
         `;
         solvedList.appendChild(item);
       });
