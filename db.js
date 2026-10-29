@@ -238,6 +238,7 @@ function initDb() {
       uploaded_by_id INTEGER NOT NULL,
       uploaded_by_name TEXT NOT NULL,
       uploaded_by_role TEXT NOT NULL,
+      teacher_name TEXT DEFAULT '',
       created_at INTEGER NOT NULL
     );
 
@@ -432,6 +433,7 @@ function initDb() {
         uploaded_by_id INTEGER NOT NULL,
         uploaded_by_name TEXT NOT NULL,
         uploaded_by_role TEXT NOT NULL,
+        teacher_name TEXT DEFAULT '',
         created_at INTEGER NOT NULL
       );
     `);
@@ -543,10 +545,11 @@ function initDb() {
     db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_msg_reactions_user_msg ON message_reactions(message_id, user_id)').run();
   } catch (e) {}
 
-  // Migrations for Dream Interpretation and Library
+  // Migrations for Dream Interpretation, Library, and Recorded Lessons
   try { db.exec("ALTER TABLE dream_sessions ADD COLUMN is_interpreted INTEGER NOT NULL DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE library_books ADD COLUMN cover_image TEXT DEFAULT ''"); } catch (e) {}
   try { db.exec("ALTER TABLE library_books ADD COLUMN author_image TEXT DEFAULT ''"); } catch (e) {}
+  try { db.exec("ALTER TABLE recorded_lessons ADD COLUMN teacher_name TEXT DEFAULT ''"); } catch (e) {}
 
   // Backfill question_number sequentially for any unnumbered questions
   try {
@@ -2016,25 +2019,52 @@ const liveRecordings = {
 
 // Recorded Lessons for Students (Uploaded by Teacher/Admin, No Download Allowed)
 const recordedLessons = {
-  create(lessonNumber, title, description, audioUrl, duration, uploadedById, uploadedByName, uploadedByRole) {
+  create(lessonNumber, title, description, audioUrl, duration, uploadedById, uploadedByName, uploadedByRole, teacherName = '') {
+    const safeTeacher = (teacherName && teacherName.trim()) ? teacherName.trim() : (uploadedByName || 'مامۆستا');
     const stmt = db.prepare(`
-      INSERT INTO recorded_lessons (lesson_number, title, description, audio_url, duration, uploaded_by_id, uploaded_by_name, uploaded_by_role, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO recorded_lessons (lesson_number, title, description, audio_url, duration, uploaded_by_id, uploaded_by_name, uploaded_by_role, teacher_name, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const res = stmt.run(lessonNumber, title, description || '', audioUrl, duration || '', uploadedById, uploadedByName, uploadedByRole, Date.now());
+    const res = stmt.run(lessonNumber, title, description || '', audioUrl, duration || '', uploadedById, uploadedByName, uploadedByRole, safeTeacher, Date.now());
     return this.findById(res.lastInsertRowid);
   },
   findById(id) {
-    return db.prepare('SELECT * FROM recorded_lessons WHERE id = ?').get(id);
+    return db.prepare(`
+      SELECT id, lesson_number, title, description, audio_url, duration, 
+             uploaded_by_id, uploaded_by_name, uploaded_by_role, created_at,
+             COALESCE(NULLIF(teacher_name, ''), uploaded_by_name, 'مامۆستا') as teacher_name,
+             COALESCE(NULLIF(teacher_name, ''), uploaded_by_name, 'مامۆستا') as instructor_name
+      FROM recorded_lessons 
+      WHERE id = ?
+    `).get(id);
   },
   getAll() {
-    return db.prepare('SELECT * FROM recorded_lessons ORDER BY lesson_number ASC, created_at DESC').all();
+    return db.prepare(`
+      SELECT id, lesson_number, title, description, audio_url, duration, 
+             uploaded_by_id, uploaded_by_name, uploaded_by_role, created_at,
+             COALESCE(NULLIF(teacher_name, ''), uploaded_by_name, 'مامۆستا') as teacher_name,
+             COALESCE(NULLIF(teacher_name, ''), uploaded_by_name, 'مامۆستا') as instructor_name
+      FROM recorded_lessons 
+      ORDER BY lesson_number ASC, created_at DESC
+    `).all();
   },
-  getNextNumber() {
+  getNextNumber(teacherName = '') {
+    if (teacherName && teacherName.trim()) {
+      const row = db.prepare(`
+        SELECT MAX(lesson_number) as max_num 
+        FROM recorded_lessons 
+        WHERE teacher_name = ? OR uploaded_by_name = ?
+      `).get(teacherName.trim(), teacherName.trim());
+      return (row && row.max_num) ? row.max_num + 1 : 1;
+    }
     const row = db.prepare('SELECT MAX(lesson_number) as max_num FROM recorded_lessons').get();
     return (row && row.max_num) ? row.max_num + 1 : 1;
   },
-  update(id, title, description, lessonNumber) {
+  update(id, title, description, lessonNumber, teacherName = '') {
+    if (teacherName && teacherName.trim()) {
+      return db.prepare('UPDATE recorded_lessons SET title = ?, description = ?, lesson_number = ?, teacher_name = ? WHERE id = ?')
+        .run(title.trim(), description ? description.trim() : '', lessonNumber, teacherName.trim(), id);
+    }
     return db.prepare('UPDATE recorded_lessons SET title = ?, description = ?, lesson_number = ? WHERE id = ?')
       .run(title.trim(), description ? description.trim() : '', lessonNumber, id);
   },

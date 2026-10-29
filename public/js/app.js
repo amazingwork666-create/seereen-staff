@@ -15372,7 +15372,12 @@ function openRecordedLessonsModal() {
 
   const staffBox = document.getElementById('addRecordedLessonStaffBox');
   if (staffBox) {
-    if (currentUser && (currentUser.role === 'teacher' || currentUser.role === 'super_admin')) {
+    if (currentUser && (
+      currentUser.role === 'teacher' || 
+      currentUser.role === 'super_admin' || 
+      currentUser.role === 'admin' || 
+      (typeof hasSuperAdminPrivileges === 'function' && hasSuperAdminPrivileges(currentUser))
+    )) {
       staffBox.classList.remove('hidden');
     } else {
       staffBox.classList.add('hidden');
@@ -15473,14 +15478,44 @@ async function toggleLessonVoiceRecord() {
   }
 }
 
+let cachedRecordedLessons = [];
+let currentSelectedTeacherName = null;
+let currentRecordedLessonsFilter = '';
+
+function populateExistingTeachersDatalist() {
+  const datalist = document.getElementById('existingTeachersList');
+  if (!datalist) return;
+  const teacherNames = new Set();
+  if (currentUser && currentUser.full_name) {
+    teacherNames.add(currentUser.full_name.trim());
+  }
+  if (Array.isArray(cachedRecordedLessons)) {
+    cachedRecordedLessons.forEach(l => {
+      const name = (l.teacher_name || l.instructor_name || l.uploaded_by_name || '').trim();
+      if (name) teacherNames.add(name);
+    });
+  }
+  datalist.innerHTML = Array.from(teacherNames).map(name => `<option value="${escapeHtml(name)}"></option>`).join('');
+}
+
 async function submitNewRecordedLesson() {
+  const teacherInput = document.getElementById('newLessonTeacherInput');
   const titleInput = document.getElementById('newLessonTitleInput');
   const numInput = document.getElementById('newLessonNumberInput');
   const descInput = document.getElementById('newLessonDescInput');
 
+  let teacherName = teacherInput ? teacherInput.value.trim() : '';
+  if (!teacherName && currentUser && currentUser.full_name) {
+    teacherName = currentUser.full_name.trim();
+  }
   const title = titleInput ? titleInput.value.trim() : '';
   const lessonNumber = numInput ? numInput.value.trim() : '';
   const description = descInput ? descInput.value.trim() : '';
+
+  if (!teacherName) {
+    alert('تکایە ناوی مامۆستا بنووسە');
+    return;
+  }
 
   if (!title) {
     alert('تکایە ناوی وانە بنووسە');
@@ -15493,6 +15528,7 @@ async function submitNewRecordedLesson() {
   }
 
   const formData = new FormData();
+  formData.append('teacher_name', teacherName);
   formData.append('title', title);
   if (lessonNumber) formData.append('lesson_number', lessonNumber);
   if (description) formData.append('description', description);
@@ -15507,7 +15543,7 @@ async function submitNewRecordedLesson() {
     });
     const data = await res.json();
     if (res.ok && data.success) {
-      showLiveToastNotification('وانەکە بە سەرکەوتوویی بڵاوکرایەوە! 🎉', 'emerald');
+      showLiveToastNotification(`وانەی «${title}» بۆ «${teacherName}» بڵاوکرایەوە! 🎉`, 'emerald');
       // Reset form
       if (titleInput) titleInput.value = '';
       if (numInput) numInput.value = '';
@@ -15518,7 +15554,9 @@ async function submitNewRecordedLesson() {
       const label = document.getElementById('lessonAudioSelectLabel');
       if (label) label.innerText = 'هەڵبژاردنی فایلی دەنگ';
       toggleAddLessonForm();
-      loadRecordedLessons();
+      currentSelectedTeacherName = teacherName;
+      await loadRecordedLessons();
+      showTeacherRecordedLessons(teacherName);
     } else {
       alert(data.error || 'نەتوانرا وانەکە باربکرێت');
     }
@@ -15528,19 +15566,15 @@ async function submitNewRecordedLesson() {
   }
 }
 
-let cachedRecordedLessons = [];
-
 async function loadRecordedLessons() {
   const teachersContainer = document.getElementById('recordedLessonsTeachersContainer');
   const lessonsContainer = document.getElementById('recordedLessonsListContainer');
   const navHeader = document.getElementById('recordedLessonsNavHeader');
 
-  if (teachersContainer) {
+  if (teachersContainer && !currentSelectedTeacherName) {
     teachersContainer.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs col-span-2">لە بارکردندایە...</div>';
     teachersContainer.classList.remove('hidden');
   }
-  if (lessonsContainer) lessonsContainer.classList.add('hidden');
-  if (navHeader) navHeader.classList.add('hidden');
 
   try {
     const res = await fetch('/api/recorded-lessons', {
@@ -15553,50 +15587,86 @@ async function loadRecordedLessons() {
     }
 
     cachedRecordedLessons = data.lessons;
+    populateExistingTeachersDatalist();
 
-    if (cachedRecordedLessons.length === 0) {
-      if (teachersContainer) {
-        teachersContainer.innerHTML = `
-          <div class="p-8 text-center text-slate-500 text-xs leading-relaxed col-span-2">
-            هیچ وانەیەکی تۆمارکراو بەردەست نییە.<br>
-            کاتێک مامۆستا یان سوپەر ئەدمین وانەی دەنگی دابنێن، لێرەدا دەتوانیت گوێیان لێ بگریت.
-          </div>
-        `;
+    if (currentSelectedTeacherName) {
+      const teacherStillExists = cachedRecordedLessons.some(l => {
+        const t = (l.teacher_name || l.instructor_name || l.uploaded_by_name || '').trim() || 'مامۆستا';
+        return t === currentSelectedTeacherName;
+      });
+      if (teacherStillExists) {
+        showTeacherRecordedLessons(currentSelectedTeacherName);
+        return;
+      } else {
+        currentSelectedTeacherName = null;
       }
-      return;
     }
 
-    renderRecordedLessonsTeachers();
+    renderRecordedLessonsTeachers(currentRecordedLessonsFilter);
   } catch (err) {
     console.error('Error loading recorded lessons:', err);
     if (teachersContainer) teachersContainer.innerHTML = '<div class="p-6 text-center text-rose-400 text-xs col-span-2">هەڵەیەک ڕوویدا</div>';
   }
 }
 
-function renderRecordedLessonsTeachers() {
+function renderRecordedLessonsTeachers(filterQuery = '') {
   const teachersContainer = document.getElementById('recordedLessonsTeachersContainer');
   const lessonsContainer = document.getElementById('recordedLessonsListContainer');
   const navHeader = document.getElementById('recordedLessonsNavHeader');
+  const searchBox = document.getElementById('recordedLessonsSearchBox');
 
   if (!teachersContainer) return;
   teachersContainer.classList.remove('hidden');
   if (lessonsContainer) lessonsContainer.classList.add('hidden');
   if (navHeader) navHeader.classList.add('hidden');
+  if (searchBox) searchBox.classList.remove('hidden');
+  currentSelectedTeacherName = null;
+
+  populateExistingTeachersDatalist();
+
+  const teacherInput = document.getElementById('newLessonTeacherInput');
+  if (teacherInput && !teacherInput.value && currentUser && currentUser.full_name) {
+    teacherInput.value = currentUser.full_name;
+  }
 
   const teacherMap = new Map();
   cachedRecordedLessons.forEach(l => {
-    const tName = (l.instructor_name && l.instructor_name.trim()) ? l.instructor_name.trim() : 'مامۆستا';
+    const tName = (l.teacher_name || l.instructor_name || l.uploaded_by_name || '').trim() || 'مامۆستا';
     if (!teacherMap.has(tName)) {
       teacherMap.set(tName, []);
     }
     teacherMap.get(tName).push(l);
   });
 
-  teachersContainer.innerHTML = Array.from(teacherMap.entries()).map(([teacherName, lessons]) => {
+  const query = (filterQuery || '').trim().toLowerCase();
+  let entries = Array.from(teacherMap.entries());
+
+  if (query) {
+    entries = entries.filter(([teacherName, lessons]) => {
+      const matchTeacher = teacherName.toLowerCase().includes(query);
+      const matchLesson = lessons.some(l => 
+        (l.title && l.title.toLowerCase().includes(query)) ||
+        (l.description && l.description.toLowerCase().includes(query))
+      );
+      return matchTeacher || matchLesson;
+    });
+  }
+
+  if (entries.length === 0) {
+    teachersContainer.innerHTML = `
+      <div class="p-8 text-center text-slate-500 text-xs leading-relaxed col-span-2 space-y-2">
+        <i class="fa-solid fa-chalkboard-user text-3xl text-slate-600 block mb-1"></i>
+        ${query ? `هیچ مامۆستایەک یان وانەیەک بە ناوی «${escapeHtml(query)}» نەدۆزرایەوە.` : 'هیچ وانەیەکی تۆمارکراو بەردەست نییە.'}
+      </div>
+    `;
+    return;
+  }
+
+  teachersContainer.innerHTML = entries.map(([teacherName, lessons]) => {
     return `
-      <div onclick="showTeacherRecordedLessons('${escapeHtml(teacherName)}')" class="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-emerald-500/50 hover:from-slate-850 transition-all cursor-pointer shadow-md group flex items-center justify-between gap-3">
+      <div onclick="showTeacherRecordedLessons('${escapeHtml(teacherName)}')" class="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-emerald-500/50 hover:from-slate-850 transition-all cursor-pointer shadow-md group flex items-center justify-between gap-3 active:scale-[0.98]">
         <div class="flex items-center gap-3 min-w-0">
-          <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform shadow-inner">
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform shadow-inner">
             <i class="fa-solid fa-chalkboard-user"></i>
           </div>
           <div class="min-w-0">
@@ -15613,10 +15683,12 @@ function renderRecordedLessonsTeachers() {
 }
 
 function showRecordedLessonsTeachersView() {
-  renderRecordedLessonsTeachers();
+  currentSelectedTeacherName = null;
+  renderRecordedLessonsTeachers(currentRecordedLessonsFilter);
 }
 
 function showTeacherRecordedLessons(teacherName) {
+  currentSelectedTeacherName = teacherName;
   const teachersContainer = document.getElementById('recordedLessonsTeachersContainer');
   const lessonsContainer = document.getElementById('recordedLessonsListContainer');
   const navHeader = document.getElementById('recordedLessonsNavHeader');
@@ -15625,21 +15697,41 @@ function showTeacherRecordedLessons(teacherName) {
   if (teachersContainer) teachersContainer.classList.add('hidden');
   if (navHeader) navHeader.classList.remove('hidden');
   if (lessonsContainer) lessonsContainer.classList.remove('hidden');
-  if (badge) badge.innerText = `وانەکانی: ${teacherName}`;
 
   const lessons = cachedRecordedLessons.filter(l => {
-    const t = (l.instructor_name && l.instructor_name.trim()) ? l.instructor_name.trim() : 'مامۆستا';
+    const t = (l.teacher_name || l.instructor_name || l.uploaded_by_name || '').trim() || 'مامۆستا';
     return t === teacherName;
   });
 
-  const isStaff = currentUser && (currentUser.role === 'teacher' || currentUser.role === 'super_admin');
+  if (badge) badge.innerText = `مامۆستا: ${teacherName} (${lessons.length} وانە)`;
+
+  const isStaff = currentUser && (
+    currentUser.role === 'teacher' || 
+    currentUser.role === 'super_admin' || 
+    currentUser.role === 'admin' ||
+    (typeof hasSuperAdminPrivileges === 'function' && hasSuperAdminPrivileges(currentUser))
+  );
+
+  if (lessons.length === 0) {
+    lessonsContainer.innerHTML = `
+      <div class="p-8 text-center text-slate-500 text-xs">
+        هیچ وانەیەک بۆ مامۆستا «${escapeHtml(teacherName)}» بەردەست نییە.
+      </div>
+    `;
+    return;
+  }
 
   lessonsContainer.innerHTML = lessons.map(lesson => {
     const createdTime = lesson.created_at ? new Date(lesson.created_at).toLocaleDateString('ku-IQ') : '';
-    const deleteBtn = isStaff ? `
-      <button type="button" onclick="deleteRecordedLesson(${lesson.id})" class="p-1 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="سڕینەوە">
-        <i class="fa-solid fa-trash text-xs"></i>
-      </button>
+    const staffActionBtns = isStaff ? `
+      <div class="flex items-center gap-1">
+        <button type="button" onclick="openEditRecordedLessonModal(${lesson.id})" class="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-slate-800 transition cursor-pointer" title="دەستکاریکردنی وانە ✏️">
+          <i class="fa-solid fa-pen-to-square text-xs"></i>
+        </button>
+        <button type="button" onclick="deleteRecordedLesson(${lesson.id})" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition cursor-pointer" title="سڕینەوەی وانە 🗑️">
+          <i class="fa-solid fa-trash text-xs"></i>
+        </button>
+      </div>
     ` : '';
 
     const storageKey = `seereen_lesson_pos_${lesson.id}`;
@@ -15651,23 +15743,23 @@ function showTeacherRecordedLessons(teacherName) {
           <i class="fa-solid fa-clock-rotate-left"></i>
           <span>شوێنی وەستان: <b>${formatAudioDuration(savedPos)}</b> ⏱️</span>
         </div>
-        <button type="button" onclick="resetLessonAudioToStart('lesson-audio-${lesson.id}', '${storageKey}')" class="text-[10px] text-slate-400 hover:text-white underline hover:no-underline" title="دەستپێکردنەوە لە سەرەتاوە">
+        <button type="button" onclick="resetLessonAudioToStart('lesson-audio-${lesson.id}', '${storageKey}')" class="text-[10px] text-slate-400 hover:text-white underline hover:no-underline cursor-pointer" title="دەستپێکردنەوە لە سەرەتاوە">
           لە سەرەتاوە ↺
         </button>
       </div>
     `;
 
     return `
-      <div class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2.5 shadow-sm">
+      <div class="p-3.5 bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-2xl space-y-2.5 shadow-sm transition">
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-mono font-bold text-xs border border-emerald-500/30">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-mono font-bold text-xs border border-emerald-500/30 shrink-0">
               #${lesson.lesson_number}
             </span>
-            <h4 class="font-black text-xs sm:text-sm text-white">${escapeHtml(lesson.title)}</h4>
+            <h4 class="font-black text-xs sm:text-sm text-white truncate">${escapeHtml(lesson.title)}</h4>
           </div>
           <div class="flex items-center gap-1.5 shrink-0">
-            ${deleteBtn}
+            ${staffActionBtns}
           </div>
         </div>
 
@@ -15678,7 +15770,7 @@ function showTeacherRecordedLessons(teacherName) {
         ` : ''}
 
         <div class="flex items-center justify-between text-[11px] text-slate-400">
-          <span>مامۆستا: <strong class="text-amber-300">${escapeHtml(lesson.instructor_name || 'مامۆستا')}</strong></span>
+          <span>مامۆستا: <strong class="text-emerald-300 font-bold">${escapeHtml(lesson.teacher_name || lesson.instructor_name || 'مامۆستا')}</strong></span>
           <span class="font-mono text-[10px] text-slate-500">${createdTime}</span>
         </div>
 
@@ -15699,6 +15791,99 @@ function showTeacherRecordedLessons(teacherName) {
   });
 }
 
+function openEditRecordedLessonModal(id) {
+  const lesson = cachedRecordedLessons.find(l => l.id === id);
+  if (!lesson) return;
+  const modal = document.getElementById('editRecordedLessonModal');
+  const idInput = document.getElementById('editRecordedLessonId');
+  const teacherInput = document.getElementById('editLessonTeacherInput');
+  const titleInput = document.getElementById('editLessonTitleInput');
+  const numInput = document.getElementById('editLessonNumberInput');
+  const descInput = document.getElementById('editLessonDescInput');
+
+  if (idInput) idInput.value = lesson.id;
+  if (teacherInput) teacherInput.value = lesson.teacher_name || lesson.instructor_name || '';
+  if (titleInput) titleInput.value = lesson.title || '';
+  if (numInput) numInput.value = lesson.lesson_number || '';
+  if (descInput) descInput.value = lesson.description || '';
+
+  populateExistingTeachersDatalist();
+
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeEditRecordedLessonModal() {
+  const modal = document.getElementById('editRecordedLessonModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function saveEditedRecordedLesson() {
+  const id = document.getElementById('editRecordedLessonId')?.value;
+  const teacherName = document.getElementById('editLessonTeacherInput')?.value.trim();
+  const title = document.getElementById('editLessonTitleInput')?.value.trim();
+  const lessonNumber = document.getElementById('editLessonNumberInput')?.value.trim();
+  const description = document.getElementById('editLessonDescInput')?.value.trim();
+
+  if (!id) return;
+  if (!title) {
+    alert('تکایە ناوی وانە بنووسە');
+    return;
+  }
+  if (!teacherName) {
+    alert('تکایە ناوی مامۆستا بنووسە');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/recorded-lessons/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        title,
+        teacher_name: teacherName,
+        lesson_number: lessonNumber ? parseInt(lessonNumber) : 1,
+        description
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showLiveToastNotification('دەستکاری وانەکە بە سەرکەوتوویی پاشەکەوت کرا! ✨', 'emerald');
+      closeEditRecordedLessonModal();
+      currentSelectedTeacherName = teacherName;
+      await loadRecordedLessons();
+      showTeacherRecordedLessons(teacherName);
+    } else {
+      alert(data.error || 'هەڵە لە پاشەکەوتکردن');
+    }
+  } catch (err) {
+    console.error('Error saving edited lesson:', err);
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  }
+}
+
+function filterRecordedLessons(query) {
+  currentRecordedLessonsFilter = query;
+  if (currentSelectedTeacherName) {
+    const lessonsContainer = document.getElementById('recordedLessonsListContainer');
+    if (!lessonsContainer) return;
+    const q = query.trim().toLowerCase();
+    const cards = lessonsContainer.querySelectorAll('.p-3\\.5');
+    cards.forEach(card => {
+      const text = card.textContent.toLowerCase();
+      if (!q || text.includes(q)) {
+        card.classList.remove('hidden');
+      } else {
+        card.classList.add('hidden');
+      }
+    });
+  } else {
+    renderRecordedLessonsTeachers(query);
+  }
+}
+
 async function deleteRecordedLesson(id) {
   if (!confirm('ئایا دڵنیایت لە سڕینەوەی ئەم وانەیە؟')) return;
   try {
@@ -15707,8 +15892,8 @@ async function deleteRecordedLesson(id) {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (res.ok) {
-      loadRecordedLessons();
       showLiveToastNotification('وانەکە سڕایەوە 🗑️', 'amber');
+      await loadRecordedLessons();
     }
   } catch (e) {
     alert('پەیوەندی ناتەواوە');

@@ -7060,7 +7060,8 @@ app.post('/api/recorded-lessons/upload', authMiddleware, requireTeacherOrSuperAd
     if (!req.file) return res.status(400).json({ error: 'هیچ فایلی دەنگێک بارنەکراوە' });
     const audioUrl = `/uploads/${req.file.filename}`;
     const duration = req.body.duration || '';
-    const nextNum = recordedLessons.getNextNumber();
+    const teacherName = (req.body.teacher_name || req.body.instructor_name || req.user.full_name || '').trim();
+    const nextNum = recordedLessons.getNextNumber(teacherName);
     const lessonNum = req.body.lesson_number ? parseInt(req.body.lesson_number) : nextNum;
     const title = req.body.title ? req.body.title.trim() : `وانەی ژمارە #${lessonNum}`;
     const description = req.body.description ? req.body.description.trim() : '';
@@ -7073,7 +7074,8 @@ app.post('/api/recorded-lessons/upload', authMiddleware, requireTeacherOrSuperAd
       duration,
       req.user.id,
       req.user.full_name,
-      req.user.role
+      req.user.role,
+      teacherName
     );
     res.json({ success: true, lesson });
   } catch (err) {
@@ -7085,10 +7087,10 @@ app.post('/api/recorded-lessons/upload', authMiddleware, requireTeacherOrSuperAd
 app.put('/api/recorded-lessons/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { title, description, lesson_number } = req.body;
+    const { title, description, lesson_number, teacher_name } = req.body;
     if (!title || !title.trim()) return res.status(400).json({ error: 'ناوی وانە پێویستە' });
     const lNum = lesson_number ? parseInt(lesson_number) : 1;
-    recordedLessons.update(id, title.trim(), description || '', lNum);
+    recordedLessons.update(id, title.trim(), description || '', lNum, (teacher_name || '').trim());
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە نوێکردنەوەی وانە' });

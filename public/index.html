@@ -3743,7 +3743,15 @@
         </div>
 
         <div id="addLessonForm" class="hidden space-y-2.5 pt-2 border-t border-slate-800">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div>
+              <label class="block text-[11px] font-bold text-emerald-400 mb-1 flex items-center gap-1">
+                <i class="fa-solid fa-chalkboard-user"></i>
+                <span>ناوی مامۆستا:</span>
+              </label>
+              <input type="text" id="newLessonTeacherInput" list="existingTeachersList" placeholder="ناوی مامۆستاکە بنووسە..." class="w-full px-3 py-1.5 bg-slate-900 border border-emerald-500/40 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-400">
+              <datalist id="existingTeachersList"></datalist>
+            </div>
             <div>
               <label class="block text-[11px] font-bold text-slate-300 mb-1">ناوی وانە:</label>
               <input type="text" id="newLessonTitleInput" placeholder="ناوی وانەکە بنووسە..." class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
@@ -3760,15 +3768,15 @@
           
           <div class="flex items-center gap-2 pt-1 flex-wrap">
             <input type="file" id="newLessonAudioFileInput" accept="audio/*" class="hidden" onchange="handleLessonAudioSelected(this)">
-            <button type="button" onclick="document.getElementById('newLessonAudioFileInput').click()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+            <button type="button" onclick="document.getElementById('newLessonAudioFileInput').click()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
               <i class="fa-solid fa-file-audio"></i>
               <span id="lessonAudioSelectLabel">هەڵبژاردنی فایلی دەنگ</span>
             </button>
-            <button type="button" id="lessonVoiceRecordBtn" onclick="toggleLessonVoiceRecord()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-rose-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+            <button type="button" id="lessonVoiceRecordBtn" onclick="toggleLessonVoiceRecord()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-rose-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
               <i class="fa-solid fa-microphone"></i>
               <span id="lessonRecordLabel">تۆمارکردن بە مایک</span>
             </button>
-            <button type="button" onclick="submitNewRecordedLesson()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black rounded-xl text-xs transition active:scale-95 shadow mr-auto">
+            <button type="button" onclick="submitNewRecordedLesson()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black rounded-xl text-xs transition active:scale-95 shadow mr-auto cursor-pointer">
               بڵاوکردنەوەی وانە
             </button>
           </div>
@@ -3781,9 +3789,15 @@
 
       <!-- Recorded Lessons List / Teachers View -->
       <div class="flex-1 overflow-y-auto p-4 space-y-3">
+        <!-- Search bar for Teachers & Lessons -->
+        <div id="recordedLessonsSearchBox" class="relative">
+          <i class="fa-solid fa-magnifying-glass absolute right-3 top-2.5 text-slate-500 text-xs"></i>
+          <input type="text" id="recordedLessonsSearchInput" oninput="filterRecordedLessons(this.value)" placeholder="گەڕان بۆ ناوی مامۆستا یان وانە..." class="w-full pr-8 pl-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 transition">
+        </div>
+
         <!-- Teacher Navigation Header -->
         <div id="recordedLessonsNavHeader" class="hidden flex items-center justify-between pb-2 border-b border-slate-800">
-          <button type="button" onclick="showRecordedLessonsTeachersView()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition">
+          <button type="button" onclick="showRecordedLessonsTeachersView()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
             <i class="fa-solid fa-arrow-right"></i>
             <span>گەڕانەوە بۆ لیستی مامۆستاکان</span>
           </button>
@@ -3799,6 +3813,61 @@
         <!-- Lessons of Selected Teacher -->
         <div id="recordedLessonsListContainer" class="hidden space-y-2.5">
           <!-- Rendered in JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: EDIT RECORDED LESSON ================= -->
+  <div id="editRecordedLessonModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="bg-slate-900 border border-emerald-500/40 rounded-2xl sm:rounded-3xl p-4 sm:p-5 w-full max-w-md shadow-2xl relative flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0 mb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-base font-black">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm sm:text-base text-white">دەستکاریکردنی وانەی تۆمارکراو</h3>
+            <span class="text-[11px] text-slate-400">گۆڕینی ناوی مامۆستا، ناوی وانە یان کورتە</span>
+          </div>
+        </div>
+        <button type="button" onclick="closeEditRecordedLessonModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer" title="داخستن">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <input type="hidden" id="editRecordedLessonId">
+      
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-[11px] font-bold text-emerald-400 mb-1 flex items-center gap-1">
+            <i class="fa-solid fa-chalkboard-user"></i>
+            <span>ناوی مامۆستا:</span>
+          </label>
+          <input type="text" id="editLessonTeacherInput" list="existingTeachersList" class="w-full px-3 py-2 bg-slate-950 border border-emerald-500/40 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-400" placeholder="ناوی مامۆستاکە...">
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div class="col-span-2">
+            <label class="block text-[11px] font-bold text-slate-300 mb-1">ناوی وانە:</label>
+            <input type="text" id="editLessonTitleInput" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500" placeholder="ناوی وانە...">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-300 mb-1">ژمارە:</label>
+            <input type="number" id="editLessonNumberInput" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500" placeholder="1">
+          </div>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-300 mb-1">تێبینی یان کورتەی وانە:</label>
+          <textarea id="editLessonDescInput" rows="2" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500" placeholder="کورتەیەک بنووسە..."></textarea>
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeEditRecordedLessonModal()" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer">
+            پاشگەزبوونەوە
+          </button>
+          <button type="button" onclick="saveEditedRecordedLesson()" class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-black transition active:scale-95 shadow cursor-pointer">
+            پاشەکەوتکردن
+          </button>
         </div>
       </div>
     </div>
@@ -4612,6 +4681,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=23.8"></script>
+  <script src="/js/app.js?v=23.9"></script>
 </body>
 </html>
