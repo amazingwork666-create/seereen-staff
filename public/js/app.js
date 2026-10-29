@@ -15373,6 +15373,16 @@ function resetLessonAudioToStart(audioId, storageKey) {
     localStorage.removeItem(storageKey);
     const badge = document.getElementById(`resume-badge-${audioId}`);
     if (badge) badge.classList.add('hidden');
+    if (audioId.startsWith('lesson-audio-')) {
+      const lessonId = audioId.replace('lesson-audio-', '');
+      const slider = document.getElementById(`lesson-seek-${lessonId}`);
+      if (slider) {
+        slider.value = 0;
+        if (typeof updateLessonSliderTrack === 'function') updateLessonSliderTrack(slider);
+      }
+      const curTimeEl = document.getElementById(`lesson-curtime-${lessonId}`);
+      if (curTimeEl) curTimeEl.innerText = '00:00';
+    }
     showLiveToastNotification('وانەکە گەڕێندرایەوە بۆ سەرەتا ↺', 'indigo');
   }
 }
@@ -15859,6 +15869,189 @@ function showRecordedLessonsTeachersView() {
   renderRecordedLessonsTeachers(currentRecordedLessonsFilter);
 }
 
+// Dedicated Lesson Audio Player with Long Progress Bar & Seek Controls
+let currentlyPlayingLessonAudioId = null;
+
+function formatLessonAudioTime(secs) {
+  if (!secs || isNaN(secs) || secs < 0) return '00:00';
+  secs = Math.floor(secs);
+  const hrs = Math.floor(secs / 3600);
+  const mins = Math.floor((secs % 3600) / 60);
+  const remSecs = secs % 60;
+  if (hrs > 0) {
+    return `${hrs}:${String(mins).padStart(2, '0')}:${String(remSecs).padStart(2, '0')}`;
+  }
+  return `${String(mins).padStart(2, '0')}:${String(remSecs).padStart(2, '0')}`;
+}
+
+function updateLessonSliderTrack(slider) {
+  if (!slider) return;
+  const min = parseFloat(slider.min) || 0;
+  const max = parseFloat(slider.max) || 100;
+  const cur = parseFloat(slider.value) || 0;
+  const val = max > min ? Math.min(100, Math.max(0, ((cur - min) / (max - min)) * 100)) : 0;
+  slider.style.background = `linear-gradient(to right, #10b981 0%, #10b981 ${val}%, rgba(30, 41, 59, 0.95) ${val}%, rgba(30, 41, 59, 0.95) 100%)`;
+}
+
+function toggleLessonAudioPlay(lessonId) {
+  const audio = document.getElementById(`lesson-audio-${lessonId}`);
+  const playBtn = document.getElementById(`lesson-play-btn-${lessonId}`);
+  if (!audio) return;
+
+  if (audio.paused) {
+    if (currentlyPlayingLessonAudioId && currentlyPlayingLessonAudioId !== `lesson-audio-${lessonId}`) {
+      const other = document.getElementById(currentlyPlayingLessonAudioId);
+      if (other && !other.paused) other.pause();
+    }
+    currentlyPlayingLessonAudioId = `lesson-audio-${lessonId}`;
+    audio.play().then(() => {
+      if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+    }).catch(err => {
+      console.warn('Lesson audio playback error:', err);
+    });
+  } else {
+    audio.pause();
+    if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-play mr-0.5"></i>';
+  }
+}
+
+function skipLessonAudio(lessonId, seconds) {
+  const audio = document.getElementById(`lesson-audio-${lessonId}`);
+  if (!audio) return;
+  const dur = (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) ? audio.duration : 999999;
+  const newTime = Math.max(0, Math.min(dur, (audio.currentTime || 0) + seconds));
+  audio.currentTime = newTime;
+  updateLessonPlayerUI(lessonId);
+}
+
+function cycleLessonPlaybackSpeed(lessonId) {
+  const audio = document.getElementById(`lesson-audio-${lessonId}`);
+  const btn = document.getElementById(`lesson-speed-btn-${lessonId}`);
+  if (!audio || !btn) return;
+
+  const speeds = [1.0, 1.25, 1.5, 2.0];
+  const curSpeed = audio.playbackRate || 1.0;
+  const curIdx = speeds.indexOf(curSpeed);
+  const nextSpeed = speeds[(curIdx + 1) % speeds.length];
+  audio.playbackRate = nextSpeed;
+  btn.innerText = `${nextSpeed.toFixed(nextSpeed % 1 === 0 ? 1 : 2)}x`;
+  btn.classList.add('text-emerald-400', 'border-emerald-500/50');
+  setTimeout(() => {
+    btn.classList.remove('border-emerald-500/50');
+  }, 800);
+}
+
+function toggleLessonAudioMute(lessonId) {
+  const audio = document.getElementById(`lesson-audio-${lessonId}`);
+  const btn = document.getElementById(`lesson-mute-btn-${lessonId}`);
+  if (!audio || !btn) return;
+  audio.muted = !audio.muted;
+  btn.innerHTML = audio.muted ? '<i class="fa-solid fa-volume-xmark text-rose-400"></i>' : '<i class="fa-solid fa-volume-high"></i>';
+}
+
+function updateLessonPlayerUI(lessonId) {
+  const audio = document.getElementById(`lesson-audio-${lessonId}`);
+  const slider = document.getElementById(`lesson-seek-${lessonId}`);
+  const curTimeEl = document.getElementById(`lesson-curtime-${lessonId}`);
+  const durTimeEl = document.getElementById(`lesson-durtime-${lessonId}`);
+  if (!audio || !slider) return;
+
+  const dur = audio.duration || 0;
+  const cur = audio.currentTime || 0;
+
+  if (dur > 0 && isFinite(dur)) {
+    slider.max = dur;
+    slider.value = cur;
+    updateLessonSliderTrack(slider);
+    if (durTimeEl) durTimeEl.innerText = formatLessonAudioTime(dur);
+  }
+  if (curTimeEl) curTimeEl.innerText = formatLessonAudioTime(cur);
+}
+
+function initLessonCustomAudioPlayer(lessonId, storageKey) {
+  const audio = document.getElementById(`lesson-audio-${lessonId}`);
+  const slider = document.getElementById(`lesson-seek-${lessonId}`);
+  const curTimeEl = document.getElementById(`lesson-curtime-${lessonId}`);
+  const durTimeEl = document.getElementById(`lesson-durtime-${lessonId}`);
+  const playBtn = document.getElementById(`lesson-play-btn-${lessonId}`);
+  if (!audio || !slider) return;
+
+  let isSeeking = false;
+
+  const onReady = () => {
+    const dur = audio.duration;
+    if (dur && !isNaN(dur) && isFinite(dur) && dur > 0) {
+      slider.max = dur;
+      if (durTimeEl) durTimeEl.innerText = formatLessonAudioTime(dur);
+    }
+    const savedPos = parseFloat(localStorage.getItem(storageKey) || '0');
+    if (savedPos > 3 && (!dur || savedPos < dur)) {
+      slider.value = savedPos;
+      if (curTimeEl) curTimeEl.innerText = formatLessonAudioTime(savedPos);
+      updateLessonSliderTrack(slider);
+    }
+  };
+
+  if (audio.readyState >= 1) {
+    onReady();
+  } else {
+    audio.addEventListener('loadedmetadata', onReady, { once: true });
+    audio.addEventListener('durationchange', onReady);
+    audio.addEventListener('canplay', onReady, { once: true });
+  }
+
+  slider.addEventListener('input', () => {
+    isSeeking = true;
+    const val = parseFloat(slider.value);
+    if (curTimeEl) curTimeEl.innerText = formatLessonAudioTime(val);
+    updateLessonSliderTrack(slider);
+  });
+
+  slider.addEventListener('change', () => {
+    const val = parseFloat(slider.value);
+    audio.currentTime = val;
+    isSeeking = false;
+    updateLessonPlayerUI(lessonId);
+  });
+
+  audio.addEventListener('timeupdate', () => {
+    if (!isSeeking) {
+      updateLessonPlayerUI(lessonId);
+    }
+  });
+
+  audio.addEventListener('play', () => {
+    if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+    if (currentlyPlayingLessonAudioId && currentlyPlayingLessonAudioId !== `lesson-audio-${lessonId}`) {
+      const other = document.getElementById(currentlyPlayingLessonAudioId);
+      if (other && !other.paused) other.pause();
+    }
+    currentlyPlayingLessonAudioId = `lesson-audio-${lessonId}`;
+  });
+
+  audio.addEventListener('pause', () => {
+    if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-play mr-0.5"></i>';
+    if (currentlyPlayingLessonAudioId === `lesson-audio-${lessonId}`) {
+      currentlyPlayingLessonAudioId = null;
+    }
+  });
+
+  audio.addEventListener('ended', () => {
+    if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-play mr-0.5"></i>';
+    slider.value = 0;
+    updateLessonSliderTrack(slider);
+    if (curTimeEl) curTimeEl.innerText = '00:00';
+    if (currentlyPlayingLessonAudioId === `lesson-audio-${lessonId}`) {
+      currentlyPlayingLessonAudioId = null;
+    }
+  });
+}
+
+window.toggleLessonAudioPlay = toggleLessonAudioPlay;
+window.skipLessonAudio = skipLessonAudio;
+window.cycleLessonPlaybackSpeed = cycleLessonPlaybackSpeed;
+window.toggleLessonAudioMute = toggleLessonAudioMute;
+
 function showTeacherRecordedLessons(teacherName) {
   currentSelectedTeacherName = teacherName;
   const teachersContainer = document.getElementById('recordedLessonsTeachersContainer');
@@ -15913,7 +16106,7 @@ function showTeacherRecordedLessons(teacherName) {
       <div id="resume-badge-lesson-audio-${lesson.id}" class="${hasSavedPos ? '' : 'hidden '}flex items-center justify-between text-[11px] px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
         <div class="flex items-center gap-1.5">
           <i class="fa-solid fa-clock-rotate-left"></i>
-          <span>شوێنی وەستان: <b>${formatAudioDuration(savedPos)}</b> ⏱️</span>
+          <span>شوێنی وەستان: <b>${formatLessonAudioTime(savedPos)}</b> ⏱️</span>
         </div>
         <button type="button" onclick="resetLessonAudioToStart('lesson-audio-${lesson.id}', '${storageKey}')" class="text-[10px] text-slate-400 hover:text-white underline hover:no-underline cursor-pointer" title="دەستپێکردنەوە لە سەرەتاوە">
           لە سەرەتاوە ↺
@@ -15948,18 +16141,95 @@ function showTeacherRecordedLessons(teacherName) {
 
         ${resumeBadgeHtml}
 
-        <!-- Audio Player Protected from Download -->
-        <div class="pt-1">
-          <audio id="lesson-audio-${lesson.id}" controls controlsList="nodownload" oncontextmenu="return false;" src="${escapeHtml(lesson.audio_url)}" class="w-full h-9 rounded-xl"></audio>
+        <!-- Dedicated Audio Player with Long Progress Bar & Seek Controls -->
+        <div class="pt-1 select-none">
+          <audio id="lesson-audio-${lesson.id}" preload="metadata" controlsList="nodownload" oncontextmenu="return false;" src="${escapeHtml(lesson.audio_url)}" class="hidden"></audio>
+
+          <div class="bg-slate-950/85 p-3 rounded-2xl border border-slate-800 space-y-2.5 shadow-inner">
+            <!-- Full Width Long Progress Timeline -->
+            <div class="space-y-1.5 w-full">
+              <div class="relative w-full flex items-center">
+                <input type="range" 
+                       id="lesson-seek-${lesson.id}" 
+                       class="lesson-audio-slider" 
+                       dir="ltr"
+                       min="0" 
+                       max="100" 
+                       step="0.1" 
+                       value="0" 
+                       aria-label="هێڵی کات و کارکردنی وانە">
+              </div>
+              <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 px-0.5" dir="ltr">
+                <span id="lesson-curtime-${lesson.id}" class="text-emerald-400 font-bold">00:00</span>
+                <span class="text-[10px] text-slate-500 font-sans tracking-wide">هێڵی دەنگ ⏱️</span>
+                <span id="lesson-durtime-${lesson.id}" class="text-slate-400">00:00</span>
+              </div>
+            </div>
+
+            <!-- Controls Row: Speed, -10s, Play/Pause, +10s, Volume -->
+            <div class="flex items-center justify-between pt-1 gap-2 border-t border-slate-800/80">
+              
+              <!-- Playback Speed -->
+              <button type="button" 
+                      id="lesson-speed-btn-${lesson.id}" 
+                      onclick="cycleLessonPlaybackSpeed(${lesson.id})" 
+                      class="px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 text-[11px] font-mono font-bold transition active:scale-95 shadow-sm cursor-pointer" 
+                      title="خێرایی دەنگ">
+                1.0x
+              </button>
+
+              <!-- Skip & Play Controls -->
+              <div class="flex items-center gap-2">
+                <!-- Skip Back 10 Seconds -->
+                <button type="button" 
+                        onclick="skipLessonAudio(${lesson.id}, -10)" 
+                        class="w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 flex items-center justify-center text-xs transition active:scale-90 shadow-sm cursor-pointer" 
+                        title="١٠ چرکە بۆ دواوە ⏪">
+                  <i class="fa-solid fa-rotate-left"></i>
+                </button>
+
+                <!-- Play / Pause Button -->
+                <button type="button" 
+                        id="lesson-play-btn-${lesson.id}" 
+                        onclick="toggleLessonAudioPlay(${lesson.id})" 
+                        class="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 flex items-center justify-center text-sm font-black transition active:scale-95 shadow-lg shadow-emerald-950/60 cursor-pointer" 
+                        title="لێدان / ڕاگرتن">
+                  <i class="fa-solid fa-play mr-0.5"></i>
+                </button>
+
+                <!-- Skip Forward 10 Seconds -->
+                <button type="button" 
+                        onclick="skipLessonAudio(${lesson.id}, 10)" 
+                        class="w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 flex items-center justify-center text-xs transition active:scale-90 shadow-sm cursor-pointer" 
+                        title="١٠ چرکە بۆ پێشەوە ⏩">
+                  <i class="fa-solid fa-rotate-right"></i>
+                </button>
+              </div>
+
+              <!-- Mute / Unmute -->
+              <button type="button" 
+                      id="lesson-mute-btn-${lesson.id}" 
+                      onclick="toggleLessonAudioMute(${lesson.id})" 
+                      class="px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-700/80 text-xs transition active:scale-95 shadow-sm cursor-pointer" 
+                      title="بێدەنگکردن">
+                <i class="fa-solid fa-volume-high"></i>
+              </button>
+
+            </div>
+          </div>
         </div>
       </div>
     `;
   }).join('');
 
-  // Attach resume listeners
+  // Attach resume and custom player listeners
   lessons.forEach(lesson => {
+    const storageKey = `seereen_lesson_pos_${lesson.id}`;
     const audio = document.getElementById(`lesson-audio-${lesson.id}`);
-    if (audio) initResumeLessonAudio(audio, `seereen_lesson_pos_${lesson.id}`);
+    if (audio) {
+      initResumeLessonAudio(audio, storageKey);
+      initLessonCustomAudioPlayer(lesson.id, storageKey);
+    }
   });
 }
 

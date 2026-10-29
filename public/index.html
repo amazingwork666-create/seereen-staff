@@ -136,6 +136,56 @@
     .live-participants-scroll::-webkit-scrollbar-thumb:hover {
       background: rgba(244, 63, 94, 0.8) !important;
     }
+    /* Custom Long Audio Progress Bar for Recorded Lessons */
+    .lesson-audio-slider {
+      -webkit-appearance: none !important;
+      appearance: none !important;
+      width: 100% !important;
+      height: 8px !important;
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid rgba(51, 65, 85, 0.8);
+      border-radius: 999px !important;
+      outline: none !important;
+      cursor: pointer !important;
+      transition: background 0.15s ease;
+      touch-action: manipulation;
+    }
+    .lesson-audio-slider:hover {
+      background: rgba(51, 65, 85, 0.95);
+    }
+    .lesson-audio-slider::-webkit-slider-thumb {
+      -webkit-appearance: none !important;
+      appearance: none !important;
+      width: 18px !important;
+      height: 18px !important;
+      border-radius: 50% !important;
+      background: #10b981 !important;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.8), 0 2px 5px rgba(0, 0, 0, 0.5) !important;
+      border: 2px solid #ffffff !important;
+      cursor: grab !important;
+      transition: transform 0.1s ease;
+    }
+    .lesson-audio-slider:active::-webkit-slider-thumb {
+      cursor: grabbing !important;
+      transform: scale(1.25) !important;
+      box-shadow: 0 0 16px rgba(16, 185, 129, 1) !important;
+    }
+    .lesson-audio-slider::-moz-range-thumb {
+      width: 18px !important;
+      height: 18px !important;
+      border-radius: 50% !important;
+      background: #10b981 !important;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.8), 0 2px 5px rgba(0, 0, 0, 0.5) !important;
+      border: 2px solid #ffffff !important;
+      cursor: grab !important;
+      transition: transform 0.1s ease;
+    }
+    .lesson-audio-slider::-moz-range-track {
+      height: 8px !important;
+      background: rgba(30, 41, 59, 0.95) !important;
+      border-radius: 999px !important;
+      border: 1px solid rgba(51, 65, 85, 0.8) !important;
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 h-screen overflow-hidden flex flex-col antialiased selection:bg-[#dfaa86] selection:text-slate-950">
@@ -4789,6 +4839,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=24.6"></script>
+  <script src="/js/app.js?v=24.7"></script>
 </body>
 </html>
