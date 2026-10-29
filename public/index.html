@@ -17,7 +17,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="/css/style.css?v=13.7">
+  <link rel="stylesheet" href="/css/style.css?v=14.0">
   <style>
     body.light-theme .msg-text-student,
     body.light-theme [class*="msg-text-student"],
@@ -135,8 +135,8 @@
 
       <!-- DREAM SUBMISSION QUICK BUTTON (ناردنی خەون) -->
       <div class="mb-4">
-        <button type="button" onclick="openDreamSection()" class="w-full py-3 px-4 bg-gradient-to-r from-purple-700 via-indigo-600 to-purple-700 hover:from-purple-600 hover:via-indigo-500 hover:to-purple-600 text-white font-black text-sm rounded-2xl shadow-lg shadow-purple-950/50 border border-purple-400/30 flex items-center justify-center gap-2.5 transition-all transform active:scale-98 group">
-          <i class="fa-solid fa-moon text-amber-300 text-base group-hover:rotate-12 transition-transform"></i>
+        <button type="button" onclick="openDreamSection()" class="w-full py-3 px-4 bg-gradient-to-r from-[#b37754] via-[#dfaa86] to-[#b37754] hover:brightness-110 text-slate-950 font-black text-sm rounded-2xl shadow-lg shadow-[#dfaa86]/20 border border-[#fae2cc]/50 flex items-center justify-center gap-2.5 transition-all transform active:scale-98 group">
+          <i class="fa-solid fa-moon text-slate-950 text-base group-hover:rotate-12 transition-transform"></i>
           <span>ناردنی خەون</span>
         </button>
       </div>
@@ -353,7 +353,7 @@
         </div>
 
         <!-- 3-Lines Main Menu Hamburger Button (سێ خەت) - ALWAYS VISIBLE ON FAR LEFT -->
-        <button id="mainMenuBtn" onclick="toggleMainMenuDrawer()" class="relative p-2 sm:px-2.5 sm:py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-400 hover:text-amber-300 font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-md active:scale-95 shrink-0 z-10" title="مێنیوی هەموو بەشەکان (سێ خەت)">
+        <button id="mainMenuBtn" onclick="toggleMainMenuDrawer()" class="relative p-2 sm:px-2.5 sm:py-1.5 bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-md active:scale-95 shrink-0 z-10" title="مێنیوی هەموو بەشەکان (سێ خەت)">
           <i class="fa-solid fa-bars text-sm sm:text-base"></i>
           <span class="hidden md:inline font-bold text-xs">مێنیو</span>
           <span id="mainMenuBadgeDot" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse border-2 border-slate-900"></span>
@@ -388,12 +388,12 @@
       <div id="mainMenuDrawerBackdrop" onclick="closeMainMenuDrawer()" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity opacity-0"></div>
 
       <!-- Drawer Panel (Slides in from the right in RTL) -->
-      <div id="mainMenuDrawerPanel" class="fixed top-0 bottom-0 right-0 w-80 max-w-[85vw] bg-slate-900/95 border-l border-slate-800 backdrop-blur-xl shadow-2xl flex flex-col z-10 transform translate-x-full transition-transform duration-300 ease-out">
+      <div id="mainMenuDrawerPanel" class="fixed top-0 bottom-0 right-0 w-80 max-w-[85vw] bg-slate-900/95 border-l border-[#dfaa86]/25 backdrop-blur-2xl shadow-2xl flex flex-col z-10 transform translate-x-full transition-transform duration-300 ease-out">
         
         <!-- Drawer Header -->
-        <div class="p-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-950/60">
+        <div class="p-4 border-b border-slate-800/80 flex items-center justify-between shrink-0 bg-slate-950/70">
           <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center text-sm font-black shadow-inner">
+            <div class="w-8 h-8 rounded-xl bg-[#dfaa86]/15 border border-[#dfaa86]/30 text-[#dfaa86] flex items-center justify-center text-sm font-black shadow-inner">
               <i class="fa-solid fa-bars-staggered"></i>
             </div>
             <div>
@@ -401,27 +401,27 @@
               <p class="text-[11px] text-slate-400">هەموو بەش و خزمەتگوزارییەکان</p>
             </div>
           </div>
-          <button type="button" onclick="closeMainMenuDrawer()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستنی مێنیو">
+          <button type="button" onclick="closeMainMenuDrawer()" class="w-8 h-8 rounded-xl bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition border border-slate-800" title="داخستنی مێنیو">
             <i class="fa-solid fa-xmark text-sm"></i>
           </button>
         </div>
 
         <!-- User Profile Preview in Drawer -->
-        <div onclick="closeMainMenuDrawer(); openMyProfile();" class="mx-3 mt-3 p-3 rounded-2xl bg-slate-950/70 border border-amber-500/20 flex items-center justify-between cursor-pointer hover:border-amber-500/40 transition shadow-inner">
+        <div onclick="closeMainMenuDrawer(); openMyProfile();" class="mx-3 mt-3 p-3 rounded-2xl bg-slate-950/70 border border-[#dfaa86]/25 flex items-center justify-between cursor-pointer hover:border-[#dfaa86]/50 transition shadow-inner">
           <div class="flex items-center gap-2.5 min-w-0">
-            <div id="drawerUserAvatar" class="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-base shrink-0 shadow">
+            <div id="drawerUserAvatar" class="w-9 h-9 rounded-xl bg-slate-850 border border-slate-800 flex items-center justify-center text-base shrink-0 shadow">
               🧔
             </div>
             <div class="min-w-0">
               <h4 id="drawerUserName" class="font-black text-xs text-white truncate">ناو</h4>
               <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                <span id="drawerUserRoleBadge" class="text-[9px] px-1.5 py-0.2 rounded font-bold bg-indigo-600/30 text-indigo-300 border border-indigo-500/30">قوتابی</span>
+                <span id="drawerUserRoleBadge" class="text-[9px] px-1.5 py-0.2 rounded font-bold bg-[#dfaa86]/15 text-[#dfaa86] border border-[#dfaa86]/30">قوتابی</span>
                 <span id="drawerUserStars" class="text-[10px] text-amber-400 font-mono font-bold">⭐ (0/10)</span>
                 <span id="drawerUserSpecialBadges" class="hidden text-[9px] font-bold"></span>
               </div>
             </div>
           </div>
-          <span class="text-[10px] text-amber-400 font-bold flex items-center gap-1 shrink-0">
+          <span class="text-[10px] text-[#dfaa86] font-bold flex items-center gap-1 shrink-0">
             <span id="drawerProfileText">پرۆفایل</span>
             <i class="fa-solid fa-chevron-left text-[9px]"></i>
           </span>
@@ -452,90 +452,90 @@
             <span id="drawerGeneralHeader" class="text-[10px] text-slate-400 uppercase tracking-wider px-2 font-black block mb-1">خزمەتگوزارییە سەرەکییەکان</span>
 
             <!-- Recorded Lessons for Students (وانە تۆمارکراوەکان - بێ داونلۆد) -->
-            <button id="drawerRecordedLessonsBtn" onclick="closeMainMenuDrawer(); openRecordedLessonsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-emerald-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+            <button id="drawerRecordedLessonsBtn" onclick="closeMainMenuDrawer(); openRecordedLessonsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-circle-play text-emerald-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-circle-play text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerRecordedLessonsText">وانە تۆمارکراوەکان</span>
               </span>
-              <span id="drawerRecordedLessonsBadge" class="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded border border-emerald-500/30">گوێگرتن</span>
+              <span id="drawerRecordedLessonsBadge" class="text-[9px] bg-[#dfaa86]/15 text-[#dfaa86] font-bold px-2 py-0.5 rounded-lg border border-[#dfaa86]/25">گوێگرتن</span>
             </button>
 
             <!-- Library -->
-            <button id="drawerLibraryBtn" onclick="closeMainMenuDrawer(); openLibraryModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-teal-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+            <button id="drawerLibraryBtn" onclick="closeMainMenuDrawer(); openLibraryModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-book-open text-teal-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-book-open text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerLibraryText">کتێبخانەی ستاف</span>
               </span>
-              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
+              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500 group-hover:text-[#dfaa86] transition-colors"></i>
             </button>
 
             <!-- Questions Bank -->
-            <button onclick="closeMainMenuDrawer(); openQuestionsArchiveModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-indigo-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+            <button onclick="closeMainMenuDrawer(); openQuestionsArchiveModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-book-bookmark text-indigo-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-book-bookmark text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerQuestionsText">بانکی پرسیار و وەڵامەکان</span>
               </span>
-              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
+              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500 group-hover:text-[#dfaa86] transition-colors"></i>
             </button>
 
             <!-- Leaderboard -->
-            <button onclick="closeMainMenuDrawer(); openLeaderboardModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+            <button onclick="closeMainMenuDrawer(); openLeaderboardModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-trophy text-amber-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-trophy text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerLeaderboardText">ڕیزبەندی و خاڵەکان</span>
               </span>
-              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
+              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500 group-hover:text-[#dfaa86] transition-colors"></i>
             </button>
 
             <!-- Private Chat -->
-            <button id="drawerPrivateChatBtn" onclick="closeMainMenuDrawer(); openPrivateChatModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sky-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+            <button id="drawerPrivateChatBtn" onclick="closeMainMenuDrawer(); openPrivateChatModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-envelope text-sky-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-envelope text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerPrivateChatText">نامەی تایبەت لەگەڵ مامۆستا</span>
               </span>
-              <span id="drawerPrivateUnreadBadge" class="hidden px-1.5 py-0.5 bg-sky-500 text-slate-950 text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
+              <span id="drawerPrivateUnreadBadge" class="hidden px-2 py-0.5 bg-[#dfaa86] text-slate-950 text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
             </button>
 
             <!-- Dream Interpretation Submission for Students/Members -->
-            <button id="drawerDreamSubmitBtn" onclick="closeMainMenuDrawer(); openDreamSection();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-purple-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-purple-500/30 transition">
+            <button id="drawerDreamSubmitBtn" onclick="closeMainMenuDrawer(); openDreamSection();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-moon text-purple-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-moon text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerDreamSubmitText">ناردنی خەون بۆ لێکدانەوە</span>
               </span>
-              <span id="drawerDreamSubmitBadge" class="text-[9px] bg-purple-500/20 text-purple-300 font-bold px-1.5 py-0.5 rounded border border-purple-500/30">١ بە ١</span>
+              <span id="drawerDreamSubmitBadge" class="text-[9px] bg-[#dfaa86]/15 text-[#dfaa86] font-bold px-2 py-0.5 rounded-lg border border-[#dfaa86]/25">١ بە ١</span>
             </button>
 
             <!-- Complaints Box (For Students) -->
-            <button id="drawerComplaintsBtn" onclick="closeMainMenuDrawer(); openComplaintsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-amber-500/30 transition shadow-sm">
+            <button id="drawerComplaintsBtn" onclick="closeMainMenuDrawer(); openComplaintsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-envelope-open-text text-amber-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-envelope-open-text text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span class="font-bold text-xs sm:text-sm">سندووقی سکاڵا 📬</span>
               </span>
-              <span class="text-[9px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded border border-amber-500/30">نهێنی</span>
+              <span class="text-[9px] bg-[#dfaa86]/15 text-[#dfaa86] font-bold px-2 py-0.5 rounded-lg border border-[#dfaa86]/25">نهێنی</span>
             </button>
 
             <!-- Chat Search -->
-            <button onclick="closeMainMenuDrawer(); toggleChatSearch();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[#dfaa86] hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+            <button onclick="closeMainMenuDrawer(); toggleChatSearch();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-magnifying-glass text-[#dfaa86] text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-magnifying-glass text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerSearchText">گەڕان لەناو پەیامەکان</span>
               </span>
-              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
+              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500 group-hover:text-[#dfaa86] transition-colors"></i>
             </button>
 
             <!-- Members List (Staff Only) -->
-            <button id="drawerMembersBtn" onclick="closeMainMenuDrawer(); toggleMembersSidebar();" class="hidden w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+            <button id="drawerMembersBtn" onclick="closeMainMenuDrawer(); toggleMembersSidebar();" class="hidden w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-users text-indigo-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-users text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerMembersText">لیستی ئەندامان</span>
               </span>
-              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
+              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500 group-hover:text-[#dfaa86] transition-colors"></i>
             </button>
 
             <!-- PWA Install -->
-            <button id="drawerPwaInstallBtn" onclick="installPwaApp()" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-[#c78361]/20 to-[#dfaa86]/20 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-white transition">
+            <button id="drawerPwaInstallBtn" onclick="installPwaApp()" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-[#dfaa86]/10 hover:bg-[#dfaa86]/20 border border-[#dfaa86]/30 text-[#dfaa86] hover:text-white transition group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-download text-[#dfaa86] text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-download text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerPwaText">داگرتنی ئەپڵیکەیشن (PWA)</span>
               </span>
               <span class="text-[9px] bg-[#dfaa86] text-slate-950 font-black px-1.5 py-0.5 rounded">ئەپ</span>
@@ -547,14 +547,14 @@
             <div id="drawerSettingsSection" class="bg-slate-950/70 border border-slate-800/90 rounded-2xl overflow-hidden transition-all shadow-md">
               
               <!-- Settings Toggle Header (ڕێکخستن) -->
-              <button type="button" onclick="toggleDrawerSettings()" id="drawerSettingsToggleBtn" class="w-full flex items-center justify-between p-3 text-xs font-black text-amber-300 hover:bg-slate-800/50 transition cursor-pointer active:scale-98">
+              <button type="button" onclick="toggleDrawerSettings()" id="drawerSettingsToggleBtn" class="w-full flex items-center justify-between p-3 text-xs font-black text-[#dfaa86] hover:bg-slate-800/50 transition cursor-pointer active:scale-98">
                 <span class="flex items-center gap-2.5">
-                  <i class="fa-solid fa-gear text-amber-400 text-sm w-5 text-center"></i>
+                  <i class="fa-solid fa-gear text-[#dfaa86] text-sm w-5 text-center"></i>
                   <span id="drawerSettingsTitle">ڕێکخستن</span>
                 </span>
                 <div class="flex items-center gap-2">
-                  <span id="drawerSettingsBadge" class="text-[10px] px-2 py-0.5 bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-lg font-bold">٤ بژاردە</span>
-                  <i id="drawerSettingsChevron" class="fa-solid fa-chevron-down text-[10px] text-amber-400/80 transition-transform duration-200 rotate-180"></i>
+                  <span id="drawerSettingsBadge" class="text-[10px] px-2 py-0.5 bg-[#dfaa86]/15 text-[#dfaa86] border border-[#dfaa86]/30 rounded-lg font-bold">٤ بژاردە</span>
+                  <i id="drawerSettingsChevron" class="fa-solid fa-chevron-down text-[10px] text-[#dfaa86]/80 transition-transform duration-200 rotate-180"></i>
                 </div>
               </button>
 
@@ -562,28 +562,28 @@
               <div id="drawerSettingsList" class="p-2 space-y-2 border-t border-slate-800/80 bg-slate-900/40">
 
                 <!-- 1. ئاگاداری مۆبایل و ڕوونما -->
-                <button type="button" id="drawerNotificationBtn" onclick="togglePushNotifications()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition active:scale-98">
+                <button type="button" id="drawerNotificationBtn" onclick="togglePushNotifications()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition active:scale-98 group">
                   <span class="flex items-center gap-2.5">
-                    <i id="drawerNotificationIcon" class="fa-solid fa-bell text-amber-400 text-sm w-5 text-center"></i>
+                    <i id="drawerNotificationIcon" class="fa-solid fa-bell text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                     <span id="drawerNotificationText">ئاگاداری مۆبایل و ڕوونما</span>
                   </span>
-                  <span id="drawerNotificationStatusBadge" class="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-md">ناچالاک</span>
+                  <span id="drawerNotificationStatusBadge" class="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-md border border-slate-700">ناچالاک</span>
                 </button>
 
                 <!-- 2. گۆڕینی زمان -->
-                <div class="bg-slate-800/60 border border-slate-800 hover:border-slate-700 rounded-xl overflow-hidden transition">
-                  <button type="button" onclick="toggleDrawerLangPicker()" class="w-full flex items-center justify-between px-3 py-2.5 text-xs font-black text-emerald-300 hover:bg-slate-800/50 transition cursor-pointer">
+                <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl overflow-hidden transition">
+                  <button type="button" onclick="toggleDrawerLangPicker()" class="w-full flex items-center justify-between px-3 py-2.5 text-xs font-black text-slate-200 hover:text-white hover:bg-slate-850 transition cursor-pointer group">
                     <span class="flex items-center gap-2.5">
-                      <i class="fa-solid fa-globe text-emerald-400 text-sm w-5 text-center"></i>
+                      <i class="fa-solid fa-globe text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                       <span id="drawerLangTitle">گۆڕینی زمان</span>
                     </span>
                     <div class="flex items-center gap-2">
-                      <span id="drawerCurrentLangBadge" class="text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg font-bold">کوردی</span>
-                      <i id="drawerLangChevron" class="fa-solid fa-chevron-down text-[10px] text-emerald-400/70 transition-transform duration-200"></i>
+                      <span id="drawerCurrentLangBadge" class="text-[10px] px-2 py-0.5 bg-[#dfaa86]/15 text-[#dfaa86] border border-[#dfaa86]/30 rounded-lg font-bold">کوردی</span>
+                      <i id="drawerLangChevron" class="fa-solid fa-chevron-down text-[10px] text-[#dfaa86]/70 transition-transform duration-200"></i>
                     </div>
                   </button>
                   <div id="drawerLangPickerOptions" class="hidden p-2.5 pt-0 grid grid-cols-3 gap-1.5 text-xs">
-                    <button type="button" onclick="setAppLanguage('ku')" id="langBtn_ku" class="py-1.5 px-2 rounded-xl bg-amber-500 text-slate-950 font-black text-center transition active:scale-95 shadow">
+                    <button type="button" onclick="setAppLanguage('ku')" id="langBtn_ku" class="py-1.5 px-2 rounded-xl bg-gradient-to-r from-[#c78361] to-[#dfaa86] text-slate-950 font-black text-center transition active:scale-95 shadow">
                       کوردی
                     </button>
                     <button type="button" onclick="setAppLanguage('ar')" id="langBtn_ar" class="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-center border border-slate-700 transition active:scale-95">
@@ -596,22 +596,22 @@
                 </div>
 
                 <!-- 3. قەبارەی پیت -->
-                <div class="bg-slate-800/60 border border-slate-800 hover:border-slate-700 rounded-xl overflow-hidden transition">
-                  <button type="button" onclick="toggleDrawerFontPicker()" class="w-full flex items-center justify-between px-3 py-2.5 text-xs font-black text-sky-300 hover:bg-slate-800/50 transition cursor-pointer">
+                <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl overflow-hidden transition">
+                  <button type="button" onclick="toggleDrawerFontPicker()" class="w-full flex items-center justify-between px-3 py-2.5 text-xs font-black text-slate-200 hover:text-white hover:bg-slate-850 transition cursor-pointer group">
                     <span class="flex items-center gap-2.5">
-                      <i class="fa-solid fa-font text-sky-400 text-sm w-5 text-center"></i>
+                      <i class="fa-solid fa-font text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                       <span id="drawerFontTitle">قەبارەی پیت</span>
                     </span>
                     <div class="flex items-center gap-2">
-                      <span id="drawerCurrentFontBadge" class="text-[10px] px-2 py-0.5 bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded-lg font-bold">ئاسایی</span>
-                      <i id="drawerFontChevron" class="fa-solid fa-chevron-down text-[10px] text-sky-400/70 transition-transform duration-200"></i>
+                      <span id="drawerCurrentFontBadge" class="text-[10px] px-2 py-0.5 bg-[#dfaa86]/15 text-[#dfaa86] border border-[#dfaa86]/30 rounded-lg font-bold">ئاسایی</span>
+                      <i id="drawerFontChevron" class="fa-solid fa-chevron-down text-[10px] text-[#dfaa86]/70 transition-transform duration-200"></i>
                     </div>
                   </button>
                   <div id="drawerFontPickerOptions" class="hidden p-2.5 pt-0 grid grid-cols-5 gap-1 text-xs font-black">
                     <button type="button" onclick="setAppFontSize('small')" id="fontBtn_small" class="py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95 text-center" title="بچووک">
                       A-
                     </button>
-                    <button type="button" onclick="setAppFontSize('normal')" id="fontBtn_normal" class="py-1.5 rounded-xl bg-sky-600 text-slate-950 font-black transition active:scale-95 shadow text-center" title="ئاسایی">
+                    <button type="button" onclick="setAppFontSize('normal')" id="fontBtn_normal" class="py-1.5 rounded-xl bg-gradient-to-r from-[#c78361] to-[#dfaa86] text-slate-950 font-black transition active:scale-95 shadow text-center" title="ئاسایی">
                       A
                     </button>
                     <button type="button" onclick="setAppFontSize('large')" id="fontBtn_large" class="py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95 text-center" title="گەورە">
@@ -627,12 +627,12 @@
                 </div>
 
                 <!-- 4. گۆڕینی شێوەی ڕوونما -->
-                <button type="button" onclick="closeMainMenuDrawer(); openThemeModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-purple-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition active:scale-98">
+                <button type="button" onclick="closeMainMenuDrawer(); openThemeModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition active:scale-98 group">
                   <span class="flex items-center gap-2.5">
-                    <i id="drawerThemeIcon" class="fa-solid fa-palette text-purple-400 text-sm w-5 text-center"></i>
+                    <i id="drawerThemeIcon" class="fa-solid fa-palette text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                     <span id="drawerThemeText">گۆڕینی شێوەی ڕوونما</span>
                   </span>
-                  <span id="drawerThemeBadge" class="text-[10px] bg-slate-700 text-purple-300 font-bold px-2 py-0.5 rounded-md border border-purple-500/30">تاریک</span>
+                  <span id="drawerThemeBadge" class="text-[10px] bg-slate-800 text-[#dfaa86] font-bold px-2 py-0.5 rounded-md border border-[#dfaa86]/30">تاریک</span>
                 </button>
 
               </div>
@@ -644,81 +644,81 @@
             <span id="drawerStaffHeader" class="text-[10px] text-amber-400 uppercase tracking-wider px-2 font-black block mb-1">ئامرازەکانی ستاف و ئەدمین</span>
 
             <!-- Live Recordings Archive (تۆماری وانەکانی لایڤ - مامۆستا و سوپەر ئەدمین) -->
-            <button id="drawerLiveRecordingsBtn" onclick="closeMainMenuDrawer(); openLiveRecordingsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30 text-rose-200 hover:text-white transition">
+            <button id="drawerLiveRecordingsBtn" onclick="closeMainMenuDrawer(); openLiveRecordingsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-microphone-lines text-rose-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-microphone-lines text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerLiveRecordingsText">تۆماری وانەکان (ڕاستەوخۆ)</span>
               </span>
-              <span id="drawerLiveRecordingsBadge" class="text-[9px] bg-rose-500 text-white font-black px-1.5 py-0.5 rounded">داگرتن</span>
+              <span id="drawerLiveRecordingsBadge" class="text-[9px] bg-[#dfaa86]/15 text-[#dfaa86] font-bold px-2 py-0.5 rounded-lg border border-[#dfaa86]/25">وانە</span>
             </button>
 
             <!-- Post Question -->
-            <button id="drawerPostQuestionBtn" onclick="closeMainMenuDrawer(); openPostQuestionModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 hover:text-white transition">
+            <button id="drawerPostQuestionBtn" onclick="closeMainMenuDrawer(); openPostQuestionModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-circle-question text-amber-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-circle-question text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerPostQuestionText">دانانی پرسیاری نوێ</span>
               </span>
-              <span id="drawerPostQuestionBadge" class="text-[9px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded">نوێ</span>
+              <span id="drawerPostQuestionBadge" class="text-[9px] bg-[#dfaa86]/15 text-[#dfaa86] font-bold px-2 py-0.5 rounded-lg border border-[#dfaa86]/25">دانان</span>
             </button>
 
             <!-- Unanswered Stats -->
-            <button id="drawerUnansweredBtn" onclick="closeMainMenuDrawer(); openUnansweredStatsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-rose-300 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition">
+            <button id="drawerUnansweredBtn" onclick="closeMainMenuDrawer(); openUnansweredStatsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-clipboard-question text-rose-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-clipboard-question text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerUnansweredText">لیستی وەڵامنەدراوەکان</span>
               </span>
-              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500"></i>
+              <i class="fa-solid fa-chevron-left text-[10px] text-slate-500 group-hover:text-[#dfaa86] transition-colors"></i>
             </button>
 
             <!-- Dream Admin -->
-            <button id="drawerDreamAdminBtn" onclick="closeMainMenuDrawer(); openDreamAdminModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-purple-900/30 hover:bg-purple-900/50 border border-purple-500/30 text-purple-200 hover:text-white transition">
+            <button id="drawerDreamAdminBtn" onclick="closeMainMenuDrawer(); openDreamAdminModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-moon text-amber-300 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-moon text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerDreamAdminText">لێکدانەوەی خەونەکان</span>
               </span>
-              <span id="drawerDreamUnreadBadge" class="hidden px-1.5 py-0.5 bg-purple-500 text-white text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
+              <span id="drawerDreamUnreadBadge" class="hidden px-2 py-0.5 bg-[#dfaa86] text-slate-950 text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
             </button>
 
             <!-- AI Proactive Advisor & Companion (Super Admin, Black Badge, or White Badge) -->
-            <button id="drawerAiAdvisorBtn" onclick="closeMainMenuDrawer(); openAiAdvisorModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/40 text-purple-200 hover:text-white transition shadow-sm">
+            <button id="drawerAiAdvisorBtn" onclick="closeMainMenuDrawer(); openAiAdvisorModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-wand-magic-sparkles text-purple-300 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-wand-magic-sparkles text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span class="font-bold">ڕاوێژکاری زیرەکی ستاف (AI)</span>
               </span>
-              <span class="px-2 py-0.5 bg-purple-500/80 text-white text-[10px] font-black rounded-full">زیرەک</span>
+              <span class="px-2 py-0.5 bg-[#dfaa86]/15 text-[#dfaa86] border border-[#dfaa86]/30 text-[10px] font-black rounded-lg">زیرەک</span>
             </button>
 
             <!-- System Admin Panel -->
-            <button id="drawerAdminPanelBtn" onclick="closeMainMenuDrawer(); openAdminModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-indigo-900/30 hover:bg-indigo-900/50 border border-indigo-500/30 text-indigo-200 hover:text-white transition">
+            <button id="drawerAdminPanelBtn" onclick="closeMainMenuDrawer(); openAdminModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-shield-halved text-indigo-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-shield-halved text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span id="drawerAdminPanelText">بەڕێوەبردنی ئەندامان و سیستم</span>
               </span>
-              <span id="drawerPendingBadgeCount" class="hidden px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
+              <span id="drawerPendingBadgeCount" class="hidden px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-black rounded-full min-w-[18px] text-center">0</span>
             </button>
 
             <!-- Activity & Attendance Database (لیستی چالاکی - ئامادەبوون و غیابات) -->
-            <button id="drawerActivityDbBtn" onclick="closeMainMenuDrawer(); openActivityModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-teal-950/40 to-slate-900 hover:from-teal-900/50 hover:to-slate-850 border border-teal-500/40 text-teal-300 hover:text-white transition shadow-sm">
+            <button id="drawerActivityDbBtn" onclick="closeMainMenuDrawer(); openActivityModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-clipboard-user text-teal-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-clipboard-user text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span class="font-bold text-xs sm:text-sm">لیستی چالاکی (ئامادەبوون و غیابات) 📋</span>
               </span>
-              <span class="text-[9px] bg-teal-500/20 text-teal-300 font-bold px-1.5 py-0.5 rounded border border-teal-500/30">داتابەیس</span>
+              <span class="text-[9px] bg-[#dfaa86]/15 text-[#dfaa86] font-bold px-2 py-0.5 rounded-lg border border-[#dfaa86]/25">داتابەیس</span>
             </button>
 
             <!-- Complaints Inbox (Staff View) -->
-            <button id="drawerStaffComplaintsBtn" onclick="closeMainMenuDrawer(); openComplaintsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-amber-500/30 text-amber-300 hover:text-white transition shadow-sm">
+            <button id="drawerStaffComplaintsBtn" onclick="closeMainMenuDrawer(); openComplaintsModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-inbox text-amber-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-inbox text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span class="font-bold text-xs sm:text-sm">سندووقی سکاڵا (سکاڵاکانی گەیشتوو) 📬</span>
               </span>
-              <span id="drawerComplaintsBadge" class="hidden px-2 py-0.5 bg-amber-500/30 text-amber-300 text-[10px] font-black rounded-full border border-amber-500/40">نوێ</span>
+              <span id="drawerComplaintsBadge" class="hidden px-2 py-0.5 bg-[#dfaa86] text-slate-950 text-[10px] font-black rounded-full border border-[#dfaa86]/40">نوێ</span>
             </button>
 
             <!-- AI Security Command Center (Defense Shield / قەڵغانی بەرگری) -->
-            <button id="drawerAiSecurityBtn" onclick="closeMainMenuDrawer(); openAiSecurityModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-rose-950/40 to-indigo-950/40 hover:from-rose-900/60 hover:to-indigo-900/60 border border-rose-500/40 text-rose-200 hover:text-white transition shadow-sm">
+            <button id="drawerAiSecurityBtn" onclick="closeMainMenuDrawer(); openAiSecurityModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
-                <i class="fa-solid fa-shield-virus text-rose-400 text-sm w-5 text-center"></i>
+                <i class="fa-solid fa-shield-virus text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
                 <span class="font-bold">قەڵغانی بەرگری (AI Guard)</span>
               </span>
               <span id="drawerAiSecurityBadge" class="px-2 py-0.5 bg-rose-500/80 text-white text-[10px] font-black rounded-full animate-pulse">چاودێری</span>
@@ -728,8 +728,8 @@
         </div>
 
         <!-- Drawer Footer (Logout) -->
-        <div class="p-3 border-t border-slate-800 bg-slate-950/60 shrink-0">
-          <button onclick="handleLogout()" class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 hover:text-white transition active:scale-98">
+        <div class="p-3 border-t border-slate-800/80 bg-slate-950/80 shrink-0">
+          <button onclick="handleLogout()" class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-rose-950/30 hover:bg-rose-900/50 border border-rose-500/25 text-rose-300 hover:text-white transition active:scale-98 font-bold">
             <i class="fa-solid fa-arrow-right-from-bracket"></i>
             <span id="drawerLogoutText">چوونە دەرەوە لە ئەکاونت</span>
           </button>
@@ -952,40 +952,40 @@
             
             <!-- Combined Tools Button & Floating Popover Menu -->
             <div id="adminMediaTools" class="hidden relative shrink-0">
-              <button type="button" id="publicChatToolsBtn" onclick="togglePublicChatToolsMenu(event)" class="w-10 h-10 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 border border-slate-700/80 shadow-md flex items-center justify-center transition active:scale-95" title="کردارەکان (فایل، دەنگ، ڕاپرسی، زەنگ)">
+              <button type="button" id="publicChatToolsBtn" onclick="togglePublicChatToolsMenu(event)" class="w-10 h-10 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-[#dfaa86] hover:text-[#fae2cc] border border-slate-700/80 shadow-md flex items-center justify-center transition active:scale-95" title="کردارەکان (فایل، دەنگ، ڕاپرسی، زەنگ)">
                 <i id="publicChatToolsIcon" class="fa-solid fa-plus text-base transition-transform duration-200"></i>
               </button>
               <input type="file" id="imageFileInput" accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt" class="hidden" onchange="handleImagePicked(event)">
 
               <!-- Floating Tools Popup Menu -->
-              <div id="publicChatToolsMenu" class="hidden absolute bottom-12 right-0 z-50 bg-slate-900/95 border border-slate-700/90 rounded-2xl shadow-2xl backdrop-blur-md p-1.5 flex flex-col gap-1 min-w-[210px] animate-scale-up">
+              <div id="publicChatToolsMenu" class="hidden absolute bottom-12 right-0 z-50 bg-slate-900/95 border border-[#dfaa86]/30 rounded-2xl shadow-2xl backdrop-blur-md p-1.5 flex flex-col gap-1 min-w-[210px] animate-scale-up">
                 <!-- 1. Attach File / Image -->
-                <button type="button" onclick="triggerImagePicker(); closePublicChatToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full">
-                  <div class="w-7 h-7 rounded-lg bg-indigo-600/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center shrink-0">
+                <button type="button" onclick="triggerImagePicker(); closePublicChatToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full group">
+                  <div class="w-7 h-7 rounded-lg bg-[#dfaa86]/15 border border-[#dfaa86]/30 text-[#dfaa86] flex items-center justify-center shrink-0">
                     <i class="fa-solid fa-paperclip text-xs"></i>
                   </div>
                   <span>پەیوەستکردنی وێنە و فایل</span>
                 </button>
 
                 <!-- 2. Voice Note -->
-                <button type="button" onclick="startVoiceRecording(); closePublicChatToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full">
-                  <div class="w-7 h-7 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shrink-0">
+                <button type="button" onclick="startVoiceRecording(); closePublicChatToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full group">
+                  <div class="w-7 h-7 rounded-lg bg-[#dfaa86]/15 border border-[#dfaa86]/30 text-[#dfaa86] flex items-center justify-center shrink-0">
                     <i class="fa-solid fa-microphone text-xs"></i>
                   </div>
                   <span>تۆمارکردنی دەنگ</span>
                 </button>
 
                 <!-- 3. Poll -->
-                <button type="button" id="publicChatPollBtn" onclick="openCreatePollModal('public'); closePublicChatToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full">
-                  <div class="w-7 h-7 rounded-lg bg-amber-600/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
+                <button type="button" id="publicChatPollBtn" onclick="openCreatePollModal('public'); closePublicChatToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full group">
+                  <div class="w-7 h-7 rounded-lg bg-[#dfaa86]/15 border border-[#dfaa86]/30 text-[#dfaa86] flex items-center justify-center shrink-0">
                     <i class="fa-solid fa-square-poll-vertical text-xs"></i>
                   </div>
                   <span>دروستکردنی ڕاپرسی</span>
                 </button>
 
                 <!-- 4. Alarm / Lesson Bell -->
-                <button type="button" id="publicChatAlarmBtn" onclick="openCreateAlarmModal('public'); closePublicChatToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full">
-                  <div class="w-7 h-7 rounded-lg bg-rose-600/20 border border-rose-500/40 text-rose-400 flex items-center justify-center shrink-0">
+                <button type="button" id="publicChatAlarmBtn" onclick="openCreateAlarmModal('public'); closePublicChatToolsMenu();" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 transition active:scale-95 text-right w-full group">
+                  <div class="w-7 h-7 rounded-lg bg-[#dfaa86]/15 border border-[#dfaa86]/30 text-[#dfaa86] flex items-center justify-center shrink-0">
                     <i class="fa-solid fa-bell text-xs"></i>
                   </div>
                   <span>زەنگی ئاگاداری / میقات</span>
@@ -1000,7 +1000,7 @@
                 rows="1" 
                 placeholder="" 
                 autocomplete="off"
-                class="w-full px-3.5 py-2.5 bg-slate-800/90 border border-slate-700/80 rounded-2xl text-xs md:text-sm focus:outline-none focus:border-indigo-500 text-white placeholder-transparent transition leading-relaxed resize-none overflow-y-auto block"
+                class="w-full px-3.5 py-2.5 bg-slate-800/90 border border-slate-700/80 rounded-2xl text-xs md:text-sm focus:outline-none focus:border-[#dfaa86] text-white placeholder-transparent transition leading-relaxed resize-none overflow-y-auto block"
                 style="min-height: 40px; max-height: 120px; height: 40px;"
                 oninput="autoResizeChatInput(this)"
                 onkeydown="handleChatInputKeyDown(event, this)"
@@ -1010,7 +1010,7 @@
             <button 
               type="submit" 
               id="sendBtn" 
-              class="w-10 h-10 md:w-11 md:h-11 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl shadow-lg flex items-center justify-center text-xs md:text-sm transition transform active:scale-95 shrink-0"
+              class="w-10 h-10 md:w-11 md:h-11 bg-gradient-to-r from-[#c78361] to-[#dfaa86] hover:brightness-110 text-slate-950 font-black rounded-2xl shadow-lg shadow-[#dfaa86]/20 flex items-center justify-center text-xs md:text-sm transition transform active:scale-95 shrink-0"
               title="ناردن"
             >
               <i class="fa-solid fa-paper-plane -rotate-90"></i>
@@ -2453,10 +2453,10 @@
           </div>
 
           <!-- Message Textarea (Auto-expanding) -->
-          <textarea id="customGroupTextInput" rows="1" placeholder="" class="flex-1 min-w-0 bg-slate-800/90 border border-slate-700/80 focus:border-indigo-500 rounded-2xl px-3 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-transparent focus:outline-none resize-none overflow-y-auto max-h-32 transition leading-relaxed" style="min-height: 40px; max-height: 120px; height: 40px;" oninput="autoResizeChatInput(this)" onkeydown="handleCustomGroupInputKeyDown(event, this)"></textarea>
+          <textarea id="customGroupTextInput" rows="1" placeholder="" class="flex-1 min-w-0 bg-slate-800/90 border border-slate-700/80 focus:border-[#dfaa86] rounded-2xl px-3 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-transparent focus:outline-none resize-none overflow-y-auto max-h-32 transition leading-relaxed" style="min-height: 40px; max-height: 120px; height: 40px;" oninput="autoResizeChatInput(this)" onkeydown="handleCustomGroupInputKeyDown(event, this)"></textarea>
 
           <!-- Send Button -->
-          <button type="submit" id="customGroupSendBtn" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center text-sm shrink-0 transition shadow-md shadow-indigo-950 active:scale-95" title="ناردن">
+          <button type="submit" id="customGroupSendBtn" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-r from-[#c78361] to-[#dfaa86] hover:brightness-110 text-slate-950 flex items-center justify-center text-sm shrink-0 transition shadow-md shadow-[#dfaa86]/20 active:scale-95 font-black" title="ناردن">
             <i class="fa-solid fa-paper-plane text-xs sm:text-sm -rotate-90"></i>
           </button>
         </form>
@@ -4507,9 +4507,9 @@
 
 
           <!-- Chat Input Bar -->
-          <div class="p-2.5 sm:p-3 bg-slate-950/95 border-t border-purple-500/20 flex items-center gap-2 shrink-0">
-            <input type="text" id="advisorChatInput" placeholder="پەیامەکەت بۆ ڕاوێژکار بنووسە..." class="flex-1 min-w-0 bg-slate-900/90 border border-slate-700/80 focus:border-purple-500 rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none transition shadow-inner" onkeydown="if(event.key==='Enter') sendAdvisorMessage()">
-            <button onclick="sendAdvisorMessage()" id="advisorSendBtn" class="h-10 px-4 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition shadow-lg shadow-purple-950/50 active:scale-95 shrink-0" title="ناردن">
+          <div class="p-2.5 sm:p-3 bg-slate-950/95 border-t border-slate-800 flex items-center gap-2 shrink-0">
+            <input type="text" id="advisorChatInput" placeholder="پەیامەکەت بۆ ڕاوێژکار بنووسە..." class="flex-1 min-w-0 bg-slate-900/90 border border-slate-700/80 focus:border-[#dfaa86] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none transition shadow-inner" onkeydown="if(event.key==='Enter') sendAdvisorMessage()">
+            <button onclick="sendAdvisorMessage()" id="advisorSendBtn" class="h-10 px-4 rounded-2xl bg-gradient-to-r from-[#c78361] to-[#dfaa86] hover:brightness-110 text-slate-950 text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition shadow-lg shadow-[#dfaa86]/20 active:scale-95 shrink-0" title="ناردن">
               <span>ناردن</span>
               <i class="fa-solid fa-paper-plane text-xs"></i>
             </button>
@@ -4612,6 +4612,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=23.5"></script>
+  <script src="/js/app.js?v=23.6"></script>
 </body>
 </html>
