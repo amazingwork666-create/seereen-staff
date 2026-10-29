@@ -532,6 +532,17 @@ function initDb() {
     console.error('Error creating polls, alarms, or attendance tables:', e);
   }
 
+  // Enforce 1 reaction per user per message (Deduplicate & Unique Index)
+  try {
+    db.prepare(`
+      DELETE FROM message_reactions 
+      WHERE id NOT IN (
+        SELECT MAX(id) FROM message_reactions GROUP BY message_id, user_id
+      )
+    `).run();
+    db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_msg_reactions_user_msg ON message_reactions(message_id, user_id)').run();
+  } catch (e) {}
+
   // Migrations for Dream Interpretation and Library
   try { db.exec("ALTER TABLE dream_sessions ADD COLUMN is_interpreted INTEGER NOT NULL DEFAULT 0"); } catch (e) {}
   try { db.exec("ALTER TABLE library_books ADD COLUMN cover_image TEXT DEFAULT ''"); } catch (e) {}
@@ -804,6 +815,11 @@ const users = {
   },
   updateFullName(id, newName) {
     db.prepare('UPDATE users SET full_name = ? WHERE id = ?').run(newName.trim(), id);
+    return this.findById(id);
+  },
+  updateGender(id, gender) {
+    const safeGender = gender === 'female' ? 'female' : 'male';
+    db.prepare('UPDATE users SET gender = ? WHERE id = ?').run(safeGender, id);
     return this.findById(id);
   },
   updatePassword(id, passwordHash) {
@@ -1727,13 +1743,17 @@ const privateMessages = {
   }
 };
 
-// Message Reactions (🏆, 🤲, 👍, 💯)
+// Message Reactions (🏆, 🤲, 👍, 💯, ❤️, ⭐)
 const messageReactions = {
   toggle(messageId, userId, emoji) {
-    const existing = db.prepare('SELECT id FROM message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?').get(messageId, userId, emoji);
-    if (existing) {
-      db.prepare('DELETE FROM message_reactions WHERE id = ?').run(existing.id);
+    const existingSame = db.prepare('SELECT id FROM message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?').get(messageId, userId, emoji);
+    if (existingSame) {
+      // User tapped their existing reaction again -> remove it (toggle off)
+      db.prepare('DELETE FROM message_reactions WHERE id = ?').run(existingSame.id);
     } else {
+      // User tapped a new/different emoji: remove ANY previous reaction this user gave on this message (enforcing max 1 reaction per user)
+      db.prepare('DELETE FROM message_reactions WHERE message_id = ? AND user_id = ?').run(messageId, userId);
+      // Insert the new reaction
       db.prepare('INSERT INTO message_reactions (message_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?)').run(messageId, userId, emoji, Date.now());
     }
     return this.getForMessage(messageId, userId);
@@ -1745,14 +1765,18 @@ const messageReactions = {
       FROM message_reactions
       WHERE message_id = ?
       GROUP BY emoji
+      ORDER BY count DESC, emoji ASC
     `).all(messageId);
 
     return rows.map(r => {
-      const uids = (r.user_ids || '').split(',').map(Number);
+      const uids = (r.user_ids || '').split(',').filter(Boolean).map(Number);
+      const isMine = currentUserId ? uids.includes(Number(currentUserId)) : false;
       return {
         emoji: r.emoji,
         count: r.count,
-        reactedByMe: currentUserId ? uids.includes(Number(currentUserId)) : false
+        user_ids: uids,
+        reactedByMe: isMine,
+        userReacted: isMine
       };
     });
   },
@@ -1765,6 +1789,7 @@ const messageReactions = {
       FROM message_reactions
       WHERE message_id IN (${placeholders})
       GROUP BY message_id, emoji
+      ORDER BY count DESC, emoji ASC
     `).all(...messageIds);
 
     const map = {};
@@ -1772,12 +1797,15 @@ const messageReactions = {
       map[id] = [];
     }
     for (const r of rows) {
-      const uids = (r.user_ids || '').split(',').map(Number);
+      const uids = (r.user_ids || '').split(',').filter(Boolean).map(Number);
+      const isMine = currentUserId ? uids.includes(Number(currentUserId)) : false;
       if (!map[r.message_id]) map[r.message_id] = [];
       map[r.message_id].push({
         emoji: r.emoji,
         count: r.count,
-        reactedByMe: currentUserId ? uids.includes(Number(currentUserId)) : false
+        user_ids: uids,
+        reactedByMe: isMine,
+        userReacted: isMine
       });
     }
     return map;

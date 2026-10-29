@@ -1,4 +1,4 @@
-const CACHE_NAME = 'seereen-staff-v56';
+const CACHE_NAME = 'seereen-staff-v57';
 const ASSETS_TO_CACHE = [
   '/',
   '/images/logo.jpg',

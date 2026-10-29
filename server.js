@@ -1728,6 +1728,18 @@ const advisorTools = [
         }
       },
       {
+        name: 'change_user_gender',
+        description: 'گۆڕینی ڕەگەزی بەکارهێنەرێک (نێر/مێ - male/female) بە فەرمانی سوپەر ئەدمین',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            username_or_id: { type: 'STRING', description: 'ناو یان یوزەرنەیم یان ئایدی بەکارهێنەرەکە' },
+            new_gender: { type: 'STRING', description: 'ڕەگەزی نوێ: male (نێر) یان female (مێ)', enum: ['male', 'female'] }
+          },
+          required: ['username_or_id', 'new_gender']
+        }
+      },
+      {
         name: 'reset_user_password',
         description: 'گۆڕین یان دانانی وشەی نهێنی نوێ بۆ بەکارهێنەرێک بە فەرمانی کاک هێمن',
         parameters: {
@@ -2564,6 +2576,30 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
         return {
           success: true,
           message: `ناوی تەواوی بەکارهێنەر @${target.username} بە سەرکەوتوویی گۆڕدرا بۆ «${newName}» بە فەرمانی کاک هێمن.`
+        };
+      }
+
+      case 'change_user_gender': {
+        const target = findTargetUser(args.username_or_id);
+        if (!target) return { error: `بەکارهێنەر «${args.username_or_id}» نەدۆزرایەوە` };
+
+        if (isMasterSuperAdmin(target) || (target.role === 'super_admin' && !hasSuperAdminPrivileges(reqUser))) {
+          return { error: '⚠️ ڕەگەزی سوپەر ئەدمین پارێزراوە و ناتوانرێت دەستکاری بکرێت.' };
+        }
+
+        const newGender = args.new_gender === 'female' ? 'female' : (args.new_gender === 'male' ? 'male' : null);
+        if (!newGender) return { error: 'تکایە ڕەگەز دیاری بکە: male (نێر) یان female (مێ).' };
+
+        users.updateGender(target.id, newGender);
+        if (ioInstance) {
+          ioInstance.emit('user_profile_updated', { user_id: target.id, gender: newGender });
+          ioInstance.emit('user_updated', { id: target.id, gender: newGender });
+        }
+
+        const gLabel = newGender === 'female' ? 'مێ (کچ 🧕)' : 'نێر (کوڕ 🧔)';
+        return {
+          success: true,
+          message: `ڕەگەزی بەکارهێنەر @${target.username} بە سەرکەوتوویی گۆڕدرا بۆ «${gLabel}».`
         };
       }
 
@@ -3855,6 +3891,34 @@ app.post('/api/admin/users/:id/update-name', authMiddleware, requireMemberManage
   io.emit('user_profile_updated', {
     user_id: userId,
     full_name: updated.full_name
+  });
+
+  res.json({ success: true, user: updated });
+});
+
+// Directly update user's gender (Super Admin or Green Badge - cannot change Super Admin gender)
+app.post('/api/admin/users/:id/update-gender', authMiddleware, requireMemberManager, (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { gender } = req.body;
+  const safeGender = gender === 'female' ? 'female' : (gender === 'male' ? 'male' : null);
+  if (!safeGender) return res.status(400).json({ error: 'تکایە ڕەگەز دیاری بکە (نێر یان مێ)' });
+
+  const target = users.findById(userId);
+  if (!target) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
+
+  if (isMasterSuperAdmin(target) && !isMasterSuperAdmin(req.user)) {
+    return res.status(403).json({ error: 'دەستکاریکردنی ڕەگەزی سوپەر ئەدمینی سەرەکی قەدەغەیە' });
+  }
+  if (target.role === 'super_admin' && !hasSuperAdminPrivileges(req.user)) {
+    return res.status(403).json({ error: 'دەستکاریکردنی ڕەگەزی سوپەر ئەدمین قەدەغەیە' });
+  }
+
+  const updated = users.updateGender(userId, safeGender);
+  if (!updated) return res.status(404).json({ error: 'بەکارهێنەر نەدۆزرایەوە' });
+
+  io.emit('user_profile_updated', {
+    user_id: userId,
+    gender: updated.gender
   });
 
   res.json({ success: true, user: updated });
@@ -6519,11 +6583,11 @@ app.post('/api/chat/last-read', authMiddleware, (req, res) => {
   res.json({ success: true, last_read_message_id: messageId });
 });
 
-// Message Reactions (🏆, 🤲, 👍, 💯)
+// Message Reactions (🏆, 🤲, 👍, 💯, ❤️, ⭐)
 app.post('/api/chat/messages/:id/react', authMiddleware, (req, res) => {
   const msgId = parseInt(req.params.id);
   const { emoji } = req.body;
-  const allowed = ['🏆', '🤲', '👍', '💯'];
+  const allowed = ['🏆', '🤲', '👍', '💯', '❤️', '⭐'];
   if (!allowed.includes(emoji)) {
     return res.status(400).json({ error: 'ئیمۆجی ڕێگاپێدراو نییە' });
   }

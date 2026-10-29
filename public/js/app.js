@@ -2217,6 +2217,19 @@ function initSocket() {
     loadAllMembers();
   });
 
+  socket.on('user_profile_updated', (data) => {
+    if (!data) return;
+    if (currentUser && currentUser.id === data.user_id) {
+      if (data.full_name) currentUser.full_name = data.full_name;
+      if (data.gender) currentUser.gender = data.gender;
+      updateUserUI();
+    }
+    loadAllMembers();
+    if (typeof currentProfileUserId !== 'undefined' && currentProfileUserId === data.user_id && document.getElementById('userProfileModal') && !document.getElementById('userProfileModal').classList.contains('hidden')) {
+      openUserProfileModal(data.user_id);
+    }
+  });
+
   socket.on('user_deleted', (data) => {
     if (currentUser && currentUser.id === data.user_id) {
       alert('ئەکاونتەکەت لەلایەن سوپەر ئەدمینەوە سڕایەوە و دەرکرایت.');
@@ -2924,21 +2937,23 @@ function appendMessage(msg, scroll = true) {
             </div>
 
             <!-- Reaction section for the teacher's model answer -->
-            <div class="mt-2.5 pt-2 border-t border-emerald-500/30 flex items-center justify-between gap-2 flex-wrap">
-              <div class="flex items-center gap-1.5">
-                <span class="text-[11px] font-bold text-emerald-300/80">کاردانەوە:</span>
-                <div class="flex items-center gap-1">
-                  <button type="button" onclick="sendReaction(${msg.id}, '⭐', event)" class="px-2 py-0.5 rounded-lg bg-emerald-900/40 hover:bg-emerald-800/60 border border-emerald-500/30 text-xs transition active:scale-95" title="ئەستێرە">⭐</button>
-                  <button type="button" onclick="sendReaction(${msg.id}, '💯', event)" class="px-2 py-0.5 rounded-lg bg-emerald-900/40 hover:bg-emerald-800/60 border border-emerald-500/30 text-xs transition active:scale-95" title="سەد لە سەد">💯</button>
-                  <button type="button" onclick="sendReaction(${msg.id}, '🤲', event)" class="px-2 py-0.5 rounded-lg bg-emerald-900/40 hover:bg-emerald-800/60 border border-emerald-500/30 text-xs transition active:scale-95" title="دەستخۆشی و دوعا">🤲</button>
-                  <button type="button" onclick="sendReaction(${msg.id}, '👍', event)" class="px-2 py-0.5 rounded-lg bg-emerald-900/40 hover:bg-emerald-800/60 border border-emerald-500/30 text-xs transition active:scale-95" title="بەدڵبوون">👍</button>
-                  <button type="button" onclick="sendReaction(${msg.id}, '🏆', event)" class="px-2 py-0.5 rounded-lg bg-emerald-900/40 hover:bg-emerald-800/60 border border-emerald-500/30 text-xs transition active:scale-95" title="نایاب">🏆</button>
-                  <button type="button" onclick="sendReaction(${msg.id}, '❤️', event)" class="px-2 py-0.5 rounded-lg bg-emerald-900/40 hover:bg-emerald-800/60 border border-emerald-500/30 text-xs transition active:scale-95" title="دڵ">❤️</button>
+            <div class="mt-2.5 pt-2 border-t border-emerald-500/30 flex flex-col gap-2">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div class="flex items-center gap-1.5 flex-wrap min-w-0 max-w-full">
+                  <span class="text-[11px] font-bold text-emerald-300/80 shrink-0">کاردانەوە:</span>
+                  <div class="inline-flex items-center gap-1 bg-emerald-950/40 p-1 rounded-xl border border-emerald-500/20 flex-wrap max-w-full">
+                    <button type="button" onclick="sendReaction(${msg.id}, '⭐', event)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-xs transition active:scale-95 shrink-0" title="ئەستێرە">⭐</button>
+                    <button type="button" onclick="sendReaction(${msg.id}, '💯', event)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-xs transition active:scale-95 shrink-0" title="سەد لە سەد">💯</button>
+                    <button type="button" onclick="sendReaction(${msg.id}, '🤲', event)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-xs transition active:scale-95 shrink-0" title="دەستخۆشی و دوعا">🤲</button>
+                    <button type="button" onclick="sendReaction(${msg.id}, '👍', event)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-xs transition active:scale-95 shrink-0" title="بەدڵبوون">👍</button>
+                    <button type="button" onclick="sendReaction(${msg.id}, '🏆', event)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-xs transition active:scale-95 shrink-0" title="نایاب">🏆</button>
+                    <button type="button" onclick="sendReaction(${msg.id}, '❤️', event)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-900/40 hover:bg-emerald-800/80 border border-emerald-500/30 text-xs transition active:scale-95 shrink-0" title="دڵ">❤️</button>
+                  </div>
                 </div>
               </div>
 
               <!-- Reactions Container rendered dynamically -->
-              <div id="msg-reactions-${msg.id}" class="flex items-center gap-1 flex-wrap">
+              <div id="msg-reactions-${msg.id}" class="flex items-center gap-1.5 flex-wrap empty:hidden">
                 ${reactionsHtml}
               </div>
             </div>
@@ -3693,11 +3708,13 @@ function appendMessage(msg, scroll = true) {
     </div>
 
     <!-- Quick Reaction Picker Popover (Hidden by default) -->
-    <div id="reaction-picker-${msg.id}" class="hidden my-1 bg-slate-900 border border-slate-700/80 rounded-2xl p-1.5 shadow-2xl z-20 flex items-center gap-1 animate-scale-up">
-      <button type="button" onclick="sendReaction(${msg.id}, '🏆', event)" class="p-1.5 hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="کاس">🏆</button>
-      <button type="button" onclick="sendReaction(${msg.id}, '🤲', event)" class="p-1.5 hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="دوعا">🤲</button>
-      <button type="button" onclick="sendReaction(${msg.id}, '👍', event)" class="p-1.5 hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="ڵایک">👍</button>
-      <button type="button" onclick="sendReaction(${msg.id}, '💯', event)" class="p-1.5 hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="سەد لەسەد">💯</button>
+    <div id="reaction-picker-${msg.id}" class="hidden my-1 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl p-1 shadow-2xl z-20 flex items-center gap-1 flex-wrap max-w-full animate-scale-up">
+      <button type="button" onclick="sendReaction(${msg.id}, '⭐', event)" class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="ئەستێرە">⭐</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '💯', event)" class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="سەد لەسەد">💯</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '🤲', event)" class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="دوعا">🤲</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '👍', event)" class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="ڵایک">👍</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '🏆', event)" class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="کاس">🏆</button>
+      <button type="button" onclick="sendReaction(${msg.id}, '❤️', event)" class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded-xl text-sm transition active:scale-125" title="دڵ">❤️</button>
     </div>
 
     <div id="msg-bubble-${msg.id}" onclick="handleMessageBubbleClick(${msg.id}, event)" class="max-w-lg md:max-w-xl rounded-2xl px-3.5 py-2 text-xs md:text-sm leading-relaxed shadow break-words ${bubbleBg} cursor-pointer transition-transform duration-150 active:scale-[0.99] group/bubble">
@@ -6961,17 +6978,27 @@ async function openUserProfileModal(userId) {
     if ((isPrivileged || canManageThisUser || canModerateThisUser) && !isMe && !targetIsMaster) {
       superAdminActions.classList.remove('hidden');
       let roleChangeHtml = '';
+      let genderChangeHtml = '';
       let renameActionHtml = '';
       if (canManageThisUser) {
         roleChangeHtml = `
           <div class="flex items-center gap-1.5">
             <span class="text-[11px] text-slate-400 font-bold">پلە:</span>
-            <select onchange="changeRole(${prof.id}, this.value); closeUserProfileModal();" class="bg-slate-900 border border-slate-700 text-xs text-white rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-bold">
+            <select onchange="changeRole(${prof.id}, this.value); closeUserProfileModal();" class="bg-slate-900 border border-slate-700 text-xs text-white rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-bold cursor-pointer">
               <option value="student" ${prof.role === 'student' ? 'selected' : ''}>🎓 قوتابی</option>
               <option value="teacher" ${prof.role === 'teacher' ? 'selected' : ''}>👨‍🏫 مامۆستا</option>
               <option value="new_student" ${prof.role === 'new_student' ? 'selected' : ''}>🔰 قوتابی تازە</option>
               <option value="guest" ${prof.role === 'guest' ? 'selected' : ''}>👁️ میوان (چاودێر)</option>
               <option value="admin" ${prof.role === 'admin' ? 'selected' : ''}>🛡️ ئەدمین</option>
+            </select>
+          </div>
+        `;
+        genderChangeHtml = `
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-slate-400 font-bold">ڕەگەز:</span>
+            <select onchange="adminUpdateUserGender(${prof.id}, this.value)" class="bg-slate-900 border border-slate-700 text-xs text-white rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-bold cursor-pointer">
+              <option value="male" ${prof.gender === 'male' ? 'selected' : ''}>🧔 کوڕ (نێر)</option>
+              <option value="female" ${prof.gender === 'female' ? 'selected' : ''}>🧕 کچ (مێ)</option>
             </select>
           </div>
         `;
@@ -7008,7 +7035,7 @@ async function openUserProfileModal(userId) {
         `;
       }
 
-      actionSlot.innerHTML = `${roleChangeHtml} ${renameActionHtml} ${muteActionHtml} ${deleteActionHtml}`;
+      actionSlot.innerHTML = `${roleChangeHtml} ${genderChangeHtml} ${renameActionHtml} ${muteActionHtml} ${deleteActionHtml}`;
     } else {
       superAdminActions.classList.add('hidden');
     }
@@ -7236,6 +7263,60 @@ async function promptAdminEditUserName(userId, currentName) {
   } catch (err) {
     alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
   }
+}
+
+async function adminUpdateUserGender(userId, newGender) {
+  if (!newGender || (newGender !== 'male' && newGender !== 'female')) return;
+  const label = newGender === 'female' ? 'مێ (کچ 🧕)' : 'نێر (کوڕ 🧔)';
+  if (!confirm(`ئایا دڵنیایت لە گۆڕینی ڕەگەزی ئەم بەکارهێنەرە بۆ «${label}»؟`)) {
+    if (typeof currentProfileUserId !== 'undefined' && currentProfileUserId === userId && document.getElementById('userProfileModal') && !document.getElementById('userProfileModal').classList.contains('hidden')) {
+      openUserProfileModal(userId);
+    } else {
+      loadAllMembers();
+    }
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/admin/users/${userId}/update-gender`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ gender: newGender })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert(`ڕەگەزی بەکارهێنەر بەسەرکەوتوویی گۆڕدرا بۆ «${label}» ✨`);
+      if (document.getElementById('userProfileModal') && !document.getElementById('userProfileModal').classList.contains('hidden')) {
+        openUserProfileModal(userId);
+      }
+      loadAllMembers();
+      loadMessages();
+    } else {
+      alert(data.error || 'هەڵەیەک ڕوویدا');
+      loadAllMembers();
+    }
+  } catch (err) {
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+    loadAllMembers();
+  }
+}
+
+async function promptAdminEditUserGender(userId, currentGender) {
+  const currentLabel = currentGender === 'female' ? 'مێ (کچ)' : 'نێر (کوڕ)';
+  const choice = prompt(`ڕەگەزی نوێ دیاری بکە بۆ ئەم بەکارهێنەرە:\n(ئێستا: ${currentLabel})\n\nبۆ کوڕ بنووسە: male یان نێر\nبۆ کچ بنووسە: female یان مێ`);
+  if (!choice || !choice.trim()) return;
+  const c = choice.trim().toLowerCase();
+  let targetGender = null;
+  if (c === 'male' || c === 'نێر' || c === 'کوڕ') targetGender = 'male';
+  else if (c === 'female' || c === 'مێ' || c === 'کچ') targetGender = 'female';
+  else {
+    alert('ڕەگەزی دیاریکراو نەناسراوە! دەبێت بنووسیت male یان female');
+    return;
+  }
+  await adminUpdateUserGender(userId, targetGender);
 }
 
 async function deleteUserAccount(userId, fullName) {
@@ -8071,6 +8152,14 @@ function renderAllUsersList() {
                 <option value="new_student" class="bg-slate-900 text-teal-400" ${u.role === 'new_student' ? 'selected' : ''}>🔰 تازە</option>
                 <option value="guest" class="bg-slate-900 text-slate-400" ${u.role === 'guest' ? 'selected' : ''}>👁️ میوان</option>
                 <option value="admin" class="bg-slate-900 text-emerald-400" ${u.role === 'admin' ? 'selected' : ''}>🛡️ ئەدمین</option>
+              </select>
+            </div>
+
+            <div class="flex items-center gap-1 bg-slate-900 border border-slate-700 px-2 py-1 rounded-xl">
+              <span class="text-[10px] text-slate-400 font-bold">ڕەگەز:</span>
+              <select onchange="adminUpdateUserGender(${u.id}, this.value)" class="bg-transparent text-xs text-white font-bold focus:outline-none cursor-pointer">
+                <option value="male" class="bg-slate-900 text-sky-400" ${u.gender === 'male' ? 'selected' : ''}>🧔 نێر</option>
+                <option value="female" class="bg-slate-900 text-pink-400" ${u.gender === 'female' ? 'selected' : ''}>🧕 مێ</option>
               </select>
             </div>
           ` : ''}
@@ -11444,8 +11533,11 @@ function renderMessageReactionsHtml(reactions, messageId) {
   if (!reactions || !Array.isArray(reactions) || reactions.length === 0) return '';
   const isStaff = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'teacher');
   return reactions.map(r => {
-    const activeClass = r.userReacted
-      ? 'bg-sky-500/25 text-sky-300 border-sky-400/60 shadow-sm scale-105'
+    const isMine = (Array.isArray(r.user_ids) && currentUser)
+      ? r.user_ids.includes(currentUser.id)
+      : Boolean(r.userReacted || r.reactedByMe);
+    const activeClass = isMine
+      ? 'bg-sky-500/25 text-sky-300 border-sky-400/60 shadow-sm scale-105 ring-1 ring-sky-400/50'
       : 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:border-slate-500';
     
     // Super Admin & Teacher can tap to see who gave reaction; Students toggle reaction
@@ -11455,13 +11547,13 @@ function renderMessageReactionsHtml(reactions, messageId) {
     
     const clickTitle = isStaff
       ? `پەنجە بنێ بۆ بینینی ئەوانەی کاردانەوەی ${r.emoji}یان داناوە`
-      : r.emoji;
+      : (isMine ? `کاردانەوەکەت (${r.emoji}) - پەنجە بنێ بۆ لابردن` : r.emoji);
 
     return `
       <button 
         type="button"
         onclick="${clickHandler}" 
-        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border transition shadow-sm active:scale-95 cursor-pointer ${activeClass}"
+        class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border transition shadow-sm active:scale-95 cursor-pointer ${activeClass}"
         title="${clickTitle}"
       >
         <span>${r.emoji}</span>
