@@ -114,6 +114,28 @@
       user-select: none !important;
       -webkit-user-drag: none !important;
     }
+    /* Live Participants List Visible & Smooth Scrollbar */
+    .live-participants-scroll {
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      scrollbar-width: thin !important;
+      scrollbar-color: rgba(244, 63, 94, 0.5) rgba(15, 23, 42, 0.8) !important;
+    }
+    .live-participants-scroll::-webkit-scrollbar {
+      width: 5px !important;
+      height: 5px !important;
+    }
+    .live-participants-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.7) !important;
+      border-radius: 999px !important;
+    }
+    .live-participants-scroll::-webkit-scrollbar-thumb {
+      background: rgba(244, 63, 94, 0.45) !important;
+      border-radius: 999px !important;
+    }
+    .live-participants-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(244, 63, 94, 0.8) !important;
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 h-screen overflow-hidden flex flex-col antialiased selection:bg-[#dfaa86] selection:text-slate-950">
@@ -3408,7 +3430,7 @@
         </div>
 
         <!-- Scrollable Participants Grid (Discord Style Voice Stage) -->
-        <div id="liveParticipantsList" class="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 md:p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5 md:gap-4 content-start overscroll-contain">
+        <div id="liveParticipantsList" class="flex-1 min-h-0 overflow-y-auto p-2 sm:p-2.5 md:p-3 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-2.5 md:gap-3 content-start overscroll-contain live-participants-scroll">
           <!-- Rendered in JS as Discord-style square cards -->
         </div>
 
@@ -3481,6 +3503,46 @@
         </div>
 
       </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: LIVE PARTICIPANT ACTIONS (MUTE / UNMUTE / KICK) ================= -->
+  <div id="liveParticipantActionModal" class="hidden fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn" onclick="if(event.target===this) closeLiveParticipantActionModal()">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-sm p-5 shadow-2xl space-y-4 text-center relative overflow-hidden" onclick="event.stopPropagation()">
+      
+      <!-- Close X Button -->
+      <button onclick="closeLiveParticipantActionModal()" class="absolute top-3.5 left-3.5 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <!-- Avatar & Name -->
+      <div class="flex flex-col items-center pt-2">
+        <div id="liveParticipantModalAvatar" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full ring-4 ring-rose-500/30 overflow-hidden bg-slate-800 shadow-xl mb-2.5 flex items-center justify-center"></div>
+        <h4 id="liveParticipantModalName" class="text-sm sm:text-base font-black text-white truncate max-w-full">ناو</h4>
+        <p id="liveParticipantModalUsername" class="text-xs text-slate-400 font-mono mt-0.5">@username</p>
+        <span id="liveParticipantModalRole" class="mt-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold">ئەندام</span>
+      </div>
+
+      <!-- Mic Status Badge -->
+      <div id="liveParticipantModalMicStatus" class="flex justify-center"></div>
+
+      <!-- Moderation Action Buttons -->
+      <div id="liveParticipantModalModActions" class="space-y-2 pt-2 border-t border-slate-800">
+        <button id="liveParticipantModalMicBtn" type="button" class="w-full py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition active:scale-95 shadow">
+          <i class="fa-solid fa-microphone"></i>
+          <span>مۆڵەتدانی مایک</span>
+        </button>
+        <button id="liveParticipantModalKickBtn" type="button" class="w-full py-2.5 px-4 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition active:scale-95 shadow">
+          <i class="fa-solid fa-user-xmark"></i>
+          <span>دەرکردن لەم وانەیە (Kick)</span>
+        </button>
+      </div>
+
+      <!-- Dismiss Button -->
+      <button onclick="closeLiveParticipantActionModal()" type="button" class="w-full py-2 px-4 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold transition">
+        داخستن
+      </button>
 
     </div>
   </div>
@@ -4727,6 +4789,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=24.5"></script>
+  <script src="/js/app.js?v=24.6"></script>
 </body>
 </html>
