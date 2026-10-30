@@ -6548,12 +6548,16 @@ function toggleMembersSidebar() {
       sidebar.classList.remove('translate-x-full');
       sidebar.classList.add('translate-x-0');
       if (backdrop) backdrop.classList.remove('hidden');
+      clearMembersSearch();
     } else {
       closeMembersSidebar();
     }
   } else {
     sidebar.classList.toggle('hidden');
     sidebar.classList.toggle('flex');
+    if (!sidebar.classList.contains('hidden')) {
+      clearMembersSearch();
+    }
   }
 }
 
@@ -6565,6 +6569,7 @@ function closeMembersSidebar() {
     sidebar.classList.remove('translate-x-0');
   }
   if (backdrop) backdrop.classList.add('hidden');
+  clearMembersSearch();
 }
 
 function filterMembersList(filter) {
@@ -6577,7 +6582,36 @@ function filterMembersList(filter) {
 
 let membersSearchQuery = '';
 function handleMembersSearch(query) {
+  // Prevent browser autofill from dumping user credentials into the search input
+  const inp = document.getElementById('membersSearchInput');
+  if (inp && inp.matches && inp.matches(':-webkit-autofill')) {
+    inp.value = '';
+    membersSearchQuery = '';
+    renderMembersList();
+    return;
+  }
+
   membersSearchQuery = (query || '').trim().toLowerCase();
+  const clearBtn = document.getElementById('clearMembersSearchBtn');
+  if (clearBtn) {
+    if (membersSearchQuery.length > 0) {
+      clearBtn.classList.remove('hidden');
+    } else {
+      clearBtn.classList.add('hidden');
+    }
+  }
+  renderMembersList();
+}
+
+function clearMembersSearch() {
+  const inp = document.getElementById('membersSearchInput');
+  if (inp) {
+    inp.value = '';
+    inp.setAttribute('readonly', 'readonly');
+  }
+  membersSearchQuery = '';
+  const clearBtn = document.getElementById('clearMembersSearchBtn');
+  if (clearBtn) clearBtn.classList.add('hidden');
   renderMembersList();
 }
 
@@ -8248,6 +8282,13 @@ let allUsersAdminCache = [];
 let adminUsersSearchQuery = '';
 
 function handleAdminUsersSearch(query) {
+  const inp = document.getElementById('adminUsersSearchInput');
+  if (inp && inp.matches && inp.matches(':-webkit-autofill')) {
+    inp.value = '';
+    adminUsersSearchQuery = '';
+    renderAllUsersList();
+    return;
+  }
   adminUsersSearchQuery = (query || '').trim().toLowerCase();
   renderAllUsersList();
 }
