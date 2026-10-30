@@ -17915,8 +17915,7 @@ async function openCustomGroupChatModal(groupId) {
   }
   const quickTagBar = document.getElementById('customGroupQuickTagBar');
   if (quickTagBar) {
-    if (isSuperAdmin) quickTagBar.classList.remove('hidden');
-    else quickTagBar.classList.add('hidden');
+    quickTagBar.classList.remove('hidden');
   }
 
   // Poll & Alarm buttons in group chat

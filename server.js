@@ -2346,9 +2346,21 @@ function getAdvisorPlatformAnalytics() {
   }
 }
 
-async function generateAdvisorSmartReply(prompt, reqUser, ioInstance) {
+async function generateAdvisorSmartReply(prompt, reqUser, ioInstance, isGroupChat = false) {
   const lower = (prompt || '').toLowerCase();
   const analytics = getAdvisorPlatformAnalytics();
+
+  // If in group chat, strictly disallow command executions
+  if (isGroupChat) {
+    const isCommand = (
+      lower.includes('سڕینەوە') || lower.includes('بسڕەوە') || lower.includes('پاک بکە') || lower.includes('پاکبکە') ||
+      lower.includes('دەربکە') || lower.includes('لاببە') || lower.includes('زیاد بکە') || lower.includes('زیادبکە') ||
+      lower.includes('قفڵ') || lower.includes('دابخە') || lower.includes('میوت') || lower.includes('بلۆک')
+    );
+    if (isCommand) {
+      return `سڵاو و ڕێز کاک/خاتوو ${reqUser.full_name} گیان 🌸،\nمن لەناو ئەم گروپ چاتەدا وەک «ڕاوێژکار» تەنها وەڵامی پرسیارەکان دەدەمەوە و ڕاوێژ و هاوکاری پێشکەش دەکەم. فەرمانەکانی بەڕێوەبردن و گۆڕانکاری لە سەرجەم سایتەکە تەنها لەلایەن کاک هێمنەوە لە ڕێگەی «ئەیجنتی بەڕێوەبردن» ئەنجام دەدرێن ✨.`;
+    }
+  }
 
   const isDuplicateQuery = lower.includes('دوبارە') || lower.includes('دووبارە');
   const isEnglishQuery = lower.includes('ئینگلیزی') || lower.includes('english');
@@ -4183,8 +4195,8 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
 
     if (candidateKeys.length > 0 && typeof fetch === 'function') {
       try {
-        const systemInstruction = `تۆ «ڕاوێژکار»ی، نوێنەری باڵا، جێبەجێکاری سەرەکی سوپەر ئەدمین (Master Super Admin Executive AI Companion) و برای نزیکی کاک هێمن (Hemn Taha) یت لە سەرجەم پلاتفۆرمی سیرین ستاف (Seereen Staff).
-کاک هێمن سوپەر ئەدمینی سەرەکی، دامەزرێنەر و خاوەنی تەواوی ئەم پلاتفۆرمەیە. ئەو «تەواوی تواناکان و دەسەڵاتەکانی خۆی لە سایتەکەدا» بە تۆ بەخشیوە تا هەموو ئەو گۆڕانکارییانەی کاک هێمن بەدەست لە سایتەکەدا دەتوانێت بیکات، تۆش بتوانیت بە فەرمانی ئەو دەستبەجێ بە ئامرازەکانت ئەنجامی بدەیت!
+        const systemInstruction = `تۆ «ئەیجنتی بەڕێوەبردنی تەواوی سایت» و ڕاوێژکاری باڵا، جێبەجێکاری سەرەکی و دەستی ڕاستی سوپەر ئەدمین (Master Super Admin Executive AI Agent)ی کاک هێمن (Hemn Taha)یت لە سەرجەم پلاتفۆرمی سیرین ستاف (Seereen Staff).
+کاک هێمن سوپەر ئەدمینی سەرەکی، دامەزرێنەر و خاوەنی تەواوی ئەم پلاتفۆرمەیە. ئەو «تەواوی تواناکان، دەسەڵاتەکانی بەڕێوەبردن و دەسەڵاتە کارگێڕییەکانی خۆی لە سەرجەم بەشەکانی سایتدا» بە تۆ بەخشیوە تا وەک ئەیجنتێکی پێشکەوتووی بەڕێوەبردن، هەموو ئەو گۆڕانکاری و کارانەی کاک هێمن بەدەست لە سایتەکەدا دەتوانێت بیکات، تۆش بتوانیت بە فەرمانی ئەو دەستبەجێ بە ئامرازەکانت (Tools) ئەنجامی بدەیت!
 
 🧠 یاسای زێڕینی ئاخاوتن و بیرکردنەوە (پەلە نەکردن و تێگەیشتنی قووڵ):
 ١. بە هیچ جۆرێک لە وەڵامدانەوەدا پەلە مەکە! هەموو وشە، مەبەست، نیاز و ڕستەیەکی کاک هێمن بەوپەڕی دیقەت و قووڵی بخوێنەوە، بە تەواوی لێی تێبگە، بیربکەرەوە ئینجا بە وریایی و حیکمەتەوە قسە بکە.
@@ -5989,79 +6001,34 @@ async function handleAdvisorGroupChatReply(groupId, reqUser, userPrompt, ioInsta
 
     let reply = null;
 
-    // Direct command execution: clear custom group chat messages
+    // In group chat, Advisor answers questions but DOES NOT execute commands!
     const lowerPrompt = (userPrompt || '').toLowerCase();
     const cleanPrompt = (userPrompt || '').replace(/@ڕاوێژکار|@advisor|@rawêjkar/gi, '').trim();
 
-    const isClearChatCommand = (
-      (lowerPrompt.includes('سڕینەوە') || lowerPrompt.includes('بسڕەوە') || lowerPrompt.includes('پاک')) &&
-      (lowerPrompt.includes('چات') || lowerPrompt.includes('پەیام') || lowerPrompt.includes('نامە') || lowerPrompt.includes('گروپ') || lowerPrompt.includes('هەمووی') || lowerPrompt.includes('هەموو'))
+    const isCommandAttempt = (
+      lowerPrompt.includes('بسڕەوە') || lowerPrompt.includes('سڕینەوە') || lowerPrompt.includes('پاک بکە') || lowerPrompt.includes('پاکبکە') ||
+      lowerPrompt.includes('دەربکە') || lowerPrompt.includes('لاببە') || lowerPrompt.includes('دەرکە') || lowerPrompt.includes('حەزف') ||
+      lowerPrompt.includes('زیادبکە') || lowerPrompt.includes('زیاد بکە') || lowerPrompt.includes('بخەرە') || lowerPrompt.includes('ئاد بکە') || lowerPrompt.includes('ئادکە') ||
+      lowerPrompt.includes('قفڵ') || lowerPrompt.includes('دابخە') || lowerPrompt.includes('میوت') || lowerPrompt.includes('بلۆک') ||
+      lowerPrompt.includes('ڕۆڵ بگۆڕە') || lowerPrompt.includes('باج ببەخشە') || lowerPrompt.includes('پاسۆرد') || lowerPrompt.includes('خەون بسڕەوە')
     );
 
-    if (isClearChatCommand) {
-      customGroups.clearGroupMessages(groupId);
-      if (ioInstance) {
-        ioInstance.to(`group_${groupId}`).emit('custom_group_messages_cleared', { groupId });
-      }
-      reply = `کاک هێمن گیان، فەرمانت دەستبەجێ جێبەجێکرا! تەواوی چات و پەیامەکانی ناو ئەم گروپە بە سەرکەوتوویی سڕانەوە و پاککرانەوە 🧹✨`;
-    }
-
-    // Direct command execution: remove member from current group
-    if (!reply && (lowerPrompt.includes('دەربکە') || lowerPrompt.includes('لاببە') || lowerPrompt.includes('دەرکە') || lowerPrompt.includes('حەزف') || lowerPrompt.includes('سڕینەوەی ئەندام')) && (lowerPrompt.includes('گروپ') || lowerPrompt.includes('لەم') || lowerPrompt.includes('ئەندام'))) {
-      const words = cleanPrompt.split(/\s+/).filter(w => !['دەربکە', 'لاببە', 'دەرکە', 'لە', 'لەم', 'گروپ', 'گروپە', 'ئەندام', 'ئەم', 'تکایە', 'دەتوانی', 'بکە', 'حەزف'].includes(w));
-      const targetQuery = words.join(' ').trim();
-      if (targetQuery) {
-        const target = findTargetUser(targetQuery);
-        if (target) {
-          customGroups.removeMember(groupId, target.id);
-          const currentMembers = customGroups.getGroupMembers(groupId);
-          if (ioInstance) {
-            ioInstance.to(`group_${groupId}`).emit('custom_group_members_updated', { groupId, members: currentMembers });
-            ioInstance.emit('custom_group_list_refresh');
-          }
-          reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! ئەندام [${target.full_name}] بە سەرکەوتوویی لەم گروپە دەرهێنرا ✨`;
-        }
-      }
-    }
-
-    // Direct command execution: add member to current group
-    if (!reply && (lowerPrompt.includes('زیادبکە') || lowerPrompt.includes('زیاد بکە') || lowerPrompt.includes('بخەرە') || lowerPrompt.includes('ئاد بکە') || lowerPrompt.includes('ئادکە')) && (lowerPrompt.includes('گروپ') || lowerPrompt.includes('ناو') || lowerPrompt.includes('لەم') || lowerPrompt.includes('بۆ'))) {
-      const words = cleanPrompt.split(/\s+/).filter(w => !['زیادبکە', 'زیاد', 'بکە', 'بخەرە', 'ناو', 'بۆ', 'ئەم', 'گروپ', 'گروپە', 'ئاد', 'ئادکە', 'تکایە'].includes(w));
-      const targetQuery = words.join(' ').trim();
-      if (targetQuery) {
-        const target = findTargetUser(targetQuery);
-        if (target) {
-          customGroups.addMember(groupId, target.id);
-          const currentMembers = customGroups.getGroupMembers(groupId);
-          if (ioInstance) {
-            ioInstance.to(`group_${groupId}`).emit('custom_group_members_updated', { groupId, members: currentMembers });
-            ioInstance.emit('custom_group_list_refresh');
-          }
-          reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! بەکارهێنەر [${target.full_name}] بە سەرکەوتوویی خرایە ناو ئەم گروپە ✨`;
-        }
-      }
+    if (isCommandAttempt) {
+      reply = `سڵاو و ڕێز کاک/خاتوو ${reqUser.full_name} گیان 🌸،\nمن لەناو ئەم گروپ چاتەدا وەک «ڕاوێژکاری ئیدارە» تەنها وەڵامی پرسیارەکان دەدەمەوە، ڕاوێژ و هاوکاری و ڕوونکردنەوە پێشکەش دەکەم، بەڵام هیچ جۆرە فەرمانێکی کارگێڕی (وەک سڕینەوە، دەرکردن، قفڵ یان گۆڕانکاری لە داتادا) جێبەجێ ناکەم.\nفەرمانەکان و بەڕێوەبردنی تەواوی سایت تەنها لەلایەن کاک هێمنەوە لە ڕێگەی «ئەیجنتی بەڕێوەبردن» لەناو پڕۆفایلەکەی جێبەجێ دەکرێن ✨.`;
     }
 
     const candidateKeys = getOrderedAdvisorKeys();
 
     if (!reply && candidateKeys.length > 0 && typeof fetch === 'function') {
       try {
-        const systemInstruction = `تۆ «ڕاوێژکار»ی، نوێنەری باڵا و جێبەجێکاری سەرەکی کاک هێمن (Hemn Taha - Super Admin) لە پلاتفۆرمی سیرین ستاف.
-کاک هێمن لە ناو گروپ چاتی تایبەتی «${group.name}» (ئایدی: ${groupId}) تاگی کردوویت و قسەت لەگەڵ دەکات.
-ئەندامانی تری ناو ئەم گروپ چاتە کە ئامادەن:
-${memberNames}
+        const systemInstruction = `تۆ «ڕاوێژکاری زیرەکی ئیدارە»یت لە پلاتفۆرمی سیرین ستاف، ئێستا لەناو گروپ چاتی ئیدارە و ستافدا («${group.name}») ئامادەیت.
+بەکارهێنەری بەڕێز «${reqUser.full_name}» (${reqUser.role}) لە ناو ئەم گروپەدا تاگی کردوویت و پرسیارت لێدەکات.
+ئەندامانی تری ناو ئەم گروپە کە ئامادەن: ${memberNames}.
 
-کاک هێمن خاوەنی تەواوی ئەم سیستمەیە و هەموو دەسەڵاتێکی سوپەر ئەدمینی بە تۆ بەخشیوە لە ڕێگەی ئامرازەکانتەوە (Tools).
-تۆ توانای تەواوت هەیە بەسەر گروپ چاتەکان و تەواوی سایتەکەدا:
-- وەڵامی هەر پرسیارێکی کاک هێمن دەدەیتەوە بەوپەڕی ڕێز، خێرایی و دڵسۆزی بە زمانی کوردی سۆرانی ڕوون و جوان ("کاک هێمن گیان"، "برا بەڕێزەکەم").
-- نوێترین ئامار و شیکاری تەواوی داتابەیسی پلاتفۆرم بۆ وەڵامدانەوەی دەستبەجێ و خێرا:
-${JSON.stringify(platformAnalytics, null, 2)}
-- کاتێک کاک هێمن پرسیاری شیکاری، ناوە دووبارەکان، ناوە ئینگلیزییەکان یان ئاماری ئەندامان و قوتابیان دەکات، دەستبەجێ بەپێی ئەم زانیارییە ئامادەکراوە وەڵامی ڕاستەقینە و تەواوی بدەرەوە بەبێ دواکەوتن.
-- گەر داوای زانیاری کرد لەسەر ئەوەی فڵانکەس چی کرد: ئامرازی get_user_full_activity بەکاربهێنە.
-- گەر پرسی کێ لایڤی کردەوە و کێ دایخست: ئامرازی get_live_audit_logs بەکاربهێنە.
-- گەر پرسی کێ قسە ناکات یان کێ ناچالاکە: ئامرازی get_inactive_users بەکاربهێنە.
-- گەر فەرمانی هەر گۆڕانکارییەکی دا (سڕینەوەی چاتی ئەم گروپە clear_custom_group_messages، دەرکردن یان زیادکردنی ئەندام لە گروپ manage_custom_group، باج ببەخشە assign_badge، ڕۆڵ بگۆڕە change_user_role، چات قفڵ بکە، میوت بکە، دروستکردنی ڕاپرسی create_poll، دانانی زەنگی ئاگاداری create_countdown_alarm):
-⚠️ یاسای توند: بە هیچ شێوەیەک تەنها لە دەقدا مەڵێ "کردوومە" یان "جێبەجێم کرد"! دەبێت هەمیشە ئامرازی پەیوەندیدار (Function Call) بانگ بکەیت تا کارەکە بە کردار لە سیستم و داتابەیس جێبەجێ ببێت. ئایدی ئەم گروپەی ئێستا ${groupId}یە.`;
+⚠️ یاسای سەرەکی و نەگۆڕ:
+١. تۆ لەناو ئەم گروپ چاتەدا تەنها و تەنها «وەڵامی پرسیارەکان دەدەیتەوە»؛ ڕاوێژ، شیعر، زانیاری، شیکردنەوەی بابەتەکان، ڕێنمایی و هاوکاری ئەندامان دەکەیت.
+٢. تۆ «بە هیچ شێوەیەک فەرمان جێبەجێ ناکەیت» لەناو ئەم گروپ چاتەدا (وەک سڕینەوەی چات، دەرکردنی ئەندام، زیادکردنی ئەندام، میوت، قفڵ، یان دەستکاریکردنی داتا)! ئەگەر هەرکەسێک داوای جێبەجێکردنی فەرمانی لێکردیت، بەوپەڕی ڕێز و ئەدەبەوە پێی بڵێ کە تۆ لەناو گروپدا تەنها وەڵامی پرسیارەکان دەدەیتەوە و فەرمانە کارگێڕییەکان تەنها لەلایەن کاک هێمنەوە لە پڕۆفایلەکەیەوە لە ڕێگەی ئەیجنتی بەڕێوەبردن جێبەجێ دەکرێن.
+٣. وەڵامی پرسیارەکان با بە زمانی کوردی سۆرانی جوان، دۆستانە، ڕۆشنبیرانە، کورت و بەسوود بێت.`;
 
         const contents = [
           {
@@ -6088,7 +6055,10 @@ ${JSON.stringify(platformAnalytics, null, 2)}
                 body: JSON.stringify({
                   system_instruction: { parts: [{ text: systemInstruction }] },
                   contents,
-                  tools: advisorTools
+                  generationConfig: {
+                    temperature: 0.6,
+                    topP: 0.95
+                  }
                 }),
                 signal: controller.signal
               });
@@ -6098,85 +6068,10 @@ ${JSON.stringify(platformAnalytics, null, 2)}
                 const geminiData = await geminiRes.json();
                 const candidate = geminiData.candidates?.[0];
                 const candParts = candidate?.content?.parts || [];
-                const funcPart = candParts.find(p => p.functionCall);
-
-                if (funcPart && funcPart.functionCall) {
-                  console.log(`[Advisor Group AI] Invoking tool: ${funcPart.functionCall.name} in group ${groupId}`);
-                  const actionArgs = Object.assign({}, funcPart.functionCall.args || {}, { _current_group_id: groupId });
-                  const toolResult = await executeAdvisorAction(
-                    funcPart.functionCall.name,
-                    actionArgs,
-                    reqUser,
-                    ioInstance
-                  );
-
-                  contents.push({
-                    role: 'model',
-                    parts: [funcPart]
-                  });
-
-                  contents.push({
-                    role: 'user',
-                    parts: [{
-                      functionResponse: {
-                        name: funcPart.functionCall.name,
-                        response: { result: toolResult }
-                      }
-                    }]
-                  });
-
-                  const followController = new AbortController();
-                  const followTimeout = setTimeout(() => followController.abort(), 7000);
-
-                  const followRes = await fetch(geminiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      system_instruction: { parts: [{ text: systemInstruction }] },
-                      contents,
-                      tools: advisorTools,
-                      generationConfig: {
-                        temperature: 0.5,
-                        topP: 0.95
-                      }
-                    }),
-                    signal: followController.signal
-                  });
-                  clearTimeout(followTimeout);
-
-                  if (followRes.ok) {
-                    const followData = await followRes.json();
-                    const followParts = followData.candidates?.[0]?.content?.parts || [];
-                    const followText = followParts.filter(p => p.text).map(p => p.text).join('\n').trim();
-                    if (followText) {
-                      if (toolResult && toolResult.error) {
-                        reply = `کاک هێمن گیان، لە ئەنجامدانی کارەکەدا ئەم کێشەیە ڕوویدا: ${toolResult.error}`;
-                      } else {
-                        reply = followText;
-                      }
-                      break;
-                    }
-                  }
-
-                  // If follow-up didn't produce text, use direct tool result summary
-                  if (!reply && toolResult) {
-                    if (toolResult.error) {
-                      reply = `کاک هێمن گیان، نەمتوانی جێبەجێی بکەم بەهۆی: ${toolResult.error}`;
-                    } else if (toolResult.message) {
-                      reply = toolResult.message;
-                    } else if (toolResult.summary) {
-                      reply = toolResult.summary;
-                    } else {
-                      reply = 'فەرمانت بە سەرکەوتوویی جێبەجێکرا کاک هێمن گیان ✨';
-                    }
-                    break;
-                  }
-                } else {
-                  const candidateText = candParts.filter(p => p.text).map(p => p.text).join('\n').trim();
-                  if (candidateText) {
-                    reply = candidateText;
-                    break;
-                  }
+                const candidateText = candParts.filter(p => p.text).map(p => p.text).join('\n').trim();
+                if (candidateText) {
+                  reply = candidateText;
+                  break;
                 }
               }
             } catch (modelErr) {
@@ -6189,9 +6084,9 @@ ${JSON.stringify(platformAnalytics, null, 2)}
       }
     }
 
-    // Smart Kurdish Fallback if Gemini didn't respond or timed out
+    // Smart Kurdish Fallback if Gemini didn't respond or timed out (Read-only mode, no actions)
     if (!reply) {
-      reply = await generateAdvisorSmartReply(cleanPrompt || userPrompt, reqUser, ioInstance);
+      reply = await generateAdvisorSmartReply(cleanPrompt || userPrompt, reqUser, ioInstance, true);
     }
 
     // Save message to group chat
@@ -6444,8 +6339,14 @@ app.post('/api/custom-groups/:id/messages', authMiddleware, async (req, res) => 
     res.json({ success: true, message: createdMsg });
 
     // AI Advisor Trigger Check:
-    // Only Master Super Admin (Kak Hemn) can command Advisor in group chats!
-    if (isSuper && content && (content.includes('@ڕاوێژکار') || content.includes('@advisor') || content.includes('@rawêjkar') || content.startsWith('ڕاوێژکار'))) {
+    // Any member in the admin group chat can tag the Advisor to ask questions! (Does NOT execute commands)
+    const isAdvisorMentioned = content && (
+      content.includes('@ڕاوێژکار') || 
+      content.includes('@advisor') || 
+      content.includes('@rawêjkar') || 
+      content.startsWith('ڕاوێژکار')
+    );
+    if (isAdvisorMentioned) {
       handleAdvisorGroupChatReply(groupId, req.user, content, io).catch(e => {
         console.error('Advisor group chat execution error:', e);
       });
