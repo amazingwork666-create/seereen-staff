@@ -625,21 +625,36 @@
                   <span id="drawerSettingsTitle">ڕێکخستن</span>
                 </span>
                 <div class="flex items-center gap-2">
-                  <span id="drawerSettingsBadge" class="text-[10px] px-2 py-0.5 bg-[#dfaa86]/15 text-[#dfaa86] border border-[#dfaa86]/30 rounded-lg font-bold">٤ بژاردە</span>
+                  <span id="drawerSettingsBadge" class="text-[10px] px-2 py-0.5 bg-[#dfaa86]/15 text-[#dfaa86] border border-[#dfaa86]/30 rounded-lg font-bold">٥ بژاردە</span>
                   <i id="drawerSettingsChevron" class="fa-solid fa-chevron-down text-[10px] text-[#dfaa86]/80 transition-transform duration-200 rotate-180"></i>
                 </div>
               </button>
 
-              <!-- Settings Sub-List (All 4 Items Inside) -->
+              <!-- Settings Sub-List (All 5 Items Inside) -->
               <div id="drawerSettingsList" class="p-2 space-y-2 border-t border-slate-800/80 bg-slate-900/40">
 
-                <!-- 1. ئاگاداری مۆبایل و ڕوونما -->
-                <button type="button" id="drawerNotificationBtn" onclick="togglePushNotifications()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition active:scale-98 group">
-                  <span class="flex items-center gap-2.5">
-                    <i id="drawerNotificationIcon" class="fa-solid fa-bell text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
-                    <span id="drawerNotificationText">ئاگاداری مۆبایل و ڕوونما</span>
-                  </span>
-                  <span id="drawerNotificationStatusBadge" class="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-md border border-slate-700">ناچالاک</span>
+                <!-- 1. ئاگاداری بابەتە گرنگەکان -->
+                <button type="button" id="drawerNotificationBtn" onclick="togglePushNotifications()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition active:scale-98 group" title="@هەموو، پرسیار، زەنگ، ڕاپرسی، وەڵامی پرسیار، غیابات، دوگمە">
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <i id="drawerNotificationIcon" class="fa-solid fa-bell text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform shrink-0"></i>
+                    <div class="flex flex-col text-right truncate">
+                      <span id="drawerNotificationText" class="text-xs font-black">ئاگاداری بابەتە گرنگەکان</span>
+                      <span class="text-[9px] text-[#dfaa86]/70 truncate">@هەموو، پرسیار، زەنگ، ڕاپرسی، غیابات، دوگمە</span>
+                    </div>
+                  </div>
+                  <span id="drawerNotificationStatusBadge" class="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-md border border-slate-700 shrink-0">ناچالاک</span>
+                </button>
+
+                <!-- 2. ئاگاداری تەواوی چاتەکان (وەک ماسنجەر) -->
+                <button type="button" id="drawerAllChatNotificationBtn" onclick="toggleAllChatNotifications()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition active:scale-98 group" title="نۆتفیکەیشنی هەموو نامەکانی ناو گروپی گشتی">
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <i id="drawerAllChatNotificationIcon" class="fa-brands fa-facebook-messenger text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform shrink-0"></i>
+                    <div class="flex flex-col text-right truncate">
+                      <span id="drawerAllChatNotificationText" class="text-xs font-black">ئاگاداری تەواوی چاتەکان</span>
+                      <span class="text-[9px] text-slate-400 truncate">وەک ماسنجەر (تەواوی نامەکانی گروپ)</span>
+                    </div>
+                  </div>
+                  <span id="drawerAllChatNotificationBadge" class="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-md border border-slate-700 shrink-0">ناچالاک</span>
                 </button>
 
                 <!-- 2. گۆڕینی زمان -->
@@ -1311,27 +1326,46 @@
         </div>
 
         <!-- Push Notification Settings for Own Profile -->
-        <div id="profNotificationContainer" class="hidden p-3 bg-slate-950/75 border border-[#dfaa86]/25 rounded-2xl shadow-sm">
-          <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center gap-2.5">
-              <span class="w-8 h-8 rounded-xl bg-[#dfaa86]/15 text-[#dfaa86] border border-[#dfaa86]/30 flex items-center justify-center text-sm">
+        <div id="profNotificationContainer" class="hidden p-3.5 bg-slate-950/75 border border-[#dfaa86]/25 rounded-2xl shadow-sm space-y-3">
+          <!-- Item 1: Important Announcements -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="w-8 h-8 rounded-xl bg-[#dfaa86]/15 text-[#dfaa86] border border-[#dfaa86]/30 flex items-center justify-center text-sm shrink-0">
+                  <i class="fa-solid fa-bell"></i>
+                </span>
+                <div>
+                  <p class="font-black text-white text-xs">ئاگاداری بابەتە گرنگەکان 🔔</p>
+                  <p class="text-[10px] text-[#dfaa86]/70">@هەموو، پرسیار، زەنگی میقات، ڕاپرسی، غیابات، دوگمە</p>
+                </div>
+              </div>
+              <span id="profNotificationStatusBadge" class="text-[10px] bg-slate-800 text-[#dfaa86] border border-[#dfaa86]/30 font-bold px-2 py-0.5 rounded-md shrink-0">پشکنین...</span>
+            </div>
+            <div class="flex items-center gap-2 pt-0.5">
+              <button type="button" onclick="togglePushNotifications()" id="profNotificationToggleBtn" class="flex-1 py-2 px-3 bg-gradient-to-r from-[#c78361] to-[#dfaa86] hover:brightness-110 text-slate-950 font-black text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow active:scale-95 cursor-pointer">
                 <i class="fa-solid fa-bell"></i>
+                <span id="profNotificationToggleText">چالاککردن</span>
+              </button>
+              <button type="button" onclick="testPushNotification()" id="profNotificationTestBtn" class="py-2 px-3 bg-slate-900/90 hover:bg-slate-850 text-[#dfaa86] hover:text-white font-bold text-xs rounded-xl border border-[#dfaa86]/30 transition flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer" title="تاقیکردنەوەی ناردنی ئاگاداری دەنگدار بۆ مۆبایلەکەت">
+                <i class="fa-solid fa-paper-plane text-xs"></i>
+                <span>تاقیکردنەوە 🔔</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Item 2: All Chat Messages (Messenger Style) -->
+          <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-8 h-8 rounded-xl bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center justify-center text-sm shrink-0">
+                <i class="fa-brands fa-facebook-messenger"></i>
               </span>
-              <div>
-                <p class="font-black text-white text-xs">ئاگاداری سەر شاشە و مۆبایل 🔔</p>
-                <p class="text-[10px] text-slate-400">کاتی پرسیار و لایڤ تەنانەت لە مۆبایلی داخراودا</p>
+              <div class="truncate">
+                <p class="font-black text-white text-xs truncate">ئاگاداری تەواوی چاتەکان (وەک ماسنجەر)</p>
+                <p class="text-[10px] text-slate-400 truncate">نۆتفیکەیشنی هەموو نامەکانی ناو گروپی گشتی</p>
               </div>
             </div>
-            <span id="profNotificationStatusBadge" class="text-[10px] bg-slate-800 text-[#dfaa86] border border-[#dfaa86]/30 font-bold px-2 py-0.5 rounded-md">پشکنین...</span>
-          </div>
-          <div class="flex items-center gap-2 pt-1">
-            <button type="button" onclick="togglePushNotifications()" id="profNotificationToggleBtn" class="flex-1 py-2 px-3 bg-gradient-to-r from-[#c78361] to-[#dfaa86] hover:brightness-110 text-slate-950 font-black text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow active:scale-95 cursor-pointer">
-              <i class="fa-solid fa-bell"></i>
-              <span id="profNotificationToggleText">چالاککردن</span>
-            </button>
-            <button type="button" onclick="testPushNotification()" id="profNotificationTestBtn" class="py-2 px-3 bg-slate-900/90 hover:bg-slate-850 text-[#dfaa86] hover:text-white font-bold text-xs rounded-xl border border-[#dfaa86]/30 transition flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer" title="تاقیکردنەوەی ناردنی ئاگاداری دەنگدار بۆ مۆبایلەکەت">
-              <i class="fa-solid fa-paper-plane text-xs"></i>
-              <span>تاقیکردنەوەی دەنگ 🔔</span>
+            <button type="button" onclick="toggleAllChatNotifications()" id="profAllChatNotificationToggleBtn" class="py-1.5 px-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 cursor-pointer shrink-0 border border-slate-700 bg-slate-800 text-slate-300">
+              <span id="profAllChatNotificationBadge">ناچالاک</span>
             </button>
           </div>
         </div>
@@ -4843,6 +4877,6 @@
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script>if (typeof io === 'undefined') { document.write('<script src="/socket.io/socket.io.js"><\\/script>'); }</script>
   <!-- Main Application Logic -->
-  <script src="/js/app.js?v=24.8"></script>
+  <script src="/js/app.js?v=24.9"></script>
 </body>
 </html>

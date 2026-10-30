@@ -1285,6 +1285,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // --- BROWSER / ANDROID SYSTEM NOTIFICATIONS & WEB PUSH ---
 let isPushSubscribed = false;
+let isNotifyAllMessagesEnabled = false;
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -1402,6 +1403,33 @@ async function updatePushNotificationUI() {
     }
   }
 
+  // 3.5. All Chat Messages (Messenger Style) UI Items
+  const drawerAllChatBadge = document.getElementById('drawerAllChatNotificationBadge');
+  const drawerAllChatIcon = document.getElementById('drawerAllChatNotificationIcon');
+  if (drawerAllChatBadge) {
+    if (isNotifyAllMessagesEnabled && active) {
+      drawerAllChatBadge.innerText = 'چالاکە 💬';
+      drawerAllChatBadge.className = 'text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-500/30 shrink-0';
+      if (drawerAllChatIcon) drawerAllChatIcon.className = 'fa-brands fa-facebook-messenger text-emerald-400 text-sm w-5 text-center group-hover:scale-110 transition-transform shrink-0';
+    } else {
+      drawerAllChatBadge.innerText = 'ناچالاک 🔕';
+      drawerAllChatBadge.className = 'text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-md border border-slate-700 shrink-0';
+      if (drawerAllChatIcon) drawerAllChatIcon.className = 'fa-brands fa-facebook-messenger text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform shrink-0';
+    }
+  }
+
+  const profAllChatBadge = document.getElementById('profAllChatNotificationBadge');
+  const profAllChatBtn = document.getElementById('profAllChatNotificationToggleBtn');
+  if (profAllChatBadge && profAllChatBtn) {
+    if (isNotifyAllMessagesEnabled && active) {
+      profAllChatBadge.innerText = 'چالاکە 💬';
+      profAllChatBtn.className = 'py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 cursor-pointer shrink-0 border border-emerald-500/40 bg-emerald-500/20 text-emerald-300';
+    } else {
+      profAllChatBadge.innerText = 'ناچالاک 🔕';
+      profAllChatBtn.className = 'py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 cursor-pointer shrink-0 border border-slate-700 bg-slate-800 text-slate-300';
+    }
+  }
+
   // 4. Banner visibility
   const banner = document.getElementById('notificationPermissionBanner');
   if (banner) {
@@ -1437,6 +1465,10 @@ async function initPushNotifications() {
     }
   } catch (err) {
     console.warn('initPushNotifications error:', err);
+  }
+
+  if (token) {
+    await fetchNotificationPreferences();
   }
 
   updatePushNotificationUI();
@@ -1598,6 +1630,66 @@ async function testPushNotification() {
     }
   } catch (err) {
     alert('هەڵە لە پەیوەندی بە سێرڤەر: ' + err.message);
+  }
+}
+
+async function fetchNotificationPreferences() {
+  if (!token) return;
+  try {
+    const res = await fetch('/api/notifications/preferences', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (data && data.success) {
+      isNotifyAllMessagesEnabled = !!data.notify_all_messages;
+      updatePushNotificationUI();
+    }
+  } catch (e) {}
+}
+
+async function toggleAllChatNotifications() {
+  if (!isPushNotificationSupported()) {
+    alert('ببورە! ئەم وێبگەڕە پشتگیری لە سیستەمی ئاگاداری مۆبایل ناکات.');
+    return;
+  }
+
+  // Ensure push permission and subscription are active
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+
+  if (!sub || Notification.permission !== 'granted') {
+    const ok = confirm('بۆ چالاککردنی ئاگاداری تەواوی چاتەکان (وەک ماسنجەر)، سەرەتا پێویستە مۆڵەتی ئاگاداری مۆبایل بدەیت. ئایا مۆڵەت دەدەیت؟');
+    if (!ok) return;
+    const subscribed = await subscribeToPushNotifications(false);
+    if (!subscribed) {
+      alert('مۆڵەتی ئاگاداری پێنەدرا. تکایە لە ڕێکخستنی وێبگەڕ ڕێگە بە ئاگاداری بدە.');
+      return;
+    }
+  }
+
+  const newState = !isNotifyAllMessagesEnabled;
+  try {
+    const res = await fetch('/api/notifications/preferences', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ notify_all_messages: newState })
+    });
+    const data = await res.json();
+    if (data && data.success) {
+      isNotifyAllMessagesEnabled = !!data.notify_all_messages;
+      updatePushNotificationUI();
+      if (isNotifyAllMessagesEnabled) {
+        showLiveToastNotification('ئاگاداری تەواوی چاتەکان (وەک ماسنجەر) چالاک کرا! 💬🔔', 'emerald');
+      } else {
+        showLiveToastNotification('ئاگاداری تەواوی چاتەکان ناچالاک کرا 🔕', 'slate');
+      }
+    }
+  } catch (e) {
+    console.error('Error toggling all chat notifications:', e);
+    alert('هەڵە لە گۆڕینی ڕێکخستنی ئاگاداری چاتەکان');
   }
 }
 

@@ -116,6 +116,42 @@ async function sendPushNotificationToUser(userId, payload) {
   }
 }
 
+async function sendPushNotificationToAllChatSubscribers(payload, excludeUserId = null) {
+  if (!webpush || !vapidKeys) return;
+  try {
+    const subs = pushSubscriptions.getAllChatSubscribers(excludeUserId);
+    if (!subs || subs.length === 0) return;
+
+    const payloadStr = JSON.stringify({
+      title: payload.title || 'نامەی نوێ',
+      body: payload.body || '',
+      icon: payload.icon || '/favicon.png',
+      badge: payload.badge || '/favicon.png',
+      tag: payload.tag || ('chat-msg-' + Date.now()),
+      data: payload.data || { url: '/' }
+    });
+
+    const promises = subs.map(sub => {
+      const pushConfig = {
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: sub.p256dh,
+          auth: sub.auth
+        }
+      };
+      return webpush.sendNotification(pushConfig, payloadStr).catch(err => {
+        if (err && (err.statusCode === 404 || err.statusCode === 410)) {
+          pushSubscriptions.remove(sub.endpoint);
+        }
+      });
+    });
+
+    await Promise.allSettled(promises);
+  } catch (err) {
+    console.error('Error broadcasting push notification to chat subscribers:', err);
+  }
+}
+
 // Ensure public/uploads directory exists (safe for Vercel)
 const uploadsDir = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(__dirname, 'public', 'uploads');
 try {
@@ -3618,6 +3654,14 @@ async function executeAdvisorAction(actionName, args, reqUser, ioInstance) {
             'poll'
           );
           if (ioInstance) ioInstance.emit('new_message', newMsg);
+          try {
+            sendPushNotificationToAll({
+              title: `📊 ڕاپرسییەکی نوێ: ${question.slice(0, 60)}`,
+              body: `ڕاپرسییەکی نوێ دانرا لەلایەن ${reqUser.full_name}، دەنگ بدە!`,
+              tag: 'poll-new-' + poll.id,
+              data: { url: '/?action=polls' }
+            }, reqUser.id);
+          } catch (e) {}
         } else if (groupId) {
           const groupMsg = customGroups.createMessage(
             groupId,
@@ -4795,6 +4839,15 @@ app.post('/api/chat/upload-image', authMiddleware, requireAdmin, upload.single('
       file_size: req.file.size
     };
     io.emit('new_message', broadcastMsg);
+    try {
+      sendPushNotificationToAllChatSubscribers({
+        title: `💬 ${freshUser.full_name}`,
+        body: isImage ? '📷 وێنەیەکی نارد' : (isVoice ? '🎤 دەنگێکی نارد' : '📄 فایلێکی نارد'),
+        icon: freshUser.avatar_url || '/favicon.png',
+        tag: 'chat-file-' + msg.id,
+        data: { url: '/' }
+      }, req.user.id);
+    } catch (e) {}
     res.json({ success: true, message: broadcastMsg });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە بارکردنی فایل' });
@@ -4825,6 +4878,15 @@ app.post('/api/chat/upload-voice', authMiddleware, requireAdmin, upload.single('
       is_star_glowing: isStarGlowing
     };
     io.emit('new_message', broadcastMsg);
+    try {
+      sendPushNotificationToAllChatSubscribers({
+        title: `💬 ${freshUser.full_name}`,
+        body: '🎤 دەنگێکی نارد',
+        icon: freshUser.avatar_url || '/favicon.png',
+        tag: 'chat-voice-' + msg.id,
+        data: { url: '/' }
+      }, req.user.id);
+    } catch (e) {}
     res.json({ success: true, message: broadcastMsg });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە بارکردنی دەنگ' });
@@ -5006,6 +5068,26 @@ app.post('/api/notifications/test', authMiddleware, async (req, res) => {
     res.json({ success: true, message: 'ئاگاداری تاقیکاری ڕەوانەی شاشەی مۆبایلەکەت کرا!' });
   } catch (err) {
     res.status(500).json({ error: 'نەتوانرا ئاگاداری بنێردرێت' });
+  }
+});
+
+// User Notification Preferences (All chat messages like Messenger toggle)
+app.get('/api/notifications/preferences', authMiddleware, (req, res) => {
+  try {
+    const notifyAll = users.getNotifyAllMessages(req.user.id);
+    res.json({ success: true, notify_all_messages: notifyAll });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی ڕێکخستنی ئاگاداریەکان' });
+  }
+});
+
+app.post('/api/notifications/preferences', authMiddleware, (req, res) => {
+  try {
+    const enabled = req.body.notify_all_messages === true || req.body.notify_all_messages === 1 || req.body.notify_all_messages === 'true';
+    users.setNotifyAllMessages(req.user.id, enabled);
+    res.json({ success: true, notify_all_messages: enabled });
+  } catch (err) {
+    res.status(500).json({ error: 'هەڵە لە نوێکردنەوەی ڕێکخستنی ئاگاداریەکان' });
   }
 });
 
@@ -6444,6 +6526,14 @@ app.post('/api/polls', authMiddleware, (req, res) => {
         'poll'
       );
       io.emit('new_message', newMsg);
+      try {
+        sendPushNotificationToAll({
+          title: `📊 ڕاپرسییەکی نوێ: ${question.slice(0, 60)}`,
+          body: `ڕاپرسییەکی نوێ دانرا لەلایەن ${req.user.full_name}، بەشداری بکە!`,
+          tag: 'poll-new-' + poll.id,
+          data: { url: '/?action=polls' }
+        }, req.user.id);
+      } catch (e) {}
     } else {
       const groupMsg = customGroups.createMessage(
         groupId,
@@ -8634,6 +8724,35 @@ io.on('connection', (socket) => {
           icon: '/favicon.png',
           tag: 'attendance-' + (createdAttendanceSession ? createdAttendanceSession.id : Date.now())
         }, freshUser.id);
+      }
+
+      if (hasButtonTrigger) {
+        sendPushNotificationToAll({
+          title: `🔴 دوگمەی سەرنج لەلایەن ${freshUser.full_name}`,
+          body: cleanContent.trim(),
+          icon: '/favicon.png',
+          tag: 'button-' + savedMsg.id
+        }, freshUser.id);
+      }
+
+      // If normal message (not mention all, not attendance, not action button),
+      // push to members who turned on "ئاگاداری تەواوی چاتەکان (وەک ماسنجەر)"
+      if (!isMentionAll && !hasAttendanceTrigger && !hasButtonTrigger) {
+        try {
+          let notifBody = cleanContent.trim();
+          if (savedMsg.message_type === 'image') notifBody = '📷 وێنەیەک نێردرا';
+          else if (savedMsg.message_type === 'audio') notifBody = '🎤 دەنگێک نێردرا';
+          else if (savedMsg.message_type === 'pdf') notifBody = '📄 فایلێک نێردرا';
+          if (notifBody.length > 90) notifBody = notifBody.slice(0, 87) + '...';
+
+          sendPushNotificationToAllChatSubscribers({
+            title: `💬 ${freshUser.full_name}`,
+            body: notifBody || 'نامەیەکی نوێ لە گروپی گشتی',
+            icon: freshUser.avatar_url || '/favicon.png',
+            tag: 'chat-msg-' + savedMsg.id,
+            data: { url: '/' }
+          }, freshUser.id);
+        } catch (e) {}
       }
 
       const starInfo = calculateStars(freshUser.correct_answers_count);

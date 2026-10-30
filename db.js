@@ -458,6 +458,9 @@ function initDb() {
   // Course enrollments migration
   try { db.exec("ALTER TABLE users ADD COLUMN course_enrollments TEXT DEFAULT '[]'"); } catch (e) {}
 
+  // Notify all messages (Messenger style) migration - 0 = OFF by default
+  try { db.exec("ALTER TABLE users ADD COLUMN notify_all_messages INTEGER DEFAULT 0"); } catch (e) {}
+
   // Polls & Event Alarms tables
   try {
     db.exec(`
@@ -781,10 +784,28 @@ const users = {
       roleHistory: history,
       promotionsCount: history.filter(h => h.new_role === 'admin').length,
       answeredQuestions: answered,
+      notify_all_messages: user.notify_all_messages === 1,
       course_enrollments: (() => {
         try { return JSON.parse(user.course_enrollments || '[]'); } catch(e) { return []; }
       })()
     };
+  },
+  setNotifyAllMessages(id, enabled) {
+    try {
+      db.prepare('UPDATE users SET notify_all_messages = ? WHERE id = ?').run(enabled ? 1 : 0, id);
+      return true;
+    } catch (e) {
+      console.error('Error setting notify_all_messages:', e);
+      return false;
+    }
+  },
+  getNotifyAllMessages(id) {
+    try {
+      const row = db.prepare('SELECT notify_all_messages FROM users WHERE id = ?').get(id);
+      return row ? (row.notify_all_messages === 1) : false;
+    } catch (e) {
+      return false;
+    }
   },
   updateCourseEnrollments(id, courses) {
     const json = JSON.stringify(Array.isArray(courses) ? courses : []);
@@ -1983,6 +2004,25 @@ const pushSubscriptions = {
       return db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(userId);
     } catch (err) {
       console.error('Error getting user push subscriptions:', err);
+      return [];
+    }
+  },
+  getAllChatSubscribers(excludeUserId = null) {
+    try {
+      if (excludeUserId) {
+        return db.prepare(`
+          SELECT ps.* FROM push_subscriptions ps
+          JOIN users u ON ps.user_id = u.id
+          WHERE u.notify_all_messages = 1 AND ps.user_id != ?
+        `).all(excludeUserId);
+      }
+      return db.prepare(`
+        SELECT ps.* FROM push_subscriptions ps
+        JOIN users u ON ps.user_id = u.id
+        WHERE u.notify_all_messages = 1
+      `).all();
+    } catch (err) {
+      console.error('Error getting chat push subscriptions:', err);
       return [];
     }
   }
