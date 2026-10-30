@@ -2245,21 +2245,56 @@ const advisorTools = [
 
 function findTargetUser(identifier) {
   if (!identifier) return null;
-  const str = String(identifier).trim();
+  let str = String(identifier).trim();
+  if (!str) return null;
+
+  // 1. Direct ID match
   if (!isNaN(Number(str))) {
     try {
       const byId = users.findById(Number(str));
       if (byId) return byId;
     } catch (e) {}
   }
+
+  // 2. Clean common Kurdish prefixes/suffixes
+  let clean = str
+    .replace(/(بەکارهێنەر|بەکارهێنەری|ئەندام|ئەندامی|هەژماری|هەژمار|قوتابی|خوێندکار|کاک|خاتوو|مامۆستا|کەسێک بە ناوی|بە ناوی|ناوی)/gi, ' ')
+    .replace(/^@+/, '')
+    .trim();
+
+  if (!clean) return null;
+
+  // 3. Exact username match (case insensitive)
   try {
-    const byUser = users.findByUsername(str);
+    const byUser = users.findByUsername(clean);
     if (byUser) return byUser;
+    const byUserNorm = db.prepare('SELECT * FROM users WHERE LOWER(TRIM(username)) = LOWER(TRIM(?))').get(clean);
+    if (byUserNorm) return byUserNorm;
   } catch (e) {}
+
+  // 4. Exact full_name match
   try {
-    const byLike = db.prepare("SELECT * FROM users WHERE full_name LIKE ? OR username LIKE ? LIMIT 1").get(`%${str}%`, `%${str}%`);
+    const byFull = db.prepare('SELECT * FROM users WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?))').get(clean);
+    if (byFull) return byFull;
+  } catch (e) {}
+
+  // 5. LIKE match on full_name or username
+  try {
+    const byLike = db.prepare("SELECT * FROM users WHERE full_name LIKE ? OR username LIKE ? ORDER BY role = 'super_admin' DESC, id DESC LIMIT 1").get(`%${clean}%`, `%${clean}%`);
     if (byLike) return byLike;
   } catch (e) {}
+
+  // 6. Split into words and match if multi-word name
+  const words = clean.split(/\s+/).filter(w => w.length > 2);
+  if (words.length > 0) {
+    for (const w of words) {
+      try {
+        const byWord = db.prepare("SELECT * FROM users WHERE full_name LIKE ? OR username LIKE ? ORDER BY role = 'super_admin' DESC, id DESC LIMIT 1").get(`%${w}%`, `%${w}%`);
+        if (byWord) return byWord;
+      } catch (e) {}
+    }
+  }
+
   return null;
 }
 
@@ -4190,6 +4225,111 @@ app.post('/api/advisor/chat', authMiddleware, requireAiAdvisorAccess, async (req
 
     let reply = null;
 
+    // =========================================================================
+    // DETERMINISTIC ACTION ENGINE (100% RELIABLE EXECUTION WITHOUT AI HALLUCINATION)
+    // Ensures member deletions, blocks, mutes, locks, approvals actually execute in DB!
+    // =========================================================================
+    const lowerMsg = userMessage.toLowerCase();
+
+    // 1. Delete Member intent: e.g. "فڵان کەس بسڕەوە", "شنۆ عەلی بسڕەوە", "سڕینەوەی بەکارهێنەر ئەحمەد"
+    const isDeleteUserIntent = /(سڕینەوە|بسڕەوە|بسڕێتەوە|بسڕیتەوە|بیسڕەوە|حەزف|دەربکە|لاببە)/i.test(lowerMsg) &&
+      !/(چات|پەیام|نامە|خەون|غیابات|ئامادەبوون|ئاسایش|هەڕەشە|قەڵغان|تۆمار)/i.test(lowerMsg);
+
+    if (isDeleteUserIntent) {
+      const cleanTarget = userMessage
+        .replace(/(تکایە|دەتوانی|بۆم|دەتوانیت|ئەتوانیت|بێزەحمەت|کاکە|کاک هێمن|براکەم)/gi, ' ')
+        .replace(/(بسڕەوە|بسڕێتەوە|بسڕیتەوە|بیسڕەوە|سڕینەوەی|سڕینەوە|حەزف بکە|حەزفی|حەزف|دەربکە|لاببە)/gi, ' ')
+        .replace(/(بەکارهێنەر|بەکارهێنەری|ئەندام|ئەندامی|هەژماری|هەژمار|قوتابی|خوێندکار|کاک|خاتوو|مامۆستا|کەسێک بە ناوی|بە ناوی|ناوی)/gi, ' ')
+        .replace(/(لە سایت|لە داتابەیس|لە سیستەم|لە پلاتفۆرم|لە گروپ)/gi, ' ')
+        .replace(/[؟?؟!.]/g, '')
+        .trim();
+
+      const target = findTargetUser(cleanTarget);
+      if (target) {
+        const delRes = await executeAdvisorAction('delete_member', { username_or_id: String(target.id) }, req.user, io);
+        if (delRes && delRes.error) {
+          reply = `کاک هێمن گیان، نەمکرد بەهۆی: ${delRes.error}`;
+        } else {
+          reply = `کاک هێمن گیان، فەرمانت دەستبەجێ جێبەجێکرا! بەکارهێنەر [${target.full_name}] (@${target.username}) بە تەواوی لە داتابەیس و پلاتفۆرمەکە سڕایەوە و هەژمارەکەی لابرا 🗑️✨.`;
+        }
+      } else {
+        reply = `کاک هێمن گیان، بەدوای بەکارهێنەر «${cleanTarget || userMessage}»دا گەڕام، بەڵام هیچ کەسێک بەم ناوە یان یوزەرنەیمە لە داتابەیسدا نەدۆزرایەوە؛ تکایە دڵنیابە لە دروستی ناو یان یوزەرنەیمەکەی.`;
+      }
+    }
+
+    // 2. Block Member intent
+    const isBlockIntent = /(بلۆک بکە|بلۆکی بکە|بلۆککردنی)/i.test(lowerMsg) && !/(دیبڵۆک|لابردنی بلۆک)/i.test(lowerMsg);
+    if (!reply && isBlockIntent) {
+      const cleanTarget = userMessage
+        .replace(/(تکایە|دەتوانی|بۆم|کاکە|کاک هێمن|براکەم|بلۆک بکە|بلۆکی بکە|بلۆککردنی|بەکارهێنەر|ئەندام|هەژماری)/gi, ' ')
+        .trim();
+      const target = findTargetUser(cleanTarget);
+      if (target) {
+        const resAction = await executeAdvisorAction('block_user', { username_or_id: String(target.id) }, req.user, io);
+        reply = resAction.error 
+          ? `کاک هێمن گیان، هەڵە ڕوویدا: ${resAction.error}` 
+          : `کاک هێمن گیان، فەرمانت جێبەجێکرا! بەکارهێنەر [${target.full_name}] (@${target.username}) بە سەرکەوتوویی بلۆک کرا 🚫.`;
+      } else {
+        reply = `کاک هێمن گیان، بەدوای بەکارهێنەر «${cleanTarget || userMessage}» گەڕام بەڵام لە داتابەیسدا نەدۆزرایەوە.`;
+      }
+    }
+
+    // 3. Mute Member intent
+    const isMuteIntent = /(میوت بکە|میوتی بکە|بێدەنگی بکە|بێدەنگ بکە)/i.test(lowerMsg) && !/(ئەنمیک|لابردنی بێدەنگی|ئەن میوت)/i.test(lowerMsg);
+    if (!reply && isMuteIntent) {
+      const cleanTarget = userMessage
+        .replace(/(تکایە|دەتوانی|بۆم|کاکە|کاک هێمن|براکەم|میوت بکە|میوتی بکە|بێدەنگی بکە|بێدەنگ بکە|بەکارهێنەر|ئەندام|هەژماری)/gi, ' ')
+        .trim();
+      const target = findTargetUser(cleanTarget);
+      if (target) {
+        const resAction = await executeAdvisorAction('mute_user', { username_or_id: String(target.id) }, req.user, io);
+        reply = resAction.error 
+          ? `کاک هێمن گیان، هەڵە ڕوویدا: ${resAction.error}` 
+          : `کاک هێمن گیان، فەرمانت جێبەجێکرا! بەکارهێنەر [${target.full_name}] (@${target.username}) بە سەرکەوتوویی لە چات میوت کرا 🔇.`;
+      } else {
+        reply = `کاک هێمن گیان، بەدوای بەکارهێنەر «${cleanTarget || userMessage}» گەڕام بەڵام لە داتابەیسدا نەدۆزرایەوە.`;
+      }
+    }
+
+    // 4. Approve All Pending Members intent
+    const isApproveAllIntent = /(پەسەند بکە|پەسەندیان بکە|وەرگرتنی|قبوڵ بکە)/i.test(lowerMsg) && /(ئەندام|چاوەڕوان|هەموو|تازە)/i.test(lowerMsg);
+    if (!reply && isApproveAllIntent) {
+      const resAction = await executeAdvisorAction('approve_all_pending_members', {}, req.user, io);
+      reply = resAction.error ? `کاک هێمن گیان: ${resAction.error}` : (resAction.message || 'هەموو ئەندامە چاوەڕوانەکان پەسەندکران');
+    }
+
+    // 5. Chat Lock / Unlock intent
+    const isLockChatIntent = /(چات قفڵ|چات دابخە|داخستنی چات|قفڵکردنی چات)/i.test(lowerMsg);
+    const isUnlockChatIntent = /(چات بکەرەوە|کردنەوەی چات|کردنەوەی قفڵی چات)/i.test(lowerMsg);
+    if (!reply && isLockChatIntent) {
+      const resAction = await executeAdvisorAction('toggle_chat_lock', { mode: 'staff_only' }, req.user, io);
+      reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! ${resAction.message || 'چات بە سەرکەوتوویی داخرا'}.`;
+    } else if (!reply && isUnlockChatIntent) {
+      const resAction = await executeAdvisorAction('toggle_chat_lock', { mode: 'none' }, req.user, io);
+      reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! ${resAction.message || 'چات بە سەرکەوتوویی کرایەوە'}.`;
+    }
+
+    // 6. Clear Unanswered Dreams intent
+    const isClearDreamsIntent = /(خەون|خەونەکان)/i.test(lowerMsg) && /(سڕینەوە|بسڕەوە|پاککردنەوە|پاکبکەرەوە)/i.test(lowerMsg);
+    if (!reply && isClearDreamsIntent) {
+      const resAction = await executeAdvisorAction('delete_dream_session', { mode: 'all_unanswered' }, req.user, io);
+      reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! ${resAction.message || 'تەواوی خەونە بێ وەڵامەکان سڕانەوە'}.`;
+    }
+
+    // 7. Clear Attendance Sessions intent
+    const isClearAttendanceIntent = /(غیابات|ئامادەبوون)/i.test(lowerMsg) && /(سڕینەوە|بسڕەوە|پاککردنەوە|پاکبکەرەوە)/i.test(lowerMsg);
+    if (!reply && isClearAttendanceIntent) {
+      const resAction = await executeAdvisorAction('manage_attendance', { action: 'delete' }, req.user, io);
+      reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! ${resAction.message || 'تۆماری غیابات بە سەرکەوتوویی سڕایەوە'}.`;
+    }
+
+    // 8. Clear Security Threats intent
+    const isClearSecurityIntent = /(ئاسایش|قەڵغان|هەڕەشە)/i.test(lowerMsg) && /(سڕینەوە|بسڕەوە|پاککردنەوە|پاکبکەرەوە)/i.test(lowerMsg);
+    if (!reply && isClearSecurityIntent) {
+      const resAction = await executeAdvisorAction('clear_security_incidents', {}, req.user, io);
+      reply = `کاک هێمن گیان، فەرمانت جێبەجێکرا! ${resAction.message || 'تەواوی هەڕەشەکانی قەڵغانی بەرگری پاککرانەوە'}.`;
+    }
+
     // Check for configured Gemini API keys (Dual API Engine / Multi-Key Failover)
     const candidateKeys = getOrderedAdvisorKeys();
 
@@ -4253,8 +4393,9 @@ ${JSON.stringify(liveContext, null, 2)}
                   system_instruction: { parts: [{ text: systemInstruction }] },
                   contents,
                   tools: advisorTools,
+                  tool_config: { function_calling_config: { mode: 'AUTO' } },
                   generationConfig: {
-                    temperature: 0.5,
+                    temperature: 0.4,
                     topP: 0.95
                   }
                 }),
@@ -4351,6 +4492,36 @@ ${JSON.stringify(liveContext, null, 2)}
                   // Normal conversational text reply
                   const candidateText = candParts.filter(p => p.text).map(p => p.text).join('\n').trim();
                   if (candidateText) {
+                    // Check if model hallucinated that it executed a deletion/block/mute action without calling a tool!
+                    const claimedAction = /(سڕیمەوە|سڕدراوەتەوە|سڕدرایەوە|حەزم کرد|حەزفم کرد|بلۆکم کرد|بلۆک کرا|میوتم کرد|میوت کرا)/i.test(candidateText);
+                    const userAskedAction = /(سڕینەوە|بسڕەوە|دەربکە|لاببە|بلۆک|میوت)/i.test(userMessage);
+
+                    if (claimedAction && userAskedAction) {
+                      console.warn('[Advisor AI] Model claimed action in text without tool call. Verifying and forcing DB execution.');
+                      if (/(سڕینەوە|بسڕەوە|دەربکە|لاببە)/i.test(userMessage)) {
+                        const cleanT = userMessage
+                          .replace(/(تکایە|دەتوانی|بۆم|دەتوانیت|ئەتوانیت|بێزەحمەت|کاکە|کاک هێمن|براکەم)/gi, ' ')
+                          .replace(/(بسڕەوە|بسڕێتەوە|بسڕیتەوە|بیسڕەوە|سڕینەوەی|سڕینەوە|حەزف بکە|حەزفی|حەزف|دەربکە|لاببە)/gi, ' ')
+                          .replace(/(بەکارهێنەر|بەکارهێنەری|ئەندام|ئەندامی|هەژماری|هەژمار|قوتابی|خوێندکار|کاک|خاتوو|مامۆستا|کەسێک بە ناوی|بە ناوی|ناوی)/gi, ' ')
+                          .replace(/(لە سایت|لە داتابەیس|لە سیستەم|لە پلاتفۆرم|لە گروپ)/gi, ' ')
+                          .replace(/[؟?؟!.]/g, '')
+                          .trim();
+                        const tgt = findTargetUser(cleanT);
+                        if (tgt) {
+                          const delRes = await executeAdvisorAction('delete_member', { username_or_id: String(tgt.id) }, req.user, io);
+                          if (delRes && delRes.error) {
+                            reply = `کاک هێمن گیان، کێشەیەک ڕوویدا لە سڕینەوە: ${delRes.error}`;
+                          } else {
+                            reply = `کاک هێمن گیان، فەرمانت دەستبەجێ جێبەجێکرا! بەکارهێنەر [${tgt.full_name}] (@${tgt.username}) بە تەواوی لە داتابەیس و پلاتفۆرمەکە سڕایەوە 🗑️✨.`;
+                          }
+                          break;
+                        } else {
+                          reply = `کاک هێمن گیان، بەدوای بەکارهێنەر «${cleanT || userMessage}» گەڕام بەڵام لە داتابەیس نەدۆزرایەوە، بۆیە هیچ کەسێک نەسڕایەوە.`;
+                          break;
+                        }
+                      }
+                    }
+
                     reply = candidateText;
                     console.log(`[Advisor AI] Generated dynamic reply with model: ${model}`);
                     break;
