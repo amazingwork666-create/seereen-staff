@@ -1300,19 +1300,39 @@
         </div>
 
         <!-- Star Adjustment Controls (Super Admin & Teacher) -->
-        <div id="profStarsAdjustContainer" class="hidden p-2.5 bg-slate-950/80 border border-[#dfaa86]/30 rounded-2xl flex items-center justify-between">
-          <span class="text-xs font-black text-[#dfaa86] flex items-center gap-1">
-            <i class="fa-solid fa-star text-amber-400"></i>
-            <span>دەستکاریکردنی ئەستێرە:</span>
-          </span>
-          <div class="flex items-center gap-1.5">
-            <button type="button" onclick="adjustCurrentProfileStars(1)" class="px-2.5 py-1 bg-gradient-to-r from-[#c78361] to-[#dfaa86] hover:brightness-110 text-slate-950 font-black text-xs rounded-xl shadow transition active:scale-95 flex items-center gap-1 cursor-pointer" title="زیادکردنی یەک ئەستێرە">
-              <i class="fa-solid fa-plus"></i>
-              <span>١ ئەستێرە ⭐</span>
+        <div id="profStarsAdjustContainer" class="hidden p-3.5 bg-gradient-to-b from-slate-900/95 via-slate-950/90 to-slate-950 border border-[#dfaa86]/35 rounded-2xl shadow-lg shadow-black/40 space-y-2.5">
+          <!-- Card Header -->
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400/20 to-amber-600/10 border border-amber-400/35 text-amber-400 flex items-center justify-center text-sm shrink-0 shadow-inner">
+                <i class="fa-solid fa-star"></i>
+              </span>
+              <div class="min-w-0">
+                <h4 class="text-xs font-black text-slate-100 flex items-center gap-1.5 truncate">
+                  <span>دەستکاریکردنی ئەستێرە</span>
+                </h4>
+                <p class="text-[10px] text-[#dfaa86]/75 truncate">پاداشتکردن یان کەمکردنەوەی ئەستێرەی فێرخواز</p>
+              </div>
+            </div>
+            <span class="text-[10px] font-bold text-[#dfaa86] bg-[#dfaa86]/10 border border-[#dfaa86]/25 px-2 py-0.5 rounded-full shrink-0">
+              ئیدارە و مامۆستا
+            </span>
+          </div>
+
+          <!-- Action Buttons (Responsive 2-Column Grid) -->
+          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+            <!-- Add 1 Star Button -->
+            <button type="button" onclick="adjustCurrentProfileStars(1)" class="py-2.5 px-3 bg-gradient-to-r from-[#b37754] via-[#dfaa86] to-[#b37754] hover:brightness-110 text-slate-950 font-black text-xs rounded-xl shadow-md shadow-[#dfaa86]/20 border border-[#fae2cc]/50 flex items-center justify-center gap-1.5 active:scale-95 transition cursor-pointer select-none whitespace-nowrap" title="زیادکردنی یەک ئەستێرە">
+              <i class="fa-solid fa-plus text-xs"></i>
+              <span>+١ ئەستێرە</span>
+              <span class="text-xs">⭐</span>
             </button>
-            <button type="button" onclick="adjustCurrentProfileStars(-1)" class="px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-black text-xs rounded-xl shadow transition active:scale-95 flex items-center gap-1 cursor-pointer" title="کەمکردنەوەی یەک ئەستێرە">
-              <i class="fa-solid fa-minus"></i>
-              <span>١ ئەستێرە 🔻</span>
+
+            <!-- Deduct 1 Star Button -->
+            <button type="button" onclick="adjustCurrentProfileStars(-1)" class="py-2.5 px-3 bg-rose-600/15 hover:bg-rose-600/25 text-rose-300 hover:text-white border border-rose-500/35 hover:border-rose-500/50 font-black text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5 active:scale-95 transition cursor-pointer select-none whitespace-nowrap" title="کەمکردنەوەی یەک ئەستێرە">
+              <i class="fa-solid fa-minus text-xs text-rose-400"></i>
+              <span>-١ ئەستێرە</span>
+              <span class="text-[10px] text-rose-400">🔻</span>
             </button>
           </div>
         </div>

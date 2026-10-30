@@ -4661,7 +4661,7 @@ app.post('/api/admin/users/:id/adjust-stars', authMiddleware, requireTeacherOrSu
     starInfo: calculateStars(updatedStars)
   });
 
-  res.json({ success: true, total_stars: updatedStars });
+  res.json({ success: true, total_stars: updatedStars, new_stars: updatedStars });
 });
 
 // Directly update user's full name (Super Admin or Green Badge - cannot change Super Admin name)

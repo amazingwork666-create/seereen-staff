@@ -7390,10 +7390,11 @@ async function adjustCurrentProfileStars(delta) {
     });
     const data = await res.json();
     if (res.ok) {
-      const starInfo = calculateStars(data.new_stars);
+      const newCount = (data.new_stars !== undefined) ? data.new_stars : (data.total_stars !== undefined ? data.total_stars : 0);
+      const starInfo = calculateStars(newCount);
       const profStars = document.getElementById('profStars');
       if (profStars) profStars.innerHTML = `${starInfo.starIcons} ${starInfo.points}`;
-      alert(`ئەستێرە بەسەرکەوتوویی گۆڕدرا: (${data.new_stars} ئەستێرە) ⭐`);
+      alert(`ئەستێرە بەسەرکەوتوویی گۆڕدرا: (${newCount} ئەستێرە) ⭐`);
     } else {
       alert(data.error || 'هەڵەیەک ڕوویدا لە دەستکاریکردنی ئەستێرە');
     }
