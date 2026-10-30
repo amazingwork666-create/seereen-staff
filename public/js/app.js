@@ -4928,11 +4928,33 @@ async function scanImageWithVisualShield(file) {
           if (skinRatio > 0.52) {
             let thumbnail = '';
             try {
-              thumbnail = canvas.toDataURL('image/jpeg', 0.5);
-            } catch (te) {}
+              // High-resolution evidence thumbnail (max 600px) for Super Admin security review
+              const evCanvas = document.createElement('canvas');
+              const evMax = 600;
+              let ew = img.width;
+              let eh = img.height;
+              if (ew > eh) {
+                eh = Math.max(1, Math.round((eh * evMax) / ew));
+                ew = evMax;
+              } else {
+                ew = Math.max(1, Math.round((ew * evMax) / eh));
+                eh = evMax;
+              }
+              evCanvas.width = ew;
+              evCanvas.height = eh;
+              const evCtx = evCanvas.getContext('2d');
+              evCtx.drawImage(img, 0, 0, ew, eh);
+              thumbnail = evCanvas.toDataURL('image/jpeg', 0.75);
+            } catch (te) {
+              try {
+                thumbnail = canvas.toDataURL('image/jpeg', 0.6);
+              } catch (te2) {
+                thumbnail = (e && e.target && e.target.result) ? String(e.target.result).substring(0, 500000) : '';
+              }
+            }
 
             const fileName = (file && file.name) ? file.name : 'وێنە';
-            // Log to server incident center
+            // Log to server incident center with full evidence image
             fetch('/api/admin/security/log-incident', {
               method: 'POST',
               headers: {
@@ -16766,20 +16788,50 @@ function openIncidentDetailsModal(id) {
 
     <!-- Evidence Image (If Available) -->
     ${inc.evidence && inc.evidence.trim() ? `
-      <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-rose-500/30 space-y-2">
-        <span class="font-bold text-rose-300 text-xs flex items-center gap-1.5">
-          <i class="fa-solid fa-image text-rose-400"></i>
-          <span>وێنەی بەڵگە (Evidence Captured by Shield):</span>
-        </span>
-        <div class="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-900 border border-slate-800">
-          <img src="${escapeHtml(inc.evidence)}" class="max-w-full max-h-72 object-contain rounded-xl border border-rose-500/40 shadow-xl" alt="بەڵگەی سەرپێچی" />
-          <p class="text-[10px] text-slate-400 mt-2 text-center">ئەم وێنەیە لە کاتی ئەپلۆد لەلایەن قەڵغانی وێنەی زیرەک دەستنیشان کراوە و ڕاگیراوە.</p>
+      <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-rose-500/35 space-y-2.5 shadow-lg">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-rose-300 text-xs flex items-center gap-1.5">
+            <i class="fa-solid fa-image text-rose-400"></i>
+            <span>وێنەی بەڵگە (Evidence Captured by Shield):</span>
+          </span>
+          <div class="flex items-center gap-1.5">
+            <a href="${escapeHtml(inc.evidence)}" target="_blank" download="evidence-${inc.id}.jpg" class="text-[10px] text-amber-300 hover:text-white px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 flex items-center gap-1 transition" title="داگرتنی وێنەکە">
+              <i class="fa-solid fa-download"></i> داگرتن
+            </a>
+            <button type="button" onclick="window.open('${escapeHtml(inc.evidence)}', '_blank')" class="text-[10px] text-slate-300 hover:text-white px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 flex items-center gap-1 transition" title="کردنەوە بە گەورەیی">
+              <i class="fa-solid fa-up-right-from-square"></i> گەورەکردن
+            </button>
+          </div>
+        </div>
+        <div class="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-900 border border-slate-800 group relative">
+          <img src="${escapeHtml(inc.evidence)}" onclick="window.open('${escapeHtml(inc.evidence)}', '_blank')" class="max-w-full max-h-80 object-contain rounded-xl border border-rose-500/40 shadow-2xl cursor-pointer hover:opacity-95 transition" alt="بەڵگەی سەرپێچی" />
+          <p class="text-[10px] text-slate-400 mt-2 text-center flex items-center gap-1">
+            <i class="fa-solid fa-shield-halved text-rose-400"></i>
+            <span>ئەم وێنەیە لە کاتی ئەپلۆد لەلایەن قەڵغانی وێنەی زیرەک دەستنیشان کراوە و لە سێرڤەر پارێزراوە (کلیک لەسەر وێنەکە بکە بۆ کردنەوەی بە قەبارەی تەواو).</span>
+          </p>
         </div>
       </div>
     ` : (inc.incident_type === 'nsfw_image' ? `
-      <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
-        <i class="fa-solid fa-shield-cat text-amber-400 text-base shrink-0"></i>
-        <span>ئەم وێنەیە پێش ناردن ڕاگیراوە و لەبەر سەلامەتی و قەبارەی سیستم وێنەکەی هەڵنەگیراوە. لەمەودوا وێنەی هەموو هەوڵە نوێیەکان لەسەرەوە دەردەکەوێت.</span>
+      <div class="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2.5">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-amber-400 text-base shrink-0"></i>
+          <span class="font-bold">وێنەی ئەم ڕووداوە لە بەرواری پێشوو (October 24) هەڵنەگیراوە:</span>
+        </div>
+        <p class="text-[11px] text-amber-200/85 leading-relaxed">
+          ئەم سەرپێچییە لە قۆناغی سەرەتادا ڕوویداوە کە سیستەم تەنها وێنەکەی لەسەر مۆبایلی ئەندام پێش بارکردن بلۆک کردووە بەبێ پاشەکەوتکردن لە سێرڤەر. ئێستا سیستەم بە تەواوی نوێکرایەوە تا وێنەی هەموو هەوڵە نوێیەکان بە بەڵگەوە و بە کوالیتی بەرز لە سێرڤەردا هەڵبگیرێت تا بەڕێوەبەر بتوانێت ڕاستەوخۆ لێرە بیبینێت.
+        </p>
+        ${inc.user_avatar ? `
+          <div class="pt-2 border-t border-amber-500/20 flex items-center justify-between">
+            <div class="flex items-center gap-2 min-w-0">
+              <img src="${escapeHtml(inc.user_avatar)}" class="w-8 h-8 rounded-lg object-cover border border-amber-400/40 shrink-0" />
+              <div class="min-w-0">
+                <p class="text-[11px] text-slate-200 font-bold truncate">وێنەی پڕۆفایلی ئێستای ئەم ئەندامە</p>
+                <p class="text-[9px] text-slate-400">ئەو وێنەیەی لە پرۆفایلەکەیدایە</p>
+              </div>
+            </div>
+            <button type="button" onclick="closeIncidentDetailsModal(); openUserProfileModal('${inc.user_id}');" class="text-[10px] text-[#dfaa86] hover:text-white font-bold px-2 py-1 rounded bg-[#dfaa86]/10 border border-[#dfaa86]/30 shrink-0 transition">بینینی پڕۆفایل</button>
+          </div>
+        ` : ''}
       </div>
     ` : '')}
   `;
@@ -18386,9 +18438,18 @@ async function handleSendCustomGroupMessage(e) {
     let msgType = 'text';
 
     if (selectedGroupFile) {
+      const isImg = selectedGroupFile.type && selectedGroupFile.type.startsWith('image/');
+      if (isImg) {
+        const shield = await scanImageWithVisualShield(selectedGroupFile);
+        if (!shield.safe) {
+          alert(shield.message || '⚠️ پاسەوانی AI: ئەم وێنەیە نەشیاوە و ڕێگەی پێ نادرێت!');
+          if (sendBtn) sendBtn.disabled = false;
+          return;
+        }
+      }
+
       const formData = new FormData();
       formData.append('file', selectedGroupFile);
-      const isImg = selectedGroupFile.type.startsWith('image/');
       formData.append('type', isImg ? 'image' : 'file');
 
       const uploadRes = await fetch(`/api/custom-groups/${activeCustomGroupId}/upload`, {

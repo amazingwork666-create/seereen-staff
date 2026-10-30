@@ -278,7 +278,8 @@ app.use((req, res, next) => {
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => {
@@ -1316,7 +1317,31 @@ app.post('/api/admin/security/log-incident', authMiddleware, (req, res) => {
     const { type, details, severity, action_taken, evidence } = req.body;
     const allowedTypes = ['bad_word', 'nsfw_image', 'flood_raid', 'malicious_link', 'star_fraud', 'harassment', 'impersonation'];
     const safeType = allowedTypes.includes(type) ? type : 'other';
-    aiSecurity.logIncident(safeType, req.user.id, req.user.full_name, details || 'پشکنەری کڵاینت هەوڵێکی گوماناوی ڕاگرت', severity || 'medium', action_taken || 'blocked', evidence || '');
+
+    let evidencePath = evidence || '';
+    if (evidence && typeof evidence === 'string' && evidence.startsWith('data:image/')) {
+      try {
+        const matches = evidence.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+        if (matches) {
+          const rawExt = matches[1].toLowerCase();
+          const ext = rawExt.includes('png') ? 'png' : (rawExt.includes('webp') ? 'webp' : 'jpg');
+          const base64Data = matches[2];
+          const buffer = Buffer.from(base64Data, 'base64');
+          const evidenceDir = path.join(uploadsDir, 'evidence');
+          if (!fs.existsSync(evidenceDir)) {
+            fs.mkdirSync(evidenceDir, { recursive: true });
+          }
+          const fileName = `evidence-${Date.now()}-${Math.round(Math.random() * 1e5)}.${ext}`;
+          const filePath = path.join(evidenceDir, fileName);
+          fs.writeFileSync(filePath, buffer);
+          evidencePath = `/uploads/evidence/${fileName}`;
+        }
+      } catch (fileErr) {
+        console.warn('[AI Security] Failed to save evidence image to disk, falling back to data URL:', fileErr);
+      }
+    }
+
+    aiSecurity.logIncident(safeType, req.user.id, req.user.full_name, details || 'پشکنەری کڵاینت هەوڵێکی گوماناوی ڕاگرت', severity || 'medium', action_taken || 'blocked', evidencePath);
     io.emit('security_incident_alert', {
       type: safeType,
       user_id: req.user.id,
@@ -1324,10 +1349,10 @@ app.post('/api/admin/security/log-incident', authMiddleware, (req, res) => {
       details: details || '',
       severity: severity || 'medium',
       action_taken: action_taken || 'blocked',
-      evidence: evidence || '',
+      evidence: evidencePath,
       timestamp: Date.now()
     });
-    res.json({ success: true });
+    res.json({ success: true, evidence: evidencePath });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە تۆمارکردنی ئاگاداری ئاسایش' });
   }
