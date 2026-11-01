@@ -881,6 +881,305 @@ body.light-theme .revealed-answers-card .bg-slate-900\/90 {
   color: #064e3b !important;
 }
 
+/* ================= LIGHT THEME: MAIN MENU DRAWER & MENUS CONTRAST ================= */
+/* Hamburger Button in Header */
+body.light-theme #mainMenuBtn {
+  background-color: rgba(180, 83, 9, 0.12) !important;
+  border-color: rgba(180, 83, 9, 0.35) !important;
+  color: #9a491f !important;
+}
+body.light-theme #mainMenuBtn:hover,
+body.light-theme #mainMenuBtn:active {
+  background-color: rgba(180, 83, 9, 0.22) !important;
+  color: #7c2d12 !important;
+}
+body.light-theme #mainMenuBtn * {
+  color: #9a491f !important;
+}
+body.light-theme #mainMenuBtn:hover * {
+  color: #7c2d12 !important;
+}
+
+/* Slide-out Menu Drawer Panel */
+body.light-theme #mainMenuDrawerPanel {
+  background-color: #ffffff !important;
+  border-left: 1px solid rgba(199, 131, 97, 0.35) !important;
+  box-shadow: -10px 0 35px -5px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Drawer Header */
+body.light-theme #mainMenuDrawerPanel .border-b.border-slate-800\/80 {
+  background-color: #f8fafc !important;
+  border-bottom-color: rgba(199, 131, 97, 0.25) !important;
+}
+body.light-theme #mainMenuDrawerPanel .border-b.border-slate-800\/80 h3 {
+  color: #0f172a !important;
+}
+body.light-theme #mainMenuDrawerPanel .border-b.border-slate-800\/80 p {
+  color: #475569 !important;
+}
+body.light-theme #mainMenuDrawerPanel .border-b.border-slate-800\/80 .w-8.h-8.rounded-xl.bg-\[\#dfaa86\]\/15 {
+  background-color: rgba(180, 83, 9, 0.12) !important;
+  border-color: rgba(180, 83, 9, 0.3) !important;
+  color: #9a491f !important;
+}
+body.light-theme #mainMenuDrawerPanel .border-b.border-slate-800\/80 button[onclick="closeMainMenuDrawer()"] {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+}
+body.light-theme #mainMenuDrawerPanel .border-b.border-slate-800\/80 button[onclick="closeMainMenuDrawer()"]:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* User Profile Preview Card */
+body.light-theme #mainMenuDrawerPanel [onclick*="openMyProfile"] {
+  background-color: #f8fafc !important;
+  border-color: rgba(199, 131, 97, 0.35) !important;
+}
+body.light-theme #mainMenuDrawerPanel [onclick*="openMyProfile"]:hover {
+  background-color: #f1f5f9 !important;
+  border-color: rgba(180, 83, 9, 0.5) !important;
+}
+body.light-theme #drawerUserName {
+  color: #0f172a !important;
+}
+body.light-theme #drawerUserAvatar {
+  background: #fef3c7 !important;
+  border-color: rgba(180, 83, 9, 0.35) !important;
+  color: #9a491f !important;
+}
+body.light-theme #drawerUserRoleBadge {
+  background-color: rgba(180, 83, 9, 0.12) !important;
+  border-color: rgba(180, 83, 9, 0.3) !important;
+  color: #9a491f !important;
+}
+body.light-theme #drawerProfileText,
+body.light-theme #mainMenuDrawerPanel [onclick*="openMyProfile"] span.text-\[\#dfaa86\],
+body.light-theme #mainMenuDrawerPanel [onclick*="openMyProfile"] i {
+  color: #9a491f !important;
+}
+
+/* Drawer Section Headers */
+body.light-theme #drawerGeneralHeader {
+  color: #475569 !important;
+  font-weight: 900 !important;
+}
+body.light-theme #drawerStaffHeader {
+  color: #b45309 !important;
+  font-weight: 900 !important;
+}
+body.light-theme #drawerCustomGroupsSection span {
+  color: #4338ca !important;
+}
+
+/* All Drawer Service & Action Buttons */
+body.light-theme #mainMenuDrawerPanel .overflow-y-auto button {
+  background-color: #fbf5ef !important;
+  border-color: rgba(199, 131, 97, 0.28) !important;
+  color: #0f172a !important;
+}
+body.light-theme #mainMenuDrawerPanel .overflow-y-auto button:hover,
+body.light-theme #mainMenuDrawerPanel .overflow-y-auto button:active,
+body.light-theme #mainMenuDrawerPanel .overflow-y-auto button:focus {
+  background-color: #f1e4d8 !important;
+  border-color: rgba(180, 83, 9, 0.45) !important;
+  color: #000000 !important;
+}
+body.light-theme #mainMenuDrawerPanel .overflow-y-auto button span {
+  color: #0f172a !important;
+}
+body.light-theme #mainMenuDrawerPanel .overflow-y-auto button:hover span,
+body.light-theme #mainMenuDrawerPanel .overflow-y-auto button:active span {
+  color: #000000 !important;
+}
+body.light-theme #mainMenuDrawerPanel .overflow-y-auto button i {
+  color: #9a491f !important;
+}
+body.light-theme #mainMenuDrawerPanel .overflow-y-auto button:hover i {
+  color: #7c2d12 !important;
+}
+body.light-theme #mainMenuDrawerPanel .overflow-y-auto button span.border,
+body.light-theme #mainMenuDrawerPanel .overflow-y-auto button span[class*="rounded-lg"],
+body.light-theme #mainMenuDrawerPanel .overflow-y-auto button span[class*="rounded-md"] {
+  background-color: rgba(180, 83, 9, 0.12) !important;
+  border-color: rgba(180, 83, 9, 0.3) !important;
+  color: #8c3a10 !important;
+  font-weight: 800 !important;
+}
+
+/* Drawer Settings Accordion Section */
+body.light-theme #drawerSettingsSection {
+  background-color: #ffffff !important;
+  border-color: rgba(199, 131, 97, 0.35) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+body.light-theme #drawerSettingsToggleBtn {
+  color: #7c2d12 !important;
+}
+body.light-theme #drawerSettingsToggleBtn:hover {
+  background-color: #f8fafc !important;
+}
+body.light-theme #drawerSettingsTitle {
+  color: #7c2d12 !important;
+}
+body.light-theme #drawerSettingsToggleBtn i {
+  color: #9a491f !important;
+}
+body.light-theme #drawerSettingsBadge {
+  background-color: rgba(180, 83, 9, 0.12) !important;
+  border-color: rgba(180, 83, 9, 0.3) !important;
+  color: #7c2d12 !important;
+}
+body.light-theme #drawerSettingsList {
+  background-color: #f8fafc !important;
+  border-top-color: rgba(199, 131, 97, 0.25) !important;
+}
+body.light-theme #drawerSettingsList button {
+  background-color: #ffffff !important;
+  border-color: rgba(199, 131, 97, 0.3) !important;
+  color: #0f172a !important;
+}
+body.light-theme #drawerSettingsList button:hover {
+  background-color: #f1f5f9 !important;
+  border-color: rgba(180, 83, 9, 0.45) !important;
+}
+body.light-theme #drawerSettingsList button span {
+  color: #0f172a !important;
+}
+body.light-theme #drawerSettingsList button .text-\[9px\] {
+  color: #475569 !important;
+}
+body.light-theme #drawerNotificationStatusBadge,
+body.light-theme #drawerAllChatNotificationBadge,
+body.light-theme #drawerThemeBadge {
+  background-color: #e2e8f0 !important;
+  color: #1e293b !important;
+  border-color: #cbd5e1 !important;
+}
+body.light-theme #drawerSettingsList .bg-slate-900\/60 {
+  background-color: #ffffff !important;
+  border-color: rgba(199, 131, 97, 0.3) !important;
+}
+body.light-theme #langBtn_ar,
+body.light-theme #langBtn_en,
+body.light-theme #fontBtn_small,
+body.light-theme #fontBtn_large,
+body.light-theme #fontBtn_xl,
+body.light-theme #fontBtn_xxl {
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
+  border-color: #cbd5e1 !important;
+}
+body.light-theme #langBtn_ku,
+body.light-theme #fontBtn_normal {
+  color: #000000 !important;
+  font-weight: 900 !important;
+}
+
+/* Drawer Footer Logout Button */
+body.light-theme #mainMenuDrawerPanel .border-t.border-slate-800\/80 {
+  background-color: #f8fafc !important;
+  border-top-color: rgba(199, 131, 97, 0.25) !important;
+}
+body.light-theme #mainMenuDrawerPanel button[onclick*="handleLogout"] {
+  background-color: #ffe4e6 !important;
+  border-color: #fecdd3 !important;
+  color: #be123c !important;
+}
+body.light-theme #mainMenuDrawerPanel button[onclick*="handleLogout"]:hover {
+  background-color: #fecdd3 !important;
+  border-color: #fda4af !important;
+  color: #9f1239 !important;
+}
+body.light-theme #mainMenuDrawerPanel button[onclick*="handleLogout"] * {
+  color: #be123c !important;
+}
+body.light-theme #mainMenuDrawerPanel button[onclick*="handleLogout"]:hover * {
+  color: #9f1239 !important;
+}
+
+/* Specific White Text Preservation on Red Badges */
+body.light-theme #mainMenuDrawerPanel .bg-rose-500,
+body.light-theme #mainMenuDrawerPanel [class*="bg-rose-500"] {
+  color: #ffffff !important;
+}
+
+/* Chat Tools & Output Menus */
+body.light-theme #publicChatToolsMenu,
+body.light-theme #customGroupToolsMenu,
+body.light-theme #liveAudioOutputMenu {
+  background-color: #ffffff !important;
+  border-color: rgba(199, 131, 97, 0.35) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12) !important;
+}
+body.light-theme #publicChatToolsMenu button,
+body.light-theme #customGroupToolsMenu button,
+body.light-theme #liveAudioOutputMenu button {
+  color: #0f172a !important;
+}
+body.light-theme #publicChatToolsMenu button:hover,
+body.light-theme #customGroupToolsMenu button:hover,
+body.light-theme #liveAudioOutputMenu button:hover {
+  background-color: #f1f5f9 !important;
+  color: #000000 !important;
+}
+body.light-theme #publicChatToolsMenu button *,
+body.light-theme #customGroupToolsMenu button *,
+body.light-theme #liveAudioOutputMenu button * {
+  color: #0f172a !important;
+}
+body.light-theme #publicChatToolsMenu button:hover *,
+body.light-theme #customGroupToolsMenu button:hover *,
+body.light-theme #liveAudioOutputMenu button:hover * {
+  color: #000000 !important;
+}
+
+/* Members Sidebar Light Theme Overrides */
+body.light-theme #membersSidebar {
+  background-color: #ffffff !important;
+  border-color: rgba(199, 131, 97, 0.28) !important;
+}
+body.light-theme #membersSidebar .border-b.border-slate-800 {
+  border-bottom-color: rgba(199, 131, 97, 0.22) !important;
+}
+body.light-theme #membersSidebar h3 {
+  color: #0f172a !important;
+}
+body.light-theme #membersSidebarCount {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+}
+body.light-theme #tabMemberStudents,
+body.light-theme #tabMemberAdmins {
+  color: #475569 !important;
+}
+body.light-theme #tabMemberStudents:hover,
+body.light-theme #tabMemberAdmins:hover {
+  color: #0f172a !important;
+}
+
+/* Theme Modal in Light Theme */
+body.light-theme #themeModal .bg-slate-900 {
+  background-color: #ffffff !important;
+  border-color: rgba(199, 131, 97, 0.3) !important;
+}
+body.light-theme #themeCardsList > div {
+  background-color: #fbf5ef !important;
+  border-color: rgba(199, 131, 97, 0.25) !important;
+}
+body.light-theme #themeCardsList > div:hover {
+  background-color: #f5e8db !important;
+}
+body.light-theme #themeCardsList h4 {
+  color: #0f172a !important;
+}
+body.light-theme #themeCardsList p,
+body.light-theme #themeCardsList span {
+  color: #475569 !important;
+}
+
 /* ================= SEPIA THEME (EYE CARE & READING MODE) ================= */
 body.sepia-theme {
   background: radial-gradient(ellipse at 50% 0%, #fbf5ea 0%, #f4ebd9 50%, #e8dcbf 100%) !important;
@@ -1065,6 +1364,305 @@ body.sepia-theme textarea::placeholder {
 body.sepia-theme .voice-bubble {
   background-color: #f2e7d3 !important;
   border-color: rgba(184, 134, 78, 0.35) !important;
+}
+
+/* ================= SEPIA THEME: MAIN MENU DRAWER & MENUS CONTRAST ================= */
+/* Hamburger Button in Header */
+body.sepia-theme #mainMenuBtn {
+  background-color: rgba(184, 134, 78, 0.18) !important;
+  border-color: rgba(184, 134, 78, 0.45) !important;
+  color: #7a3e12 !important;
+}
+body.sepia-theme #mainMenuBtn:hover,
+body.sepia-theme #mainMenuBtn:active {
+  background-color: rgba(184, 134, 78, 0.28) !important;
+  color: #5a2b0a !important;
+}
+body.sepia-theme #mainMenuBtn * {
+  color: #7a3e12 !important;
+}
+body.sepia-theme #mainMenuBtn:hover * {
+  color: #5a2b0a !important;
+}
+
+/* Slide-out Menu Drawer Panel */
+body.sepia-theme #mainMenuDrawerPanel {
+  background-color: #fbf7ee !important;
+  border-left: 1px solid rgba(184, 134, 78, 0.35) !important;
+  box-shadow: -10px 0 35px -5px rgba(46, 33, 20, 0.18) !important;
+}
+
+/* Drawer Header */
+body.sepia-theme #mainMenuDrawerPanel .border-b.border-slate-800\/80 {
+  background-color: #f2e7d3 !important;
+  border-bottom-color: rgba(184, 134, 78, 0.3) !important;
+}
+body.sepia-theme #mainMenuDrawerPanel .border-b.border-slate-800\/80 h3 {
+  color: #2e2114 !important;
+}
+body.sepia-theme #mainMenuDrawerPanel .border-b.border-slate-800\/80 p {
+  color: #6b533e !important;
+}
+body.sepia-theme #mainMenuDrawerPanel .border-b.border-slate-800\/80 .w-8.h-8.rounded-xl.bg-\[\#dfaa86\]\/15 {
+  background-color: rgba(184, 134, 78, 0.18) !important;
+  border-color: rgba(184, 134, 78, 0.35) !important;
+  color: #7a3e12 !important;
+}
+body.sepia-theme #mainMenuDrawerPanel .border-b.border-slate-800\/80 button[onclick="closeMainMenuDrawer()"] {
+  background-color: #e8dcbf !important;
+  border-color: rgba(184, 134, 78, 0.4) !important;
+  color: #4a3623 !important;
+}
+body.sepia-theme #mainMenuDrawerPanel .border-b.border-slate-800\/80 button[onclick="closeMainMenuDrawer()"]:hover {
+  background-color: #ded0b0 !important;
+  color: #1e1309 !important;
+}
+
+/* User Profile Preview Card */
+body.sepia-theme #mainMenuDrawerPanel [onclick*="openMyProfile"] {
+  background-color: #f2e7d3 !important;
+  border-color: rgba(184, 134, 78, 0.4) !important;
+}
+body.sepia-theme #mainMenuDrawerPanel [onclick*="openMyProfile"]:hover {
+  background-color: #e8dcbf !important;
+  border-color: rgba(184, 134, 78, 0.6) !important;
+}
+body.sepia-theme #drawerUserName {
+  color: #2e2114 !important;
+}
+body.sepia-theme #drawerUserAvatar {
+  background: #ede0cd !important;
+  border-color: rgba(184, 134, 78, 0.4) !important;
+  color: #7a3e12 !important;
+}
+body.sepia-theme #drawerUserRoleBadge {
+  background-color: rgba(184, 134, 78, 0.18) !important;
+  border-color: rgba(184, 134, 78, 0.35) !important;
+  color: #7a3e12 !important;
+}
+body.sepia-theme #drawerProfileText,
+body.sepia-theme #mainMenuDrawerPanel [onclick*="openMyProfile"] span.text-\[\#dfaa86\],
+body.sepia-theme #mainMenuDrawerPanel [onclick*="openMyProfile"] i {
+  color: #7a3e12 !important;
+}
+
+/* Drawer Section Headers */
+body.sepia-theme #drawerGeneralHeader {
+  color: #6b533e !important;
+  font-weight: 900 !important;
+}
+body.sepia-theme #drawerStaffHeader {
+  color: #8a4816 !important;
+  font-weight: 900 !important;
+}
+body.sepia-theme #drawerCustomGroupsSection span {
+  color: #4c3f91 !important;
+}
+
+/* All Drawer Service & Action Buttons */
+body.sepia-theme #mainMenuDrawerPanel .overflow-y-auto button {
+  background-color: #f2e7d3 !important;
+  border-color: rgba(184, 134, 78, 0.35) !important;
+  color: #2e2114 !important;
+}
+body.sepia-theme #mainMenuDrawerPanel .overflow-y-auto button:hover,
+body.sepia-theme #mainMenuDrawerPanel .overflow-y-auto button:active,
+body.sepia-theme #mainMenuDrawerPanel .overflow-y-auto button:focus {
+  background-color: #e8dcbf !important;
+  border-color: rgba(184, 134, 78, 0.6) !important;
+  color: #150d06 !important;
+}
+body.sepia-theme #mainMenuDrawerPanel .overflow-y-auto button span {
+  color: #2e2114 !important;
+}
+body.sepia-theme #mainMenuDrawerPanel .overflow-y-auto button:hover span,
+body.sepia-theme #mainMenuDrawerPanel .overflow-y-auto button:active span {
+  color: #150d06 !important;
+}
+body.sepia-theme #mainMenuDrawerPanel .overflow-y-auto button i {
+  color: #7a3e12 !important;
+}
+body.sepia-theme #mainMenuDrawerPanel .overflow-y-auto button:hover i {
+  color: #5a2b0a !important;
+}
+body.sepia-theme #mainMenuDrawerPanel .overflow-y-auto button span.border,
+body.sepia-theme #mainMenuDrawerPanel .overflow-y-auto button span[class*="rounded-lg"],
+body.sepia-theme #mainMenuDrawerPanel .overflow-y-auto button span[class*="rounded-md"] {
+  background-color: rgba(184, 134, 78, 0.2) !important;
+  border-color: rgba(184, 134, 78, 0.4) !important;
+  color: #5a2b0a !important;
+  font-weight: 800 !important;
+}
+
+/* Drawer Settings Accordion Section */
+body.sepia-theme #drawerSettingsSection {
+  background-color: #f7efe1 !important;
+  border-color: rgba(184, 134, 78, 0.4) !important;
+  box-shadow: 0 4px 12px rgba(46, 33, 20, 0.08) !important;
+}
+body.sepia-theme #drawerSettingsToggleBtn {
+  color: #5a2b0a !important;
+}
+body.sepia-theme #drawerSettingsToggleBtn:hover {
+  background-color: #ede2cd !important;
+}
+body.sepia-theme #drawerSettingsTitle {
+  color: #5a2b0a !important;
+}
+body.sepia-theme #drawerSettingsToggleBtn i {
+  color: #7a3e12 !important;
+}
+body.sepia-theme #drawerSettingsBadge {
+  background-color: rgba(184, 134, 78, 0.2) !important;
+  border-color: rgba(184, 134, 78, 0.4) !important;
+  color: #5a2b0a !important;
+}
+body.sepia-theme #drawerSettingsList {
+  background-color: #ede2cd !important;
+  border-top-color: rgba(184, 134, 78, 0.35) !important;
+}
+body.sepia-theme #drawerSettingsList button {
+  background-color: #fbf7ee !important;
+  border-color: rgba(184, 134, 78, 0.35) !important;
+  color: #2e2114 !important;
+}
+body.sepia-theme #drawerSettingsList button:hover {
+  background-color: #f2e7d3 !important;
+  border-color: rgba(184, 134, 78, 0.55) !important;
+}
+body.sepia-theme #drawerSettingsList button span {
+  color: #2e2114 !important;
+}
+body.sepia-theme #drawerSettingsList button .text-\[9px\] {
+  color: #6b533e !important;
+}
+body.sepia-theme #drawerNotificationStatusBadge,
+body.sepia-theme #drawerAllChatNotificationBadge,
+body.sepia-theme #drawerThemeBadge {
+  background-color: #e0d1b4 !important;
+  color: #2e2114 !important;
+  border-color: #caa87b !important;
+}
+body.sepia-theme #drawerSettingsList .bg-slate-900\/60 {
+  background-color: #fbf7ee !important;
+  border-color: rgba(184, 134, 78, 0.35) !important;
+}
+body.sepia-theme #langBtn_ar,
+body.sepia-theme #langBtn_en,
+body.sepia-theme #fontBtn_small,
+body.sepia-theme #fontBtn_large,
+body.sepia-theme #fontBtn_xl,
+body.sepia-theme #fontBtn_xxl {
+  background-color: #e8dcbf !important;
+  color: #2e2114 !important;
+  border-color: rgba(184, 134, 78, 0.4) !important;
+}
+body.sepia-theme #langBtn_ku,
+body.sepia-theme #fontBtn_normal {
+  color: #000000 !important;
+  font-weight: 900 !important;
+}
+
+/* Drawer Footer Logout Button */
+body.sepia-theme #mainMenuDrawerPanel .border-t.border-slate-800\/80 {
+  background-color: #f2e7d3 !important;
+  border-top-color: rgba(184, 134, 78, 0.3) !important;
+}
+body.sepia-theme #mainMenuDrawerPanel button[onclick*="handleLogout"] {
+  background-color: rgba(225, 29, 72, 0.12) !important;
+  border-color: rgba(225, 29, 72, 0.3) !important;
+  color: #9f1239 !important;
+}
+body.sepia-theme #mainMenuDrawerPanel button[onclick*="handleLogout"]:hover {
+  background-color: rgba(225, 29, 72, 0.22) !important;
+  border-color: rgba(225, 29, 72, 0.45) !important;
+  color: #881337 !important;
+}
+body.sepia-theme #mainMenuDrawerPanel button[onclick*="handleLogout"] * {
+  color: #9f1239 !important;
+}
+body.sepia-theme #mainMenuDrawerPanel button[onclick*="handleLogout"]:hover * {
+  color: #881337 !important;
+}
+
+/* Specific White Text Preservation on Red Badges */
+body.sepia-theme #mainMenuDrawerPanel .bg-rose-500,
+body.sepia-theme #mainMenuDrawerPanel [class*="bg-rose-500"] {
+  color: #ffffff !important;
+}
+
+/* Chat Tools & Output Menus */
+body.sepia-theme #publicChatToolsMenu,
+body.sepia-theme #customGroupToolsMenu,
+body.sepia-theme #liveAudioOutputMenu {
+  background-color: #fbf7ee !important;
+  border-color: rgba(184, 134, 78, 0.4) !important;
+  box-shadow: 0 10px 25px -5px rgba(46, 33, 20, 0.15) !important;
+}
+body.sepia-theme #publicChatToolsMenu button,
+body.sepia-theme #customGroupToolsMenu button,
+body.sepia-theme #liveAudioOutputMenu button {
+  color: #2e2114 !important;
+}
+body.sepia-theme #publicChatToolsMenu button:hover,
+body.sepia-theme #customGroupToolsMenu button:hover,
+body.sepia-theme #liveAudioOutputMenu button:hover {
+  background-color: #ede2cd !important;
+  color: #150d06 !important;
+}
+body.sepia-theme #publicChatToolsMenu button *,
+body.sepia-theme #customGroupToolsMenu button *,
+body.sepia-theme #liveAudioOutputMenu button * {
+  color: #2e2114 !important;
+}
+body.sepia-theme #publicChatToolsMenu button:hover *,
+body.sepia-theme #customGroupToolsMenu button:hover *,
+body.sepia-theme #liveAudioOutputMenu button:hover * {
+  color: #150d06 !important;
+}
+
+/* Members Sidebar Sepia Theme Overrides */
+body.sepia-theme #membersSidebar {
+  background-color: #fbf7ee !important;
+  border-color: rgba(184, 134, 78, 0.35) !important;
+}
+body.sepia-theme #membersSidebar .border-b.border-slate-800 {
+  border-bottom-color: rgba(184, 134, 78, 0.28) !important;
+}
+body.sepia-theme #membersSidebar h3 {
+  color: #2e2114 !important;
+}
+body.sepia-theme #membersSidebarCount {
+  background-color: #ede2cd !important;
+  color: #4a3623 !important;
+}
+body.sepia-theme #tabMemberStudents,
+body.sepia-theme #tabMemberAdmins {
+  color: #6b533e !important;
+}
+body.sepia-theme #tabMemberStudents:hover,
+body.sepia-theme #tabMemberAdmins:hover {
+  color: #2e2114 !important;
+}
+
+/* Theme Modal in Sepia Theme */
+body.sepia-theme #themeModal .bg-slate-900 {
+  background-color: #fbf7ee !important;
+  border-color: rgba(184, 134, 78, 0.35) !important;
+}
+body.sepia-theme #themeCardsList > div {
+  background-color: #f2e7d3 !important;
+  border-color: rgba(184, 134, 78, 0.3) !important;
+}
+body.sepia-theme #themeCardsList > div:hover {
+  background-color: #e8dcbf !important;
+}
+body.sepia-theme #themeCardsList h4 {
+  color: #2e2114 !important;
+}
+body.sepia-theme #themeCardsList p,
+body.sepia-theme #themeCardsList span {
+  color: #6b533e !important;
 }
 
 /* ================= EMERALD THEME (ISLAMIC GREEN & FOCUS MODE) ================= */
