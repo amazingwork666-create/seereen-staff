@@ -480,6 +480,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   initAppFontSize();
   initDrawerSettingsState();
   fetchDreamAvailability();
+  if (typeof initAuthLanguageNotice === 'function') {
+    initAuthLanguageNotice();
+  }
 
   // Handle mobile keyboard adaptation and secret answer draft
   const secretInput = document.getElementById('modalStickySecretAnswerInput');
@@ -538,6 +541,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 function showAuthScreen() {
   document.getElementById('authScreen').classList.remove('hidden');
   document.getElementById('mainApp').classList.add('hidden');
+  if (typeof initAuthLanguageNotice === 'function') {
+    initAuthLanguageNotice();
+  }
 }
 
 function showMainApp() {
@@ -15091,6 +15097,7 @@ function applyAppLanguage(lang) {
       }
     }
     if (typeof setAppFontSize === 'function') setAppFontSize(currentAppFontSize);
+    updateAuthLangUi('ku');
     return;
   }
 
@@ -15106,7 +15113,160 @@ function applyAppLanguage(lang) {
   }
 
   if (typeof setAppFontSize === 'function') setAppFontSize(currentAppFontSize);
+  updateAuthLangUi(lang);
 }
+
+// --- AUTH SCREEN LANGUAGE SWITCHER & 4-SECOND NOTICE ---
+let authNoticeTimer = null;
+
+function toggleAuthLangDropdown(event) {
+  if (event) event.stopPropagation();
+  const dropdown = document.getElementById('authLangDropdown');
+  const chevron = document.getElementById('authLangChevron');
+  if (!dropdown) return;
+  const isHidden = dropdown.classList.contains('hidden');
+  if (isHidden) {
+    dropdown.classList.remove('hidden');
+    if (chevron) chevron.classList.add('rotate-180');
+    dismissAuthLangNotice();
+  } else {
+    dropdown.classList.add('hidden');
+    if (chevron) chevron.classList.remove('rotate-180');
+  }
+}
+window.toggleAuthLangDropdown = toggleAuthLangDropdown;
+
+function selectAuthLanguage(lang) {
+  if (typeof setAppLanguage === 'function') {
+    setAppLanguage(lang);
+  }
+  updateAuthLangUi(lang);
+  const dropdown = document.getElementById('authLangDropdown');
+  const chevron = document.getElementById('authLangChevron');
+  if (dropdown) dropdown.classList.add('hidden');
+  if (chevron) chevron.classList.remove('rotate-180');
+}
+window.selectAuthLanguage = selectAuthLanguage;
+
+function updateAuthLangUi(lang) {
+  const currentLabel = document.getElementById('authCurrentLangLabel');
+  if (currentLabel) {
+    currentLabel.innerText = (lang === 'ku') ? 'کوردی' : (lang === 'ar' ? 'العربية' : 'English');
+  }
+
+  // Update checkmarks and item active classes in dropdown
+  ['ku', 'ar', 'en'].forEach(l => {
+    const check = document.getElementById(`authLangCheck_${l}`);
+    const item = document.getElementById(`authLangItem_${l}`);
+    if (check) {
+      if (l === lang) check.classList.remove('hidden');
+      else check.classList.add('hidden');
+    }
+    if (item) {
+      if (l === lang) {
+        item.className = 'w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-right transition active:scale-95 bg-[#dfaa86]/20 text-[#fae2cc] font-black';
+      } else {
+        item.className = 'w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-right transition active:scale-95 text-slate-300 hover:bg-slate-800 hover:text-white font-bold';
+      }
+    }
+  });
+
+  // Auth screen translations
+  const dreamText = document.getElementById('authDreamBtnText');
+  if (dreamText) {
+    dreamText.innerText = (lang === 'ar') ? 'إرسال حلم' : (lang === 'en' ? 'Submit Dream' : 'ناردنی خەون');
+  }
+
+  const tabLogin = document.getElementById('tabLogin');
+  if (tabLogin) {
+    tabLogin.innerText = (lang === 'ar') ? 'تسجيل الدخول' : (lang === 'en' ? 'Sign In' : 'چوونەژوورەوە');
+  }
+
+  const tabRegister = document.getElementById('tabRegister');
+  if (tabRegister) {
+    tabRegister.innerText = (lang === 'ar') ? 'إنشاء حساب' : (lang === 'en' ? 'Register' : 'خۆتۆمارکردن');
+  }
+
+  const forgotLink = document.getElementById('authForgotPassLink');
+  if (forgotLink) {
+    forgotLink.innerText = (lang === 'ar') ? 'هل نسيت كلمة المرور؟' : (lang === 'en' ? 'Forgot password?' : 'وشەی نهێنیت لەبیرچووە؟');
+  }
+
+  const uLabel = document.getElementById('authUsernameLabel');
+  if (uLabel) {
+    uLabel.innerText = (lang === 'ar') ? 'اسم المستخدم (Username)' : (lang === 'en' ? 'Username' : 'ناوی بەکارهێنەر (Username)');
+  }
+
+  const pLabel = document.getElementById('authPasswordLabel');
+  if (pLabel) {
+    pLabel.innerText = (lang === 'ar') ? 'كلمة المرور (Password)' : (lang === 'en' ? 'Password' : 'وشەی نهێنی (Password)');
+  }
+
+  const loginBtnText = document.getElementById('loginSubmitBtnText');
+  if (loginBtnText) {
+    loginBtnText.innerText = (lang === 'ar') ? 'تسجيل الدخول' : (lang === 'en' ? 'Sign In' : 'چوونەژوورەوە');
+  }
+}
+window.updateAuthLangUi = updateAuthLangUi;
+
+function initAuthLanguageNotice() {
+  const notice = document.getElementById('authLangNotice');
+  const bar = document.getElementById('authLangNoticeProgress');
+  if (!notice) return;
+
+  // Ensure notice is visible and positioned
+  notice.classList.remove('hidden', 'opacity-0', '-translate-y-2', 'pointer-events-none');
+  notice.classList.add('opacity-100', 'translate-y-0');
+
+  // Animate the countdown progress bar smoothly over 4000ms
+  if (bar) {
+    bar.style.transition = 'none';
+    bar.style.width = '100%';
+    void bar.offsetWidth; // Force layout reflow
+    bar.style.transition = 'width 4000ms linear';
+    bar.style.width = '0%';
+  }
+
+  // Clear any existing timer
+  if (authNoticeTimer) {
+    clearTimeout(authNoticeTimer);
+    authNoticeTimer = null;
+  }
+
+  // Set timeout to dismiss notice after exactly 4 seconds
+  authNoticeTimer = setTimeout(() => {
+    dismissAuthLangNotice();
+  }, 4000);
+}
+window.initAuthLanguageNotice = initAuthLanguageNotice;
+
+function dismissAuthLangNotice() {
+  if (authNoticeTimer) {
+    clearTimeout(authNoticeTimer);
+    authNoticeTimer = null;
+  }
+  const notice = document.getElementById('authLangNotice');
+  if (!notice) return;
+  notice.classList.remove('opacity-100', 'translate-y-0');
+  notice.classList.add('opacity-0', '-translate-y-2', 'pointer-events-none');
+  setTimeout(() => {
+    notice.classList.add('hidden');
+  }, 500);
+}
+window.dismissAuthLangNotice = dismissAuthLangNotice;
+
+// Close auth language dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  const container = document.getElementById('authLangContainer');
+  const dropdown = document.getElementById('authLangDropdown');
+  if (dropdown && !dropdown.classList.contains('hidden')) {
+    if (!container || !container.contains(e.target)) {
+      dropdown.classList.add('hidden');
+      const chev = document.getElementById('authLangChevron');
+      if (chev) chev.classList.remove('rotate-180');
+    }
+  }
+});
 
 async function translateGroupMessage(msgId, btnElem) {
   const bubble = document.getElementById(`msg-bubble-${msgId}`) || (btnElem ? btnElem.closest('.msg-bubble') : null);
