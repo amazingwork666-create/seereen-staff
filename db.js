@@ -265,6 +265,15 @@ function initDb() {
       created_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS user_lesson_progress (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      lesson_id INTEGER NOT NULL,
+      completed INTEGER NOT NULL DEFAULT 1,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(user_id, lesson_id)
+    );
+
     CREATE TABLE IF NOT EXISTS ai_security_incidents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       incident_type TEXT NOT NULL,
@@ -2303,6 +2312,35 @@ const recordedLessons = {
   }
 };
 
+// User Lesson Progress (سەحی وانەکان بۆ قوتابیان و گوێگران)
+const lessonProgress = {
+  toggle(userId, lessonId) {
+    const existing = db.prepare('SELECT id, completed FROM user_lesson_progress WHERE user_id = ? AND lesson_id = ?').get(userId, lessonId);
+    if (existing) {
+      const newVal = existing.completed ? 0 : 1;
+      db.prepare('UPDATE user_lesson_progress SET completed = ?, updated_at = ? WHERE id = ?').run(newVal, Date.now(), existing.id);
+      return newVal === 1;
+    } else {
+      db.prepare('INSERT INTO user_lesson_progress (user_id, lesson_id, completed, updated_at) VALUES (?, ?, 1, ?)').run(userId, lessonId, Date.now());
+      return true;
+    }
+  },
+  set(userId, lessonId, completed) {
+    const val = completed ? 1 : 0;
+    const existing = db.prepare('SELECT id FROM user_lesson_progress WHERE user_id = ? AND lesson_id = ?').get(userId, lessonId);
+    if (existing) {
+      db.prepare('UPDATE user_lesson_progress SET completed = ?, updated_at = ? WHERE id = ?').run(val, Date.now(), existing.id);
+    } else {
+      db.prepare('INSERT INTO user_lesson_progress (user_id, lesson_id, completed, updated_at) VALUES (?, ?, ?, ?)').run(userId, lessonId, val, Date.now());
+    }
+    return val === 1;
+  },
+  getUserProgress(userId) {
+    const rows = db.prepare('SELECT lesson_id FROM user_lesson_progress WHERE user_id = ? AND completed = 1').all(userId);
+    return rows.map(r => r.lesson_id);
+  }
+};
+
 // AI Security Incidents Helper Methods
 const aiSecurity = {
   logIncident(type, userId, userName, details, severity = 'medium', actionTaken = 'blocked', evidence = '') {
@@ -3120,6 +3158,7 @@ module.exports = {
   recordedLessons,
   lessonTeachers,
   lessonFolders,
+  lessonProgress,
   getDreamTeacherAlias,
   aiSecurity,
   advisorDb,

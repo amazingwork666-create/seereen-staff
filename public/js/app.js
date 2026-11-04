@@ -15707,6 +15707,7 @@ let lessonAudioStream = null;
 let cachedLessonTeachers = [];
 let cachedLessonFolders = [];
 let cachedRecordedLessons = [];
+let userCompletedLessonIds = new Set();
 let currentSelectedTeacher = null;
 let currentSelectedFolder = null;
 let currentRecordedLessonsFilter = '';
@@ -16095,10 +16096,11 @@ async function loadRecordedLessons() {
   }
 
   try {
-    const [tRes, fRes, lRes] = await Promise.all([
+    const [tRes, fRes, lRes, pRes] = await Promise.all([
       fetch('/api/lesson-teachers', { headers: { 'Authorization': `Bearer ${token}` } }),
       fetch('/api/lesson-folders', { headers: { 'Authorization': `Bearer ${token}` } }),
-      fetch('/api/recorded-lessons', { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch('/api/recorded-lessons', { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch('/api/recorded-lessons/progress', { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
     ]);
     const tData = await tRes.json();
     const fData = await fRes.json();
@@ -16107,6 +16109,23 @@ async function loadRecordedLessons() {
     cachedLessonTeachers = Array.isArray(tData.teachers) ? tData.teachers : [];
     cachedLessonFolders = Array.isArray(fData.folders) ? fData.folders : [];
     cachedRecordedLessons = Array.isArray(lData.lessons) ? lData.lessons : [];
+
+    if (pRes && pRes.ok) {
+      try {
+        const pData = await pRes.json();
+        if (Array.isArray(pData.completed_lesson_ids)) {
+          userCompletedLessonIds = new Set(pData.completed_lesson_ids);
+          if (currentUser && currentUser.id) {
+            localStorage.setItem(`seereen_completed_lessons_${currentUser.id}`, JSON.stringify(Array.from(userCompletedLessonIds)));
+          }
+        }
+      } catch (e) {}
+    } else if (currentUser && currentUser.id) {
+      const local = localStorage.getItem(`seereen_completed_lessons_${currentUser.id}`);
+      if (local) {
+        try { userCompletedLessonIds = new Set(JSON.parse(local)); } catch (e) {}
+      }
+    }
 
     const knownTeacherNames = new Set(cachedLessonTeachers.map(t => (t.name || '').trim().toLowerCase()));
     cachedRecordedLessons.forEach(l => {
@@ -16458,6 +16477,10 @@ function initLessonCustomAudioPlayer(lessonId, storageKey) {
     if (currentlyPlayingLessonAudioId === `lesson-audio-${lessonId}`) {
       currentlyPlayingLessonAudioId = null;
     }
+    if (!userCompletedLessonIds.has(lessonId)) {
+      toggleLessonCompleted(lessonId, true);
+      showLiveToastNotification('دەستخۆش! وانەکە کۆتایی هات و سەحی لێدرا 🎉✓', 'emerald');
+    }
   });
 }
 
@@ -16670,6 +16693,7 @@ function showFolderRecordedLessons(teacher, folder) {
   }
 
   lessonsContainer.innerHTML = lessons.map(lesson => {
+    const isCompleted = userCompletedLessonIds.has(lesson.id);
     const createdTime = lesson.created_at ? new Date(lesson.created_at).toLocaleDateString('ku-IQ') : '';
     const staffActionBtns = isStaff ? `
       <div class="flex items-center gap-1">
@@ -16681,6 +16705,17 @@ function showFolderRecordedLessons(teacher, folder) {
         </button>
       </div>
     ` : '';
+
+    const checkBtnHtml = `
+      <button type="button" 
+              id="lesson-check-btn-${lesson.id}" 
+              onclick="toggleLessonCompleted(${lesson.id})" 
+              class="px-2.5 py-1 rounded-xl ${isCompleted ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-emerald-950/30' : 'bg-slate-800/80 text-slate-400 hover:text-emerald-300 border-slate-700 hover:border-emerald-500/40'} border text-[11px] font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm shrink-0" 
+              title="${isCompleted ? 'سەحی لێدراوە - گوێت لێگرتووە (کلیک بکە بۆ لابردن)' : 'کلیک بکە بۆ لێدانی سەح (گوێم لێگرتووە)'}">
+        <i class="${isCompleted ? 'fa-solid fa-circle-check text-emerald-400' : 'fa-regular fa-circle text-slate-500'} text-xs"></i>
+        <span id="lesson-check-text-${lesson.id}">${isCompleted ? 'گوێبیستراوە ✓' : 'نیشانکردن بە سەح'}</span>
+      </button>
+    `;
 
     const storageKey = `seereen_lesson_pos_${lesson.id}`;
     const savedPos = parseFloat(localStorage.getItem(storageKey) || '0');
@@ -16698,15 +16733,16 @@ function showFolderRecordedLessons(teacher, folder) {
     `;
 
     return `
-      <div class="p-3.5 bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-2xl space-y-2.5 shadow-sm transition">
-        <div class="flex items-center justify-between">
+      <div id="recorded-lesson-card-${lesson.id}" class="p-3.5 ${isCompleted ? 'bg-slate-900/95 border-emerald-500/40 ring-1 ring-emerald-500/20 shadow-md shadow-emerald-950/20' : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'} border rounded-2xl space-y-2.5 shadow-sm transition">
+        <div class="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
           <div class="flex items-center gap-2 min-w-0">
             <span class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-mono font-bold text-xs border border-emerald-500/30 shrink-0">
               #${lesson.lesson_number}
             </span>
             <h4 class="font-black text-xs sm:text-sm text-white truncate">${escapeHtml(lesson.title)}</h4>
           </div>
-          <div class="flex items-center gap-1.5 shrink-0">
+          <div class="flex items-center gap-2 shrink-0 mr-auto sm:mr-0">
+            ${checkBtnHtml}
             ${staffActionBtns}
           </div>
         </div>
@@ -16815,6 +16851,64 @@ function showFolderRecordedLessons(teacher, folder) {
     }
   });
 }
+
+async function toggleLessonCompleted(lessonId, forceVal) {
+  const isNowCompleted = (typeof forceVal === 'boolean') ? forceVal : !userCompletedLessonIds.has(lessonId);
+  if (isNowCompleted) {
+    userCompletedLessonIds.add(lessonId);
+  } else {
+    userCompletedLessonIds.delete(lessonId);
+  }
+  updateLessonCheckUI(lessonId, isNowCompleted);
+  if (forceVal === undefined) {
+    if (isNowCompleted) {
+      showLiveToastNotification('وانەکە وەک گوێلێگیراو نیشان کرا! ✓', 'emerald');
+    } else {
+      showLiveToastNotification('سەحی وانەکە لادرا', 'slate');
+    }
+  }
+  if (currentUser && currentUser.id) {
+    localStorage.setItem(`seereen_completed_lessons_${currentUser.id}`, JSON.stringify(Array.from(userCompletedLessonIds)));
+  }
+  try {
+    await fetch(`/api/recorded-lessons/${lessonId}/toggle-progress`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ completed: isNowCompleted })
+    });
+  } catch (err) {
+    console.error('Error saving lesson progress:', err);
+  }
+}
+
+function updateLessonCheckUI(lessonId, isCompleted) {
+  const btn = document.getElementById(`lesson-check-btn-${lessonId}`);
+  const card = document.getElementById(`recorded-lesson-card-${lessonId}`);
+  if (btn) {
+    if (isCompleted) {
+      btn.className = 'px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-emerald-950/30 border text-[11px] font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm shrink-0';
+      btn.title = 'سەحی لێدراوە - گوێت لێگرتووە (کلیک بکە بۆ لابردن)';
+      btn.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 text-xs"></i><span id="lesson-check-text-${lessonId}">گوێبیستراوە ✓</span>`;
+    } else {
+      btn.className = 'px-2.5 py-1 rounded-xl bg-slate-800/80 text-slate-400 hover:text-emerald-300 border-slate-700 hover:border-emerald-500/40 border text-[11px] font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm shrink-0';
+      btn.title = 'کلیک بکە بۆ لێدانی سەح (گوێم لێگرتووە)';
+      btn.innerHTML = `<i class="fa-regular fa-circle text-slate-500 text-xs"></i><span id="lesson-check-text-${lessonId}">نیشانکردن بە سەح</span>`;
+    }
+  }
+  if (card) {
+    if (isCompleted) {
+      card.className = 'p-3.5 bg-slate-900/95 border-emerald-500/40 ring-1 ring-emerald-500/20 shadow-md shadow-emerald-950/20 border rounded-2xl space-y-2.5 shadow-sm transition';
+    } else {
+      card.className = 'p-3.5 bg-slate-900/90 border-slate-800 hover:border-slate-700 border rounded-2xl space-y-2.5 shadow-sm transition';
+    }
+  }
+}
+
+window.toggleLessonCompleted = toggleLessonCompleted;
+window.updateLessonCheckUI = updateLessonCheckUI;
 
 function openEditLessonTeacherModal(id) {
   const teacher = cachedLessonTeachers.find(t => t.id === id);

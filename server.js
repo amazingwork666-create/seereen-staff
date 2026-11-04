@@ -11,7 +11,7 @@ let archiver;
 try { archiver = require('archiver'); } catch (e) {}
 let DatabaseSync;
 try { DatabaseSync = require('node:sqlite').DatabaseSync; } catch (e) {}
-const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, lessonTeachers, lessonFolders, getDreamTeacherAlias, aiSecurity, advisorDb, buttonClicks, customGroups, pollsDb, alarmsDb, complaints, attendanceDb } = require('./db');
+const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, lessonTeachers, lessonFolders, lessonProgress, getDreamTeacherAlias, aiSecurity, advisorDb, buttonClicks, customGroups, pollsDb, alarmsDb, complaints, attendanceDb } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 4000;
@@ -7976,6 +7976,33 @@ app.delete('/api/recorded-lessons/:id', authMiddleware, requireTeacherOrSuperAdm
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە سڕینەوە' });
+  }
+});
+
+// --- USER LESSON PROGRESS (سەحی وانەکان بۆ گوێگران) ---
+app.get('/api/recorded-lessons/progress', authMiddleware, (req, res) => {
+  try {
+    const list = lessonProgress.getUserProgress(req.user.id);
+    res.json({ completed_lesson_ids: list });
+  } catch (err) {
+    console.error('Error getting lesson progress:', err);
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی پێشکەوتن' });
+  }
+});
+
+app.post('/api/recorded-lessons/:id/toggle-progress', authMiddleware, (req, res) => {
+  try {
+    const lessonId = parseInt(req.params.id);
+    let completed;
+    if (typeof req.body.completed === 'boolean') {
+      completed = lessonProgress.set(req.user.id, lessonId, req.body.completed);
+    } else {
+      completed = lessonProgress.toggle(req.user.id, lessonId);
+    }
+    res.json({ success: true, completed });
+  } catch (err) {
+    console.error('Error toggling lesson progress:', err);
+    res.status(500).json({ error: 'هەڵە لە تۆمارکردنی سەحی وانە' });
   }
 });
 
