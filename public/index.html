@@ -770,9 +770,9 @@
             <button id="drawerAiAdvisorBtn" onclick="closeMainMenuDrawer(); openAiAdvisorModal();" class="hidden w-full items-center justify-between px-3 py-2.5 rounded-xl text-slate-200 hover:text-white bg-slate-900/60 hover:bg-slate-850 border border-slate-800/80 hover:border-[#dfaa86]/40 transition shadow-sm group">
               <span class="flex items-center gap-2.5">
                 <i class="fa-solid fa-wand-magic-sparkles text-[#dfaa86] text-sm w-5 text-center group-hover:scale-110 transition-transform"></i>
-                <span class="font-bold">ئەیجنتی بەڕێوەبردنی سایت (AI)</span>
+                <span class="font-bold">ڕاوێژکاری زیرەک (AI)</span>
               </span>
-              <span class="px-2 py-0.5 bg-[#dfaa86]/15 text-[#dfaa86] border border-[#dfaa86]/30 text-[10px] font-black rounded-lg">تەواوی دەسەڵات</span>
+              <span class="px-2 py-0.5 bg-[#dfaa86]/15 text-[#dfaa86] border border-[#dfaa86]/30 text-[10px] font-black rounded-lg">ڕاوێژکار</span>
             </button>
 
             <!-- System Admin Panel -->
@@ -1202,9 +1202,9 @@
               <span id="profGenderBadge" class="hidden"></span>
               <span id="profSpecialBadgeSlot" class="hidden"></span>
               <!-- Animated AI Advisor Morphing Badge Button -->
-              <button id="profAdvisorBtn" type="button" onclick="closeUserProfileModal(); openAiAdvisorModal();" class="hidden advisor-morph-badge cursor-pointer" title="ئەیجنتی بەڕێوەبردنی تەواوی سایت (AI Executive Agent)">
+              <button id="profAdvisorBtn" type="button" onclick="closeUserProfileModal(); openAiAdvisorModal();" class="hidden advisor-morph-badge cursor-pointer" title="ڕاوێژکاری زیرەکی سیرین (AI)">
                 <i class="fa-solid fa-wand-magic-sparkles advisor-morph-icon"></i>
-                <span class="advisor-morph-text">ئەیجنتی بەڕێوەبردن</span>
+                <span class="advisor-morph-text">ڕاوێژکار</span>
               </button>
             </div>
             <p id="profUsername" class="text-xs text-[#dfaa86]/80 font-mono">@username</p>
@@ -4613,10 +4613,10 @@
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              <h3 id="advisorModalTitle" class="font-black text-xs sm:text-base text-white truncate">ئەیجنتی بەڕێوەبردنی تەواوی سایت (ڕاوێژکاری باڵا)</h3>
+              <h3 id="advisorModalTitle" class="font-black text-xs sm:text-base text-white truncate">ڕاوێژکاری زیرەکی هێمن</h3>
               <span class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-gradient-to-r from-amber-500/20 to-purple-500/20 text-[#dfaa86] border border-[#dfaa86]/40 flex items-center gap-1 shadow-sm">
-                <i class="fa-solid fa-shield-halved text-[10px] text-amber-400"></i>
-                <span>Executive AI Agent</span>
+                <i class="fa-solid fa-wand-magic-sparkles text-[10px] text-amber-400"></i>
+                <span>ڕاوێژکاری باڵا</span>
               </span>
             </div>
             <p class="text-[10px] sm:text-[11px] text-[#dfaa86]/80 hidden sm:block truncate">بەڕێوەبردنی ئەندامان، خەونەکان، چات و قفڵکردن، وانەی لایڤ، پرسیارەکان، غیابات و داتابەیس بە فەرمانی ڕاستەوخۆ</p>
@@ -4647,8 +4647,8 @@
           <span id="advisorSuggestionsCountBadge" class="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-500 text-white font-bold">0</span>
         </button>
         <button id="advisorTabBtnChat" onclick="switchAdvisorTab('chat')" class="py-2 px-2.5 sm:px-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-purple-300 flex items-center gap-1.5 sm:gap-2 transition">
-          <i class="fa-solid fa-robot text-xs text-purple-400"></i>
-          <span>فەرمان و گفتوگۆ لەگەڵ ئەیجنت</span>
+          <i class="fa-solid fa-comments text-xs text-purple-400"></i>
+          <span>گفتوگۆ لەگەڵ ڕاوێژکار</span>
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
         </button>
       </div>
@@ -4836,11 +4836,11 @@
               </div>
               <div class="bg-slate-800/90 border border-purple-500/30 rounded-2xl rounded-tr-none p-3 shadow-md">
                 <div class="flex items-center justify-between gap-2 mb-1">
-                  <span class="text-xs font-black text-purple-300">ئەیجنتی بەڕێوەبردنی تەواوی پلاتفۆرم</span>
+                  <span class="text-xs font-black text-purple-300">ڕاوێژکاری باڵا</span>
                   <span class="text-[9px] text-slate-400">ئێستا</span>
                 </div>
                 <p class="text-xs text-slate-200 leading-relaxed">
-                  سڵاو کاک هێمن گیان، برای گەورە و خۆشەویستم! من «ئەیجنتی بەڕێوەبردنی تەواوی پلاتفۆرم»م لە خزمەتتدام. تەواوی دەسەڵاتە کارگێڕییەکان و تواناکانی تۆ لە سەرجەم بەشەکانی سایتەکەدا بە فەرمانی تۆ لەبەردەستمدایە (ئەندامان، خەونەکان، چات و قفڵکردن، وانەی لایڤ، پرسیارەکان، غیابات، ڕاپرسی و داتابەیس). هەر فەرمانێک یان گۆڕانکارییەکت هەیە تەنها پێم بڵێ تا دەستبەجێ بە کردار جێبەجێی بکەم! 🤖⚡✨
+                  سڵاو کاک هێمن گیان، برای گەورە و خۆشەویستم! من «ڕاوێژکاری زیرەک»م لە خزمەتتدام. تەواوی دەسەڵاتە کارگێڕییەکان و تواناکانی تۆ لە سەرجەم بەشەکانی سایتەکەدا بە فەرمانی تۆ لەبەردەستمدایە (ئەندامان، خەونەکان، چات و قفڵکردن، وانەی لایڤ، پرسیارەکان، غیابات، ڕاپرسی و داتابەیس). هەر فەرمانێک یان گۆڕانکارییەکت هەیە تەنها پێم بڵێ تا دەستبەجێ بە کردار جێبەجێی بکەم! 🤖⚡✨
                 </p>
               </div>
             </div>
@@ -4860,7 +4860,7 @@
 
           <!-- Chat Input Bar -->
           <div class="p-2.5 sm:p-3 bg-slate-950/95 border-t border-slate-800 flex items-center gap-2 shrink-0">
-            <input type="text" id="advisorChatInput" placeholder="فەرمان یان پرسیارەکەت بۆ ئەیجنتی بەڕێوەبردن بنووسە..." class="flex-1 min-w-0 bg-slate-900/90 border border-slate-700/80 focus:border-[#dfaa86] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none transition shadow-inner" onkeydown="if(event.key==='Enter') sendAdvisorMessage()">
+            <input type="text" id="advisorChatInput" placeholder="پەیام یان فەرمانەکەت بۆ ڕاوێژکار بنووسە..." class="flex-1 min-w-0 bg-slate-900/90 border border-slate-700/80 focus:border-[#dfaa86] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none transition shadow-inner" onkeydown="if(event.key==='Enter') sendAdvisorMessage()">
             <button onclick="sendAdvisorMessage()" id="advisorSendBtn" class="h-10 px-4 rounded-2xl bg-gradient-to-r from-[#c78361] to-[#dfaa86] hover:brightness-110 text-slate-950 text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition shadow-lg shadow-[#dfaa86]/20 active:scale-95 shrink-0" title="ناردن">
               <span>ناردن</span>
               <i class="fa-solid fa-paper-plane text-xs"></i>
