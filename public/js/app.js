@@ -6534,6 +6534,55 @@ function closeMainMenuDrawer() {
   }, 300);
 }
 
+function openMainMenuDrawer() {
+  const drawer = document.getElementById('mainMenuDrawer');
+  const panel = document.getElementById('mainMenuDrawerPanel');
+  const backdrop = document.getElementById('mainMenuDrawerBackdrop');
+  if (!drawer || !panel) return;
+  drawer.classList.remove('hidden');
+  requestAnimationFrame(() => {
+    if (backdrop) backdrop.classList.remove('opacity-0');
+    panel.classList.remove('translate-x-full');
+    panel.classList.add('translate-x-0');
+  });
+}
+window.openMainMenuDrawer = openMainMenuDrawer;
+
+function returnToMainMenuFromModal(modalId) {
+  if (modalId) {
+    const el = (typeof modalId === 'string') ? document.getElementById(modalId) : modalId;
+    if (el) el.classList.add('hidden');
+    const closeFns = {
+      recordedLessonsModal: typeof closeRecordedLessonsModal === 'function' ? closeRecordedLessonsModal : null,
+      libraryModal: typeof closeLibraryModal === 'function' ? closeLibraryModal : null,
+      questionsArchiveModal: typeof closeQuestionsArchiveModal === 'function' ? closeQuestionsArchiveModal : null,
+      leaderboardModal: typeof closeLeaderboardModal === 'function' ? closeLeaderboardModal : null,
+      privateChatModal: typeof closePrivateChatModal === 'function' ? closePrivateChatModal : null,
+      dreamAuthModal: typeof closeDreamAuthModal === 'function' ? closeDreamAuthModal : null,
+      dreamChatModal: typeof closeDreamChatModal === 'function' ? closeDreamChatModal : null,
+      dreamAdminModal: typeof closeDreamAdminModal === 'function' ? closeDreamAdminModal : null,
+      complaintsModal: typeof closeComplaintsModal === 'function' ? closeComplaintsModal : null,
+      themeModal: typeof closeThemeModal === 'function' ? closeThemeModal : null,
+      liveRecordingsModal: typeof closeLiveRecordingsModal === 'function' ? closeLiveRecordingsModal : null,
+      questionModal: typeof closePostQuestionModal === 'function' ? closePostQuestionModal : null,
+      unansweredStatsModal: typeof closeUnansweredStatsModal === 'function' ? closeUnansweredStatsModal : null,
+      aiAdvisorModal: typeof closeAiAdvisorModal === 'function' ? closeAiAdvisorModal : null,
+      adminModal: typeof closeAdminModal === 'function' ? closeAdminModal : null,
+      activityDatabaseModal: typeof closeActivityModal === 'function' ? closeActivityModal : null,
+      aiSecurityModal: typeof closeAiSecurityModal === 'function' ? closeAiSecurityModal : null,
+      userProfileModal: typeof closeUserProfileModal === 'function' ? closeUserProfileModal : null,
+      createCustomGroupModal: typeof closeCreateCustomGroupModal === 'function' ? closeCreateCustomGroupModal : null,
+      customGroupChatModal: typeof closeCustomGroupChatModal === 'function' ? closeCustomGroupChatModal : null,
+      customGroupManageModal: typeof closeCustomGroupManageModal === 'function' ? closeCustomGroupManageModal : null
+    };
+    if (closeFns[modalId]) {
+      try { closeFns[modalId](); } catch (e) {}
+    }
+  }
+  openMainMenuDrawer();
+}
+window.returnToMainMenuFromModal = returnToMainMenuFromModal;
+
 // --- IN-CHAT MEMBERS LIST & SIDEBAR ---
 function toggleMembersSidebar() {
   const isPrivileged = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.role === 'teacher');

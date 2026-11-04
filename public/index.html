@@ -1210,9 +1210,15 @@
             <p id="profUsername" class="text-xs text-[#dfaa86]/80 font-mono">@username</p>
           </div>
         </div>
-        <button onclick="closeUserProfileModal()" class="w-8 h-8 rounded-xl bg-slate-950/70 hover:bg-slate-850 text-slate-400 hover:text-[#dfaa86] border border-[#dfaa86]/20 flex items-center justify-center transition shadow-sm cursor-pointer" title="داخستن">
-          <i class="fa-solid fa-xmark text-sm"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('userProfileModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button onclick="closeUserProfileModal()" class="w-8 h-8 rounded-xl bg-slate-950/70 hover:bg-slate-850 text-slate-400 hover:text-[#dfaa86] border border-[#dfaa86]/20 flex items-center justify-center transition shadow-sm cursor-pointer" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Scrollable Profile Content (Scrolls smoothly for all users & roles) -->
@@ -1592,9 +1598,15 @@
             <p class="text-[10px] text-slate-400">ڕەنگی پەسەندکراو دیاریبکە (٦ مۆدی تایبەت و بەسوود) 🎨</p>
           </div>
         </div>
-        <button onclick="closeThemeModal()" class="text-slate-400 hover:text-white p-2 text-lg">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('themeModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button onclick="closeThemeModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Theme Cards List -->
@@ -1661,9 +1673,15 @@
             <p class="text-xs text-slate-400">ژمارەی پرسیارە وەڵامنەدراوەکان بۆ هەر خوێندکارێک</p>
           </div>
         </div>
-        <button onclick="closeUnansweredStatsModal()" class="text-slate-400 hover:text-white p-2">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('unansweredStatsModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button onclick="closeUnansweredStatsModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <div class="flex-1 min-h-0 overflow-y-auto pr-1">
@@ -1873,9 +1891,15 @@
             <p class="text-[11px] sm:text-xs text-slate-400">پەسەندکردنی خۆتۆمارکردنەکان و بەڕێوەبردنی بەکارهێنەران</p>
           </div>
         </div>
-        <button onclick="closeAdminModal()" class="text-slate-400 hover:text-white p-2 text-lg">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('adminModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button onclick="closeAdminModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <div class="flex items-center border-b border-slate-800 bg-slate-950/60 px-3 sm:px-5 pt-2 gap-2 sm:gap-4 overflow-x-auto no-scrollbar whitespace-nowrap">
@@ -2014,9 +2038,15 @@
             <p class="text-[11px] sm:text-xs text-slate-400">وەڵامەکان بە نهێنی دەمێننەوە تا کات تەواو دەبێت و بەیەکەوە بڵاودەبنەوە</p>
           </div>
         </div>
-        <button onclick="closePostQuestionModal()" class="text-slate-400 hover:text-white p-2">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('questionModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button onclick="closePostQuestionModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <form onsubmit="handlePostQuestion(event)" class="space-y-4 flex-1 min-h-0 overflow-y-auto pr-1 pl-0.5">
@@ -2173,9 +2203,15 @@
             <p class="text-[11px] sm:text-xs text-slate-400">پلەی یەکەم 🥇، دووەم 🥈، و سێهەم 🥉 بەپێی ئەستێرەکان</p>
           </div>
         </div>
-        <button onclick="closeLeaderboardModal()" class="text-slate-400 hover:text-white p-2">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('leaderboardModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button onclick="closeLeaderboardModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Scrollable content wrapper -->
@@ -2205,9 +2241,15 @@
             <p class="text-xs text-slate-400">سەرجەم پرسیارەکان بە ژمارە، دەقی پرسیار و وەڵامی دروستیان بە جیاواز</p>
           </div>
         </div>
-        <button onclick="closeQuestionsArchiveModal()" class="text-slate-400 hover:text-white p-2 text-lg">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('questionsArchiveModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button onclick="closeQuestionsArchiveModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <div class="mb-4 flex items-center gap-2 shrink-0">
@@ -2271,6 +2313,10 @@
               <span class="hidden md:inline text-[11px]">نووسەر</span>
             </button>
           </div>
+          <button type="button" onclick="returnToMainMenuFromModal('libraryModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
           <button onclick="closeLibraryModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-sm border border-slate-700 transition">
             <i class="fa-solid fa-xmark"></i>
           </button>
@@ -2484,6 +2530,11 @@
             <i class="fa-solid fa-gear text-xs"></i>
             <span class="hidden sm:inline">بەڕێوەبردن</span>
           </button>
+          <!-- Return to Menu Button -->
+          <button type="button" onclick="returnToMainMenuFromModal('customGroupChatModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
           <!-- Close Button -->
           <button type="button" onclick="closeCustomGroupChatModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-sm transition" title="داخستن">
             <i class="fa-solid fa-xmark"></i>
@@ -2643,9 +2694,15 @@
             <p class="text-[11px] text-amber-300/80 truncate">تەنها تۆ دەتوانیت دروستی بکەیت و ئەندام دیاری بکەیت</p>
           </div>
         </div>
-        <button type="button" onclick="closeCreateCustomGroupModal()" class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('createCustomGroupModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button type="button" onclick="closeCreateCustomGroupModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition" title="داخستن">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Form Body -->
@@ -2718,9 +2775,15 @@
             <p id="manageGroupHeaderSubtext" class="text-[10px] sm:text-[11px] text-slate-400 truncate">گۆڕینی ناو و ئەندامان</p>
           </div>
         </div>
-        <button type="button" onclick="closeCustomGroupManageModal()" class="w-7 h-7 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('customGroupManageModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button type="button" onclick="closeCustomGroupManageModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition" title="داخستن">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Scrollable Settings (Strict overflow-x-hidden, compact mobile padding) -->
@@ -3058,9 +3121,15 @@
             <p class="text-[11px] text-purple-300">پەیوەندی ڕاستەوخۆ و تایبەت لەگەڵ بەڕێوەبەر</p>
           </div>
         </div>
-        <button onclick="closeDreamAuthModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('dreamAuthModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button onclick="closeDreamAuthModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition border border-slate-700" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <div class="space-y-4">
@@ -3128,6 +3197,10 @@
           </button>
 
           <!-- Close / Exit Button -->
+          <button type="button" onclick="returnToMainMenuFromModal('dreamChatModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
           <button onclick="closeDreamChatModal()" class="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-xl border border-slate-700 transition" title="داخستن">
             <i class="fa-solid fa-xmark"></i>
           </button>
@@ -3225,7 +3298,13 @@
             </button>
           </div>
 
-          <button onclick="closeDreamAdminModal()" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white bg-slate-800 rounded-xl border border-slate-700 transition shrink-0">
+          <!-- Return to Menu Button -->
+          <button type="button" onclick="returnToMainMenuFromModal('dreamAdminModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+
+          <button onclick="closeDreamAdminModal()" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white bg-slate-800 rounded-xl border border-slate-700 transition shrink-0" title="داخستن">
             <i class="fa-solid fa-xmark text-sm"></i>
           </button>
         </div>
@@ -3764,9 +3843,15 @@
           </div>
         </div>
 
-        <button onclick="closePrivateChatModal()" class="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-xl border border-slate-700 transition">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('privateChatModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button onclick="closePrivateChatModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition border border-slate-700" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Main Layout: Conversations List & Active Chat Area -->
@@ -3925,9 +4010,15 @@
             <p class="text-[11px] text-slate-400">تایبەت بە مامۆستا و سوپەر ئەدمین (دەستکاریکردنی ناو و داگرتن)</p>
           </div>
         </div>
-        <button type="button" onclick="closeLiveRecordingsModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
-          <i class="fa-solid fa-xmark text-sm"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('liveRecordingsModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button type="button" onclick="closeLiveRecordingsModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Live Recordings Content (No chat, purely audio recordings list) -->
@@ -3962,9 +4053,15 @@
             <p class="text-[11px] text-slate-400">گوێگرتن لە وانە و تۆمارە دەنگییەکان (داگرتن قەدەغەیە)</p>
           </div>
         </div>
-        <button type="button" onclick="closeRecordedLessonsModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
-          <i class="fa-solid fa-xmark text-sm"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('recordedLessonsModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button type="button" onclick="closeRecordedLessonsModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Add Lesson / Teacher / Folder Section for Teacher & Super Admin -->
@@ -4388,10 +4485,14 @@
           </div>
         </div>
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('aiSecurityModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
           <button onclick="loadAiSecurityStats()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs border border-slate-700 transition" title="تازەکردنەوە">
             <i class="fa-solid fa-arrows-rotate"></i>
           </button>
-          <button onclick="closeAiSecurityModal()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-xs sm:text-sm border border-slate-700 transition">
+          <button onclick="closeAiSecurityModal()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-xs sm:text-sm border border-slate-700 transition" title="داخستن">
             <i class="fa-solid fa-xmark"></i>
           </button>
         </div>
@@ -4582,9 +4683,15 @@
             <p class="text-[10px] sm:text-[11px] text-amber-300/80 truncate">بەشی پارێزراوی ناردنی ڕەخنە، پێشنیار و سکاڵا</p>
           </div>
         </div>
-        <button onclick="closeComplaintsModal()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-xs sm:text-sm border border-slate-700 transition">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('complaintsModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button onclick="closeComplaintsModal()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-xs sm:text-sm border border-slate-700 transition" title="داخستن">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Navigation Tabs (Only shown for Staff: Master Super Admin & Teachers) -->
@@ -4715,9 +4822,15 @@
             <span class="text-[10px] sm:text-xs text-teal-300/80 block truncate">تۆماری سەرجەم ڕۆژ و کاتەکانی پەنجەمۆر، هاتووان، غائیبان و مۆڵەتپێدراوان</span>
           </div>
         </div>
-        <button type="button" onclick="closeActivityModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">
-          <i class="fa-solid fa-xmark text-sm"></i>
-        </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="returnToMainMenuFromModal('activityDatabaseModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
+          <button type="button" onclick="closeActivityModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="داخستن">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Filters & Search -->
@@ -4771,6 +4884,11 @@
           </div>
         </div>
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <!-- Return to Menu Button -->
+          <button type="button" onclick="returnToMainMenuFromModal('aiAdvisorModal')" class="px-2.5 py-1.5 rounded-xl bg-[#dfaa86]/15 hover:bg-[#dfaa86]/25 border border-[#dfaa86]/40 text-[#dfaa86] hover:text-[#fae2cc] text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer" title="گەڕانەوە بۆ مێنیو ☰">
+            <i class="fa-solid fa-bars-staggered text-xs"></i>
+            <span class="text-[11px] font-black">مێنیو</span>
+          </button>
           <!-- Refresh / Scan Platform Now Button -->
           <button onclick="loadAdvisorOverview(true)" id="advisorRefreshBtn" class="px-2 sm:px-2.5 py-1.5 rounded-xl bg-purple-950/50 hover:bg-purple-900/70 text-purple-300 hover:text-white flex items-center gap-1.5 text-xs border border-purple-500/30 transition shadow-sm" title="پشکنینی نوێی سایت">
             <i class="fa-solid fa-arrows-rotate text-xs"></i>
@@ -4781,7 +4899,7 @@
             <i class="fa-solid fa-gear"></i>
           </button>
           <!-- Close Button -->
-          <button onclick="closeAiAdvisorModal()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-xs sm:text-sm border border-slate-700 transition">
+          <button onclick="closeAiAdvisorModal()" class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-200 flex items-center justify-center text-xs sm:text-sm border border-slate-700 transition" title="داخستن">
             <i class="fa-solid fa-xmark"></i>
           </button>
         </div>
