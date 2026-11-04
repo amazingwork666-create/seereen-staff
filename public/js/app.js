@@ -4236,6 +4236,7 @@ function autoResizeChatInput(el) {
   const scrollH = el.scrollHeight;
   const newHeight = Math.min(Math.max(scrollH, 40), 130);
   el.style.height = newHeight + 'px';
+  el.style.overflowY = scrollH > 130 ? 'auto' : 'hidden';
 }
 
 function handleChatInputKeyDown(e, el) {

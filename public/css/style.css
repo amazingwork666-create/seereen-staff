@@ -55,6 +55,27 @@ html, body {
   background: rgba(223, 170, 134, 0.6);
 }
 
+/* Completely Hide Scrollbars from Chat Input Textareas to Prevent Vertical Line Artifact */
+#messageInput,
+#customGroupTextInput,
+#chatInputBar textarea,
+.chat-input-textarea {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  overflow-y: hidden !important;
+  resize: none !important;
+}
+
+#messageInput::-webkit-scrollbar,
+#customGroupTextInput::-webkit-scrollbar,
+#chatInputBar textarea::-webkit-scrollbar,
+.chat-input-textarea::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
 /* Live Lesson Discord-Style Grid Scrollbar */
 #liveParticipantsList {
   overflow-y: auto !important;
