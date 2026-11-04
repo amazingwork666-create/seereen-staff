@@ -15704,44 +15704,142 @@ let lessonRecordTimerInterval = null;
 let lessonRecordSeconds = 0;
 let lessonAudioStream = null;
 
+let cachedLessonTeachers = [];
+let cachedLessonFolders = [];
+let cachedRecordedLessons = [];
+let currentSelectedTeacher = null;
+let currentSelectedFolder = null;
+let currentRecordedLessonsFilter = '';
+let activeRecordedLessonsFormType = null; // 'teacher' | 'folder' | 'lesson' | null
+
+function isRecordedLessonsStaff() {
+  return currentUser && (
+    currentUser.role === 'teacher' || 
+    currentUser.role === 'super_admin' || 
+    currentUser.role === 'admin' || 
+    (typeof hasSuperAdminPrivileges === 'function' && hasSuperAdminPrivileges(currentUser))
+  );
+}
+
+function updateRecordedLessonsStaffBar() {
+  const staffBox = document.getElementById('addRecordedLessonStaffBox');
+  const bannerText = document.getElementById('recordedLessonStaffBannerText');
+  const btn = document.getElementById('toggleRecordedLessonsStaffBtn');
+  const btnText = document.getElementById('toggleRecordedLessonsStaffBtnText');
+  const btnIcon = document.getElementById('toggleRecordedLessonsStaffBtnIcon');
+
+  if (!staffBox) return;
+
+  if (!isRecordedLessonsStaff()) {
+    staffBox.classList.add('hidden');
+    return;
+  }
+
+  staffBox.classList.remove('hidden');
+
+  if (currentSelectedFolder) {
+    if (bannerText) {
+      bannerText.innerHTML = `<i class="fa-solid fa-plus-circle"></i><span>دانانی وانەی نوێ لە فۆڵدەری «${escapeHtml(currentSelectedFolder.name)}»</span>`;
+    }
+    if (btnText) btnText.innerText = '+ زیادکردنی وانە';
+    if (btnIcon) btnIcon.className = 'fa-solid fa-circle-plus text-xs';
+    if (btn) btn.className = 'px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1.5 transition cursor-pointer shadow shrink-0';
+  } else if (currentSelectedTeacher) {
+    if (bannerText) {
+      bannerText.innerHTML = `<i class="fa-solid fa-folder-plus text-purple-400"></i><span>دروستکردنی فۆڵدەر بۆ: ${escapeHtml(currentSelectedTeacher.name)}</span>`;
+    }
+    if (btnText) btnText.innerText = '+ زیادکردنی فۆڵدەری نوێ';
+    if (btnIcon) btnIcon.className = 'fa-solid fa-folder-plus text-xs';
+    if (btn) btn.className = 'px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1.5 transition cursor-pointer shadow shrink-0';
+  } else {
+    if (bannerText) {
+      bannerText.innerHTML = `<i class="fa-solid fa-user-plus text-emerald-400"></i><span>زیادکردنی مامۆستای وانە (تایبەت بە مامۆستا و سوپەر ئەدمین)</span>`;
+    }
+    if (btnText) btnText.innerText = '+ زیادکردنی مامۆستای وانە';
+    if (btnIcon) btnIcon.className = 'fa-solid fa-user-plus text-xs';
+    if (btn) btn.className = 'px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1.5 transition cursor-pointer shadow shrink-0';
+  }
+}
+
 function openRecordedLessonsModal() {
   const modal = document.getElementById('recordedLessonsModal');
   if (!modal) return;
   modal.classList.remove('hidden');
 
-  const staffBox = document.getElementById('addRecordedLessonStaffBox');
-  if (staffBox) {
-    if (currentUser && (
-      currentUser.role === 'teacher' || 
-      currentUser.role === 'super_admin' || 
-      currentUser.role === 'admin' || 
-      (typeof hasSuperAdminPrivileges === 'function' && hasSuperAdminPrivileges(currentUser))
-    )) {
-      staffBox.classList.remove('hidden');
-    } else {
-      staffBox.classList.add('hidden');
-    }
-  }
-
+  updateRecordedLessonsStaffBar();
   loadRecordedLessons();
 }
 
 function closeRecordedLessonsModal() {
   const modal = document.getElementById('recordedLessonsModal');
   if (modal) modal.classList.add('hidden');
+  toggleRecordedLessonsActiveForm(false);
+}
+
+function toggleRecordedLessonsActiveForm(forceState) {
+  const teacherForm = document.getElementById('addTeacherForm');
+  const folderForm = document.getElementById('addFolderForm');
+  const lessonForm = document.getElementById('addLessonForm');
+  const btnText = document.getElementById('toggleRecordedLessonsStaffBtnText');
+
+  let targetForm = teacherForm;
+  let formType = 'teacher';
+  let defaultBtnLabel = '+ زیادکردنی مامۆستای وانە';
+
+  if (currentSelectedFolder) {
+    targetForm = lessonForm;
+    formType = 'lesson';
+    defaultBtnLabel = '+ زیادکردنی وانە';
+  } else if (currentSelectedTeacher) {
+    targetForm = folderForm;
+    formType = 'folder';
+    defaultBtnLabel = '+ زیادکردنی فۆڵدەری نوێ';
+  }
+
+  if (teacherForm && teacherForm !== targetForm) teacherForm.classList.add('hidden');
+  if (folderForm && folderForm !== targetForm) folderForm.classList.add('hidden');
+  if (lessonForm && lessonForm !== targetForm) lessonForm.classList.add('hidden');
+
+  if (!targetForm) return;
+
+  const willOpen = (typeof forceState === 'boolean') ? forceState : targetForm.classList.contains('hidden');
+
+  if (willOpen) {
+    targetForm.classList.remove('hidden');
+    activeRecordedLessonsFormType = formType;
+    if (btnText) btnText.innerText = '✕ داخستنی فۆرم';
+
+    if (formType === 'folder' && currentSelectedTeacher) {
+      const targetBadge = document.getElementById('addFolderTeacherTargetName');
+      if (targetBadge) targetBadge.innerText = currentSelectedTeacher.name;
+      const input = document.getElementById('newLessonFolderNameInput');
+      if (input) { input.value = ''; input.focus(); }
+    } else if (formType === 'lesson' && currentSelectedTeacher && currentSelectedFolder) {
+      const tBadge = document.getElementById('addLessonTeacherTargetName');
+      const fBadge = document.getElementById('addLessonFolderTargetName');
+      if (tBadge) tBadge.innerText = currentSelectedTeacher.name;
+      if (fBadge) fBadge.innerText = currentSelectedFolder.name;
+      const numInput = document.getElementById('newLessonNumberInput');
+      if (numInput) {
+        const folderLessons = cachedRecordedLessons.filter(l => l.folder_id === currentSelectedFolder.id);
+        const maxNum = folderLessons.reduce((m, l) => Math.max(m, l.lesson_number || 0), 0);
+        numInput.value = maxNum + 1;
+      }
+      const titleInput = document.getElementById('newLessonTitleInput');
+      if (titleInput) { titleInput.value = ''; titleInput.focus(); }
+    } else if (formType === 'teacher') {
+      const input = document.getElementById('newLessonTeacherNameInput');
+      if (input) { input.value = ''; input.focus(); }
+    }
+  } else {
+    targetForm.classList.add('hidden');
+    activeRecordedLessonsFormType = null;
+    if (btnText) btnText.innerText = defaultBtnLabel;
+  }
 }
 
 function toggleAddLessonForm() {
-  const form = document.getElementById('addLessonForm');
-  const btn = document.getElementById('toggleAddLessonBtn');
-  if (!form) return;
-  if (form.classList.contains('hidden')) {
-    form.classList.remove('hidden');
-    if (btn) btn.innerText = '✕ داخستنی فۆرم';
-  } else {
-    form.classList.add('hidden');
-    if (btn) btn.innerText = '+ زیادکردنی وانە';
-  }
+  toggleRecordedLessonsActiveForm();
 }
 
 function handleLessonAudioSelected(input) {
@@ -15817,10 +15915,6 @@ async function toggleLessonVoiceRecord() {
   }
 }
 
-let cachedRecordedLessons = [];
-let currentSelectedTeacherName = null;
-let currentRecordedLessonsFilter = '';
-
 function populateExistingTeachersDatalist() {
   const datalist = document.getElementById('existingTeachersList');
   if (!datalist) return;
@@ -15828,36 +15922,124 @@ function populateExistingTeachersDatalist() {
   if (currentUser && currentUser.full_name) {
     teacherNames.add(currentUser.full_name.trim());
   }
-  if (Array.isArray(cachedRecordedLessons)) {
-    cachedRecordedLessons.forEach(l => {
-      const name = (l.teacher_name || l.instructor_name || l.uploaded_by_name || '').trim();
-      if (name) teacherNames.add(name);
+  if (Array.isArray(cachedLessonTeachers)) {
+    cachedLessonTeachers.forEach(t => {
+      if (t.name) teacherNames.add(t.name.trim());
     });
   }
   datalist.innerHTML = Array.from(teacherNames).map(name => `<option value="${escapeHtml(name)}"></option>`).join('');
 }
 
+async function submitNewLessonTeacher() {
+  const nameInput = document.getElementById('newLessonTeacherNameInput');
+  const titleInput = document.getElementById('newLessonTeacherTitleInput');
+  const name = nameInput ? nameInput.value.trim() : '';
+  const title = titleInput ? titleInput.value.trim() : '';
+
+  if (!name) {
+    alert('تکایە ناوی مامۆستا بنووسە');
+    if (nameInput) nameInput.focus();
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/lesson-teachers', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ name, title })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      showLiveToastNotification(`مامۆستا «${name}» بە سەرکەوتوویی زیادکرا! 👨‍🏫`, 'emerald');
+      if (nameInput) nameInput.value = '';
+      if (titleInput) titleInput.value = '';
+      toggleRecordedLessonsActiveForm(false);
+      await loadRecordedLessons();
+      if (data.teacher) {
+        showTeacherRecordedLessons(data.teacher);
+      }
+    } else {
+      alert(data.error || 'هەڵە لە زیادکردنی مامۆستا');
+    }
+  } catch (err) {
+    console.error('Error submitting lesson teacher:', err);
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  }
+}
+
+async function submitNewLessonFolder() {
+  if (!currentSelectedTeacher) {
+    alert('تکایە سەرەتا مامۆستایەک هەڵبژێرە');
+    return;
+  }
+  const nameInput = document.getElementById('newLessonFolderNameInput');
+  const descInput = document.getElementById('newLessonFolderDescInput');
+  const name = nameInput ? nameInput.value.trim() : '';
+  const description = descInput ? descInput.value.trim() : '';
+
+  if (!name) {
+    alert('تکایە ناوی فۆڵدەر بنووسە');
+    if (nameInput) nameInput.focus();
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/lesson-folders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        teacher_id: currentSelectedTeacher.id,
+        teacher_name: currentSelectedTeacher.name,
+        name,
+        description
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      showLiveToastNotification(`فۆڵدەری «${name}» بە سەرکەوتوویی دروستکرا! 📁`, 'purple');
+      if (nameInput) nameInput.value = '';
+      if (descInput) descInput.value = '';
+      toggleRecordedLessonsActiveForm(false);
+      await loadRecordedLessons();
+      if (data.folder) {
+        showFolderRecordedLessons(currentSelectedTeacher, data.folder);
+      }
+    } else {
+      alert(data.error || 'هەڵە لە دروستکردنی فۆڵدەر');
+    }
+  } catch (err) {
+    console.error('Error submitting lesson folder:', err);
+    alert('پەیوەندی لەگەڵ سێرڤەر ناتەواوە');
+  }
+}
+
 async function submitNewRecordedLesson() {
-  const teacherInput = document.getElementById('newLessonTeacherInput');
+  if (!currentSelectedTeacher) {
+    alert('تکایە سەرەتا مامۆستایەک هەڵبژێرە');
+    return;
+  }
+  if (!currentSelectedFolder) {
+    alert('تکایە فۆڵدەرێک هەڵبژێرە یان فۆڵدەری نوێ دروست بکە');
+    return;
+  }
+
   const titleInput = document.getElementById('newLessonTitleInput');
   const numInput = document.getElementById('newLessonNumberInput');
   const descInput = document.getElementById('newLessonDescInput');
 
-  let teacherName = teacherInput ? teacherInput.value.trim() : '';
-  if (!teacherName && currentUser && currentUser.full_name) {
-    teacherName = currentUser.full_name.trim();
-  }
   const title = titleInput ? titleInput.value.trim() : '';
   const lessonNumber = numInput ? numInput.value.trim() : '';
   const description = descInput ? descInput.value.trim() : '';
 
-  if (!teacherName) {
-    alert('تکایە ناوی مامۆستا بنووسە');
-    return;
-  }
-
   if (!title) {
     alert('تکایە ناوی وانە بنووسە');
+    if (titleInput) titleInput.focus();
     return;
   }
 
@@ -15867,7 +16049,10 @@ async function submitNewRecordedLesson() {
   }
 
   const formData = new FormData();
-  formData.append('teacher_name', teacherName);
+  formData.append('teacher_id', currentSelectedTeacher.id || 0);
+  formData.append('teacher_name', currentSelectedTeacher.name);
+  formData.append('folder_id', currentSelectedFolder.id || 0);
+  formData.append('folder_name', currentSelectedFolder.name);
   formData.append('title', title);
   if (lessonNumber) formData.append('lesson_number', lessonNumber);
   if (description) formData.append('description', description);
@@ -15882,8 +16067,7 @@ async function submitNewRecordedLesson() {
     });
     const data = await res.json();
     if (res.ok && data.success) {
-      showLiveToastNotification(`وانەی «${title}» بۆ «${teacherName}» بڵاوکرایەوە! 🎉`, 'emerald');
-      // Reset form
+      showLiveToastNotification(`وانەی «${title}» بڵاوکرایەوە! 🎉`, 'emerald');
       if (titleInput) titleInput.value = '';
       if (numInput) numInput.value = '';
       if (descInput) descInput.value = '';
@@ -15892,10 +16076,9 @@ async function submitNewRecordedLesson() {
       if (fileInput) fileInput.value = '';
       const label = document.getElementById('lessonAudioSelectLabel');
       if (label) label.innerText = 'هەڵبژاردنی فایلی دەنگ';
-      toggleAddLessonForm();
-      currentSelectedTeacherName = teacherName;
+      toggleRecordedLessonsActiveForm(false);
       await loadRecordedLessons();
-      showTeacherRecordedLessons(teacherName);
+      showFolderRecordedLessons(currentSelectedTeacher, currentSelectedFolder);
     } else {
       alert(data.error || 'نەتوانرا وانەکە باربکرێت');
     }
@@ -15907,37 +16090,60 @@ async function submitNewRecordedLesson() {
 
 async function loadRecordedLessons() {
   const teachersContainer = document.getElementById('recordedLessonsTeachersContainer');
-  const lessonsContainer = document.getElementById('recordedLessonsListContainer');
-  const navHeader = document.getElementById('recordedLessonsNavHeader');
-
-  if (teachersContainer && !currentSelectedTeacherName) {
+  if (teachersContainer && !currentSelectedTeacher) {
     teachersContainer.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs col-span-2">لە بارکردندایە...</div>';
-    teachersContainer.classList.remove('hidden');
   }
 
   try {
-    const res = await fetch('/api/recorded-lessons', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const data = await res.json();
-    if (!res.ok || !Array.isArray(data.lessons)) {
-      if (teachersContainer) teachersContainer.innerHTML = '<div class="p-6 text-center text-rose-400 text-xs col-span-2">نەتوانرا وانەکان بهێنرێت</div>';
-      return;
-    }
+    const [tRes, fRes, lRes] = await Promise.all([
+      fetch('/api/lesson-teachers', { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch('/api/lesson-folders', { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch('/api/recorded-lessons', { headers: { 'Authorization': `Bearer ${token}` } })
+    ]);
+    const tData = await tRes.json();
+    const fData = await fRes.json();
+    const lData = await lRes.json();
 
-    cachedRecordedLessons = data.lessons;
+    cachedLessonTeachers = Array.isArray(tData.teachers) ? tData.teachers : [];
+    cachedLessonFolders = Array.isArray(fData.folders) ? fData.folders : [];
+    cachedRecordedLessons = Array.isArray(lData.lessons) ? lData.lessons : [];
+
+    const knownTeacherNames = new Set(cachedLessonTeachers.map(t => (t.name || '').trim().toLowerCase()));
+    cachedRecordedLessons.forEach(l => {
+      const name = (l.teacher_name || l.instructor_name || '').trim();
+      if (name && !knownTeacherNames.has(name.toLowerCase())) {
+        cachedLessonTeachers.push({
+          id: l.teacher_id || 0,
+          name: name,
+          title: 'مامۆستا',
+          folders_count: 0,
+          lessons_count: 1
+        });
+        knownTeacherNames.add(name.toLowerCase());
+      }
+    });
+
     populateExistingTeachersDatalist();
 
-    if (currentSelectedTeacherName) {
-      const teacherStillExists = cachedRecordedLessons.some(l => {
-        const t = (l.teacher_name || l.instructor_name || l.uploaded_by_name || '').trim() || 'مامۆستا';
-        return t === currentSelectedTeacherName;
-      });
-      if (teacherStillExists) {
-        showTeacherRecordedLessons(currentSelectedTeacherName);
+    if (currentSelectedTeacher) {
+      const foundT = cachedLessonTeachers.find(t => (t.id && t.id === currentSelectedTeacher.id) || (t.name && t.name.toLowerCase() === currentSelectedTeacher.name.toLowerCase()));
+      if (foundT) {
+        currentSelectedTeacher = foundT;
+        if (currentSelectedFolder) {
+          const foundF = cachedLessonFolders.find(f => f.id === currentSelectedFolder.id);
+          if (foundF) {
+            currentSelectedFolder = foundF;
+            showFolderRecordedLessons(currentSelectedTeacher, currentSelectedFolder);
+            return;
+          } else {
+            currentSelectedFolder = null;
+          }
+        }
+        showTeacherRecordedLessons(currentSelectedTeacher);
         return;
       } else {
-        currentSelectedTeacherName = null;
+        currentSelectedTeacher = null;
+        currentSelectedFolder = null;
       }
     }
 
@@ -15950,80 +16156,131 @@ async function loadRecordedLessons() {
 
 function renderRecordedLessonsTeachers(filterQuery = '') {
   const teachersContainer = document.getElementById('recordedLessonsTeachersContainer');
+  const foldersContainer = document.getElementById('recordedLessonsFoldersContainer');
   const lessonsContainer = document.getElementById('recordedLessonsListContainer');
   const navHeader = document.getElementById('recordedLessonsNavHeader');
   const searchBox = document.getElementById('recordedLessonsSearchBox');
 
   if (!teachersContainer) return;
+
+  currentSelectedTeacher = null;
+  currentSelectedFolder = null;
+
   teachersContainer.classList.remove('hidden');
+  if (foldersContainer) foldersContainer.classList.add('hidden');
   if (lessonsContainer) lessonsContainer.classList.add('hidden');
   if (navHeader) navHeader.classList.add('hidden');
   if (searchBox) searchBox.classList.remove('hidden');
-  currentSelectedTeacherName = null;
 
+  updateRecordedLessonsStaffBar();
   populateExistingTeachersDatalist();
 
-  const teacherInput = document.getElementById('newLessonTeacherInput');
-  if (teacherInput && !teacherInput.value && currentUser && currentUser.full_name) {
-    teacherInput.value = currentUser.full_name;
-  }
-
-  const teacherMap = new Map();
-  cachedRecordedLessons.forEach(l => {
-    const tName = (l.teacher_name || l.instructor_name || l.uploaded_by_name || '').trim() || 'مامۆستا';
-    if (!teacherMap.has(tName)) {
-      teacherMap.set(tName, []);
-    }
-    teacherMap.get(tName).push(l);
-  });
-
   const query = (filterQuery || '').trim().toLowerCase();
-  let entries = Array.from(teacherMap.entries());
+  let list = cachedLessonTeachers.slice();
 
   if (query) {
-    entries = entries.filter(([teacherName, lessons]) => {
-      const matchTeacher = teacherName.toLowerCase().includes(query);
-      const matchLesson = lessons.some(l => 
-        (l.title && l.title.toLowerCase().includes(query)) ||
-        (l.description && l.description.toLowerCase().includes(query))
-      );
-      return matchTeacher || matchLesson;
+    list = list.filter(t => {
+      const matchName = t.name && t.name.toLowerCase().includes(query);
+      const matchTitle = t.title && t.title.toLowerCase().includes(query);
+      const matchFolder = cachedLessonFolders.some(f => ((f.teacher_id && f.teacher_id === t.id) || (f.teacher_name && f.teacher_name.toLowerCase() === t.name.toLowerCase())) && f.name.toLowerCase().includes(query));
+      const matchLesson = cachedRecordedLessons.some(l => (l.teacher_name && l.teacher_name.toLowerCase() === t.name.toLowerCase()) && (l.title.toLowerCase().includes(query) || (l.description && l.description.toLowerCase().includes(query))));
+      return matchName || matchTitle || matchFolder || matchLesson;
     });
   }
 
-  if (entries.length === 0) {
+  const isStaff = isRecordedLessonsStaff();
+
+  if (list.length === 0) {
     teachersContainer.innerHTML = `
       <div class="p-8 text-center text-slate-500 text-xs leading-relaxed col-span-2 space-y-2">
-        <i class="fa-solid fa-chalkboard-user text-3xl text-slate-600 block mb-1"></i>
-        ${query ? `هیچ مامۆستایەک یان وانەیەک بە ناوی «${escapeHtml(query)}» نەدۆزرایەوە.` : 'هیچ وانەیەکی تۆمارکراو بەردەست نییە.'}
+        <div class="w-16 h-16 rounded-3xl bg-slate-800/60 border border-slate-700/60 text-slate-400 flex items-center justify-center text-2xl mx-auto mb-2 shadow-inner">
+          <i class="fa-solid fa-chalkboard-user"></i>
+        </div>
+        <p class="font-bold text-slate-300 text-sm">
+          ${query ? `هیچ مامۆستایەک بە گەڕانی «${escapeHtml(query)}» نەدۆزرایەوە.` : 'هیچ مامۆستایەکی وانە تۆمار نەکراوە.'}
+        </p>
+        <p class="text-[11px] text-slate-400">
+          ${isStaff ? 'دەتوانیت لە ڕێگەی دوگمەی سەرەوە «+ زیادکردنی مامۆستای وانە» یەکەم مامۆستا دابنێیت!' : 'وانە تۆمارکراوەکان لێرە دەردەکەون کاتێک مامۆستا دابنرێت.'}
+        </p>
       </div>
     `;
     return;
   }
 
-  teachersContainer.innerHTML = entries.map(([teacherName, lessons]) => {
+  teachersContainer.innerHTML = list.map(t => {
+    const teacherFolders = cachedLessonFolders.filter(f => (f.teacher_id && f.teacher_id === t.id) || (f.teacher_name && f.teacher_name.toLowerCase() === t.name.toLowerCase()));
+    const teacherLessons = cachedRecordedLessons.filter(l => (l.teacher_id && l.teacher_id === t.id) || (l.teacher_name && l.teacher_name.toLowerCase() === t.name.toLowerCase()));
+    const fCount = teacherFolders.length;
+    const lCount = teacherLessons.length;
+
+    const staffActionBtns = isStaff && t.id ? `
+      <div class="flex items-center gap-1" onclick="event.stopPropagation()">
+        <button type="button" onclick="openEditLessonTeacherModal(${t.id})" class="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-slate-800 transition cursor-pointer" title="دەستکاریکردنی مامۆستا ✏️">
+          <i class="fa-solid fa-pen-to-square text-xs"></i>
+        </button>
+        <button type="button" onclick="deleteLessonTeacher(${t.id})" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition cursor-pointer" title="سڕینەوەی مامۆستا 🗑️">
+          <i class="fa-solid fa-trash text-xs"></i>
+        </button>
+      </div>
+    ` : '';
+
     return `
-      <div onclick="showTeacherRecordedLessons('${escapeHtml(teacherName)}')" class="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-emerald-500/50 hover:from-slate-850 transition-all cursor-pointer shadow-md group flex items-center justify-between gap-3 active:scale-[0.98]">
-        <div class="flex items-center gap-3 min-w-0">
+      <div onclick="selectRecordedLessonTeacher(${t.id || 0}, '${escapeHtml(t.name)}')" class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-emerald-500/50 hover:from-slate-850 transition-all cursor-pointer shadow-md group flex items-center justify-between gap-3 active:scale-[0.98]">
+        <div class="flex items-center gap-3 min-w-0 flex-1">
           <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform shadow-inner">
             <i class="fa-solid fa-chalkboard-user"></i>
           </div>
           <div class="min-w-0">
-            <h4 class="font-black text-sm text-white group-hover:text-emerald-300 transition truncate">${escapeHtml(teacherName)}</h4>
-            <span class="text-[11px] text-slate-400 block mt-0.5 font-medium">${lessons.length} وانەی تۆمارکراو 🎙️</span>
+            <h4 class="font-black text-sm text-white group-hover:text-emerald-300 transition truncate">${escapeHtml(t.name)}</h4>
+            ${t.title ? `<span class="text-[11px] text-amber-300/90 block truncate font-medium">${escapeHtml(t.title)}</span>` : ''}
+            <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+              <span class="text-[10px] px-2 py-0.5 rounded-md bg-purple-950/60 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-1">
+                <i class="fa-solid fa-folder text-[9px]"></i>
+                <span>${fCount} فۆڵدەر</span>
+              </span>
+              <span class="text-[10px] px-2 py-0.5 rounded-md bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1">
+                <i class="fa-solid fa-circle-play text-[9px]"></i>
+                <span>${lCount} وانە</span>
+              </span>
+            </div>
           </div>
         </div>
-        <div class="w-8 h-8 rounded-xl bg-slate-800 group-hover:bg-emerald-600 text-slate-400 group-hover:text-white flex items-center justify-center text-xs transition shrink-0">
-          <i class="fa-solid fa-chevron-left"></i>
+        <div class="flex items-center gap-1 shrink-0">
+          ${staffActionBtns}
+          <div class="w-8 h-8 rounded-xl bg-slate-800 group-hover:bg-emerald-600 text-slate-400 group-hover:text-white flex items-center justify-center text-xs transition">
+            <i class="fa-solid fa-chevron-left"></i>
+          </div>
         </div>
       </div>
     `;
   }).join('');
 }
 
+function selectRecordedLessonTeacher(teacherId, fallbackName = '') {
+  let teacher = cachedLessonTeachers.find(t => t.id === teacherId);
+  if (!teacher && fallbackName) {
+    teacher = cachedLessonTeachers.find(t => t.name.toLowerCase() === fallbackName.toLowerCase());
+  }
+  if (!teacher && fallbackName) {
+    teacher = { id: teacherId || 0, name: fallbackName, title: 'مامۆستا' };
+  }
+  if (teacher) {
+    showTeacherRecordedLessons(teacher);
+  }
+}
+
 function showRecordedLessonsTeachersView() {
-  currentSelectedTeacherName = null;
+  currentSelectedTeacher = null;
+  currentSelectedFolder = null;
   renderRecordedLessonsTeachers(currentRecordedLessonsFilter);
+}
+
+function navigateRecordedLessonsBack() {
+  if (currentSelectedFolder) {
+    showTeacherRecordedLessons(currentSelectedTeacher);
+  } else if (currentSelectedTeacher) {
+    showRecordedLessonsTeachersView();
+  }
 }
 
 // Dedicated Lesson Audio Player with Long Progress Bar & Seek Controls
@@ -16209,35 +16466,204 @@ window.skipLessonAudio = skipLessonAudio;
 window.cycleLessonPlaybackSpeed = cycleLessonPlaybackSpeed;
 window.toggleLessonAudioMute = toggleLessonAudioMute;
 
-function showTeacherRecordedLessons(teacherName) {
-  currentSelectedTeacherName = teacherName;
+function showTeacherRecordedLessons(teacher) {
+  if (typeof teacher === 'string') {
+    const found = cachedLessonTeachers.find(t => t.name.toLowerCase() === teacher.toLowerCase());
+    teacher = found || { id: 0, name: teacher, title: 'مامۆستا' };
+  }
+  currentSelectedTeacher = teacher;
+  currentSelectedFolder = null;
+
   const teachersContainer = document.getElementById('recordedLessonsTeachersContainer');
+  const foldersContainer = document.getElementById('recordedLessonsFoldersContainer');
   const lessonsContainer = document.getElementById('recordedLessonsListContainer');
   const navHeader = document.getElementById('recordedLessonsNavHeader');
-  const badge = document.getElementById('selectedTeacherNameBadge');
+  const backBtnText = document.getElementById('recordedLessonsBackBtnText');
+  const breadcrumbs = document.getElementById('recordedLessonsBreadcrumbPath');
 
   if (teachersContainer) teachersContainer.classList.add('hidden');
+  if (lessonsContainer) lessonsContainer.classList.add('hidden');
+  if (foldersContainer) foldersContainer.classList.remove('hidden');
   if (navHeader) navHeader.classList.remove('hidden');
-  if (lessonsContainer) lessonsContainer.classList.remove('hidden');
 
-  const lessons = cachedRecordedLessons.filter(l => {
-    const t = (l.teacher_name || l.instructor_name || l.uploaded_by_name || '').trim() || 'مامۆستا';
-    return t === teacherName;
+  if (backBtnText) backBtnText.innerText = 'گەڕانەوە بۆ مامۆستاکان';
+  if (breadcrumbs) {
+    breadcrumbs.innerHTML = `
+      <button onclick="showRecordedLessonsTeachersView()" class="hover:text-emerald-400 transition cursor-pointer flex items-center gap-1">
+        <i class="fa-solid fa-chalkboard-user text-xs"></i>
+        <span>مامۆستاکان</span>
+      </button>
+      <i class="fa-solid fa-chevron-left text-[9px] text-slate-500"></i>
+      <span class="text-emerald-400 font-black">${escapeHtml(teacher.name)}</span>
+    `;
+  }
+
+  updateRecordedLessonsStaffBar();
+
+  // Find folders for this teacher
+  let folders = cachedLessonFolders.filter(f => (f.teacher_id && f.teacher_id === teacher.id) || (f.teacher_name && f.teacher_name.toLowerCase() === teacher.name.toLowerCase()));
+  
+  // Also check if there are unassigned lessons for this teacher
+  const unassignedLessons = cachedRecordedLessons.filter(l => ((l.teacher_id && l.teacher_id === teacher.id) || (l.teacher_name && l.teacher_name.toLowerCase() === teacher.name.toLowerCase())) && (!l.folder_id || l.folder_id === 0));
+  if (unassignedLessons.length > 0) {
+    const hasGeneral = folders.some(f => f.id === 0 || f.name === 'وانە گشتییەکان');
+    if (!hasGeneral) {
+      folders.unshift({
+        id: 0,
+        teacher_id: teacher.id,
+        teacher_name: teacher.name,
+        name: 'وانە گشتییەکان (سەرەکی)',
+        description: 'وانە تۆمارکراوەکانی پێشوو',
+        lessons_count: unassignedLessons.length
+      });
+    }
+  }
+
+  const query = (currentRecordedLessonsFilter || '').trim().toLowerCase();
+  if (query) {
+    folders = folders.filter(f => {
+      const matchName = f.name && f.name.toLowerCase().includes(query);
+      const matchDesc = f.description && f.description.toLowerCase().includes(query);
+      const matchLesson = cachedRecordedLessons.some(l => (l.folder_id === f.id || (!f.id && !l.folder_id)) && (l.title.toLowerCase().includes(query) || (l.description && l.description.toLowerCase().includes(query))));
+      return matchName || matchDesc || matchLesson;
+    });
+  }
+
+  const isStaff = isRecordedLessonsStaff();
+
+  if (folders.length === 0) {
+    foldersContainer.innerHTML = `
+      <div class="p-8 text-center text-slate-500 text-xs leading-relaxed col-span-2 space-y-2">
+        <div class="w-16 h-16 rounded-3xl bg-purple-950/40 border border-purple-500/30 text-purple-300 flex items-center justify-center text-2xl mx-auto mb-2 shadow-inner">
+          <i class="fa-solid fa-folder-open"></i>
+        </div>
+        <p class="font-bold text-slate-300 text-sm">
+          ${query ? `هیچ فۆڵدەرێک بە ناوی «${escapeHtml(query)}» نەدۆزرایەوە.` : `هیچ فۆڵدەرێک بۆ مامۆستا «${escapeHtml(teacher.name)}» دروست نەکراوە.`}
+        </p>
+        <p class="text-[11px] text-slate-400">
+          ${isStaff ? 'لە سەرەوە کلیک لەسەر «+ زیادکردنی فۆڵدەری نوێ» بکە بۆ دروستکردنی فۆڵدەر بەویستی خۆت (وەک: تەفسیر، عەقیدە، شەرحی کتێب...).' : 'تۆماری وانە بۆ ئەم مامۆستایە بەردەست نییە.'}
+        </p>
+      </div>
+    `;
+    return;
+  }
+
+  foldersContainer.innerHTML = folders.map(f => {
+    const fLessons = cachedRecordedLessons.filter(l => (f.id && l.folder_id === f.id) || (!f.id && (!l.folder_id || l.folder_id === 0) && l.teacher_name.toLowerCase() === teacher.name.toLowerCase()));
+    const lCount = fLessons.length;
+
+    const staffActionBtns = (isStaff && f.id > 0) ? `
+      <div class="flex items-center gap-1" onclick="event.stopPropagation()">
+        <button type="button" onclick="openEditLessonFolderModal(${f.id})" class="p-1.5 text-slate-400 hover:text-purple-400 rounded-lg hover:bg-slate-800 transition cursor-pointer" title="دەستکاریکردنی فۆڵدەر ✏️">
+          <i class="fa-solid fa-pen-to-square text-xs"></i>
+        </button>
+        <button type="button" onclick="deleteLessonFolder(${f.id})" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition cursor-pointer" title="سڕینەوەی فۆڵدەر 🗑️">
+          <i class="fa-solid fa-trash text-xs"></i>
+        </button>
+      </div>
+    ` : '';
+
+    return `
+      <div onclick="selectRecordedLessonFolder(${f.id || 0})" class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-purple-500/30 hover:border-purple-400 hover:from-purple-950/20 transition-all cursor-pointer shadow-md group flex items-center justify-between gap-3 active:scale-[0.98]">
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 text-purple-300 border border-purple-500/40 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition-transform shadow-inner">
+            <i class="fa-solid fa-folder-closed group-hover:hidden"></i>
+            <i class="fa-solid fa-folder-open hidden group-hover:inline-block"></i>
+          </div>
+          <div class="min-w-0">
+            <h4 class="font-black text-sm text-white group-hover:text-purple-300 transition truncate">${escapeHtml(f.name)}</h4>
+            ${f.description ? `<p class="text-[11px] text-slate-400 truncate mt-0.5">${escapeHtml(f.description)}</p>` : ''}
+            <span class="text-[10px] px-2 py-0.5 rounded-md bg-purple-950/60 text-purple-300 border border-purple-500/30 font-bold inline-block mt-1">
+              ${lCount} وانە 🎙️
+            </span>
+          </div>
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+          ${staffActionBtns}
+          <div class="w-8 h-8 rounded-xl bg-slate-800 group-hover:bg-purple-600 text-slate-400 group-hover:text-white flex items-center justify-center text-xs transition">
+            <i class="fa-solid fa-chevron-left"></i>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function selectRecordedLessonFolder(folderId) {
+  let folder = cachedLessonFolders.find(f => f.id === folderId);
+  if (!folder && folderId === 0) {
+    folder = { id: 0, name: 'وانە گشتییەکان', description: '' };
+  }
+  if (currentSelectedTeacher && folder) {
+    showFolderRecordedLessons(currentSelectedTeacher, folder);
+  }
+}
+
+function showFolderRecordedLessons(teacher, folder) {
+  currentSelectedTeacher = teacher;
+  currentSelectedFolder = folder;
+
+  const teachersContainer = document.getElementById('recordedLessonsTeachersContainer');
+  const foldersContainer = document.getElementById('recordedLessonsFoldersContainer');
+  const lessonsContainer = document.getElementById('recordedLessonsListContainer');
+  const navHeader = document.getElementById('recordedLessonsNavHeader');
+  const backBtnText = document.getElementById('recordedLessonsBackBtnText');
+  const breadcrumbs = document.getElementById('recordedLessonsBreadcrumbPath');
+
+  if (teachersContainer) teachersContainer.classList.add('hidden');
+  if (foldersContainer) foldersContainer.classList.add('hidden');
+  if (lessonsContainer) lessonsContainer.classList.remove('hidden');
+  if (navHeader) navHeader.classList.remove('hidden');
+
+  if (backBtnText) backBtnText.innerText = 'گەڕانەوە بۆ فۆڵدەرەکان';
+  if (breadcrumbs) {
+    breadcrumbs.innerHTML = `
+      <button onclick="showRecordedLessonsTeachersView()" class="hover:text-emerald-400 transition cursor-pointer flex items-center gap-1">
+        <i class="fa-solid fa-chalkboard-user text-xs"></i>
+        <span>مامۆستاکان</span>
+      </button>
+      <i class="fa-solid fa-chevron-left text-[9px] text-slate-500"></i>
+      <button onclick="showTeacherRecordedLessons(currentSelectedTeacher)" class="hover:text-purple-300 transition cursor-pointer">
+        ${escapeHtml(teacher.name)}
+      </button>
+      <i class="fa-solid fa-chevron-left text-[9px] text-slate-500"></i>
+      <span class="text-purple-400 font-black">${escapeHtml(folder.name)}</span>
+    `;
+  }
+
+  updateRecordedLessonsStaffBar();
+
+  // Filter lessons for this folder
+  let lessons = cachedRecordedLessons.filter(l => {
+    if (folder.id > 0) {
+      return l.folder_id === folder.id;
+    }
+    // Unassigned folder (id: 0)
+    return (!l.folder_id || l.folder_id === 0) && (l.teacher_name.toLowerCase() === teacher.name.toLowerCase());
   });
 
-  if (badge) badge.innerText = `مامۆستا: ${teacherName} (${lessons.length} وانە)`;
+  const query = (currentRecordedLessonsFilter || '').trim().toLowerCase();
+  if (query) {
+    lessons = lessons.filter(l => 
+      (l.title && l.title.toLowerCase().includes(query)) ||
+      (l.description && l.description.toLowerCase().includes(query))
+    );
+  }
 
-  const isStaff = currentUser && (
-    currentUser.role === 'teacher' || 
-    currentUser.role === 'super_admin' || 
-    currentUser.role === 'admin' ||
-    (typeof hasSuperAdminPrivileges === 'function' && hasSuperAdminPrivileges(currentUser))
-  );
+  const isStaff = isRecordedLessonsStaff();
 
   if (lessons.length === 0) {
     lessonsContainer.innerHTML = `
-      <div class="p-8 text-center text-slate-500 text-xs">
-        هیچ وانەیەک بۆ مامۆستا «${escapeHtml(teacherName)}» بەردەست نییە.
+      <div class="p-8 text-center text-slate-500 text-xs leading-relaxed space-y-2">
+        <div class="w-16 h-16 rounded-3xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 flex items-center justify-center text-2xl mx-auto mb-2 shadow-inner">
+          <i class="fa-solid fa-circle-play"></i>
+        </div>
+        <p class="font-bold text-slate-300 text-sm">
+          ${query ? `هیچ وانەیەک بە ناوی «${escapeHtml(query)}» نەدۆزرایەوە.` : `هیچ وانەیەک لە فۆڵدەری «${escapeHtml(folder.name)}»دا نییە.`}
+        </p>
+        <p class="text-[11px] text-slate-400">
+          ${isStaff ? 'لە سەرەوە کلیک لەسەر «+ زیادکردنی وانە» بکە بۆ بارکردن یان تۆمارکردنی یەکەم وانە لەم فۆڵدەرەدا!' : 'بە زوویی وانەکان لەم فۆڵدەرەدا دادەنرێن.'}
+        </p>
       </div>
     `;
     return;
@@ -16390,6 +16816,163 @@ function showTeacherRecordedLessons(teacherName) {
   });
 }
 
+function openEditLessonTeacherModal(id) {
+  const teacher = cachedLessonTeachers.find(t => t.id === id);
+  if (!teacher) return;
+  const modal = document.getElementById('editLessonTeacherModal');
+  const idInput = document.getElementById('editLessonTeacherId');
+  const nameInput = document.getElementById('editLessonTeacherNameInput');
+  const titleInput = document.getElementById('editLessonTeacherTitleInput');
+
+  if (idInput) idInput.value = teacher.id;
+  if (nameInput) nameInput.value = teacher.name || '';
+  if (titleInput) titleInput.value = teacher.title || '';
+
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeEditLessonTeacherModal() {
+  const modal = document.getElementById('editLessonTeacherModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function saveEditedLessonTeacher() {
+  const id = document.getElementById('editLessonTeacherId')?.value;
+  const name = document.getElementById('editLessonTeacherNameInput')?.value.trim();
+  const title = document.getElementById('editLessonTeacherTitleInput')?.value.trim();
+
+  if (!id) return;
+  if (!name) {
+    alert('تکایە ناوی مامۆستا بنووسە');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/lesson-teachers/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ name, title })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      showLiveToastNotification('دەستکاری مامۆستا پاشەکەوت کرا! ✨', 'emerald');
+      closeEditLessonTeacherModal();
+      await loadRecordedLessons();
+    } else {
+      alert(data.error || 'هەڵە لە دەستکاریکردن');
+    }
+  } catch (err) {
+    console.error('Error saving edited teacher:', err);
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
+async function deleteLessonTeacher(id) {
+  const teacher = cachedLessonTeachers.find(t => t.id === id);
+  const name = teacher ? teacher.name : 'ئەم مامۆستایە';
+  if (!confirm(`ئایا دڵنیایت لە سڕینەوەی «${name}»؟\nئاگاداربە: هەموو فۆڵدەر و وانەکانی پەیوەست بەم مامۆستایەش دەسڕێنەوە!`)) return;
+
+  try {
+    const res = await fetch(`/api/lesson-teachers/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      showLiveToastNotification('مامۆستا و وانەکانی سڕانەوە 🗑️', 'amber');
+      await loadRecordedLessons();
+      showRecordedLessonsTeachersView();
+    } else {
+      alert('نەتوانرا بسڕدرێتەوە');
+    }
+  } catch (err) {
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
+function openEditLessonFolderModal(id) {
+  const folder = cachedLessonFolders.find(f => f.id === id);
+  if (!folder) return;
+  const modal = document.getElementById('editLessonFolderModal');
+  const idInput = document.getElementById('editLessonFolderId');
+  const nameInput = document.getElementById('editLessonFolderNameInput');
+  const descInput = document.getElementById('editLessonFolderDescInput');
+
+  if (idInput) idInput.value = folder.id;
+  if (nameInput) nameInput.value = folder.name || '';
+  if (descInput) descInput.value = folder.description || '';
+
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeEditLessonFolderModal() {
+  const modal = document.getElementById('editLessonFolderModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function saveEditedLessonFolder() {
+  const id = document.getElementById('editLessonFolderId')?.value;
+  const name = document.getElementById('editLessonFolderNameInput')?.value.trim();
+  const description = document.getElementById('editLessonFolderDescInput')?.value.trim();
+
+  if (!id) return;
+  if (!name) {
+    alert('تکایە ناوی فۆڵدەر بنووسە');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/lesson-folders/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ name, description })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      showLiveToastNotification('دەستکاری فۆڵدەر پاشەکەوت کرا! ✨', 'purple');
+      closeEditLessonFolderModal();
+      await loadRecordedLessons();
+      if (currentSelectedTeacher) {
+        showTeacherRecordedLessons(currentSelectedTeacher);
+      }
+    } else {
+      alert(data.error || 'هەڵە لە دەستکاریکردن');
+    }
+  } catch (err) {
+    console.error('Error saving edited folder:', err);
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
+async function deleteLessonFolder(id) {
+  const folder = cachedLessonFolders.find(f => f.id === id);
+  const name = folder ? folder.name : 'ئەم فۆڵدەرە';
+  if (!confirm(`ئایا دڵنیایت لە سڕینەوەی فۆڵدەری «${name}»؟\nسەرجەم وانەکانی ناو ئەم فۆڵدەرەش دەسڕێنەوە!`)) return;
+
+  try {
+    const res = await fetch(`/api/lesson-folders/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      showLiveToastNotification('فۆڵدەر و وانەکانی سڕانەوە 🗑️', 'amber');
+      await loadRecordedLessons();
+      if (currentSelectedTeacher) {
+        showTeacherRecordedLessons(currentSelectedTeacher);
+      }
+    } else {
+      alert('نەتوانرا بسڕدرێتەوە');
+    }
+  } catch (err) {
+    alert('پەیوەندی ناتەواوە');
+  }
+}
+
 function openEditRecordedLessonModal(id) {
   const lesson = cachedRecordedLessons.find(l => l.id === id);
   if (!lesson) return;
@@ -16451,9 +17034,12 @@ async function saveEditedRecordedLesson() {
     if (res.ok) {
       showLiveToastNotification('دەستکاری وانەکە بە سەرکەوتوویی پاشەکەوت کرا! ✨', 'emerald');
       closeEditRecordedLessonModal();
-      currentSelectedTeacherName = teacherName;
       await loadRecordedLessons();
-      showTeacherRecordedLessons(teacherName);
+      if (currentSelectedTeacher && currentSelectedFolder) {
+        showFolderRecordedLessons(currentSelectedTeacher, currentSelectedFolder);
+      } else if (currentSelectedTeacher) {
+        showTeacherRecordedLessons(currentSelectedTeacher);
+      }
     } else {
       alert(data.error || 'هەڵە لە پاشەکەوتکردن');
     }
@@ -16465,19 +17051,10 @@ async function saveEditedRecordedLesson() {
 
 function filterRecordedLessons(query) {
   currentRecordedLessonsFilter = query;
-  if (currentSelectedTeacherName) {
-    const lessonsContainer = document.getElementById('recordedLessonsListContainer');
-    if (!lessonsContainer) return;
-    const q = query.trim().toLowerCase();
-    const cards = lessonsContainer.querySelectorAll('.p-3\\.5');
-    cards.forEach(card => {
-      const text = card.textContent.toLowerCase();
-      if (!q || text.includes(q)) {
-        card.classList.remove('hidden');
-      } else {
-        card.classList.add('hidden');
-      }
-    });
+  if (currentSelectedFolder && currentSelectedTeacher) {
+    showFolderRecordedLessons(currentSelectedTeacher, currentSelectedFolder);
+  } else if (currentSelectedTeacher) {
+    showTeacherRecordedLessons(currentSelectedTeacher);
   } else {
     renderRecordedLessonsTeachers(query);
   }
@@ -16493,6 +17070,11 @@ async function deleteRecordedLesson(id) {
     if (res.ok) {
       showLiveToastNotification('وانەکە سڕایەوە 🗑️', 'amber');
       await loadRecordedLessons();
+      if (currentSelectedTeacher && currentSelectedFolder) {
+        showFolderRecordedLessons(currentSelectedTeacher, currentSelectedFolder);
+      } else if (currentSelectedTeacher) {
+        showTeacherRecordedLessons(currentSelectedTeacher);
+      }
     }
   } catch (e) {
     alert('پەیوەندی ناتەواوە');

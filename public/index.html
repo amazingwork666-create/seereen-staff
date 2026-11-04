@@ -3967,35 +3967,92 @@
         </button>
       </div>
 
-      <!-- Add Lesson Section for Teacher & Super Admin -->
+      <!-- Add Lesson / Teacher / Folder Section for Teacher & Super Admin -->
       <div id="addRecordedLessonStaffBox" class="hidden p-3.5 bg-slate-950/70 border-b border-slate-800 space-y-2.5 text-xs">
-        <div class="flex items-center justify-between">
-          <span class="font-black text-amber-300 flex items-center gap-1.5">
+        <div class="flex items-center justify-between gap-2">
+          <span id="recordedLessonStaffBannerText" class="font-black text-amber-300 flex items-center gap-1.5 truncate">
             <i class="fa-solid fa-plus-circle"></i>
-            <span>دانانی وانەی نوێ (تایبەت بە مامۆستا و سوپەر ئەدمین)</span>
+            <span>زیادکردنی مامۆستای وانە (تایبەت بە مامۆستا و سوپەر ئەدمین)</span>
           </span>
-          <button type="button" onclick="toggleAddLessonForm()" id="toggleAddLessonBtn" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px]">
-            + زیادکردنی وانە
+          <button type="button" onclick="toggleRecordedLessonsActiveForm()" id="toggleRecordedLessonsStaffBtn" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] flex items-center gap-1.5 transition cursor-pointer shadow shrink-0">
+            <i id="toggleRecordedLessonsStaffBtnIcon" class="fa-solid fa-user-plus text-xs"></i>
+            <span id="toggleRecordedLessonsStaffBtnText">+ زیادکردنی مامۆستای وانە</span>
           </button>
         </div>
 
-        <div id="addLessonForm" class="hidden space-y-2.5 pt-2 border-t border-slate-800">
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <!-- 1. Add Teacher Form -->
+        <div id="addTeacherForm" class="hidden space-y-2.5 pt-2 border-t border-slate-800">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label class="block text-[11px] font-bold text-emerald-400 mb-1 flex items-center gap-1">
                 <i class="fa-solid fa-chalkboard-user"></i>
                 <span>ناوی مامۆستا:</span>
               </label>
-              <input type="text" id="newLessonTeacherInput" list="existingTeachersList" placeholder="ناوی مامۆستاکە بنووسە..." class="w-full px-3 py-1.5 bg-slate-900 border border-emerald-500/40 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-400">
-              <datalist id="existingTeachersList"></datalist>
+              <input type="text" id="newLessonTeacherNameInput" placeholder="ناوی مامۆستای وانە بنووسە..." class="w-full px-3 py-1.5 bg-slate-900 border border-emerald-500/40 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-400">
             </div>
             <div>
+              <label class="block text-[11px] font-bold text-slate-300 mb-1 flex items-center gap-1">
+                <i class="fa-solid fa-award"></i>
+                <span>نازناو یان پسپۆڕی (ئارەزوومەندانە):</span>
+              </label>
+              <input type="text" id="newLessonTeacherTitleInput" placeholder="بۆ نموونە: مامۆستای زانستە شەرعییەکان" class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
+            </div>
+          </div>
+          <div class="flex items-center justify-end gap-2 pt-1">
+            <button type="button" onclick="toggleRecordedLessonsActiveForm(false)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition cursor-pointer">داخستن</button>
+            <button type="button" onclick="submitNewLessonTeacher()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black rounded-xl text-xs transition active:scale-95 shadow cursor-pointer">
+              <i class="fa-solid fa-check ml-1"></i> تۆمارکردنی مامۆستا
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Add Folder Form -->
+        <div id="addFolderForm" class="hidden space-y-2.5 pt-2 border-t border-slate-800">
+          <div class="p-2 rounded-xl bg-purple-950/30 border border-purple-500/30 text-purple-300 text-xs flex items-center gap-2">
+            <i class="fa-solid fa-folder-plus text-sm text-purple-400"></i>
+            <span>زیادکردنی فۆڵدەری نوێ بۆ مامۆستا: <b id="addFolderTeacherTargetName" class="text-white"></b></span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[11px] font-bold text-emerald-400 mb-1 flex items-center gap-1">
+                <i class="fa-solid fa-folder"></i>
+                <span>ناوی فۆڵدەر (بەویستی خۆت ناوی بنێ):</span>
+              </label>
+              <input type="text" id="newLessonFolderNameInput" placeholder="بۆ نموونە: تەفسیری قورئان، عەقیدە، شەرحی چلەی نەبەوی..." class="w-full px-3 py-1.5 bg-slate-900 border border-emerald-500/40 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-400">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-300 mb-1">وەسف یان کورتە (ئارەزوومەندانە):</label>
+              <input type="text" id="newLessonFolderDescInput" placeholder="کورتەیەک لەسەر بابەتەکانی ئەم فۆڵدەرە..." class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
+            </div>
+          </div>
+          <div class="flex items-center justify-end gap-2 pt-1">
+            <button type="button" onclick="toggleRecordedLessonsActiveForm(false)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition cursor-pointer">داخستن</button>
+            <button type="button" onclick="submitNewLessonFolder()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black rounded-xl text-xs transition active:scale-95 shadow cursor-pointer">
+              <i class="fa-solid fa-folder-plus ml-1"></i> دروستکردنی فۆڵدەر
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Add Lesson Form -->
+        <div id="addLessonForm" class="hidden space-y-2.5 pt-2 border-t border-slate-800">
+          <div class="p-2 rounded-xl bg-emerald-950/30 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between flex-wrap gap-2">
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-chalkboard-user"></i>
+              <span>مامۆستا: <b id="addLessonTeacherTargetName" class="text-white"></b></span>
+            </span>
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-folder-open"></i>
+              <span>فۆڵدەر: <b id="addLessonFolderTargetName" class="text-white"></b></span>
+            </span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div class="sm:col-span-2">
               <label class="block text-[11px] font-bold text-slate-300 mb-1">ناوی وانە:</label>
               <input type="text" id="newLessonTitleInput" placeholder="ناوی وانەکە بنووسە..." class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
             </div>
             <div>
-              <label class="block text-[11px] font-bold text-slate-300 mb-1">ژمارەی وانە (ئارەزوومەندانە):</label>
-              <input type="number" id="newLessonNumberInput" placeholder="بۆ نموونە: 1" class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
+              <label class="block text-[11px] font-bold text-slate-300 mb-1">ژمارەی وانە:</label>
+              <input type="number" id="newLessonNumberInput" placeholder="1" class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
             </div>
           </div>
           <div>
@@ -4024,30 +4081,37 @@
         </div>
       </div>
 
-      <!-- Recorded Lessons List / Teachers View -->
+      <!-- Recorded Lessons List / Teachers & Folders View -->
       <div class="flex-1 overflow-y-auto p-4 space-y-3">
-        <!-- Search bar for Teachers & Lessons -->
+        <!-- Search bar for Teachers, Folders & Lessons -->
         <div id="recordedLessonsSearchBox" class="relative">
           <i class="fa-solid fa-magnifying-glass absolute right-3 top-2.5 text-slate-500 text-xs"></i>
-          <input type="text" id="recordedLessonsSearchInput" oninput="filterRecordedLessons(this.value)" placeholder="گەڕان بۆ ناوی مامۆستا یان وانە..." class="w-full pr-8 pl-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 transition">
+          <input type="text" id="recordedLessonsSearchInput" oninput="filterRecordedLessons(this.value)" placeholder="گەڕان بۆ ناوی مامۆستا، فۆڵدەر یان وانە..." class="w-full pr-8 pl-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 transition">
         </div>
 
-        <!-- Teacher Navigation Header -->
-        <div id="recordedLessonsNavHeader" class="hidden flex items-center justify-between pb-2 border-b border-slate-800">
-          <button type="button" onclick="showRecordedLessonsTeachersView()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+        <!-- Navigation Breadcrumb Header -->
+        <div id="recordedLessonsNavHeader" class="hidden flex items-center justify-between pb-2 border-b border-slate-800 gap-2 flex-wrap">
+          <button type="button" id="recordedLessonsBackBtn" onclick="navigateRecordedLessonsBack()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0">
             <i class="fa-solid fa-arrow-right"></i>
-            <span>گەڕانەوە بۆ لیستی مامۆستاکان</span>
+            <span id="recordedLessonsBackBtnText">گەڕانەوە</span>
           </button>
-          <span id="selectedTeacherNameBadge" class="text-xs font-black text-emerald-400"></span>
+          <div id="recordedLessonsBreadcrumbPath" class="text-xs font-bold text-slate-300 flex items-center gap-1.5 truncate">
+            <!-- Breadcrumbs rendered in JS -->
+          </div>
         </div>
 
-        <!-- Teachers Grid View -->
+        <!-- Level 1: Teachers Grid View -->
         <div id="recordedLessonsTeachersContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <!-- Rendered in JS -->
           <div class="p-6 text-center text-slate-500 text-xs col-span-2">لە بارکردندایە...</div>
         </div>
 
-        <!-- Lessons of Selected Teacher -->
+        <!-- Level 2: Folders of Selected Teacher -->
+        <div id="recordedLessonsFoldersContainer" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <!-- Rendered in JS -->
+        </div>
+
+        <!-- Level 3: Lessons of Selected Folder -->
         <div id="recordedLessonsListContainer" class="hidden space-y-2.5">
           <!-- Rendered in JS -->
         </div>
@@ -4103,6 +4167,90 @@
             پاشگەزبوونەوە
           </button>
           <button type="button" onclick="saveEditedRecordedLesson()" class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-black transition active:scale-95 shadow cursor-pointer">
+            پاشەکەوتکردن
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: EDIT LESSON TEACHER ================= -->
+  <div id="editLessonTeacherModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="bg-slate-900 border border-emerald-500/40 rounded-2xl sm:rounded-3xl p-4 sm:p-5 w-full max-w-md shadow-2xl relative flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0 mb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-base font-black">
+            <i class="fa-solid fa-chalkboard-user"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm sm:text-base text-white">دەستکاریکردنی مامۆستای وانە</h3>
+            <span class="text-[11px] text-slate-400">گۆڕینی ناوی مامۆستا یان پسپۆڕی</span>
+          </div>
+        </div>
+        <button type="button" onclick="closeEditLessonTeacherModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer" title="داخستن">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <input type="hidden" id="editLessonTeacherId">
+      
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-[11px] font-bold text-emerald-400 mb-1">ناوی مامۆستا:</label>
+          <input type="text" id="editLessonTeacherNameInput" class="w-full px-3 py-2 bg-slate-950 border border-emerald-500/40 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-400" placeholder="ناوی مامۆستا...">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-300 mb-1">نازناو یان پسپۆڕی (ئارەزوومەندانە):</label>
+          <input type="text" id="editLessonTeacherTitleInput" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500" placeholder="بۆ نموونە: مامۆستای فیقهـ">
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeEditLessonTeacherModal()" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer">
+            پاشگەزبوونەوە
+          </button>
+          <button type="button" onclick="saveEditedLessonTeacher()" class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-black transition active:scale-95 shadow cursor-pointer">
+            پاشەکەوتکردن
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: EDIT LESSON FOLDER ================= -->
+  <div id="editLessonFolderModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="bg-slate-900 border border-purple-500/40 rounded-2xl sm:rounded-3xl p-4 sm:p-5 w-full max-w-md shadow-2xl relative flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0 mb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-xl bg-purple-600/20 text-purple-400 border border-purple-500/30 flex items-center justify-center text-base font-black">
+            <i class="fa-solid fa-folder-open"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-sm sm:text-base text-white">دەستکاریکردنی فۆڵدەر</h3>
+            <span class="text-[11px] text-slate-400">گۆڕینی ناوی فۆڵدەر یان کورتە</span>
+          </div>
+        </div>
+        <button type="button" onclick="closeEditLessonFolderModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer" title="داخستن">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <input type="hidden" id="editLessonFolderId">
+      
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-[11px] font-bold text-purple-400 mb-1">ناوی فۆڵدەر (بەویستی خۆت ناوی بنێ):</label>
+          <input type="text" id="editLessonFolderNameInput" class="w-full px-3 py-2 bg-slate-950 border border-purple-500/40 rounded-xl text-xs text-white focus:outline-none focus:border-purple-400" placeholder="ناوی فۆڵدەر...">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-300 mb-1">وەسف یان کورتە (ئارەزوومەندانە):</label>
+          <textarea id="editLessonFolderDescInput" rows="2" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" placeholder="کورتەیەک بنووسە..."></textarea>
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeEditLessonFolderModal()" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer">
+            پاشگەزبوونەوە
+          </button>
+          <button type="button" onclick="saveEditedLessonFolder()" class="px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-black transition active:scale-95 shadow cursor-pointer">
             پاشەکەوتکردن
           </button>
         </div>

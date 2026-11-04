@@ -11,7 +11,7 @@ let archiver;
 try { archiver = require('archiver'); } catch (e) {}
 let DatabaseSync;
 try { DatabaseSync = require('node:sqlite').DatabaseSync; } catch (e) {}
-const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, getDreamTeacherAlias, aiSecurity, advisorDb, buttonClicks, customGroups, pollsDb, alarmsDb, complaints, attendanceDb } = require('./db');
+const { db, initDb, users, messages, questions, library, dreamSessions, dreamMessages, settings, passwordResets, privateMessages, messageReactions, profileChangeRequests, pushSubscriptions, calculateStars, liveRecordings, recordedLessons, lessonTeachers, lessonFolders, getDreamTeacherAlias, aiSecurity, advisorDb, buttonClicks, customGroups, pollsDb, alarmsDb, complaints, attendanceDb } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seereen_group_chat_super_secret_key_2026';
 const PORT = process.env.PORT || 4000;
@@ -7804,9 +7804,116 @@ app.delete('/api/live-recordings/:id', authMiddleware, requireTeacherOrSuperAdmi
   }
 });
 
+// --- LESSON TEACHERS (مامۆستایانی وانە) ---
+app.get('/api/lesson-teachers', authMiddleware, (req, res) => {
+  try {
+    const teachers = lessonTeachers.getAll();
+    res.json({ teachers });
+  } catch (err) {
+    console.error('Error getting lesson teachers:', err);
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی مامۆستاکان' });
+  }
+});
+
+app.post('/api/lesson-teachers', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const { name, title } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'تکایە ناوی مامۆستا بنووسە' });
+    const teacher = lessonTeachers.create(name.trim(), title || '', req.user.id, req.user.full_name);
+    res.json({ success: true, teacher });
+  } catch (err) {
+    console.error('Error creating lesson teacher:', err);
+    res.status(500).json({ error: err.message || 'هەڵە لە زیادکردنی مامۆستا' });
+  }
+});
+
+app.put('/api/lesson-teachers/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { name, title } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'تکایە ناوی مامۆستا بنووسە' });
+    const teacher = lessonTeachers.update(id, name.trim(), title || '');
+    res.json({ success: true, teacher });
+  } catch (err) {
+    console.error('Error updating lesson teacher:', err);
+    res.status(500).json({ error: err.message || 'هەڵە لە دەستکاریکردنی مامۆستا' });
+  }
+});
+
+app.delete('/api/lesson-teachers/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    lessonTeachers.delete(id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting lesson teacher:', err);
+    res.status(500).json({ error: 'هەڵە لە سڕینەوەی مامۆستا' });
+  }
+});
+
+// --- LESSON FOLDERS (فۆڵدەرەکانی وانە بەپێی مامۆستا) ---
+app.get('/api/lesson-folders', authMiddleware, (req, res) => {
+  try {
+    const teacherId = req.query.teacher_id ? parseInt(req.query.teacher_id) : 0;
+    const teacherName = req.query.teacher_name || '';
+    const folders = lessonFolders.getByTeacher(teacherId, teacherName);
+    res.json({ folders });
+  } catch (err) {
+    console.error('Error getting lesson folders:', err);
+    res.status(500).json({ error: 'هەڵە لە وەرگرتنی فۆڵدەرەکان' });
+  }
+});
+
+app.post('/api/lesson-folders', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const { teacher_id, teacher_name, name, description } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'تکایە ناوی فۆڵدەر بنووسە' });
+    const tId = teacher_id ? parseInt(teacher_id) : 0;
+    const folder = lessonFolders.create(tId, (teacher_name || '').trim(), name.trim(), description || '', req.user.id, req.user.full_name);
+    res.json({ success: true, folder });
+  } catch (err) {
+    console.error('Error creating lesson folder:', err);
+    res.status(500).json({ error: err.message || 'هەڵە لە دروستکردنی فۆڵدەر' });
+  }
+});
+
+app.put('/api/lesson-folders/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { name, description } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'تکایە ناوی فۆڵدەر بنووسە' });
+    const folder = lessonFolders.update(id, name.trim(), description || '');
+    res.json({ success: true, folder });
+  } catch (err) {
+    console.error('Error updating lesson folder:', err);
+    res.status(500).json({ error: err.message || 'هەڵە لە دەستکاریکردنی فۆڵدەر' });
+  }
+});
+
+app.delete('/api/lesson-folders/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    lessonFolders.delete(id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting lesson folder:', err);
+    res.status(500).json({ error: 'هەڵە لە سڕینەوەی فۆڵدەر' });
+  }
+});
+
 // --- RECORDED LESSONS FOR STUDENTS (وانە تۆمارکراوەکان - بێ داونلۆد) ---
 app.get('/api/recorded-lessons', authMiddleware, (req, res) => {
   try {
+    const folderId = req.query.folder_id ? parseInt(req.query.folder_id) : 0;
+    if (folderId > 0) {
+      const list = recordedLessons.getByFolder(folderId);
+      return res.json({ lessons: list });
+    }
+    const teacherName = (req.query.teacher_name || '').trim();
+    if (teacherName) {
+      const list = recordedLessons.getByTeacher(teacherName);
+      return res.json({ lessons: list });
+    }
     const list = recordedLessons.getAll();
     res.json({ lessons: list });
   } catch (err) {
@@ -7820,7 +7927,10 @@ app.post('/api/recorded-lessons/upload', authMiddleware, requireTeacherOrSuperAd
     const audioUrl = `/uploads/${req.file.filename}`;
     const duration = req.body.duration || '';
     const teacherName = (req.body.teacher_name || req.body.instructor_name || req.user.full_name || '').trim();
-    const nextNum = recordedLessons.getNextNumber(teacherName);
+    const teacherId = req.body.teacher_id ? parseInt(req.body.teacher_id) : 0;
+    const folderId = req.body.folder_id ? parseInt(req.body.folder_id) : 0;
+    const folderName = (req.body.folder_name || '').trim();
+    const nextNum = recordedLessons.getNextNumber(folderId, teacherName);
     const lessonNum = req.body.lesson_number ? parseInt(req.body.lesson_number) : nextNum;
     const title = req.body.title ? req.body.title.trim() : `وانەی ژمارە #${lessonNum}`;
     const description = req.body.description ? req.body.description.trim() : '';
@@ -7834,7 +7944,10 @@ app.post('/api/recorded-lessons/upload', authMiddleware, requireTeacherOrSuperAd
       req.user.id,
       req.user.full_name,
       req.user.role,
-      teacherName
+      teacherName,
+      folderId,
+      folderName,
+      teacherId
     );
     res.json({ success: true, lesson });
   } catch (err) {
@@ -7846,10 +7959,10 @@ app.post('/api/recorded-lessons/upload', authMiddleware, requireTeacherOrSuperAd
 app.put('/api/recorded-lessons/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { title, description, lesson_number, teacher_name } = req.body;
+    const { title, description, lesson_number, teacher_name, folder_name } = req.body;
     if (!title || !title.trim()) return res.status(400).json({ error: 'ناوی وانە پێویستە' });
     const lNum = lesson_number ? parseInt(lesson_number) : 1;
-    recordedLessons.update(id, title.trim(), description || '', lNum, (teacher_name || '').trim());
+    recordedLessons.update(id, title.trim(), description || '', lNum, (teacher_name || '').trim(), (folder_name || '').trim());
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'هەڵە لە نوێکردنەوەی وانە' });

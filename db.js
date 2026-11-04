@@ -239,6 +239,29 @@ function initDb() {
       uploaded_by_name TEXT NOT NULL,
       uploaded_by_role TEXT NOT NULL,
       teacher_name TEXT DEFAULT '',
+      folder_id INTEGER DEFAULT 0,
+      folder_name TEXT DEFAULT '',
+      teacher_id INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS lesson_teachers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      title TEXT DEFAULT '',
+      created_by_id INTEGER NOT NULL,
+      created_by_name TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS lesson_folders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      teacher_id INTEGER NOT NULL,
+      teacher_name TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      created_by_id INTEGER NOT NULL,
+      created_by_name TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
 
@@ -555,6 +578,9 @@ function initDb() {
   try { db.exec("ALTER TABLE library_books ADD COLUMN cover_image TEXT DEFAULT ''"); } catch (e) {}
   try { db.exec("ALTER TABLE library_books ADD COLUMN author_image TEXT DEFAULT ''"); } catch (e) {}
   try { db.exec("ALTER TABLE recorded_lessons ADD COLUMN teacher_name TEXT DEFAULT ''"); } catch (e) {}
+  try { db.exec("ALTER TABLE recorded_lessons ADD COLUMN folder_id INTEGER DEFAULT 0"); } catch (e) {}
+  try { db.exec("ALTER TABLE recorded_lessons ADD COLUMN folder_name TEXT DEFAULT ''"); } catch (e) {}
+  try { db.exec("ALTER TABLE recorded_lessons ADD COLUMN teacher_id INTEGER DEFAULT 0"); } catch (e) {}
 
   // Backfill question_number sequentially for any unnumbered questions
   try {
@@ -2059,21 +2085,150 @@ const liveRecordings = {
   }
 };
 
+// Lesson Teachers for Recorded Lessons
+const lessonTeachers = {
+  create(name, title = '', createdById = 0, createdByName = '') {
+    const trimmed = (name || '').trim();
+    if (!trimmed) throw new Error('ناوی مامۆستا پێویستە');
+    const existing = db.prepare('SELECT id FROM lesson_teachers WHERE name = ? COLLATE NOCASE').get(trimmed);
+    if (existing) {
+      if (title && title.trim()) {
+        db.prepare('UPDATE lesson_teachers SET title = ? WHERE id = ?').run(title.trim(), existing.id);
+      }
+      return this.findById(existing.id);
+    }
+    const stmt = db.prepare(`
+      INSERT INTO lesson_teachers (name, title, created_by_id, created_by_name, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    const res = stmt.run(trimmed, (title || '').trim(), createdById || 0, createdByName || '', Date.now());
+    return this.findById(res.lastInsertRowid);
+  },
+  findById(id) {
+    return db.prepare(`
+      SELECT t.*,
+             (SELECT COUNT(*) FROM lesson_folders f WHERE f.teacher_id = t.id) as folders_count,
+             (SELECT COUNT(*) FROM recorded_lessons l WHERE l.teacher_id = t.id OR l.teacher_name = t.name COLLATE NOCASE) as lessons_count
+      FROM lesson_teachers t
+      WHERE t.id = ?
+    `).get(id);
+  },
+  findByName(name) {
+    return db.prepare(`
+      SELECT t.*,
+             (SELECT COUNT(*) FROM lesson_folders f WHERE f.teacher_id = t.id) as folders_count,
+             (SELECT COUNT(*) FROM recorded_lessons l WHERE l.teacher_id = t.id OR l.teacher_name = t.name COLLATE NOCASE) as lessons_count
+      FROM lesson_teachers t
+      WHERE t.name = ? COLLATE NOCASE
+    `).get((name || '').trim());
+  },
+  getAll() {
+    return db.prepare(`
+      SELECT t.*,
+             (SELECT COUNT(*) FROM lesson_folders f WHERE f.teacher_id = t.id) as folders_count,
+             (SELECT COUNT(*) FROM recorded_lessons l WHERE l.teacher_id = t.id OR l.teacher_name = t.name COLLATE NOCASE) as lessons_count
+      FROM lesson_teachers t
+      ORDER BY t.created_at ASC
+    `).all();
+  },
+  update(id, name, title = '') {
+    const trimmed = (name || '').trim();
+    if (!trimmed) throw new Error('ناوی مامۆستا پێویستە');
+    const oldTeacher = db.prepare('SELECT name FROM lesson_teachers WHERE id = ?').get(id);
+    db.prepare('UPDATE lesson_teachers SET name = ?, title = ? WHERE id = ?').run(trimmed, (title || '').trim(), id);
+    if (oldTeacher && oldTeacher.name !== trimmed) {
+      db.prepare('UPDATE lesson_folders SET teacher_name = ? WHERE teacher_id = ?').run(trimmed, id);
+      db.prepare('UPDATE recorded_lessons SET teacher_name = ? WHERE teacher_id = ? OR teacher_name = ? COLLATE NOCASE').run(trimmed, id, oldTeacher.name);
+    }
+    return this.findById(id);
+  },
+  delete(id) {
+    const teacher = db.prepare('SELECT name FROM lesson_teachers WHERE id = ?').get(id);
+    if (teacher) {
+      db.prepare('DELETE FROM recorded_lessons WHERE teacher_id = ? OR teacher_name = ? COLLATE NOCASE').run(id, teacher.name);
+      db.prepare('DELETE FROM lesson_folders WHERE teacher_id = ?').run(id);
+    }
+    return db.prepare('DELETE FROM lesson_teachers WHERE id = ?').run(id);
+  }
+};
+
+// Lesson Folders under Teachers
+const lessonFolders = {
+  create(teacherId, teacherName, name, description = '', createdById = 0, createdByName = '') {
+    const trimmedName = (name || '').trim();
+    if (!trimmedName) throw new Error('ناوی فۆڵدەر پێویستە');
+    const safeTeacherName = (teacherName || '').trim();
+    const stmt = db.prepare(`
+      INSERT INTO lesson_folders (teacher_id, teacher_name, name, description, created_by_id, created_by_name, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const res = stmt.run(teacherId || 0, safeTeacherName, trimmedName, (description || '').trim(), createdById || 0, createdByName || '', Date.now());
+    return this.findById(res.lastInsertRowid);
+  },
+  findById(id) {
+    return db.prepare(`
+      SELECT f.*,
+             (SELECT COUNT(*) FROM recorded_lessons l WHERE l.folder_id = f.id) as lessons_count
+      FROM lesson_folders f
+      WHERE f.id = ?
+    `).get(id);
+  },
+  getByTeacher(teacherId, teacherName = '') {
+    if (teacherId && parseInt(teacherId) > 0) {
+      return db.prepare(`
+        SELECT f.*,
+               (SELECT COUNT(*) FROM recorded_lessons l WHERE l.folder_id = f.id) as lessons_count
+        FROM lesson_folders f
+        WHERE f.teacher_id = ?
+        ORDER BY f.created_at ASC
+      `).all(teacherId);
+    }
+    return db.prepare(`
+      SELECT f.*,
+             (SELECT COUNT(*) FROM recorded_lessons l WHERE l.folder_id = f.id) as lessons_count
+      FROM lesson_folders f
+      WHERE f.teacher_name = ? COLLATE NOCASE
+      ORDER BY f.created_at ASC
+    `).all((teacherName || '').trim());
+  },
+  getAll() {
+    return db.prepare(`
+      SELECT f.*,
+             (SELECT COUNT(*) FROM recorded_lessons l WHERE l.folder_id = f.id) as lessons_count
+      FROM lesson_folders f
+      ORDER BY f.created_at ASC
+    `).all();
+  },
+  update(id, name, description = '') {
+    const trimmed = (name || '').trim();
+    if (!trimmed) throw new Error('ناوی فۆڵدەر پێویستە');
+    db.prepare('UPDATE lesson_folders SET name = ?, description = ? WHERE id = ?').run(trimmed, (description || '').trim(), id);
+    db.prepare('UPDATE recorded_lessons SET folder_name = ? WHERE folder_id = ?').run(trimmed, id);
+    return this.findById(id);
+  },
+  delete(id) {
+    db.prepare('DELETE FROM recorded_lessons WHERE folder_id = ?').run(id);
+    return db.prepare('DELETE FROM lesson_folders WHERE id = ?').run(id);
+  }
+};
+
 // Recorded Lessons for Students (Uploaded by Teacher/Admin, No Download Allowed)
 const recordedLessons = {
-  create(lessonNumber, title, description, audioUrl, duration, uploadedById, uploadedByName, uploadedByRole, teacherName = '') {
+  create(lessonNumber, title, description, audioUrl, duration, uploadedById, uploadedByName, uploadedByRole, teacherName = '', folderId = 0, folderName = '', teacherId = 0) {
     const safeTeacher = (teacherName && teacherName.trim()) ? teacherName.trim() : (uploadedByName || 'مامۆستا');
+    const safeFolder = (folderName && folderName.trim()) ? folderName.trim() : '';
     const stmt = db.prepare(`
-      INSERT INTO recorded_lessons (lesson_number, title, description, audio_url, duration, uploaded_by_id, uploaded_by_name, uploaded_by_role, teacher_name, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO recorded_lessons (lesson_number, title, description, audio_url, duration, uploaded_by_id, uploaded_by_name, uploaded_by_role, teacher_name, folder_id, folder_name, teacher_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const res = stmt.run(lessonNumber, title, description || '', audioUrl, duration || '', uploadedById, uploadedByName, uploadedByRole, safeTeacher, Date.now());
+    const res = stmt.run(lessonNumber, title, description || '', audioUrl, duration || '', uploadedById, uploadedByName, uploadedByRole, safeTeacher, folderId || 0, safeFolder, teacherId || 0, Date.now());
     return this.findById(res.lastInsertRowid);
   },
   findById(id) {
     return db.prepare(`
       SELECT id, lesson_number, title, description, audio_url, duration, 
              uploaded_by_id, uploaded_by_name, uploaded_by_role, created_at,
+             folder_id, folder_name, teacher_id,
              COALESCE(NULLIF(teacher_name, ''), uploaded_by_name, 'مامۆستا') as teacher_name,
              COALESCE(NULLIF(teacher_name, ''), uploaded_by_name, 'مامۆستا') as instructor_name
       FROM recorded_lessons 
@@ -2084,13 +2239,42 @@ const recordedLessons = {
     return db.prepare(`
       SELECT id, lesson_number, title, description, audio_url, duration, 
              uploaded_by_id, uploaded_by_name, uploaded_by_role, created_at,
+             folder_id, folder_name, teacher_id,
              COALESCE(NULLIF(teacher_name, ''), uploaded_by_name, 'مامۆستا') as teacher_name,
              COALESCE(NULLIF(teacher_name, ''), uploaded_by_name, 'مامۆستا') as instructor_name
       FROM recorded_lessons 
       ORDER BY lesson_number ASC, created_at DESC
     `).all();
   },
-  getNextNumber(teacherName = '') {
+  getByFolder(folderId) {
+    return db.prepare(`
+      SELECT id, lesson_number, title, description, audio_url, duration, 
+             uploaded_by_id, uploaded_by_name, uploaded_by_role, created_at,
+             folder_id, folder_name, teacher_id,
+             COALESCE(NULLIF(teacher_name, ''), uploaded_by_name, 'مامۆستا') as teacher_name,
+             COALESCE(NULLIF(teacher_name, ''), uploaded_by_name, 'مامۆستا') as instructor_name
+      FROM recorded_lessons 
+      WHERE folder_id = ?
+      ORDER BY lesson_number ASC, created_at DESC
+    `).all(folderId);
+  },
+  getByTeacher(teacherName) {
+    return db.prepare(`
+      SELECT id, lesson_number, title, description, audio_url, duration, 
+             uploaded_by_id, uploaded_by_name, uploaded_by_role, created_at,
+             folder_id, folder_name, teacher_id,
+             COALESCE(NULLIF(teacher_name, ''), uploaded_by_name, 'مامۆستا') as teacher_name,
+             COALESCE(NULLIF(teacher_name, ''), uploaded_by_name, 'مامۆستا') as instructor_name
+      FROM recorded_lessons 
+      WHERE teacher_name = ? COLLATE NOCASE OR uploaded_by_name = ? COLLATE NOCASE
+      ORDER BY lesson_number ASC, created_at DESC
+    `).all(teacherName, teacherName);
+  },
+  getNextNumber(folderId = 0, teacherName = '') {
+    if (folderId && parseInt(folderId) > 0) {
+      const row = db.prepare('SELECT MAX(lesson_number) as max_num FROM recorded_lessons WHERE folder_id = ?').get(folderId);
+      return (row && row.max_num) ? row.max_num + 1 : 1;
+    }
     if (teacherName && teacherName.trim()) {
       const row = db.prepare(`
         SELECT MAX(lesson_number) as max_num 
@@ -2102,10 +2286,14 @@ const recordedLessons = {
     const row = db.prepare('SELECT MAX(lesson_number) as max_num FROM recorded_lessons').get();
     return (row && row.max_num) ? row.max_num + 1 : 1;
   },
-  update(id, title, description, lessonNumber, teacherName = '') {
+  update(id, title, description, lessonNumber, teacherName = '', folderName = '') {
     if (teacherName && teacherName.trim()) {
-      return db.prepare('UPDATE recorded_lessons SET title = ?, description = ?, lesson_number = ?, teacher_name = ? WHERE id = ?')
-        .run(title.trim(), description ? description.trim() : '', lessonNumber, teacherName.trim(), id);
+      return db.prepare(`
+        UPDATE recorded_lessons 
+        SET title = ?, description = ?, lesson_number = ?, teacher_name = ?,
+            folder_name = CASE WHEN ? <> '' THEN ? ELSE folder_name END
+        WHERE id = ?
+      `).run(title.trim(), description ? description.trim() : '', lessonNumber, teacherName.trim(), (folderName || '').trim(), (folderName || '').trim(), id);
     }
     return db.prepare('UPDATE recorded_lessons SET title = ?, description = ?, lesson_number = ? WHERE id = ?')
       .run(title.trim(), description ? description.trim() : '', lessonNumber, id);
@@ -2930,6 +3118,8 @@ module.exports = {
   calculateStars,
   liveRecordings,
   recordedLessons,
+  lessonTeachers,
+  lessonFolders,
   getDreamTeacherAlias,
   aiSecurity,
   advisorDb,
