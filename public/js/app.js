@@ -15815,14 +15815,17 @@ function toggleRecordedLessonsActiveForm(forceState) {
       if (targetBadge) targetBadge.innerText = currentSelectedTeacher.name;
       const input = document.getElementById('newLessonFolderNameInput');
       if (input) { input.value = ''; input.focus(); }
-    } else if (formType === 'lesson' && currentSelectedTeacher && currentSelectedFolder) {
+    } else if (formType === 'lesson' && currentSelectedTeacher) {
+      if (!currentSelectedFolder) {
+        currentSelectedFolder = { id: 0, name: 'فایلی سەرەکی (وانە گشتییەکان)' };
+      }
       const tBadge = document.getElementById('addLessonTeacherTargetName');
       const fBadge = document.getElementById('addLessonFolderTargetName');
       if (tBadge) tBadge.innerText = currentSelectedTeacher.name;
       if (fBadge) fBadge.innerText = currentSelectedFolder.name;
       const numInput = document.getElementById('newLessonNumberInput');
       if (numInput) {
-        const folderLessons = cachedRecordedLessons.filter(l => l.folder_id === currentSelectedFolder.id);
+        const folderLessons = cachedRecordedLessons.filter(l => Number(l.folder_id) === Number(currentSelectedFolder.id));
         const maxNum = folderLessons.reduce((m, l) => Math.max(m, l.lesson_number || 0), 0);
         numInput.value = maxNum + 1;
       }
@@ -16026,8 +16029,7 @@ async function submitNewRecordedLesson() {
     return;
   }
   if (!currentSelectedFolder) {
-    alert('تکایە فۆڵدەرێک هەڵبژێرە یان فۆڵدەری نوێ دروست بکە');
-    return;
+    currentSelectedFolder = { id: 0, name: 'فایلی سەرەکی (وانە گشتییەکان)' };
   }
 
   const titleInput = document.getElementById('newLessonTitleInput');
@@ -16051,13 +16053,15 @@ async function submitNewRecordedLesson() {
 
   const formData = new FormData();
   formData.append('teacher_id', currentSelectedTeacher.id || 0);
-  formData.append('teacher_name', currentSelectedTeacher.name);
+  formData.append('teacher_name', currentSelectedTeacher.name || '');
   formData.append('folder_id', currentSelectedFolder.id || 0);
-  formData.append('folder_name', currentSelectedFolder.name);
+  formData.append('folder_name', currentSelectedFolder.name || 'فایلی سەرەکی');
   formData.append('title', title);
   if (lessonNumber) formData.append('lesson_number', lessonNumber);
   if (description) formData.append('description', description);
-  formData.append('audio', lessonAudioFileBlob, `lesson_${Date.now()}.webm`);
+
+  const audioFileName = (lessonAudioFileBlob && lessonAudioFileBlob.name) ? lessonAudioFileBlob.name : `lesson_${Date.now()}.webm`;
+  formData.append('audio', lessonAudioFileBlob, audioFileName);
 
   try {
     showLiveToastNotification('وانەکە لە بڵاوکردنەوەدایە... 🎙️', 'emerald');
@@ -16085,7 +16089,7 @@ async function submitNewRecordedLesson() {
     }
   } catch (err) {
     console.error('Submit recorded lesson error:', err);
-    alert('هەڵەیەک ڕوویدا لە بارکردنی وانەدا');
+    alert('هەڵەیەک ڕوویدا لە بارکردنی وانەدا: ' + (err.message || ''));
   }
 }
 
@@ -16244,7 +16248,7 @@ function renderRecordedLessonsTeachers(filterQuery = '') {
     ` : '';
 
     return `
-      <div onclick="selectRecordedLessonTeacher(${t.id || 0}, '${escapeHtml(t.name)}')" class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-emerald-500/50 hover:from-slate-850 transition-all cursor-pointer shadow-md group flex items-center justify-between gap-3 active:scale-[0.98]">
+      <div onclick="selectRecordedLessonTeacher(${t.id || 0})" class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-emerald-500/50 hover:from-slate-850 transition-all cursor-pointer shadow-md group flex items-center justify-between gap-3 active:scale-[0.98]">
         <div class="flex items-center gap-3 min-w-0 flex-1">
           <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform shadow-inner">
             <i class="fa-solid fa-chalkboard-user"></i>
@@ -16275,13 +16279,10 @@ function renderRecordedLessonsTeachers(filterQuery = '') {
   }).join('');
 }
 
-function selectRecordedLessonTeacher(teacherId, fallbackName = '') {
-  let teacher = cachedLessonTeachers.find(t => t.id === teacherId);
-  if (!teacher && fallbackName) {
-    teacher = cachedLessonTeachers.find(t => t.name.toLowerCase() === fallbackName.toLowerCase());
-  }
-  if (!teacher && fallbackName) {
-    teacher = { id: teacherId || 0, name: fallbackName, title: 'مامۆستا' };
+function selectRecordedLessonTeacher(teacherId) {
+  let teacher = cachedLessonTeachers.find(t => Number(t.id) === Number(teacherId));
+  if (!teacher && cachedLessonTeachers.length > 0) {
+    teacher = cachedLessonTeachers[0];
   }
   if (teacher) {
     showTeacherRecordedLessons(teacher);
@@ -16493,6 +16494,9 @@ function showTeacherRecordedLessons(teacher) {
   if (typeof teacher === 'string') {
     const found = cachedLessonTeachers.find(t => t.name.toLowerCase() === teacher.toLowerCase());
     teacher = found || { id: 0, name: teacher, title: 'مامۆستا' };
+  } else if (typeof teacher === 'number') {
+    const found = cachedLessonTeachers.find(t => Number(t.id) === Number(teacher));
+    teacher = found || { id: teacher, name: 'مامۆستا', title: 'مامۆستا' };
   }
   currentSelectedTeacher = teacher;
   currentSelectedFolder = null;
@@ -16524,22 +16528,22 @@ function showTeacherRecordedLessons(teacher) {
   updateRecordedLessonsStaffBar();
 
   // Find folders for this teacher
-  let folders = cachedLessonFolders.filter(f => (f.teacher_id && f.teacher_id === teacher.id) || (f.teacher_name && f.teacher_name.toLowerCase() === teacher.name.toLowerCase()));
+  let folders = cachedLessonFolders.filter(f => (f.teacher_id && Number(f.teacher_id) === Number(teacher.id)) || (f.teacher_name && f.teacher_name.toLowerCase() === teacher.name.toLowerCase()));
   
-  // Also check if there are unassigned lessons for this teacher
-  const unassignedLessons = cachedRecordedLessons.filter(l => ((l.teacher_id && l.teacher_id === teacher.id) || (l.teacher_name && l.teacher_name.toLowerCase() === teacher.name.toLowerCase())) && (!l.folder_id || l.folder_id === 0));
-  if (unassignedLessons.length > 0) {
-    const hasGeneral = folders.some(f => f.id === 0 || f.name === 'وانە گشتییەکان');
-    if (!hasGeneral) {
-      folders.unshift({
-        id: 0,
-        teacher_id: teacher.id,
-        teacher_name: teacher.name,
-        name: 'وانە گشتییەکان (سەرەکی)',
-        description: 'وانە تۆمارکراوەکانی پێشوو',
-        lessons_count: unassignedLessons.length
-      });
-    }
+  // Find unassigned lessons for this teacher
+  const unassignedLessons = cachedRecordedLessons.filter(l => ((l.teacher_id && Number(l.teacher_id) === Number(teacher.id)) || (l.teacher_name && l.teacher_name.toLowerCase() === teacher.name.toLowerCase())) && (!l.folder_id || Number(l.folder_id) === 0));
+  
+  // ALWAYS ensure the primary default folder is present even if 0 lessons!
+  const hasGeneral = folders.some(f => Number(f.id) === 0 || (f.name && (f.name.includes('وانە گشتییەکان') || f.name.includes('فایلی سەرەکی'))));
+  if (!hasGeneral) {
+    folders.unshift({
+      id: 0,
+      teacher_id: teacher.id,
+      teacher_name: teacher.name,
+      name: 'فایلی سەرەکی (وانە گشتییەکان)',
+      description: 'فایلی وانە سەرەتایی و گشتییەکان',
+      lessons_count: unassignedLessons.length
+    });
   }
 
   const query = (currentRecordedLessonsFilter || '').trim().toLowerCase();
@@ -16547,32 +16551,15 @@ function showTeacherRecordedLessons(teacher) {
     folders = folders.filter(f => {
       const matchName = f.name && f.name.toLowerCase().includes(query);
       const matchDesc = f.description && f.description.toLowerCase().includes(query);
-      const matchLesson = cachedRecordedLessons.some(l => (l.folder_id === f.id || (!f.id && !l.folder_id)) && (l.title.toLowerCase().includes(query) || (l.description && l.description.toLowerCase().includes(query))));
+      const matchLesson = cachedRecordedLessons.some(l => (Number(l.folder_id) === Number(f.id) || (!f.id && !l.folder_id)) && (l.title.toLowerCase().includes(query) || (l.description && l.description.toLowerCase().includes(query))));
       return matchName || matchDesc || matchLesson;
     });
   }
 
   const isStaff = isRecordedLessonsStaff();
 
-  if (folders.length === 0) {
-    foldersContainer.innerHTML = `
-      <div class="p-8 text-center text-slate-500 text-xs leading-relaxed col-span-2 space-y-2">
-        <div class="w-16 h-16 rounded-3xl bg-purple-950/40 border border-purple-500/30 text-purple-300 flex items-center justify-center text-2xl mx-auto mb-2 shadow-inner">
-          <i class="fa-solid fa-folder-open"></i>
-        </div>
-        <p class="font-bold text-slate-300 text-sm">
-          ${query ? `هیچ فۆڵدەرێک بە ناوی «${escapeHtml(query)}» نەدۆزرایەوە.` : `هیچ فۆڵدەرێک بۆ مامۆستا «${escapeHtml(teacher.name)}» دروست نەکراوە.`}
-        </p>
-        <p class="text-[11px] text-slate-400">
-          ${isStaff ? 'لە سەرەوە کلیک لەسەر «+ زیادکردنی فۆڵدەری نوێ» بکە بۆ دروستکردنی فۆڵدەر بەویستی خۆت (وەک: تەفسیر، عەقیدە، شەرحی کتێب...).' : 'تۆماری وانە بۆ ئەم مامۆستایە بەردەست نییە.'}
-        </p>
-      </div>
-    `;
-    return;
-  }
-
   foldersContainer.innerHTML = folders.map(f => {
-    const fLessons = cachedRecordedLessons.filter(l => (f.id && l.folder_id === f.id) || (!f.id && (!l.folder_id || l.folder_id === 0) && l.teacher_name.toLowerCase() === teacher.name.toLowerCase()));
+    const fLessons = cachedRecordedLessons.filter(l => (f.id && Number(l.folder_id) === Number(f.id)) || (!f.id && (!l.folder_id || Number(l.folder_id) === 0) && l.teacher_name.toLowerCase() === teacher.name.toLowerCase()));
     const lCount = fLessons.length;
 
     const staffActionBtns = (isStaff && f.id > 0) ? `
@@ -16587,18 +16574,23 @@ function showTeacherRecordedLessons(teacher) {
     ` : '';
 
     return `
-      <div onclick="selectRecordedLessonFolder(${f.id || 0})" class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-purple-500/30 hover:border-purple-400 hover:from-purple-950/20 transition-all cursor-pointer shadow-md group flex items-center justify-between gap-3 active:scale-[0.98]">
+      <div onclick="selectRecordedLessonFolder(${f.id || 0})" class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border ${lCount === 0 ? 'border-purple-500/30' : 'border-purple-500/40'} hover:border-purple-400 hover:from-purple-950/20 transition-all cursor-pointer shadow-md group flex items-center justify-between gap-3 active:scale-[0.98]">
         <div class="flex items-center gap-3 min-w-0 flex-1">
           <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 text-purple-300 border border-purple-500/40 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition-transform shadow-inner">
             <i class="fa-solid fa-folder-closed group-hover:hidden"></i>
             <i class="fa-solid fa-folder-open hidden group-hover:inline-block"></i>
           </div>
           <div class="min-w-0">
-            <h4 class="font-black text-sm text-white group-hover:text-purple-300 transition truncate">${escapeHtml(f.name)}</h4>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h4 class="font-black text-sm text-white group-hover:text-purple-300 transition truncate">${escapeHtml(f.name)}</h4>
+              ${f.id === 0 ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">بنەڕەتی</span>' : ''}
+            </div>
             ${f.description ? `<p class="text-[11px] text-slate-400 truncate mt-0.5">${escapeHtml(f.description)}</p>` : ''}
-            <span class="text-[10px] px-2 py-0.5 rounded-md bg-purple-950/60 text-purple-300 border border-purple-500/30 font-bold inline-block mt-1">
-              ${lCount} وانە 🎙️
-            </span>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-[10px] px-2 py-0.5 rounded-md ${lCount === 0 ? 'bg-slate-800/80 text-amber-300 border border-amber-500/30' : 'bg-purple-950/60 text-purple-300 border border-purple-500/30'} font-bold inline-block">
+                ${lCount === 0 ? 'فایلی بەتاڵ (٠ وانە) 📁' : `${lCount} وانە 🎙️`}
+              </span>
+            </div>
           </div>
         </div>
         <div class="flex items-center gap-1 shrink-0">
@@ -16613,9 +16605,9 @@ function showTeacherRecordedLessons(teacher) {
 }
 
 function selectRecordedLessonFolder(folderId) {
-  let folder = cachedLessonFolders.find(f => f.id === folderId);
-  if (!folder && folderId === 0) {
-    folder = { id: 0, name: 'وانە گشتییەکان', description: '' };
+  let folder = cachedLessonFolders.find(f => Number(f.id) === Number(folderId));
+  if (!folder && (folderId === 0 || Number(folderId) === 0)) {
+    folder = { id: 0, name: 'فایلی سەرەکی (وانە گشتییەکان)', description: '' };
   }
   if (currentSelectedTeacher && folder) {
     showFolderRecordedLessons(currentSelectedTeacher, folder);
@@ -16681,12 +16673,20 @@ function showFolderRecordedLessons(teacher, folder) {
         <div class="w-16 h-16 rounded-3xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 flex items-center justify-center text-2xl mx-auto mb-2 shadow-inner">
           <i class="fa-solid fa-circle-play"></i>
         </div>
-        <p class="font-bold text-slate-300 text-sm">
-          ${query ? `هیچ وانەیەک بە ناوی «${escapeHtml(query)}» نەدۆزرایەوە.` : `هیچ وانەیەک لە فۆڵدەری «${escapeHtml(folder.name)}»دا نییە.`}
+        <p class="font-bold text-slate-200 text-sm">
+          ${query ? `هیچ وانەیەک بە ناوی «${escapeHtml(query)}» نەدۆزرایەوە.` : `فایلی «${escapeHtml(folder.name)}» لە ئێستادا بەتاڵە`}
         </p>
         <p class="text-[11px] text-slate-400">
-          ${isStaff ? 'لە سەرەوە کلیک لەسەر «+ زیادکردنی وانە» بکە بۆ بارکردن یان تۆمارکردنی یەکەم وانە لەم فۆڵدەرەدا!' : 'بە زوویی وانەکان لەم فۆڵدەرەدا دادەنرێن.'}
+          ${isStaff ? 'دەتوانیت لە خوارەوە کلیک بکەیت بۆ بارکردن یان تۆمارکردنی یەکەم وانە لەم فایلەدا!' : 'بە زوویی وانەکان لەم فایلەدا دادەنرێن.'}
         </p>
+        ${isStaff ? `
+          <div class="pt-2">
+            <button type="button" onclick="toggleRecordedLessonsActiveForm(true)" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black rounded-xl text-xs transition active:scale-95 shadow cursor-pointer inline-flex items-center gap-2">
+              <i class="fa-solid fa-circle-plus"></i>
+              <span>+ زیادکردنی وانە بۆ ئەم فایلە</span>
+            </button>
+          </div>
+        ` : ''}
       </div>
     `;
     return;

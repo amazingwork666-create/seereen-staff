@@ -2183,22 +2183,15 @@ const lessonFolders = {
     `).get(id);
   },
   getByTeacher(teacherId, teacherName = '') {
-    if (teacherId && parseInt(teacherId) > 0) {
-      return db.prepare(`
-        SELECT f.*,
-               (SELECT COUNT(*) FROM recorded_lessons l WHERE l.folder_id = f.id) as lessons_count
-        FROM lesson_folders f
-        WHERE f.teacher_id = ?
-        ORDER BY f.created_at ASC
-      `).all(teacherId);
-    }
+    const tId = teacherId ? parseInt(teacherId) : 0;
+    const tName = (teacherName || '').trim();
     return db.prepare(`
       SELECT f.*,
              (SELECT COUNT(*) FROM recorded_lessons l WHERE l.folder_id = f.id) as lessons_count
       FROM lesson_folders f
-      WHERE f.teacher_name = ? COLLATE NOCASE
+      WHERE (f.teacher_id = ? AND ? > 0) OR (f.teacher_name = ? COLLATE NOCASE AND ? <> '')
       ORDER BY f.created_at ASC
-    `).all((teacherName || '').trim());
+    `).all(tId, tId, tName, tName);
   },
   getAll() {
     return db.prepare(`

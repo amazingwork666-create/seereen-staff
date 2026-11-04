@@ -682,8 +682,8 @@ function requireAdmin(req, res, next) {
 
 // Super Admin or Teacher Middleware (Strictly excludes normal admin and student)
 function requireTeacherOrSuperAdmin(req, res, next) {
-  if (req.user.role !== 'super_admin' && req.user.role !== 'teacher' && !hasSuperAdminPrivileges(req.user)) {
-    return res.status(403).json({ error: 'تەنها سوپەر ئەدمین و مامۆستا دەسەڵاتی ئەم کارەیان هەیە' });
+  if (req.user.role !== 'super_admin' && req.user.role !== 'teacher' && req.user.role !== 'admin' && !hasSuperAdminPrivileges(req.user) && !canManageMembers(req.user)) {
+    return res.status(403).json({ error: 'تەنها سوپەر ئەدمین، مامۆستا و بەڕێوەبەر دەسەڵاتی ئەم کارەیان هەیە' });
   }
   next();
 }
@@ -7921,39 +7921,48 @@ app.get('/api/recorded-lessons', authMiddleware, (req, res) => {
   }
 });
 
-app.post('/api/recorded-lessons/upload', authMiddleware, requireTeacherOrSuperAdmin, upload.single('audio'), (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'هیچ فایلی دەنگێک بارنەکراوە' });
-    const audioUrl = `/uploads/${req.file.filename}`;
-    const duration = req.body.duration || '';
-    const teacherName = (req.body.teacher_name || req.body.instructor_name || req.user.full_name || '').trim();
-    const teacherId = req.body.teacher_id ? parseInt(req.body.teacher_id) : 0;
-    const folderId = req.body.folder_id ? parseInt(req.body.folder_id) : 0;
-    const folderName = (req.body.folder_name || '').trim();
-    const nextNum = recordedLessons.getNextNumber(folderId, teacherName);
-    const lessonNum = req.body.lesson_number ? parseInt(req.body.lesson_number) : nextNum;
-    const title = req.body.title ? req.body.title.trim() : `وانەی ژمارە #${lessonNum}`;
-    const description = req.body.description ? req.body.description.trim() : '';
+app.post('/api/recorded-lessons/upload', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
+  upload.single('audio')(req, res, (err) => {
+    if (err) {
+      console.error('Recorded lesson multer upload error:', err);
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'قەبارەی فایلی دەنگ زۆر گەورەیە (سەرووی ١٥٠ مێگابایت)' });
+      }
+      return res.status(400).json({ error: 'هەڵە لە بارکردنی فایلی دەنگ: ' + (err.message || '') });
+    }
+    try {
+      if (!req.file) return res.status(400).json({ error: 'تکایە فایلی دەنگ هەڵبژێرە یان تۆماری بکە' });
+      const audioUrl = `/uploads/${req.file.filename}`;
+      const duration = req.body.duration || '';
+      const teacherName = (req.body.teacher_name || req.body.instructor_name || req.user.full_name || '').trim();
+      const teacherId = req.body.teacher_id ? parseInt(req.body.teacher_id) : 0;
+      const folderId = req.body.folder_id ? parseInt(req.body.folder_id) : 0;
+      const folderName = (req.body.folder_name || '').trim();
+      const nextNum = recordedLessons.getNextNumber(folderId, teacherName);
+      const lessonNum = req.body.lesson_number ? parseInt(req.body.lesson_number) : nextNum;
+      const title = req.body.title ? req.body.title.trim() : `وانەی ژمارە #${lessonNum}`;
+      const description = req.body.description ? req.body.description.trim() : '';
 
-    const lesson = recordedLessons.create(
-      lessonNum,
-      title,
-      description,
-      audioUrl,
-      duration,
-      req.user.id,
-      req.user.full_name,
-      req.user.role,
-      teacherName,
-      folderId,
-      folderName,
-      teacherId
-    );
-    res.json({ success: true, lesson });
-  } catch (err) {
-    console.error('Recorded lesson upload error:', err);
-    res.status(500).json({ error: 'هەڵە لە بارکردنی وانە' });
-  }
+      const lesson = recordedLessons.create(
+        lessonNum,
+        title,
+        description,
+        audioUrl,
+        duration,
+        req.user.id,
+        req.user.full_name,
+        req.user.role,
+        teacherName,
+        folderId,
+        folderName,
+        teacherId
+      );
+      res.json({ success: true, lesson });
+    } catch (err) {
+      console.error('Recorded lesson upload database error:', err);
+      res.status(500).json({ error: 'هەڵە لە پاشەکەوتکردنی وانە لە داتابەیس: ' + (err.message || '') });
+    }
+  });
 });
 
 app.put('/api/recorded-lessons/:id', authMiddleware, requireTeacherOrSuperAdmin, (req, res) => {
