@@ -318,7 +318,7 @@ const BADGE_CONFIG = {
   },
   blue: {
     color: 'blue',
-    name: 'باجی شین (پاسەوان)',
+    name: 'باجی شین (چاودێر)',
     shortName: 'شین',
     icon: 'fa-shield',
     dotColor: 'bg-sky-400',

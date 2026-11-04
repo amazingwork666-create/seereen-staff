@@ -1744,7 +1744,7 @@ const advisorTools = [
       },
       {
         name: 'get_badge_holders',
-        description: 'وەرگرتنی لیستی هەموو ئەو بەکارهێنەرانەی باجی تایبەتیان هەیە (blue بۆ پاسەوانی چات، white بۆ ڕاوێژکار، purple بۆ خەون، green بۆ بەڕێوەبەر، black بۆ سوپەر ئەدمین، red بۆ لایڤ)',
+        description: 'وەرگرتنی لیستی هەموو ئەو بەکارهێنەرانەی باجی تایبەتیان هەیە (blue بۆ چاودێری چات، white بۆ ڕاوێژکار، purple بۆ خەون، green بۆ بەڕێوەبەر، black بۆ سوپەر ئەدمین، red بۆ لایڤ)',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -1794,7 +1794,7 @@ const advisorTools = [
       },
       {
         name: 'assign_badge',
-        description: 'بەخشین یان لێسەندنەوەی باج بە فەرمانی کاک هێمن (blue: پاسەوانی چات، white: ڕاوێژکار، purple: خەون، green: بەڕێوەبەر، black: سوپەر ئەدمین، red: لایڤ، none: لێسەندنەوە). تێبینی: بە هیچ جۆرێک دەستکاری کاک هێمن ناکات.',
+        description: 'بەخشین یان لێسەندنەوەی باج بە فەرمانی کاک هێمن (blue: چاودێری چات، white: ڕاوێژکار، purple: خەون، green: بەڕێوەبەر، black: سوپەر ئەدمین، red: لایڤ، none: لێسەندنەوە). تێبینی: بە هیچ جۆرێک دەستکاری کاک هێمن ناکات.',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -4984,7 +4984,7 @@ app.post('/api/admin/special-badge', authMiddleware, requireMasterSuperAdmin, (r
 
   const badgeNames = {
     white: '⚪ سپی (ڕاوێژکار)',
-    blue: '🔵 شین (پاسەوان)',
+    blue: '🔵 شین (چاودێر)',
     green: '🟢 سەوز (بەڕێوەبەر)',
     black: '⚫ ڕەش (سوپەر ئەدمین)',
     red: '🔴 سور (لایڤ)',
@@ -7024,7 +7024,7 @@ app.delete('/api/chat/messages/:id', authMiddleware, (req, res) => {
   const isOwner = msg.user_id === req.user.id;
 
   if (!isPrivileged && !isOwner) {
-    return res.status(403).json({ error: 'تەنها ئەدمین، مامۆستا، پاسەوانی چات یان خاوەنی پەیامەکە دەتوانێت نامەکە بسڕێتەوە' });
+    return res.status(403).json({ error: 'تەنها ئەدمین، مامۆستا، چاودێری چات یان خاوەنی پەیامەکە دەتوانێت نامەکە بسڕێتەوە' });
   }
 
   messages.delete(msgId);
