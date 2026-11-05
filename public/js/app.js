@@ -16026,7 +16026,11 @@ function toggleRecordedLessonsActiveForm(forceState) {
       if (input) { input.value = ''; input.focus(); }
     } else if (formType === 'lesson' && currentSelectedTeacher) {
       if (!currentSelectedFolder) {
-        currentSelectedFolder = { id: 0, name: 'فایلی سەرەکی (وانە گشتییەکان)' };
+        alert('تکایە سەرەتا بچۆ ناو فۆڵدەرێک بۆ ئەوەی وانەکەی تێدا دابنێیت');
+        targetForm.classList.add('hidden');
+        activeRecordedLessonsFormType = null;
+        if (btnText) btnText.innerText = defaultBtnLabel;
+        return;
       }
       const tBadge = document.getElementById('addLessonTeacherTargetName');
       const fBadge = document.getElementById('addLessonFolderTargetName');
@@ -16220,8 +16224,8 @@ async function submitNewLessonFolder() {
       if (descInput) descInput.value = '';
       toggleRecordedLessonsActiveForm(false);
       await loadRecordedLessons();
-      if (data.folder) {
-        showFolderRecordedLessons(currentSelectedTeacher, data.folder);
+      if (currentSelectedTeacher) {
+        showTeacherRecordedLessons(currentSelectedTeacher);
       }
     } else {
       alert(data.error || 'هەڵە لە دروستکردنی فۆڵدەر');
@@ -16238,7 +16242,8 @@ async function submitNewRecordedLesson() {
     return;
   }
   if (!currentSelectedFolder) {
-    currentSelectedFolder = { id: 0, name: 'فایلی سەرەکی (وانە گشتییەکان)' };
+    alert('تکایە سەرەتا بچۆ ناو ئەو فۆڵدەرەی دەتەوێت وانەکەی تێدا دابنێیت');
+    return;
   }
 
   const titleInput = document.getElementById('newLessonTitleInput');
@@ -16264,7 +16269,7 @@ async function submitNewRecordedLesson() {
   formData.append('teacher_id', currentSelectedTeacher.id || 0);
   formData.append('teacher_name', currentSelectedTeacher.name || '');
   formData.append('folder_id', currentSelectedFolder.id || 0);
-  formData.append('folder_name', currentSelectedFolder.name || 'فایلی سەرەکی');
+  formData.append('folder_name', currentSelectedFolder.name || '');
   formData.append('title', title);
   if (lessonNumber) formData.append('lesson_number', lessonNumber);
   if (description) formData.append('description', description);
@@ -16736,42 +16741,50 @@ function showTeacherRecordedLessons(teacher) {
 
   updateRecordedLessonsStaffBar();
 
-  // Find folders for this teacher
+  // Find folders for this teacher (only real folders created by user/admin)
   let folders = cachedLessonFolders.filter(f => (f.teacher_id && Number(f.teacher_id) === Number(teacher.id)) || (f.teacher_name && f.teacher_name.toLowerCase() === teacher.name.toLowerCase()));
-  
-  // Find unassigned lessons for this teacher
-  const unassignedLessons = cachedRecordedLessons.filter(l => ((l.teacher_id && Number(l.teacher_id) === Number(teacher.id)) || (l.teacher_name && l.teacher_name.toLowerCase() === teacher.name.toLowerCase())) && (!l.folder_id || Number(l.folder_id) === 0));
-  
-  // ALWAYS ensure the primary default folder is present even if 0 lessons!
-  const hasGeneral = folders.some(f => Number(f.id) === 0 || (f.name && (f.name.includes('وانە گشتییەکان') || f.name.includes('فایلی سەرەکی'))));
-  if (!hasGeneral) {
-    folders.unshift({
-      id: 0,
-      teacher_id: teacher.id,
-      teacher_name: teacher.name,
-      name: 'فایلی سەرەکی (وانە گشتییەکان)',
-      description: 'فایلی وانە سەرەتایی و گشتییەکان',
-      lessons_count: unassignedLessons.length
-    });
-  }
 
   const query = (currentRecordedLessonsFilter || '').trim().toLowerCase();
   if (query) {
     folders = folders.filter(f => {
       const matchName = f.name && f.name.toLowerCase().includes(query);
       const matchDesc = f.description && f.description.toLowerCase().includes(query);
-      const matchLesson = cachedRecordedLessons.some(l => (Number(l.folder_id) === Number(f.id) || (!f.id && !l.folder_id)) && (l.title.toLowerCase().includes(query) || (l.description && l.description.toLowerCase().includes(query))));
+      const matchLesson = cachedRecordedLessons.some(l => Number(l.folder_id) === Number(f.id) && (l.title.toLowerCase().includes(query) || (l.description && l.description.toLowerCase().includes(query))));
       return matchName || matchDesc || matchLesson;
     });
   }
 
   const isStaff = isRecordedLessonsStaff();
 
+  // If no folders exist yet for this teacher, show clean empty state (NO default fake folder)
+  if (folders.length === 0) {
+    foldersContainer.innerHTML = `
+      <div class="text-center py-12 px-4 rounded-3xl bg-slate-900/40 border border-dashed border-purple-500/25">
+        <div class="w-14 h-14 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-2xl mx-auto mb-3 shadow-inner">
+          <i class="fa-solid fa-folder-plus"></i>
+        </div>
+        <p class="text-sm font-black text-slate-200">هیچ فۆڵدەرێک بۆ ${escapeHtml(teacher.name)} دروست نەکراوە</p>
+        <p class="text-xs text-slate-400 mt-1.5 max-w-sm mx-auto">
+          ${isStaff 
+            ? 'دەتوانیت لە ڕێگەی دوگمەی «+ زیادکردنی فۆڵدەری نوێ» فۆڵدەر دروست بکەیت و ناوی بنێیت بە ئارەزووی خۆت.' 
+            : 'هێشتا هیچ فۆڵدەر و وانەیەک بۆ ئەم مامۆستایە دانەنراوە.'}
+        </p>
+        ${isStaff ? `
+          <button type="button" onclick="toggleRecordedLessonsActiveForm('folder')" class="mt-4 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black transition inline-flex items-center gap-1.5 shadow-lg shadow-purple-950 active:scale-95 cursor-pointer">
+            <i class="fa-solid fa-folder-plus text-xs"></i>
+            <span>+ زیادکردنی فۆڵدەری نوێ</span>
+          </button>
+        ` : ''}
+      </div>
+    `;
+    return;
+  }
+
   foldersContainer.innerHTML = folders.map(f => {
-    const fLessons = cachedRecordedLessons.filter(l => (f.id && Number(l.folder_id) === Number(f.id)) || (!f.id && (!l.folder_id || Number(l.folder_id) === 0) && l.teacher_name.toLowerCase() === teacher.name.toLowerCase()));
+    const fLessons = cachedRecordedLessons.filter(l => Number(l.folder_id) === Number(f.id));
     const lCount = fLessons.length;
 
-    const staffActionBtns = (isStaff && f.id > 0) ? `
+    const staffActionBtns = isStaff ? `
       <div class="flex items-center gap-1" onclick="event.stopPropagation()">
         <button type="button" onclick="openEditLessonFolderModal(${f.id})" class="p-1.5 text-slate-400 hover:text-purple-400 rounded-lg hover:bg-slate-800 transition cursor-pointer" title="دەستکاریکردنی فۆڵدەر ✏️">
           <i class="fa-solid fa-pen-to-square text-xs"></i>
@@ -16783,7 +16796,7 @@ function showTeacherRecordedLessons(teacher) {
     ` : '';
 
     return `
-      <div onclick="selectRecordedLessonFolder(${f.id || 0})" class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border ${lCount === 0 ? 'border-purple-500/30' : 'border-purple-500/40'} hover:border-purple-400 hover:from-purple-950/20 transition-all cursor-pointer shadow-md group flex items-center justify-between gap-3 active:scale-[0.98]">
+      <div onclick="selectRecordedLessonFolder(${f.id})" class="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border ${lCount === 0 ? 'border-purple-500/30' : 'border-purple-500/40'} hover:border-purple-400 hover:from-purple-950/20 transition-all cursor-pointer shadow-md group flex items-center justify-between gap-3 active:scale-[0.98]">
         <div class="flex items-center gap-3 min-w-0 flex-1">
           <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 text-purple-300 border border-purple-500/40 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition-transform shadow-inner">
             <i class="fa-solid fa-folder-closed group-hover:hidden"></i>
@@ -16792,12 +16805,11 @@ function showTeacherRecordedLessons(teacher) {
           <div class="min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
               <h4 class="font-black text-sm text-white group-hover:text-purple-300 transition truncate">${escapeHtml(f.name)}</h4>
-              ${f.id === 0 ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">بنەڕەتی</span>' : ''}
             </div>
             ${f.description ? `<p class="text-[11px] text-slate-400 truncate mt-0.5">${escapeHtml(f.description)}</p>` : ''}
             <div class="flex items-center gap-2 mt-1">
               <span class="text-[10px] px-2 py-0.5 rounded-md ${lCount === 0 ? 'bg-slate-800/80 text-amber-300 border border-amber-500/30' : 'bg-purple-950/60 text-purple-300 border border-purple-500/30'} font-bold inline-block">
-                ${lCount === 0 ? 'فایلی بەتاڵ (٠ وانە) 📁' : `${lCount} وانە 🎙️`}
+                ${lCount === 0 ? 'فۆڵدەری بەتاڵ (٠ وانە) 📁' : `${lCount} وانە 🎙️`}
               </span>
             </div>
           </div>
@@ -16814,10 +16826,7 @@ function showTeacherRecordedLessons(teacher) {
 }
 
 function selectRecordedLessonFolder(folderId) {
-  let folder = cachedLessonFolders.find(f => Number(f.id) === Number(folderId));
-  if (!folder && (folderId === 0 || Number(folderId) === 0)) {
-    folder = { id: 0, name: 'فایلی سەرەکی (وانە گشتییەکان)', description: '' };
-  }
+  const folder = cachedLessonFolders.find(f => Number(f.id) === Number(folderId));
   if (currentSelectedTeacher && folder) {
     showFolderRecordedLessons(currentSelectedTeacher, folder);
   }
